@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A shared classroom workspace for keeping schoolwork on track." />
     <title>Class tasks — TaskTracker</title>
-    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@700,600,500,400&display=swap" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script>
       try {
         document.documentElement.dataset.theme =
           localStorage.getItem('class_tasks_theme') ||
-          (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-      } catch (e) { document.documentElement.dataset.theme = 'light'; }
+          'dark';
+        } catch (e) { document.documentElement.dataset.theme = 'dark'; }
     </script>
     <script>
       try {

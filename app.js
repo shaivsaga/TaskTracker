@@ -185,6 +185,7 @@ function applyProgress(list) {
 }
 function setStatus(task, status) {
   progress[task.id] = { status, movedAt: Date.now() };
+  if (status === 'done') navigator.vibrate?.(12);
   applyProgress(myTasks);
   applyProgress(publishedTasks);
   justChangedId = task.id;
@@ -1104,10 +1105,20 @@ function ensureStatusPopover() {
     opt.addEventListener('click', () => {
       if (!statusPopoverTask) return;
       const picked = statusPopoverTask;
+      const prev = progress[picked.id] ? { ...progress[picked.id] } : null;
       setStatus(picked, opt.dataset.status);
       if (picked === currentTask) { updateDialogStatus(picked); flashSaved(); }
       closeStatusPopover();
       renderAllTasks();
+      if (opt.dataset.status === 'done') {
+        showToast('Marked done', 'Undo', () => {
+          if (prev) progress[picked.id] = prev; else delete progress[picked.id];
+          applyProgress(myTasks);
+          applyProgress(publishedTasks);
+          saveTasks();
+          renderAllTasks();
+        });
+      }
     });
     el.appendChild(opt);
   });
