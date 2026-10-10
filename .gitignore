@@ -1,5 +1,6 @@
 data/
 api/.htaccess
+api/.htaccess.bak
 api/.htpasswd
 api/config.php
 .vscode/
