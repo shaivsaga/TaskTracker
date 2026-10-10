@@ -1,0 +1,5 @@
+data/
+api/.htaccess
+api/.htpasswd
+api/config.php
+.vscode/

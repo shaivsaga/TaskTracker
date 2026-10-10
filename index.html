@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A shared classroom workspace for keeping schoolwork on track." />
+    <title>Class tasks — TaskTracker</title>
+    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@700,600,500,400&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script>
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem('class_tasks_theme') ||
+          (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch (e) { document.documentElement.dataset.theme = 'light'; }
+    </script>
+    <script>
+      try {
+        document.documentElement.dataset.sidebar =
+          localStorage.getItem('class_tasks_sidebar') === '1' ? 'collapsed' : 'open';
+      } catch (e) { document.documentElement.dataset.sidebar = 'open'; }
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <div class="brand">
+          <span class="brand-name">TaskTracker</span>
+          <button class="sidebar-toggle" type="button" id="sidebar-toggle" aria-label="Collapse sidebar" aria-expanded="true">
+            <i data-lucide="panel-left" aria-hidden="true"></i>
+          </button>
+        </div>
+        <nav class="nav-group" aria-label="Workspace">
+          <a class="nav-item is-active" href="#class-tasks" data-page="class-tasks">
+            <i data-lucide="clipboard-list" class="nav-icon" aria-hidden="true"></i>
+            <span>Class tasks</span>
+          </a>
+          <a class="nav-item" href="#my-tasks" data-page="my-tasks" id="nav-admin" hidden>
+            <i data-lucide="shield-check" class="nav-icon" aria-hidden="true"></i>
+            <span>Admin</span>
+            <span class="nav-badge" id="nav-badge" hidden>0</span>
+          </a>
+          <a class="nav-item" href="#done" data-page="done">
+            <i data-lucide="check-circle" class="nav-icon" aria-hidden="true"></i>
+            <span>Completed tasks</span>
+          </a>
+          <a class="nav-item" href="#calendar" data-page="calendar">
+            <i data-lucide="calendar-days" class="nav-icon" aria-hidden="true"></i>
+            <span>Calendar</span>
+          </a>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <button class="mobile-menu" type="button" aria-label="Toggle navigation" aria-expanded="false">
+            <span></span><span></span><span></span>
+          </button>
+          <h1 class="header-title" id="breadcrumb-current">Class tasks</h1>
+          <button class="icon-button" type="button" id="theme-toggle" aria-label="Switch to dark mode">
+            <i data-lucide="moon" class="icon-moon" aria-hidden="true"></i>
+            <i data-lucide="sun" class="icon-sun" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="page-container">
+          <section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Class tasks">
+            <div class="page-heading">
+              <div>
+                <p class="page-supporting-copy">Assignments for everyone in the class.</p>
+              </div>
+              <div class="page-actions">
+                <div class="view-tabs" role="group" aria-label="View">
+                  <button type="button" class="view-tab is-active" data-view="board" aria-pressed="true">Board</button>
+                  <button type="button" class="view-tab" data-view="list" aria-pressed="false">List</button>
+                </div>
+              </div>
+            </div>
+            <p class="sync-note" id="sync-note" hidden>Offline. Showing the last synced version.</p>
+            <div class="preview-banner" id="preview-banner" hidden>
+              <span>Previewing as a student. Showing your unpublished draft.</span>
+              <button class="text-button" type="button" id="preview-exit">Exit preview</button>
+            </div>
+            <section class="announcements" id="announce-admin" aria-label="Pinned announcements">
+              <div class="announce-header">
+                <h2><i data-lucide="pin" aria-hidden="true"></i> Pinned</h2>
+                <button class="text-button" type="button" id="announce-add-btn">Post announcement</button>
+              </div>
+              <form class="announce-form" id="announce-form" hidden>
+                <textarea id="announce-input" rows="3" maxlength="280" placeholder="Write a note for the class" aria-label="Announcement text" required></textarea>
+                <div class="announce-actions">
+                  <span class="announce-count" id="announce-count"></span>
+                  
+                  <button class="text-button" type="button" id="announce-cancel">Cancel</button>
+                  <button class="primary-button" type="submit">Pin</button>
+                </div>
+              </form>
+              <ul class="announce-list" id="announce-list"></ul>
+            </section>
+            <section class="announcements" aria-label="Pinned announcements">
+              <div class="announce-header">
+                <h2><i data-lucide="pin" aria-hidden="true"></i> Pinned</h2>
+              </div>
+              <ul class="announce-list" id="announce-list-public"></ul>
+            </section>
+            <div class="task-list" id="class-task-list" aria-label="Class task list" hidden></div>
+            <div class="kanban-board" id="class-board" aria-label="Class task board">
+              <div class="kanban-column" data-status="todo">
+                <div class="column-header">
+                  <div><h2>To Do</h2><span class="column-count">(0)</span></div>
+                  <span class="column-marker marker-todo" aria-hidden="true"></span>
+                </div>
+                <div class="column-content is-empty"><p class="column-empty">No class assignments yet.</p></div>
+              </div>
+              <div class="kanban-column" data-status="progress">
+                <div class="column-header">
+                  <div><h2>In Progress</h2><span class="column-count">(0)</span></div>
+                  <span class="column-marker marker-progress" aria-hidden="true"></span>
+                </div>
+                <div class="column-content is-empty"><p class="column-empty">Nothing in progress.</p></div>
+              </div>
+              <div class="kanban-column" data-status="done">
+                <div class="column-header">
+                  <div><h2>Submitted / Done</h2><span class="column-count">(0)</span></div>
+                  <span class="column-marker marker-done" aria-hidden="true"></span>
+                </div>
+                <div class="column-content is-empty"><p class="column-empty">No submitted work yet.</p></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="page" id="page-my-tasks" data-page-view="my-tasks" aria-label="My tasks" hidden>
+            <div class="page-heading">
+              <div>
+                <p class="page-supporting-copy">Post announcements and manage the tasks the class sees.</p>
+              </div>
+              <div class="page-actions">
+                <label class="search">
+                  <i data-lucide="search" aria-hidden="true"></i>
+                  <input type="search" id="task-search" placeholder="Search tasks" aria-label="Search tasks" autocomplete="off">
+                </label>
+                <div class="view-tabs" role="group" aria-label="View">
+                  <button type="button" class="view-tab is-active" data-view="board" aria-pressed="true">Board</button>
+                  <button type="button" class="view-tab" data-view="list" aria-pressed="false">List</button>
+                </div>
+                <button class="primary-button" type="button" id="new-task-btn">
+                  <i data-lucide="plus" aria-hidden="true"></i> New task
+                </button>
+              </div>
+            </div>
+            <div class="admin-bar" id="admin-bar">
+              <span class="admin-status" id="admin-status" role="status"></span>
+              <div class="admin-actions">
+                <button class="text-button" type="button" id="btn-preview">Preview as student</button>
+                <button class="text-button" type="button" id="btn-history">History</button>
+                <button class="text-button" type="button" id="btn-discard">Discard changes</button>
+                <button class="secondary-button" type="button" id="btn-save">Save</button>
+                <button class="primary-button" type="button" id="btn-apply">Apply changes</button>
+              </div>
+            </div>
+            <div class="empty-state">
+              <p>No tasks yet.</p>
+              <button class="text-button" type="button" id="empty-add-btn">Add a task</button>
+            </div>
+            <p class="summary" aria-label="Task summary">
+              <span>All tasks</span>
+              <span id="sum-open">0 open</span>
+              <span id="sum-progress">0 in progress</span>
+              <span id="sum-today" hidden>0 due today</span>
+              <span id="sum-overdue" class="is-alert" hidden>0 overdue</span>
+            </p>
+            <div class="task-list" id="task-list" aria-label="Personal task list" hidden></div>
+            <div class="kanban-board" aria-label="Personal task board">
+              <div class="kanban-column" data-status="todo">
+                <div class="column-header">
+                  <div><h2>To Do</h2><span class="column-count">(0)</span></div>
+                  <span class="column-marker marker-todo" aria-hidden="true"></span>
+                </div>
+                <div class="column-content is-empty"><p class="column-empty">Hit "New task" to add your first item.</p></div>
+              </div>
+              <div class="kanban-column" data-status="progress">
+                <div class="column-header">
+                  <div><h2>In Progress</h2><span class="column-count">(0)</span></div>
+                  <span class="column-marker marker-progress" aria-hidden="true"></span>
+                </div>
+                <div class="column-content is-empty"><p class="column-empty">Move a task here once you've started it.</p></div>
+              </div>
+              <div class="kanban-column" data-status="done">
+                <div class="column-header">
+                  <div><h2>Submitted / Done</h2><span class="column-count">(0)</span></div>
+                  <span class="column-marker marker-done" aria-hidden="true"></span>
+                </div>
+                <div class="column-content is-empty"><p class="column-empty">Finished tasks land here.</p></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="page utility-page" id="page-done" data-page-view="done" aria-label="Completed tasks" hidden>
+            <div class="page-heading">
+              <div><p class="page-supporting-copy">A record of work finished by the class.</p></div>
+            </div>
+            <div class="task-list" id="done-list" aria-label="Completed tasks"></div>
+          </section>
+
+          <section class="page utility-page" id="page-calendar" data-page-view="calendar" aria-label="Calendar" hidden>
+            <div class="page-heading">
+              <h2 class="cal-title" id="cal-title"></h2>
+              <div class="page-actions">
+                <div class="view-tabs" role="group" aria-label="Calendar view">
+                  <button type="button" class="view-tab is-active" data-cal-mode="month" aria-pressed="true">Month</button>
+                  <button type="button" class="view-tab" data-cal-mode="week" aria-pressed="false">Week</button>
+                </div>
+                <button class="secondary-button" type="button" id="cal-today">Today</button>
+                <div class="cal-nav">
+                  <button class="icon-button" type="button" id="cal-prev" aria-label="Previous"><i data-lucide="chevron-left" aria-hidden="true"></i></button>
+                  <button class="icon-button" type="button" id="cal-next" aria-label="Next"><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+                </div>
+              </div>
+            </div>
+            <div class="cal" id="cal-grid" data-mode="month"></div>
+            <p class="list-empty" id="cal-empty" hidden>No tasks have a due date yet. Add one and it shows up here.</p>
+          </section>
+        </div>
+        <p class="sr-only" id="action-feedback" role="status" aria-live="polite"></p>
+        <div class="toast" id="toast" role="status" hidden>
+          <span id="toast-message"></span>
+          <button class="toast-action" type="button" id="toast-action"></button>
+        </div>
+      </main>
+
+      <div class="task-dialog-overlay" id="task-dialog-overlay" hidden aria-hidden="true">
+        <div class="task-dialog" role="dialog" aria-modal="true" aria-label="Task details">
+          <div class="dialog-header">
+            <input class="dialog-title-input" id="dialog-title-input" type="text" aria-label="Task title" placeholder="New task">
+            <button class="panel-close" type="button" id="dialog-close" aria-label="Close task">
+              <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="dialog-body">
+            <div class="dialog-controls">
+              <div class="field">
+                <label class="field-label">Status</label>
+                <button class="prop-value status-value is-not-started" type="button" id="dialog-status-btn">
+                  <span class="status-dot" id="dialog-status-dot"></span>
+                  <span id="dialog-status-label">Not started</span>
+                </button>
+              </div>
+              <div class="field">
+                <label class="field-label">Subject</label>
+                <button class="prop-value empty-value" type="button" id="dialog-subject-btn" aria-haspopup="listbox" aria-expanded="false">Empty</button>
+                <div class="status-dropdown subject-dropdown" id="dialog-subject-dropdown" role="listbox" aria-label="Subject" hidden></div>
+              </div>
+              <div class="field field-due">
+                <label class="field-label">Due</label>
+                <div class="due-controls">
+                  <button class="prop-value empty-value" type="button" id="dialog-date-btn">Empty</button>
+                  <button class="prop-clear" type="button" id="dialog-due-clear" hidden aria-label="Clear due date">
+                    <i data-lucide="x" class="prop-clear-icon" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <div class="dialog-doc" id="dialog-doc" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Notes" data-placeholder="Write notes, or drop images here"></div>
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <span class="save-state" id="save-state" role="status" aria-live="polite"></span>
+            <button class="text-button" type="button" id="dialog-duplicate">Duplicate</button>
+            <button class="text-button" type="button" id="dialog-delete">Delete task</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="task-dialog-overlay" id="publish-overlay" hidden>
+      <form class="task-dialog" id="publish-form" role="dialog" aria-modal="true" aria-labelledby="publish-title">
+        <div class="dialog-header">
+          <h2 class="dialog-heading" id="publish-title">Apply changes</h2>
+          <button class="panel-close" type="button" id="publish-close" aria-label="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <div class="dialog-body">
+          <p class="dialog-summary" id="publish-summary"></p>
+          <div class="field"><label class="field-label" for="publish-note">Note (optional)</label>
+            <input class="text-input" id="publish-note" type="text" maxlength="80"></div>
+          <p class="form-error" id="publish-error" role="alert" hidden></p>
+        </div>
+        <div class="dialog-footer">
+          <button class="text-button" type="button" id="publish-cancel">Cancel</button>
+          <button class="primary-button" type="submit" id="publish-submit">Publish</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="task-dialog-overlay" id="history-overlay" hidden>
+      <div class="task-dialog" role="dialog" aria-modal="true" aria-labelledby="history-title">
+        <div class="dialog-header">
+          <h2 class="dialog-heading" id="history-title">History</h2>
+          <button class="panel-close" type="button" id="history-close" aria-label="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <div class="dialog-body">
+          <div class="history-bar">
+            <button class="text-button" type="button" id="history-clear">Clear all history</button>
+          </div>
+          <ul class="history-list" id="history-list"></ul>
+        </div>
+      </div>
+    </div>
+    <div class="quick-overlay" id="quick-overlay" hidden>
+      <div class="quick-add" role="dialog" aria-modal="true" aria-labelledby="quick-label">
+        <label class="sr-only" id="quick-label" for="quick-input">Quick add task</label>
+        <input class="quick-input" id="quick-input" type="text" autocomplete="off" spellcheck="false" placeholder="Subject, task, status, date">
+        <div class="quick-preview" id="quick-preview" aria-live="polite"></div>
+        <div class="quick-chips" id="quick-chips"></div>
+        <div class="quick-keys">
+          <span><kbd>Enter</kbd> Add</span>
+          <span><kbd>Shift</kbd> + <kbd>Enter</kbd> Add and open</span>
+          <span><kbd>cal</kbd> Pick date, time is optional</span>
+          <span><kbd>Esc</kbd> Cancel</span>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>lucide.createIcons();</script>
+  </body>
+</html>
