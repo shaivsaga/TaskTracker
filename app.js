@@ -1062,7 +1062,7 @@ function renderTaskList() {
 // --- Subjects, quick add, announcements, shortcuts ---
 const SUBJECTS = {
   GENSCI: 'bg-cyan', GENMATH: 'bg-pink', PKLP: 'bg-sunglow', EFFCOM: 'bg-green',
-  MABKOM: 'bg-white', PERDEV: 'bg-yellow', PE: 'bg-yellow', THEOLOGY: 'bg-white', CP103: 'bg-blue',
+  MABKOM: 'bg-white', PERDEV: 'bg-yellow', PE: 'bg-yellow', THEOLOGY: 'bg-white', CP104: 'bg-blue',
 };
 const STATUS_CODES = {
   ns: 'not_started', todo: 'not_started', 'not started': 'not_started',
