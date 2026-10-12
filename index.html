@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://unpkg.com/lucide@1.55.0/dist/umd/lucide.min.js"></script>
     <script>
       try {
         document.documentElement.dataset.theme =
@@ -73,6 +73,10 @@
                 <p class="page-supporting-copy">Assignments for everyone in the class.</p>
               </div>
               <div class="page-actions">
+                <label class="search">
+                  <i data-lucide="search" aria-hidden="true"></i>
+                  <input type="search" id="class-task-search" placeholder="Search tasks" aria-label="Search class tasks" autocomplete="off">
+                </label>
                 <div class="view-tabs" role="group" aria-label="View">
                   <button type="button" class="view-tab is-active" data-view="board" aria-pressed="true">Board</button>
                   <button type="button" class="view-tab" data-view="list" aria-pressed="false">List</button>
@@ -234,7 +238,7 @@
       <div class="task-dialog-overlay" id="task-dialog-overlay" hidden aria-hidden="true">
         <div class="task-dialog" role="dialog" aria-modal="true" aria-label="Task details">
           <div class="dialog-header">
-            <input class="dialog-title-input" id="dialog-title-input" type="text" aria-label="Task title" placeholder="New task">
+            <textarea class="dialog-title-input" id="dialog-title-input" rows="1" maxlength="500" aria-label="Task title" placeholder="New task" spellcheck="false"></textarea>
             <button class="panel-close" type="button" id="dialog-close" aria-label="Close task">
               <i data-lucide="x" aria-hidden="true"></i>
             </button>
@@ -254,7 +258,7 @@
                 <div class="status-dropdown subject-dropdown" id="dialog-subject-dropdown" role="listbox" aria-label="Subject" hidden></div>
               </div>
               <div class="field field-due">
-                <label class="field-label">Due</label>
+                <label class="field-label">Due<span class="due-hint" id="dialog-due-hint"></span></label>
                 <div class="due-controls">
                   <button class="prop-value empty-value" type="button" id="dialog-date-btn">Empty</button>
                   <button class="prop-clear" type="button" id="dialog-due-clear" hidden aria-label="Clear due date">
@@ -286,6 +290,11 @@
           <p class="dialog-summary" id="publish-summary"></p>
           <div class="field"><label class="field-label" for="publish-note">Note (optional)</label>
             <input class="text-input" id="publish-note" type="text" maxlength="80"></div>
+          <p class="form-error" id="publish-clear-warning" hidden>Every assignment the class can see will be removed. Announcements are not affected, and earlier versions stay in History.</p>
+          <div class="field" id="publish-clear" hidden>
+            <label class="field-label" for="publish-clear-input">Type CLEAR BOARD to confirm</label>
+            <input class="text-input" id="publish-clear-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="publish-clear-warning">
+          </div>
           <p class="form-error" id="publish-error" role="alert" hidden></p>
         </div>
         <div class="dialog-footer">
@@ -325,6 +334,6 @@
     </div>
 
     <script src="app.js"></script>
-    <script>lucide.createIcons();</script>
+    <script>if (window.lucide) lucide.createIcons();</script>
   </body>
 </html>

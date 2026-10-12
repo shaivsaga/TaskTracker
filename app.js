@@ -91,25 +91,50 @@ class Task {
     return ts.getTime() < Date.now();
   }
 
-  getCountdown() {
+  getDueShort() {
     if (!this.dueDate) return 'Someday';
-    if (this.isOverdue()) return 'Past Due';
-    const diff = dayDiff(this.dueDate);
-    const time = this.getTimeLabel();
-    const dow = this.dueDate.toLocaleDateString('en-US', { weekday: 'short' });
-    const md = this.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-    if (diff === 0) {
-      if (!this.dueTime) return 'Due Today';
-      const mins = Math.max(1, Math.ceil((this.getDueTimestamp().getTime() - Date.now()) / 60000));
-      if (mins < 60) return `Due in ${plural(mins, 'Minute')}`;
-      if (parseInt(this.dueTime, 10) >= 20) return `Due Tonight at ${time}`;
-      return `Due in ${plural(Math.floor(mins / 60), 'Hour')}`;
+    const sameYear = this.dueDate.getFullYear() === new Date().getFullYear();
+    if (this.dueTime) {
+      const date = this.dueDate.toLocaleDateString('en-US', sameYear
+        ? { month: 'short', day: 'numeric' }
+        : { month: 'short', day: 'numeric', year: 'numeric' });
+      return `${date} · ${this.getTimeLabel()}`;
     }
-    if (diff === 1) return this.dueTime ? `Due Tomorrow at ${time}` : 'Due Tomorrow';
-    if (diff <= 13) return this.dueTime ? `Due in ${diff} Days at ${time} (${dow})` : `Due in ${diff} Days (${dow})`;
-    if (diff <= 29) return `Due in ${plural(Math.round(diff / 7), 'Week')} (${dow}, ${md})`;
-    return `Due in ${plural(Math.floor(diff / 30), 'Month')} (${md})`;
+    return this.dueDate.toLocaleDateString('en-US', sameYear
+      ? { weekday: 'short', month: 'short', day: 'numeric' }
+      : { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  getDueHint() {
+    if (!this.dueDate) return '';
+    const diff = dayDiff(this.dueDate);
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    if (this.isOverdue()) {
+      if (diff === 0) {
+        const mins = Math.max(1, Math.floor((Date.now() - this.getDueTimestamp().getTime()) / 60000));
+        return mins < 60 ? `${mins} min overdue` : `${Math.floor(mins / 60)} hr overdue`;
+      }
+      const days = -diff;
+      return days >= 14 ? '2+ weeks overdue' : days >= 7 ? '1 week overdue' : `${plural(days, 'day')} overdue`;
+    }
+    if (diff === 0) {
+      if (!this.dueTime) return 'today';
+      const mins = Math.max(1, Math.ceil((this.getDueTimestamp().getTime() - Date.now()) / 60000));
+      return mins < 60 ? `in ${mins} min` : `in ${Math.floor(mins / 60)} hr`;
+    }
+    if (diff === 1) return 'tomorrow';
+    if (diff <= 13) return `in ${diff} days`;
+    if (diff < 60) return `in ${Math.floor(diff / 7)} weeks`;
+    return `in ${plural(Math.floor(diff / 30), 'month')}`;
+  }
+
+  // Card and list text: the countdown, capitalised, plus the time whenever the task has one.
+  getDueLabel() {
+    if (!this.dueDate) return 'Someday';
+    const base = this.dueTime && dayDiff(this.dueDate) === 0 && !this.isOverdue() ? 'today' : this.getDueHint();
+    const lead = base === 'today' || base === 'tomorrow' ? `due ${base}` : base;
+    const text = lead.charAt(0).toUpperCase() + lead.slice(1);
+    return this.dueTime ? `${text} · ${this.getTimeLabel()}` : text;
   }
 
   getTimeLabel() {
@@ -131,7 +156,7 @@ class Task {
   }
 
   static fromJSON(obj) {
-    let notes = obj.notes || '';
+    let notes = typeof obj.notes === 'string' ? obj.notes : '';
     if (!/<[a-z][\s\S]*>/i.test(notes)) {
       const esc = document.createElement('div');
       esc.textContent = notes;
@@ -141,8 +166,11 @@ class Task {
     return new Task({
       id: obj.id,
       title: obj.title,
-      dueDate: obj.dueDate ? new Date(obj.dueDate + 'T00:00:00') : undefined,
-      dueTime: obj.dueTime,
+      dueDate: (() => {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof obj.dueDate === 'string' ? obj.dueDate : '');
+        return (m && makeDate(+m[1], +m[2] - 1, +m[3])) || undefined;
+      })(),
+      dueTime: typeof obj.dueTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(obj.dueTime) ? obj.dueTime : undefined,
       notes: sanitizeDoc(notes),
       subject: obj.subject
     });
@@ -192,8 +220,16 @@ function setStatus(task, status) {
   saveTasks();
 }
 function sortTasks(list) {
-  const byDue = (a, b) => (a.dueDate && b.dueDate ? a.dueDate - b.dueDate : a.dueDate ? -1 : b.dueDate ? 1 : 0);
-  return list.slice().sort((a, b) => (b.movedAt - a.movedAt) || byDue(a, b));
+  const byText = (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const due = (t) => { const d = t.getDueTimestamp(); return d ? d.getTime() : Infinity; };
+  return list.slice().sort((a, b) => {
+    const aDone = a.status === 'done', bDone = b.status === 'done';
+    if (aDone !== bDone) return aDone ? 1 : -1;
+    if (aDone) return (b.movedAt - a.movedAt) || byText(a, b);
+    const da = due(a), db = due(b);
+    if (da !== db) return da < db ? -1 : 1;
+    return byText(a, b);
+  });
 }
 
 const dialogOverlay = document.querySelector('#task-dialog-overlay');
@@ -205,11 +241,27 @@ const dialogStatusDot = document.querySelector('#dialog-status-dot');
 const dialogStatusLabel = document.querySelector('#dialog-status-label');
 const dialogDateBtn = document.querySelector('#dialog-date-btn');
 const dialogDueClear = document.querySelector('#dialog-due-clear');
+const dialogDueHint = document.querySelector('#dialog-due-hint');
 const dialogDoc = document.querySelector('#dialog-doc');
 const dialogDelete = document.querySelector('#dialog-delete');
 const dialogDuplicate = document.querySelector('#dialog-duplicate');
 
 let currentTask = null;
+
+// Title is a one-line-looking textarea that grows with its content
+function fitDialogTitle() {
+  dialogTitleInput.style.height = 'auto';
+  dialogTitleInput.style.height = dialogTitleInput.scrollHeight + 'px';
+}
+dialogTitleInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing) e.preventDefault();
+});
+dialogTitleInput.addEventListener('input', () => {
+  const clean = dialogTitleInput.value.replace(/[\r\n]+/g, ' ');
+  if (clean !== dialogTitleInput.value) dialogTitleInput.value = clean;
+  fitDialogTitle();
+});
+window.addEventListener('resize', () => { if (currentTask) fitDialogTitle(); });
 
 // --- Persistence: progress (everyone) + draft (admin) ---
 function saveTasks() {
@@ -244,34 +296,52 @@ function loadTasks() {
   applyProgress(myTasks);
 }
 
+// Returns a clean { tasks, announcements } or null when the data is not a usable board.
+function normalizeBoard(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.tasks)) return null;
+  if (data.announcements != null && !Array.isArray(data.announcements)) return null;
+  const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
+  return {
+    ...data,
+    tasks: data.tasks.filter(isObj),
+    announcements: (data.announcements || []).filter((a) => isObj(a) && typeof a.text === 'string' && Number.isFinite(a.createdAt)),
+  };
+}
+
 function setPublished(data) {
-  publishedTasks = ((data && data.tasks) || []).map((o) => Task.fromJSON(o));
-  publishedAnnouncements = (data && data.announcements) || [];
+  const board = normalizeBoard(data) || { tasks: [], announcements: [] };
+  publishedTasks = board.tasks.map((o) => Task.fromJSON(o));
+  publishedAnnouncements = board.announcements;
   applyProgress(publishedTasks);
 }
 
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
-  let data = null;
+  let board = null;
   try {
     const res = await fetch(`${API.current}?t=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    let data;
     if (res.status === 404) data = { tasks: [], announcements: [] };
     else if (res.ok) data = await res.json();
     else throw new Error(String(res.status));
-    writeJSON(KEYS.cache, data);
+    board = normalizeBoard(data);
+    if (!board) throw new Error('Invalid board data');
+    writeJSON(KEYS.cache, board);
     note.hidden = true;
   } catch (e) {
-    data = readJSON(KEYS.cache, null);
+    board = normalizeBoard(readJSON(KEYS.cache, null));
     note.hidden = false;
   }
   if (currentTask) return;
-  setPublished(data);
+  setPublished(board);
   renderAllTasks();
   renderAnnouncements();
 }
 
 function updateDialogDue(task) {
-  dialogDateBtn.textContent = task.getCountdown();
+  dialogDateBtn.textContent = task.getDueShort();
+  dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
+  dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
   dialogDateBtn.classList.toggle('empty-value', !task.dueDate);
   dialogDueClear.hidden = !task.dueDate || !isEditable(task);
 }
@@ -301,7 +371,7 @@ function sanitizeDoc(html) {
         const tag = n.tagName.toLowerCase();
         if (tag === 'img') {
           const s = n.getAttribute('src') || '';
-          if (/^data:image\//.test(s)) { const i = document.createElement('img'); i.src = s; i.alt = ''; dst.appendChild(i); }
+          if (/^data:image\/(png|jpeg|gif|webp);base64,/i.test(s)) { const i = document.createElement('img'); i.src = s; i.alt = ''; dst.appendChild(i); }
         } else if (tag === 'br') {
           dst.appendChild(document.createElement('br'));
         } else if (tag === 'div' || tag === 'p') {
@@ -338,6 +408,7 @@ function openTaskDialog(task) {
   dialogOverlay.hidden = false;
   dialogOverlay.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
+  fitDialogTitle();
   (ro ? dialogStatusBtn : dialogTitleInput).focus();
 }
 
@@ -352,6 +423,8 @@ function closeTaskDialog() {
   closeStatusPopover();
   hideAnimated(dialogOverlay);
   dialogOverlay.setAttribute('aria-hidden', 'true');
+  dialogSubjectDropdown.hidden = true;
+  dialogSubjectBtn.setAttribute('aria-expanded', 'false');
   document.body.style.overflow = '';
   renderAllTasks();
 }
@@ -410,12 +483,13 @@ function createTaskCard(task) {
       const isDone = task.status === 'done';
       const overdueNow = task.isOverdue();
       const due = document.createElement('span');
-      due.className = 'due-badge' + (overdueNow && !isDone ? ' overdue' : diff <= 1 && !isDone ? ' due-soon' : '');
+      due.className = 'due-badge' + (overdueNow && !isDone ? ' overdue' : diff <= 3 && !isDone ? ' due-soon' : '');
       const icon = document.createElement('i');
       icon.setAttribute('data-lucide', diff < 0 && !isDone ? 'alarm-clock' : 'calendar');
       icon.setAttribute('aria-hidden', 'true');
       const label = document.createElement('span');
-      label.textContent = isDone ? task.getDueDateDisplay() : task.getCountdown();
+      label.textContent = isDone ? task.getDueDateDisplay() : task.getDueLabel();
+      if (!isDone) due.title = task.getDueShort();
       due.append(icon, label);
       footer.appendChild(due);
     }
@@ -438,7 +512,9 @@ function updateColumn(columnEl) {
   const emptyMsg = contentEl.querySelector('.column-empty');
   if (emptyMsg) {
     if (!emptyMsg.dataset.default) emptyMsg.dataset.default = emptyMsg.textContent;
-    emptyMsg.textContent = searchQuery.trim() && columnEl.closest('#page-my-tasks') ? 'No tasks match your search.' : emptyMsg.dataset.default;
+    const searching = columnEl.closest('#page-class-tasks') ? classSearchQuery.trim()
+      : columnEl.closest('#page-my-tasks') ? searchQuery.trim() : '';
+    emptyMsg.textContent = searching ? 'No tasks match your search.' : emptyMsg.dataset.default;
     emptyMsg.hidden = !isEmpty;
   }
 }
@@ -494,7 +570,7 @@ function handleDragOver(e) {
       clearDropPlaceholder();
       const ph = document.createElement('div');
       ph.className = 'drop-placeholder';
-      ph.textContent = 'Moves to top';
+      ph.textContent = 'Move here';
       ph.setAttribute('aria-hidden', 'true');
       content.prepend(ph);
     }
@@ -756,7 +832,9 @@ function renderClassTasks() {
   board.querySelectorAll('.column-content').forEach((c) => {
     c.querySelectorAll('.task-card, .skeleton').forEach((n) => n.remove());
   });
-  const source = sortTasks(previewing ? myTasks : publishedTasks);
+  const all = previewing ? myTasks : publishedTasks;
+  const q = classSearchQuery.trim().toLowerCase();
+  const source = sortTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
   source.forEach((task) => {
     const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
     if (col) col.appendChild(createTaskCard(task));
@@ -767,7 +845,7 @@ function renderClassTasks() {
   if (!source.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
-    none.textContent = 'No class assignments yet.';
+    none.textContent = q && all.length ? 'No tasks match your search.' : 'No class assignments yet.';
     classListEl.appendChild(none);
   }
 }
@@ -777,7 +855,7 @@ const recordSource = () => ((isAdmin || previewing) ? myTasks : publishedTasks);
 
 function renderDonePage() {
   const host = document.querySelector('#done-list');
-  const done = recordSource().filter((t) => t.status === 'done').sort((a, b) => b.movedAt - a.movedAt);
+  const done = sortTasks(recordSource().filter((t) => t.status === 'done'));
   host.replaceChildren();
   if (!done.length) {
     const none = document.createElement('p');
@@ -911,6 +989,7 @@ document.querySelectorAll('[data-cal-mode]').forEach((b) => b.addEventListener('
 
 // --- Search, overview stats, nav badge ---
 let searchQuery = '';
+let classSearchQuery = '';
 
 function getVisibleTasks() {
   const q = searchQuery.trim().toLowerCase();
@@ -941,6 +1020,26 @@ function updateOverview() {
 document.querySelector('#task-search').addEventListener('input', (e) => {
   searchQuery = e.target.value;
   renderAllTasks();
+});
+
+// Class tasks search: title, subject code, notes text. Separate from the admin search.
+const notesTextCache = new WeakMap();
+function plainNotes(task) {
+  const hit = notesTextCache.get(task);
+  if (hit && hit.html === task.notes) return hit.text;
+  const tpl = document.createElement('template'); // inert: embedded images are not loaded
+  tpl.innerHTML = (task.notes || '').replace(/<(?:br|\/div|\/p)\b[^>]*>/gi, ' ');
+  const text = (tpl.content.textContent || '').toLowerCase();
+  notesTextCache.set(task, { html: task.notes, text });
+  return text;
+}
+function matchesClassSearch(task, q) {
+  return task.title.toLowerCase().includes(q) || task.subject.toLowerCase().includes(q) || plainNotes(task).includes(q);
+}
+document.querySelector('#class-task-search').addEventListener('input', (e) => {
+  classSearchQuery = e.target.value;
+  renderClassTasks();
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 });
 
 // --- New task, theme, and view switch ---
@@ -1021,7 +1120,8 @@ function createTaskRow(task) {
   const due = document.createElement('span');
   const overdue = task.dueDate && task.status !== 'done' && task.isOverdue();
   due.className = 'task-row-due' + (overdue ? ' is-overdue' : '');
-  due.textContent = task.status === 'done' ? task.getDueDateDisplay() : task.getCountdown();
+  due.textContent = task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel();
+  if (task.status !== 'done') due.title = task.getDueShort();
 
   const del = document.createElement('button');
   del.type = 'button';
@@ -1062,7 +1162,7 @@ function renderTaskList() {
 // --- Subjects, quick add, announcements, shortcuts ---
 const SUBJECTS = {
   GENSCI: 'bg-cyan', GENMATH: 'bg-pink', PKLP: 'bg-sunglow', EFFCOM: 'bg-green',
-  MABKOM: 'bg-white', PERDEV: 'bg-yellow', PE: 'bg-yellow', THEOLOGY: 'bg-white', CP104: 'bg-blue',
+  MABKOM: 'bg-sand', PERDEV: 'bg-yellow', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
 };
 const STATUS_CODES = {
   ns: 'not_started', todo: 'not_started', 'not started': 'not_started',
@@ -1107,7 +1207,7 @@ function ensureStatusPopover() {
       const picked = statusPopoverTask;
       const prev = progress[picked.id] ? { ...progress[picked.id] } : null;
       setStatus(picked, opt.dataset.status);
-      if (picked === currentTask) { updateDialogStatus(picked); flashSaved(); }
+      if (picked === currentTask) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
       closeStatusPopover();
       renderAllTasks();
       if (opt.dataset.status === 'done') {
@@ -1200,10 +1300,26 @@ function selectSubject(code) {
   opt.addEventListener('click', () => selectSubject(code));
   dialogSubjectDropdown.appendChild(opt);
 });
+// Lives on <body> (same as the status menu) so the dialog's scroll area can't clip it
+dialogSubjectDropdown.classList.add('status-popover');
+document.body.appendChild(dialogSubjectDropdown);
+
 dialogSubjectBtn.addEventListener('click', () => {
   const open = dialogSubjectBtn.getAttribute('aria-expanded') === 'true';
   dialogSubjectBtn.setAttribute('aria-expanded', String(!open));
   dialogSubjectDropdown.hidden = open;
+  if (open) return;
+  const r = dialogSubjectBtn.getBoundingClientRect();
+  const h = dialogSubjectDropdown.offsetHeight;
+  const w = dialogSubjectDropdown.offsetWidth;
+  const below = window.innerHeight - r.bottom - 8;
+  const top = h > below && r.top > below ? Math.max(8, r.top - h - 4) : r.bottom + 4;
+  dialogSubjectDropdown.style.top = `${top}px`;
+  dialogSubjectDropdown.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+});
+window.addEventListener('resize', () => {
+  dialogSubjectDropdown.hidden = true;
+  dialogSubjectBtn.setAttribute('aria-expanded', 'false');
 });
 document.addEventListener('click', (e) => {
   if (!dialogSubjectBtn.contains(e.target) && !dialogSubjectDropdown.contains(e.target)) {
@@ -1317,7 +1433,7 @@ function parseQuickAdd(text) {
   if (quickPicked.date) { out.dueDate = quickPicked.date; out.dueTime = quickPicked.time || undefined; }   // picker wins
   if (!out.dueDate) out.dueTime = undefined;              // time needs a date
   out.status = out.status || 'not_started';
-  out.title = rest.join(' ') || (out.subject ? `${out.subject} task` : 'New Task');
+  out.title = (rest.join(' ') || (out.subject ? `${out.subject} task` : 'New Task')).slice(0, 500);
   return out;
 }
 
@@ -1950,13 +2066,30 @@ function setPreview(on) {
   renderAnnouncements();
 }
 
+// Clear-board mode: the draft has no tasks but the live board does. Publishing then needs the typed phrase, and the request carries an explicit clearBoard intent (the server refuses a bare empty publish).
+const CLEAR_PHRASE = 'CLEAR BOARD';
+const isClearBoardPublish = () => myTasks.length === 0 && publishedTasks.length > 0;
+const clearPhraseOk = () => $('#publish-clear-input').value.trim() === CLEAR_PHRASE;
+function syncPublishClear() {
+  const clear = isClearBoardPublish();
+  $('#publish-clear-warning').hidden = !clear;
+  $('#publish-clear').hidden = !clear;
+  $('#publish-submit').disabled = clear && !clearPhraseOk();
+}
+$('#publish-clear-input').addEventListener('input', syncPublishClear);
+
 function openPublishDialog() {
   const d = diffDraft();
   if (!d.total) { showToast('Nothing to publish'); return; }
   const undated = myTasks.filter((t) => !t.dueDate).length;
-  $('#publish-summary').textContent = `${describeDiff(d)}.` + (undated ? ` ${undated} task${undated === 1 ? ' has' : 's have'} no due date.` : '');
+  const n = publishedTasks.length;
+  $('#publish-summary').textContent = isClearBoardPublish()
+    ? `This removes all ${n} published assignment${n === 1 ? '' : 's'} from the class board.` + (d.ann ? ' Announcement changes stay unpublished.' : '')
+    : `${describeDiff(d)}.` + (undated ? ` ${undated} task${undated === 1 ? ' has' : 's have'} no due date.` : '');
   $('#publish-note').value = '';
+  $('#publish-clear-input').value = '';
   $('#publish-error').hidden = true;
+  syncPublishClear();
   publishOverlay.classList.remove('is-closing');
   publishOverlay.hidden = false;
   $('#publish-note').focus();
@@ -1966,19 +2099,27 @@ $('#publish-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = $('#publish-submit');
   const err = $('#publish-error');
+  const clearing = isClearBoardPublish();
+  if (clearing && !clearPhraseOk()) { err.textContent = `Type ${CLEAR_PHRASE} exactly to confirm.`; err.hidden = false; return; }
   btn.disabled = true;
   btn.classList.add('is-loading');
   err.hidden = true;
   try {
+    const note = $('#publish-note').value.trim();
+    const body = clearing
+      ? { tasks: [], announcements: [], note, clearBoard: { confirm: CLEAR_PHRASE, expectedCount: publishedTasks.length } }
+      : { ...snapshot(), note };
     const res = await fetch(API.publish, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...snapshot(), note: $('#publish-note').value.trim() }),
+      body: JSON.stringify(body),
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || 'Publish failed');
-    writeJSON(KEYS.cache, out.current);
-    setPublished(out.current);
+    const board = normalizeBoard(out.current);
+    if (!board) throw new Error('Published, but the response was unreadable. Reload to check.');
+    writeJSON(KEYS.cache, board);
+    setPublished(board);
     hideAnimated(publishOverlay);
     renderAllTasks();
     renderAnnouncements();
@@ -1987,7 +2128,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
     err.textContent = ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message;
     err.hidden = false;
   } finally {
-    btn.disabled = false;
+    btn.disabled = clearing && !clearPhraseOk();
     btn.classList.remove('is-loading');
   }
 });
