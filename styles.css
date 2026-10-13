@@ -100,12 +100,14 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 
 .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 10; display: flex; width: var(--sidebar-w); flex-direction: column; padding: 0 var(--s3) var(--s4); border-right: 1px solid var(--line); background: var(--sidebar); }
 .brand { position: relative; display: flex; align-items: center; height: 56px; margin: 0 calc(var(--s3) * -1) var(--s3); padding: 0 var(--s4); border-bottom: 1px solid var(--line); }
-.brand-name { color: var(--ink); font-size: var(--text-sm); font-weight: 600; letter-spacing: 0; white-space: nowrap; }
+.brand-name { display: inline-flex; align-items: center; gap: var(--s2); color: var(--ink); font-size: var(--text-sm); font-weight: 600; letter-spacing: 0; white-space: nowrap; }
+.brand-mark { width: 18px; height: 18px; flex: none; color: var(--accent); }
 .sidebar-toggle { position: absolute; top: var(--s3); right: var(--s3); display: grid; place-content: center; width: 32px; height: 32px; color: var(--muted); background: transparent; cursor: pointer; }
 .sidebar-toggle:hover { color: var(--ink); background: var(--hover); }
 .sidebar-toggle svg { width: 18px; height: 18px; stroke-width: 1.75; }
 
-.nav-group { display: grid; gap: var(--s1); }
+   .nav-group { display: grid; gap: var(--s1); }
+   .sidebar-close { display: none; }
 .nav-item { position: relative; display: flex; align-items: center; gap: var(--s3); min-height: 40px; padding: var(--s2) 14px; color: var(--muted); font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
 .nav-item:hover { color: var(--ink); background: var(--hover); }
 .nav-item.is-active { color: var(--ink); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
@@ -456,7 +458,7 @@ kbd { padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-
 .task-dialog-overlay.is-closing .task-dialog, .quick-overlay.is-closing .quick-add { animation: quick-out 120ms ease-in forwards; }
 .task-card.is-entering, .task-row.is-entering { animation: card-in 160ms var(--ease) backwards; }
 .status-check.is-popping { animation: check-pop 140ms ease-out; }
-.status-check.is-popping svg path { stroke-dasharray: 24; animation: check-draw 180ms ease-out 40ms backwards; }
+.status-check.is-popping svg { stroke-dasharray: 24; animation: check-draw 180ms ease-out 40ms backwards; }
 .is-swapping .kanban-board, .is-swapping .task-list { animation: page-in 120ms ease-out; }
 ::view-transition-old(root) { animation: fade-out 100ms ease-in both; }
 ::view-transition-new(root) { animation: page-in 140ms ease-out both; }
@@ -482,10 +484,15 @@ kbd { padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-
 @media (max-width: 720px) {
   .sidebar { width: min(280px, 86vw); transform: translateX(-102%); transition: transform 180ms var(--ease); box-shadow: var(--shadow-overlay); }
   .sidebar.is-open { transform: translateX(0); }
-  .sidebar-toggle { display: none; }
+  .sidebar-scrim { position: fixed; inset: 0; z-index: 9; background: var(--scrim); animation: fade-in 120ms ease-out; }
+  .nav-item { min-height: 44px; }
+     .sidebar-toggle { display: none; }
+     .sidebar-close { position: absolute; top: 6px; right: var(--s2); display: grid; place-content: center; width: 44px; height: 44px; color: var(--muted); background: transparent; cursor: pointer; }
+     .sidebar-close:hover { color: var(--ink); background: var(--hover); }
+     .sidebar-close svg { width: 18px; height: 18px; stroke-width: 1.75; }
   .main-content { width: 100%; margin-left: 0; }
   .topbar { padding: 0 var(--s4); }
-  .mobile-menu { display: grid; width: 36px; height: 36px; place-content: center; gap: 4px; padding: var(--s2); background: transparent; cursor: pointer; }
+  .mobile-menu { display: grid; width: 44px; height: 44px; place-content: center; gap: 4px; padding: var(--s2); background: transparent; cursor: pointer; }
   .page-container { width: calc(100% - 32px); padding: var(--s5) 0 var(--s7); }
   .page-actions { width: 100%; flex-wrap: wrap; }
   .search { flex: 1 1 100%; }
@@ -560,3 +567,5 @@ kbd { padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-
 :root[data-theme="light"] .task-card:hover { box-shadow: 0 1px 0 rgba(27, 36, 48, 0.1); }
 :root[data-theme="light"] .nav-item.is-active { box-shadow: inset 0 0 0 1px var(--line), 0 1px 0 rgba(27, 36, 48, 0.05); }
 :root[data-theme="light"] .status-check.is-done { color: #FFFFFF; }
+
+:where(svg.i) { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: square; stroke-linejoin: miter; }

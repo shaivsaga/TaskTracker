@@ -465,7 +465,7 @@ function createTaskCard(task) {
   deleteBtn.className = 'task-delete-btn';
   deleteBtn.type = 'button';
   deleteBtn.setAttribute('aria-label', 'Delete task');
-  deleteBtn.innerHTML = '<i data-lucide="trash-2" aria-hidden="true"></i>';
+  deleteBtn.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
   deleteBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     deleteTask(task);
@@ -484,9 +484,12 @@ function createTaskCard(task) {
       const overdueNow = task.isOverdue();
       const due = document.createElement('span');
       due.className = 'due-badge' + (overdueNow && !isDone ? ' overdue' : diff <= 3 && !isDone ? ' due-soon' : '');
-      const icon = document.createElement('i');
-      icon.setAttribute('data-lucide', diff < 0 && !isDone ? 'alarm-clock' : 'calendar');
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('class', 'i');
       icon.setAttribute('aria-hidden', 'true');
+      const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', '#i-' + (diff < 0 && !isDone ? 'alarm-clock' : 'calendar'));
+      icon.appendChild(use);
       const label = document.createElement('span');
       label.textContent = isDone ? task.getDueDateDisplay() : task.getDueLabel();
       if (!isDone) due.title = task.getDueShort();
@@ -1039,7 +1042,7 @@ function matchesClassSearch(task, q) {
 document.querySelector('#class-task-search').addEventListener('input', (e) => {
   classSearchQuery = e.target.value;
   renderClassTasks();
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  
 });
 
 // --- New task, theme, and view switch ---
@@ -1053,6 +1056,7 @@ document.querySelector('#empty-add-btn')?.addEventListener('click', startNewTask
 const themeToggle = document.querySelector('#theme-toggle');
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
+  document.getElementById('meta-theme-color')?.setAttribute('content', theme === 'light' ? '#EBEEF2' : '#0D0F14');
   themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
   try { localStorage.setItem('class_tasks_theme', theme); } catch (e) {}
 }
@@ -1127,7 +1131,7 @@ function createTaskRow(task) {
   del.type = 'button';
   del.className = 'task-delete-btn';
   del.setAttribute('aria-label', 'Delete task');
-  del.innerHTML = '<i data-lucide="trash-2" aria-hidden="true"></i>';
+  del.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteTask(task); });
 
   row.append(check, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
@@ -1154,7 +1158,7 @@ function renderTaskList() {
   const add = document.createElement('button');
   add.type = 'button';
   add.className = 'task-list-add';
-  add.innerHTML = '<i data-lucide="plus" aria-hidden="true"></i><span>New task</span>';
+  add.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-plus"/></svg><span>New task</span>';
   add.addEventListener('click', startNewTask);
   taskListEl.appendChild(add);
 }
@@ -1249,8 +1253,8 @@ function createStatusCheck(task) {
   check.type = 'button';
   check.className = `status-check is-${task.status.replace(/_/g, '-')}` + (task.id === justChangedId ? ' is-popping' : '');
   check.setAttribute('aria-label', 'Change status');
-  check.innerHTML = task.status === 'done' ? '<i data-lucide="check" aria-hidden="true"></i>'
-    : task.status === 'in_progress' ? '<i data-lucide="minus" aria-hidden="true"></i>' : '';
+  check.innerHTML = task.status === 'done' ? '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>'
+    : task.status === 'in_progress' ? '<svg class="i" aria-hidden="true"><use href="#i-minus"/></svg>' : '';
   check.addEventListener('click', (e) => {
     e.stopPropagation();
     if (statusPopoverTask === task && statusPopoverEl && !statusPopoverEl.hidden) { closeStatusPopover(); return; }
@@ -1682,7 +1686,7 @@ function renderAnnouncements() {
     del.type = 'button';
     del.className = 'task-delete-btn';
     del.setAttribute('aria-label', 'Remove announcement');
-    del.innerHTML = '<i data-lucide="trash-2" aria-hidden="true"></i>';
+    del.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
     del.addEventListener('click', () => {
       const index = announcements.indexOf(a);
       announcements.splice(index, 1);
@@ -1697,7 +1701,7 @@ function renderAnnouncements() {
     li.append(text, date, del);
     announceList.appendChild(li);
   });
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  
 }
 
 function toggleAnnounceForm(show) {
@@ -1808,8 +1812,8 @@ function openDuePicker(opts) {
     <div class="dp-head">
       <span class="dp-month"></span>
       <button type="button" class="dp-nav dp-today">Today</button>
-      <button type="button" class="dp-nav dp-prev" aria-label="Previous month"><i data-lucide="chevron-left" aria-hidden="true"></i></button>
-      <button type="button" class="dp-nav dp-next" aria-label="Next month"><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+      <button type="button" class="dp-nav dp-prev" aria-label="Previous month"><svg class="i" aria-hidden="true"><use href="#i-chevron-left"/></svg></button>
+      <button type="button" class="dp-nav dp-next" aria-label="Next month"><svg class="i" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
     </div>
     <div class="dp-grid" role="grid"></div>
     <div class="dp-foot">
@@ -1919,7 +1923,7 @@ function openDuePicker(opts) {
   dpState = s;
   syncFields();
   renderGrid();
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  
 
   const r = s.anchor.getBoundingClientRect();
   const w = el.offsetWidth;
@@ -1987,8 +1991,7 @@ function setPage(pageName, updateHash = true) {
     history.replaceState(null, '', `#${activePageName}`);
   }
 
-  sidebar.classList.remove('is-open');
-  mobileMenu?.setAttribute('aria-expanded', 'false');
+  setSidebarOpen(false, false);
 }
 
 navItems.forEach((item) => {
@@ -1999,10 +2002,32 @@ navItems.forEach((item) => {
   });
 });
 
-mobileMenu?.addEventListener('click', () => {
-  const isOpen = sidebar.classList.toggle('is-open');
-  mobileMenu.setAttribute('aria-expanded', String(isOpen));
-});
+   // --- Phone sidebar: scrim, Escape, focus ---
+   const sidebarScrim = document.querySelector('#sidebar-scrim');
+   const mainContent = document.querySelector('.main-content');
+   const phoneQuery = matchMedia('(max-width: 720px)');
+
+   function setSidebarOpen(open, restoreFocus = true) {
+     const phone = phoneQuery.matches;
+     const on = open && phone;
+     sidebar.classList.toggle('is-open', on);
+     sidebarScrim.hidden = !on;
+     sidebar.inert = phone && !on;
+     mainContent.inert = on;
+     mobileMenu.setAttribute('aria-expanded', String(on));
+     document.body.style.overflow = on ? 'hidden' : '';
+     if (on) (sidebar.querySelector('.nav-item.is-active') || sidebar.querySelector('.nav-item')).focus();
+     else if (restoreFocus && phone) mobileMenu.focus();
+   }
+
+   mobileMenu.addEventListener('click', () => setSidebarOpen(!sidebar.classList.contains('is-open')));
+     sidebarScrim.addEventListener('click', () => setSidebarOpen(false));
+  document.querySelector('#sidebar-close').addEventListener('click', () => setSidebarOpen(false));
+   document.addEventListener('keydown', (e) => {
+     if (e.key === 'Escape' && sidebar.classList.contains('is-open')) setSidebarOpen(false);
+   });
+   phoneQuery.addEventListener('change', () => setSidebarOpen(false, false));
+   setSidebarOpen(false, false);
 
 // --- Admin: diff, checkpoints, publish, history, import/export, preview ---
 let lastSavedAt = null;
@@ -2315,7 +2340,7 @@ function renderAllTasks() {
     staggerNext = false;
   }
   justChangedId = null;
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  
 }
 
 function init() {
@@ -2332,7 +2357,7 @@ function init() {
   setInterval(loadPublished, 300000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadPublished(); });
 
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  
 
   setPage(window.location.hash.slice(1) || 'class-tasks', false);
 

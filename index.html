@@ -5,17 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A shared classroom workspace for keeping schoolwork on track." />
     <title>Class tasks — TaskTracker</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#0D0F14" id="meta-theme-color" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
-    <script src="https://unpkg.com/lucide@1.55.0/dist/umd/lucide.min.js"></script>
-    <script>
-      try {
-        document.documentElement.dataset.theme =
-          localStorage.getItem('class_tasks_theme') ||
-          'dark';
-        } catch (e) { document.documentElement.dataset.theme = 'dark'; }
-    </script>
+<script>
+  try {
+    var t = localStorage.getItem('class_tasks_theme') || 'dark';
+    document.documentElement.dataset.theme = t;
+    document.getElementById('meta-theme-color').content = t === 'light' ? '#EBEEF2' : '#0D0F14';
+  } catch (e) { document.documentElement.dataset.theme = 'dark'; }
+</script>
     <script>
       try {
         document.documentElement.dataset.sidebar =
@@ -25,30 +26,63 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- your four icons -->
+  <symbol id="i-clipboard-list" viewBox="0 0 24 24"><path d="M8 4H4.5v17.5h15V4H16"/><path d="M8 2.5h8V6H8z"/><path d="M8.5 11h.01M11.5 11H16M8.5 15h.01M11.5 15H16"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><path d="M22 12l-2.61 3.06-.32 4.01-4.01.32L12 22l-3.06-2.61-4.01-.32-.32-4.01L2 12l2.61-3.06.32-4.01 4.01-.32L12 2l3.06 2.61 4.01.32.32 4.01z"/><path d="M8 12.5l2.75 2.75L16 9"/></symbol>
+  <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M19.69 9.8L21.88 10.44 21.88 13.56 19.69 14.2 19 15.88 20.09 17.88 17.88 20.09 15.88 19 14.2 19.69 13.56 21.88 10.44 21.88 9.8 19.69 8.12 19 6.12 20.09 3.91 17.88 5 15.88 4.31 14.2 2.12 13.56 2.12 10.44 4.31 9.8 5 8.12 3.91 6.12 6.12 3.91 8.12 5 9.8 4.31 10.44 2.12 13.56 2.12 14.2 4.31 15.88 5 17.88 3.91 20.09 6.12 19 8.12z"/><circle cx="12" cy="9.75" r="2.25"/><path d="M8 16.5c.6-1.9 2.2-3 4-3s3.4 1.1 4 3"/></symbol>
+  <symbol id="i-calendar-days" viewBox="0 0 24 24"><path d="M12 20.5H3.5v-15h17V12"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><circle cx="17" cy="17" r="4.5"/><path d="M17 14.5V17l1.75 1.25"/></symbol>
+
+  <!-- the rest of the icons your app uses -->
+  <symbol id="i-panel-left" viewBox="0 0 24 24"><path d="M3.5 4.5h17v15h-17z"/><path d="M9.5 4.5v15"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M5.5 5.5l13 13M18.5 5.5l-13 13"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5V5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3.5h6l-.75 6.5L18 13.5V15H6v-1.5L9.75 10z"/><path d="M12 15v5.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+  <symbol id="i-trash-2" viewBox="0 0 24 24"><path d="M4 6.5h16M9 6.5v-3h6v3M6 6.5l1 14h10l1-14M10 10.5v6M14 10.5v6"/></symbol>
+  <symbol id="i-alarm-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5M3.5 6L6.5 3M20.5 6L17.5 3"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M3.5 5.5h17v15h-17zM3.5 9.5h17M8 3v4M16 3v4"/></symbol>
+</svg>
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Primary navigation">
+         <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
+         <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
         <div class="brand">
-          <span class="brand-name">TaskTracker</span>
+          <span class="brand-name">
+  <svg class="brand-mark" viewBox="0 0 20 20" aria-hidden="true">
+    <rect x="1.5" y="1.5" width="17" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M6 10.5l2.8 2.8L14 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/>
+  </svg>
+  TaskTracker
+</span>
           <button class="sidebar-toggle" type="button" id="sidebar-toggle" aria-label="Collapse sidebar" aria-expanded="true">
-            <i data-lucide="panel-left" aria-hidden="true"></i>
+            <svg class="i" aria-hidden="true"><use href="#i-panel-left"/></svg>
           </button>
         </div>
-        <nav class="nav-group" aria-label="Workspace">
+          <button class="sidebar-close" type="button" id="sidebar-close" aria-label="Close navigation">
+            <svg class="i" aria-hidden="true"><use href="#i-x"/></svg>
+          </button>
+          <nav class="nav-group" aria-label="Workspace">
           <a class="nav-item is-active" href="#class-tasks" data-page="class-tasks">
-            <i data-lucide="clipboard-list" class="nav-icon" aria-hidden="true"></i>
+            <svg class="i nav-icon" aria-hidden="true"><use href="#i-clipboard-list"/></svg>
             <span>Class tasks</span>
           </a>
           <a class="nav-item" href="#my-tasks" data-page="my-tasks" id="nav-admin" hidden>
-            <i data-lucide="shield-check" class="nav-icon" aria-hidden="true"></i>
+            <svg class="i nav-icon" aria-hidden="true"><use href="#i-shield-check"/></svg>
             <span>Admin</span>
             <span class="nav-badge" id="nav-badge" hidden>0</span>
           </a>
           <a class="nav-item" href="#done" data-page="done">
-            <i data-lucide="check-circle" class="nav-icon" aria-hidden="true"></i>
+            <svg class="i nav-icon" aria-hidden="true"><use href="#i-check-circle"/></svg>
             <span>Completed tasks</span>
           </a>
           <a class="nav-item" href="#calendar" data-page="calendar">
-            <i data-lucide="calendar-days" class="nav-icon" aria-hidden="true"></i>
+            <svg class="i nav-icon" aria-hidden="true"><use href="#i-calendar-days"/></svg>
             <span>Calendar</span>
           </a>
         </nav>
@@ -56,13 +90,13 @@
 
       <main class="main-content">
         <header class="topbar">
-          <button class="mobile-menu" type="button" aria-label="Toggle navigation" aria-expanded="false">
+          <button class="mobile-menu" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">
             <span></span><span></span><span></span>
           </button>
           <h1 class="header-title" id="breadcrumb-current">Class tasks</h1>
           <button class="icon-button" type="button" id="theme-toggle" aria-label="Switch to dark mode">
-            <i data-lucide="moon" class="icon-moon" aria-hidden="true"></i>
-            <i data-lucide="sun" class="icon-sun" aria-hidden="true"></i>
+            <svg class="i icon-moon" aria-hidden="true"><use href="#i-moon"/></svg>
+            <svg class="i icon-sun" aria-hidden="true"><use href="#i-sun"/></svg>
           </button>
         </header>
 
@@ -70,11 +104,11 @@
           <section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Class tasks">
             <div class="page-heading">
               <div>
-                <p class="page-supporting-copy">Assignments for everyone in the class.</p>
+                <p class="page-supporting-copy">Assignments posted for the class. Your progress is saved on this device only.</p>
               </div>
               <div class="page-actions">
                 <label class="search">
-                  <i data-lucide="search" aria-hidden="true"></i>
+                  <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
                   <input type="search" id="class-task-search" placeholder="Search tasks" aria-label="Search class tasks" autocomplete="off">
                 </label>
                 <div class="view-tabs" role="group" aria-label="View">
@@ -90,7 +124,7 @@
             </div>
             <section class="announcements" id="announce-admin" aria-label="Pinned announcements">
               <div class="announce-header">
-                <h2><i data-lucide="pin" aria-hidden="true"></i> Pinned</h2>
+                <h2><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg> Pinned</h2>
                 <button class="text-button" type="button" id="announce-add-btn">Post announcement</button>
               </div>
               <form class="announce-form" id="announce-form" hidden>
@@ -106,7 +140,7 @@
             </section>
             <section class="announcements" aria-label="Pinned announcements">
               <div class="announce-header">
-                <h2><i data-lucide="pin" aria-hidden="true"></i> Pinned</h2>
+                <h2><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg> Pinned</h2>
               </div>
               <ul class="announce-list" id="announce-list-public"></ul>
             </section>
@@ -139,11 +173,11 @@
           <section class="page" id="page-my-tasks" data-page-view="my-tasks" aria-label="My tasks" hidden>
             <div class="page-heading">
               <div>
-                <p class="page-supporting-copy">Post announcements and manage the tasks the class sees.</p>
+                <p class="page-supporting-copy">Draft tasks and announcements here. Nothing reaches the class until you apply changes.</p>
               </div>
               <div class="page-actions">
                 <label class="search">
-                  <i data-lucide="search" aria-hidden="true"></i>
+                  <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
                   <input type="search" id="task-search" placeholder="Search tasks" aria-label="Search tasks" autocomplete="off">
                 </label>
                 <div class="view-tabs" role="group" aria-label="View">
@@ -151,7 +185,7 @@
                   <button type="button" class="view-tab" data-view="list" aria-pressed="false">List</button>
                 </div>
                 <button class="primary-button" type="button" id="new-task-btn">
-                  <i data-lucide="plus" aria-hidden="true"></i> New task
+                  <svg class="i" aria-hidden="true"><use href="#i-plus"/></svg> New task
                 </button>
               </div>
             </div>
@@ -204,7 +238,7 @@
 
           <section class="page utility-page" id="page-done" data-page-view="done" aria-label="Completed tasks" hidden>
             <div class="page-heading">
-              <div><p class="page-supporting-copy">A record of work finished by the class.</p></div>
+              <div><p class="page-supporting-copy">Tasks you've marked done on this device.</p></div>
             </div>
             <div class="task-list" id="done-list" aria-label="Completed tasks"></div>
           </section>
@@ -219,8 +253,8 @@
                 </div>
                 <button class="secondary-button" type="button" id="cal-today">Today</button>
                 <div class="cal-nav">
-                  <button class="icon-button" type="button" id="cal-prev" aria-label="Previous"><i data-lucide="chevron-left" aria-hidden="true"></i></button>
-                  <button class="icon-button" type="button" id="cal-next" aria-label="Next"><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+                  <button class="icon-button" type="button" id="cal-prev" aria-label="Previous"><svg class="i" aria-hidden="true"><use href="#i-chevron-left"/></svg></button>
+                  <button class="icon-button" type="button" id="cal-next" aria-label="Next"><svg class="i" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
                 </div>
               </div>
             </div>
@@ -240,7 +274,7 @@
           <div class="dialog-header">
             <textarea class="dialog-title-input" id="dialog-title-input" rows="1" maxlength="500" aria-label="Task title" placeholder="New task" spellcheck="false"></textarea>
             <button class="panel-close" type="button" id="dialog-close" aria-label="Close task">
-              <i data-lucide="x" aria-hidden="true"></i>
+              	<svg class="i" aria-hidden="true"><use href="#i-x"/></svg>
             </button>
           </div>
           <div class="dialog-body">
@@ -262,7 +296,7 @@
                 <div class="due-controls">
                   <button class="prop-value empty-value" type="button" id="dialog-date-btn">Empty</button>
                   <button class="prop-clear" type="button" id="dialog-due-clear" hidden aria-label="Clear due date">
-                    <i data-lucide="x" class="prop-clear-icon" aria-hidden="true"></i>
+                    <svg class="i prop-clear-icon" aria-hidden="true"><use href="#i-x"/></svg>
                   </button>
                 </div>
               </div>
@@ -284,7 +318,7 @@
       <form class="task-dialog" id="publish-form" role="dialog" aria-modal="true" aria-labelledby="publish-title">
         <div class="dialog-header">
           <h2 class="dialog-heading" id="publish-title">Apply changes</h2>
-          <button class="panel-close" type="button" id="publish-close" aria-label="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+          <button class="panel-close" type="button" id="publish-close" aria-label="Close">	<svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
         </div>
         <div class="dialog-body">
           <p class="dialog-summary" id="publish-summary"></p>
@@ -308,7 +342,7 @@
       <div class="task-dialog" role="dialog" aria-modal="true" aria-labelledby="history-title">
         <div class="dialog-header">
           <h2 class="dialog-heading" id="history-title">History</h2>
-          <button class="panel-close" type="button" id="history-close" aria-label="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+          <button class="panel-close" type="button" id="history-close" aria-label="Close">	<svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
         </div>
         <div class="dialog-body">
           <div class="history-bar">
@@ -334,6 +368,5 @@
     </div>
 
     <script src="app.js"></script>
-    <script>if (window.lucide) lucide.createIcons();</script>
   </body>
 </html>
