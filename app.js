@@ -388,7 +388,47 @@ function sanitizeDoc(html) {
   return out.innerHTML;
 }
 
+// --- Links in notes: made at render time, never stored. sanitizeDoc flattens <a> back to its text on save. ---
+const URL_RE = /https?:\/\/[^\s<>"']+/gi;
+function unlinkify(root) {
+  root.querySelectorAll('a').forEach((a) => a.replaceWith(document.createTextNode(a.textContent)));
+  root.normalize();
+}
+function linkify(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach((node) => {
+    const text = node.nodeValue;
+    URL_RE.lastIndex = 0;
+    let last = 0, m, frag = null;
+    while ((m = URL_RE.exec(text))) {
+      let url = m[0], prev;
+      do {
+        prev = url;
+        url = url.replace(/[.,;:!?\]}]+$/, '');
+        if (url.endsWith(')') && (url.match(/\)/g).length > (url.match(/\(/g) || []).length)) url = url.slice(0, -1);
+      } while (url !== prev);
+      try { const u = new URL(url); if (u.protocol !== 'http:' && u.protocol !== 'https:') continue; } catch (e) { continue; }
+      if (!frag) frag = document.createDocumentFragment();
+      frag.append(text.slice(last, m.index));
+      const a = document.createElement('a');
+      a.href = url;
+      a.textContent = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      if (root.isContentEditable) a.title = 'Ctrl+click to open';
+      frag.append(a);
+      last = m.index + url.length;
+    }
+    if (frag) { frag.append(text.slice(last)); node.replaceWith(frag); }
+  });
+}
+function refreshLinks(root) { unlinkify(root); linkify(root); }
+
+let dialogReturn = null;
 function openTaskDialog(task) {
+  dialogReturn = { el: document.activeElement, id: task.id };
   currentTask = task;
   const ro = !isEditable(task);
   dialog.classList.toggle('is-readonly', ro);
@@ -403,6 +443,7 @@ function openTaskDialog(task) {
   updateDialogDue(task);
   updateDialogStatus(task);
   dialogDoc.innerHTML = sanitizeDoc(task.notes || '');
+  refreshLinks(dialogDoc);
   updateDialogSubject(task);
   dialogOverlay.classList.remove('is-closing');
   dialogOverlay.hidden = false;
@@ -427,6 +468,12 @@ function closeTaskDialog() {
   dialogSubjectBtn.setAttribute('aria-expanded', 'false');
   document.body.style.overflow = '';
   renderAllTasks();
+  const back = dialogReturn;
+  dialogReturn = null;
+  if (back) {
+    const target = back.el && back.el.isConnected ? back.el : document.querySelector(`[data-task-id="${back.id}"]`);
+    if (target) target.focus();
+  }
 }
 
 // --- Task Card Creation ---
@@ -713,6 +760,16 @@ dialogDoc.addEventListener('paste', (e) => {
   document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
 });
 
+// Read-only (students): the browser opens the link itself (new tab). Admin editing: plain click places the caret, Ctrl/Cmd+click opens.
+dialogDoc.addEventListener('click', (e) => {
+  const a = e.target instanceof Element ? e.target.closest('a') : null;
+  if (!a || !dialogDoc.contains(a) || !dialogDoc.isContentEditable) return;
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener,noreferrer');
+});
+// Rebuild links when leaving the box, so URLs typed or pasted while editing become links.
+dialogDoc.addEventListener('focusout', () => { if (currentTask) refreshLinks(dialogDoc); });
+
 const dropHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 dialog.addEventListener('dragover', (e) => {
   if (!dropHasFiles(e) || dialog.classList.contains('is-readonly')) return;
@@ -770,6 +827,8 @@ let saveTimer = null;
 
 // Plays the CSS exit animation, then hides. Skips the wait for reduced motion.
 function hideAnimated(el, ms = 180) {
+  if (el._returnFocus && el._returnFocus.isConnected) el._returnFocus.focus();
+  el._returnFocus = null;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.hidden = true; return; }
   el.classList.add('is-closing');
   setTimeout(() => {
@@ -789,8 +848,13 @@ function showToast(message, actionLabel, onAction) {
   toastAction.onclick = () => { hideToast(); if (onAction) onAction(); };
   toastEl.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(hideToast, 5000);
+  toastTimer = setTimeout(hideToast, actionLabel ? 8000 : 5000);
+  actionFeedback.textContent = '';
+  setTimeout(() => { actionFeedback.textContent = message + (actionLabel ? `. ${actionLabel} available.` : ''); }, 60);
 }
+// Don't dismiss the toast while someone is tabbing to its Undo button
+toastEl.addEventListener('focusin', () => clearTimeout(toastTimer));
+toastEl.addEventListener('focusout', () => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 3000); });
 
 function flashSaved() {
   saveState.textContent = 'Saved';
@@ -2115,6 +2179,7 @@ function openPublishDialog() {
   $('#publish-clear-input').value = '';
   $('#publish-error').hidden = true;
   syncPublishClear();
+  publishOverlay._returnFocus = document.activeElement;
   publishOverlay.classList.remove('is-closing');
   publishOverlay.hidden = false;
   $('#publish-note').focus();
@@ -2242,8 +2307,10 @@ async function loadVersions() {
 
 $('#btn-history').addEventListener('click', () => {
   renderHistory();
+  historyOverlay._returnFocus = document.activeElement;
   historyOverlay.classList.remove('is-closing');
   historyOverlay.hidden = false;
+  $('#history-close').focus();
   loadVersions();
 });
 
@@ -2310,6 +2377,95 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!publishOverlay.hidden) hideAnimated(publishOverlay);
   else if (!historyOverlay.hidden) hideAnimated(historyOverlay);
+});
+
+// --- Settings and reset ---
+const settingsOverlay = $('#settings-overlay');
+const settingsOpen = $('#settings-open');
+const resetForm = $('#settings-reset-form');
+const resetStart = $('#settings-reset-start');
+const resetInput = $('#settings-reset-input');
+const resetSubmit = $('#settings-reset-submit');
+const RESET_PHRASE = 'RESET';
+// Kept on reset: appearance, sign-in state, and the cached copy of the published board.
+const RESET_KEEP = new Set(['class_tasks_theme', SIDEBAR_KEY, ADMIN_KEY, KEYS.cache]);
+
+function showResetConfirm(show, focus = true) {
+  resetForm.hidden = !show;
+  resetStart.hidden = show;
+  resetInput.value = '';
+  resetSubmit.disabled = true;
+  if (focus) (show ? resetInput : resetStart).focus();
+}
+
+function openSettings() {
+  setSidebarOpen(false, false);
+  showResetConfirm(false, false);
+  $('#settings-logout-row').hidden = !isAdmin;
+  settingsOverlay.classList.remove('is-closing');
+  settingsOverlay.hidden = false;
+  $('#settings-close').focus();
+}
+
+function closeSettings() {
+  hideAnimated(settingsOverlay);
+  (phoneQuery.matches ? mobileMenu : settingsOpen).focus();
+}
+
+function resetLocalData() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('class_tasks_') && !RESET_KEEP.has(k))
+      .forEach((k) => localStorage.removeItem(k));
+    return true;
+  } catch (e) { return false; }
+}
+
+settingsOpen.addEventListener('click', openSettings);
+
+// Phase 4: client-only logout. Clears the admin flag and reloads into the student view. The draft stays in localStorage.
+function logoutAdmin() {
+  try { localStorage.removeItem(ADMIN_KEY); } catch (e) {}
+  isAdmin = false;
+  previewing = false;
+  history.replaceState(null, '', location.pathname + '#class-tasks');
+  location.reload();
+}
+$('#settings-logout').addEventListener('click', logoutAdmin);
+$('#settings-close').addEventListener('click', closeSettings);
+settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) closeSettings(); });
+resetStart.addEventListener('click', () => showResetConfirm(true));
+$('#settings-reset-cancel').addEventListener('click', () => showResetConfirm(false));
+resetInput.addEventListener('input', () => { resetSubmit.disabled = resetInput.value.trim() !== RESET_PHRASE; });
+resetForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (resetInput.value.trim() !== RESET_PHRASE) return;
+  resetSubmit.disabled = true;
+  resetSubmit.classList.add('is-loading');
+  if (resetLocalData()) { location.reload(); return; }
+  resetSubmit.classList.remove('is-loading');
+  resetSubmit.disabled = false;
+  showToast('Could not reset. Browser storage is unavailable.');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !settingsOverlay.hidden && !settingsOverlay.classList.contains('is-closing')) closeSettings();
+});
+
+// --- Focus trap: Tab stays inside the open dialog ---
+const TRAP_SELECTORS = ['#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const ov = TRAP_SELECTORS.map((s) => document.querySelector(s)).find((o) => o && !o.hidden && !o.classList.contains('is-closing'));
+  if (!ov) return;
+  // The date picker and menus live outside the dialog, let them handle Tab themselves
+  if (e.target instanceof Element && e.target.closest('.due-picker, .status-popover')) return;
+  const items = [...ov.querySelectorAll(FOCUSABLE)].filter((el) => !el.closest('[hidden]') && el.getClientRects().length);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (!ov.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
 
 // --- Initialization ---

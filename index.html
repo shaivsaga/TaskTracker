@@ -48,17 +48,18 @@
   <symbol id="i-trash-2" viewBox="0 0 24 24"><path d="M4 6.5h16M9 6.5v-3h6v3M6 6.5l1 14h10l1-14M10 10.5v6M14 10.5v6"/></symbol>
   <symbol id="i-alarm-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5M3.5 6L6.5 3M20.5 6L17.5 3"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M3.5 5.5h17v15h-17zM3.5 9.5h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
 </svg>
     <div class="app-shell">
          <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
          <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
         <div class="brand">
           <span class="brand-name">
-  <svg class="brand-mark" viewBox="0 0 20 20" aria-hidden="true">
-    <rect x="1.5" y="1.5" width="17" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/>
-    <path d="M6 10.5l2.8 2.8L14 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/>
+  <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M12 3H4v18h16v-8"/>
+    <path d="M8 11.5l4 4L21 5.5"/>
   </svg>
-  TaskTracker
+  <span class="brand-text">TaskTracker</span>
 </span>
           <button class="sidebar-toggle" type="button" id="sidebar-toggle" aria-label="Collapse sidebar" aria-expanded="true">
             <svg class="i" aria-hidden="true"><use href="#i-panel-left"/></svg>
@@ -86,6 +87,12 @@
             <span>Calendar</span>
           </a>
         </nav>
+        <div class="sidebar-footer">
+          <button class="nav-item nav-item-button" type="button" id="settings-open" title="Settings">
+            <svg class="i nav-icon" aria-hidden="true"><use href="#i-sliders"/></svg>
+            <span>Settings</span>
+          </button>
+        </div>
       </aside>
 
       <main class="main-content">
@@ -263,7 +270,7 @@
           </section>
         </div>
         <p class="sr-only" id="action-feedback" role="status" aria-live="polite"></p>
-        <div class="toast" id="toast" role="status" hidden>
+        <div class="toast" id="toast" hidden>
           <span id="toast-message"></span>
           <button class="toast-action" type="button" id="toast-action"></button>
         </div>
@@ -352,6 +359,56 @@
         </div>
       </div>
     </div>
+    <div class="task-dialog-overlay" id="settings-overlay" hidden>
+      <div class="task-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="dialog-header">
+          <h2 class="dialog-heading" id="settings-title">Settings</h2>
+          <button class="panel-close" type="button" id="settings-close" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="dialog-body settings-body">
+          <div class="settings-row">
+            <div>
+              <p class="settings-title">Replay tutorial</p>
+              <p class="settings-desc">Walk through the board again. Not available yet.</p>
+            </div>
+            <button class="secondary-button" type="button" disabled>Replay</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <p class="settings-title">Transfer data</p>
+              <p class="settings-desc">Move your progress to another device. Not available yet.</p>
+            </div>
+            <button class="secondary-button" type="button" disabled>Transfer</button>
+          </div>
+          <div class="settings-row" id="settings-logout-row" hidden>
+            <div>
+              <p class="settings-title">Log out of admin</p>
+              <p class="settings-desc">Returns this browser to the student view. Your unpublished draft stays on this device.</p>
+            </div>
+            <button class="secondary-button" type="button" id="settings-logout">Log out</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <p class="settings-title">Reset all data</p>
+              <p class="settings-desc">Clears your progress, unpublished draft, saved checkpoints and view choices on this device. Your theme and the published board are not affected.</p>
+            </div>
+            <button class="danger-button" type="button" id="settings-reset-start">Reset</button>
+          </div>
+          <form class="settings-confirm" id="settings-reset-form" hidden>
+            <p class="form-error" id="settings-reset-warning">This can't be undone.</p>
+            <div class="field">
+              <label class="field-label" for="settings-reset-input">Type RESET to confirm</label>
+              <input class="text-input" id="settings-reset-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="settings-reset-warning">
+            </div>
+            <div class="settings-confirm-actions">
+              <button class="text-button" type="button" id="settings-reset-cancel">Cancel</button>
+              <button class="danger-button is-solid" type="submit" id="settings-reset-submit" disabled>Reset all data</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <div class="quick-overlay" id="quick-overlay" hidden>
       <div class="quick-add" role="dialog" aria-modal="true" aria-labelledby="quick-label">
         <label class="sr-only" id="quick-label" for="quick-input">Quick add task</label>
