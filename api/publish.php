@@ -2,6 +2,23 @@
 header('Content-Type: application/json');
 $config = require __DIR__ . '/config.php';
 function fail($code, $msg) { http_response_code($code); echo json_encode(['error' => $msg]); exit; }
+// Announcement formatting: only <b> <i> <ul> <li> <br>, no attributes, balanced, text escaped as &amp; &lt; &gt; only. Anything else is rejected, never rewritten.
+function announce_html_ok($h) {
+  if (!is_string($h) || strlen($h) > 8000 || !mb_check_encoding($h, 'UTF-8')) return false;
+  $stack = [];
+  foreach (preg_split('/(<[^<>]*>)/', $h, -1, PREG_SPLIT_DELIM_CAPTURE) as $p) {
+    if ($p === '') continue;
+    if ($p[0] === '<') {
+      if ($p === '<br>') continue;
+      if (!preg_match('/^<(\/?)(b|i|ul|li)>$/D', $p, $m)) return false;
+      if ($m[1] === '') { $stack[] = $m[2]; if (count($stack) > 20) return false; }
+      elseif (array_pop($stack) !== $m[2]) return false;
+    } elseif (strpbrk($p, '<>') !== false || preg_match('/&(?!(?:amp|lt|gt);)/', $p)) {
+      return false;
+    }
+  }
+  return !$stack;
+}
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'POST only');
 $ct = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '')[0]));
 if ($ct !== 'application/json') fail(415, 'Content-Type must be application/json');
@@ -39,6 +56,7 @@ $anns = $in['announcements'] ?? [];
 if (count($anns) > 100) fail(422, 'Too many announcements (max 100).');
 foreach ($anns as $a) {
   if (!is_array($a) || !is_string($a['text'] ?? null) || mb_strlen($a['text']) > 500 || !is_numeric($a['createdAt'] ?? null)) fail(422, 'An announcement is malformed or longer than 500 characters.');
+  if (isset($a['html']) && !announce_html_ok($a['html'])) fail(422, 'An announcement has formatting that is not allowed.');
 }
 @ignore_user_abort(true);  // a client disconnect must not stop the script between snapshot and rename
 

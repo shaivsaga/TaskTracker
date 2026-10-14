@@ -1705,6 +1705,7 @@ function renderPublicAnnouncements() {
     const date = document.createElement('span');
     date.className = 'announce-date';
     date.textContent = new Date(a.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    fillAnnounce(text, a);
     li.append(text, date);
     list.appendChild(li);
   });
@@ -1719,11 +1720,109 @@ const announceCount = document.querySelector('#announce-count');
 const ANNOUNCE_MAX = 280;
 
 function updateAnnounceCount() {
-  const left = ANNOUNCE_MAX - announceInput.value.length;
-  announceCount.textContent = `${left} left · Ctrl+Enter to pin`;
+  const left = ANNOUNCE_MAX - cleanAnnounce(announceInput).text.length;
+  announceCount.textContent = (left < 0 ? `${-left} over` : `${left} left`) + ' · Ctrl+Enter to pin';
   announceCount.classList.toggle('is-low', left <= 20);
 }
-announceInput.addEventListener('input', updateAnnounceCount);
+// Rich announcements: a separate whitelist from sanitizeDoc. Stored as b, i, ul, li, br only.
+const ANN_INLINE = { b: 'b', strong: 'b', i: 'i', em: 'i' };
+function cleanAnnounce(root) {
+  const out = document.createElement('div');
+  const isBlock = (n) => n && (n.nodeName === 'BR' || n.nodeName === 'UL');
+  const walk = (src, dst) => {
+    src.childNodes.forEach((n) => {
+      if (n.nodeType === 3) { dst.appendChild(document.createTextNode(n.textContent.replace(/\u00a0/g, ' '))); return; }
+      if (n.nodeType !== 1) return;
+      const tag = n.tagName.toLowerCase();
+      const inline = lookup(ANN_INLINE, tag);
+      if (tag === 'br') {
+        dst.appendChild(document.createElement('br'));
+      } else if (inline) {
+        const el = document.createElement(inline);
+        walk(n, el);
+        if (el.childNodes.length) dst.appendChild(el);
+      } else if (tag === 'ul' || tag === 'ol') {
+        const ul = document.createElement('ul');
+        let loose = null;
+        n.childNodes.forEach((c) => {
+          if (c.nodeType === 1 && c.tagName.toLowerCase() === 'li') {
+            loose = null;
+            const li = document.createElement('li');
+            walk(c, li);
+            ul.appendChild(li);
+          } else if (!(c.nodeType === 3 && !c.textContent.trim())) {
+            if (!loose) { loose = document.createElement('li'); ul.appendChild(loose); }
+            walk({ childNodes: [c] }, loose);
+          }
+        });
+        if (ul.childNodes.length) dst.appendChild(ul);
+      } else if (tag === 'div' || tag === 'p' || tag === 'li') {
+        if (dst.lastChild && !isBlock(dst.lastChild)) dst.appendChild(document.createElement('br'));
+        walk(n, dst);
+      } else if (tag !== 'script' && tag !== 'style') {
+        walk(n, dst);
+      }
+    });
+  };
+  walk(root, out);
+  while (out.firstChild && out.firstChild.nodeName === 'BR') out.firstChild.remove();
+  while (out.lastChild && out.lastChild.nodeName === 'BR') out.lastChild.remove();
+  const parts = [];
+  const gather = (n) => n.childNodes.forEach((c) => {
+    if (c.nodeType === 3) parts.push(c.textContent);
+    else if (c.nodeName === 'BR') parts.push('\n');
+    else if (c.nodeName === 'LI') { if (c.textContent.trim()) { parts.push('\n- '); gather(c); } }
+    else gather(c);
+  });
+  gather(out);
+  const text = parts.join('').trim();
+  return { node: out, html: text ? out.innerHTML : '', text };
+}
+
+// Builds an announcement body with DOM calls only. Old plain announcements fall back to text.
+function fillAnnounce(el, a) {
+  el.replaceChildren();
+  const rich = typeof a.html === 'string' && a.html !== '';
+  el.classList.toggle('is-rich', rich);
+  if (rich) {
+    const tpl = document.createElement('template'); // inert: nothing runs or loads
+    tpl.innerHTML = a.html;
+    el.append(...cleanAnnounce(tpl.content).node.childNodes);
+  } else {
+    el.textContent = a.text;
+  }
+  linkify(el);
+}
+
+announceInput.addEventListener('input', () => {
+  if (/^(<div>)?<br>(<\/div>)?$/.test(announceInput.innerHTML)) announceInput.innerHTML = '';
+  updateAnnounceCount();
+});
+announceInput.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
+announceInput.addEventListener('paste', (e) => {
+  e.preventDefault();
+  document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
+});
+announceInput.addEventListener('drop', (e) => { if (dropHasFiles(e)) e.preventDefault(); });
+
+const announceTools = [...document.querySelectorAll('.announce-tool')];
+function syncAnnounceTools() {
+  announceTools.forEach((b) => {
+    let on = false;
+    try { on = document.activeElement === announceInput && document.queryCommandState(b.dataset.cmd); } catch (e) {}
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+announceTools.forEach((b) => {
+  b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the editor
+  b.addEventListener('click', () => {
+    announceInput.focus();
+    document.execCommand(b.dataset.cmd);
+    updateAnnounceCount();
+    syncAnnounceTools();
+  });
+});
+document.addEventListener('selectionchange', () => { if (document.activeElement === announceInput) syncAnnounceTools(); });
 
 function saveAnnouncements() { saveTasks(); updateAdminBar(diffDraft()); }
 
@@ -1762,6 +1861,7 @@ function renderAnnouncements() {
         renderAnnouncements();
       });
     });
+    fillAnnounce(text, a);
     li.append(text, date, del);
     announceList.appendChild(li);
   });
@@ -1771,16 +1871,18 @@ function renderAnnouncements() {
 function toggleAnnounceForm(show) {
   announceForm.hidden = !show;
   if (show) announceInput.focus();
-  else announceInput.value = '';
+  else announceInput.innerHTML = '';
   updateAnnounceCount();
 }
 document.querySelector('#announce-add-btn').addEventListener('click', () => toggleAnnounceForm(announceForm.hidden));
 document.querySelector('#announce-cancel').addEventListener('click', () => toggleAnnounceForm(false));
 announceForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  const text = announceInput.value.trim();
+  const { html, text } = cleanAnnounce(announceInput);
   if (!text) return;
-  announcements.unshift({ id: Math.random().toString(36).slice(2, 10), text, createdAt: Date.now() });
+  if (text.length > ANNOUNCE_MAX) { showToast(`Announcement is ${text.length - ANNOUNCE_MAX} characters over the limit`); return; }
+  if (html.length > 8000) { showToast('Too much formatting in this announcement'); return; }
+  announcements.unshift({ id: Math.random().toString(36).slice(2, 10), text, html, createdAt: Date.now() });
   saveAnnouncements();
   renderAnnouncements();
   toggleAnnounceForm(false);
@@ -1795,7 +1897,7 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target;
   if (t instanceof Element && t.closest('input, textarea, select, [contenteditable]')) return;
-  if (!isAdmin || !dialogOverlay.hidden || !quickOverlay.hidden) return;
+  if (!isAdmin || !dialogOverlay.hidden || !quickOverlay.hidden || !tourOverlay.hidden) return;
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openQuickAdd(); }
   if (e.key === '/') { e.preventDefault(); setPage('my-tasks'); document.querySelector('#task-search').focus(); }
 });
@@ -2371,7 +2473,7 @@ document.addEventListener('keydown', (e) => {
   if (!isAdmin || !(e.metaKey || e.ctrlKey)) return;
   const typing = e.target instanceof Element && e.target.closest('input, textarea, [contenteditable]');
   if (e.key.toLowerCase() === 's') { e.preventDefault(); saveCheckpoint(); }
-  if (e.key === 'Enter' && !typing && dialogOverlay.hidden && quickOverlay.hidden) { e.preventDefault(); openPublishDialog(); }
+  if (e.key === 'Enter' && !typing && dialogOverlay.hidden && quickOverlay.hidden && tourOverlay.hidden) { e.preventDefault(); openPublishDialog(); }
 });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
@@ -2451,8 +2553,188 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !settingsOverlay.hidden && !settingsOverlay.classList.contains('is-closing')) closeSettings();
 });
 
+// --- Phase 5: first-time tutorial. Sample content lives only inside the overlay: never in progress, the draft or the board. ---
+const TOUR_KEY = 'class_tasks_tour_seen';
+const tourOverlay = $('#tour-overlay');
+const tourSpot = $('#tour-spot');
+const tourCard = $('#tour-card');
+const tourSample = $('#tour-sample');
+const tourVisible = (el) => (el && el.getClientRects().length ? el : null);
+const TOUR_STEPS = [
+  { title: 'Welcome to TaskTracker', body: 'A quick tour of how the class board works. It takes under a minute and you can skip it at any time.' },
+  { title: 'Assignments from your class', body: 'Tasks posted for the class appear here, as a list or a board. Tap a task to open its notes and links.',
+    target: () => tourVisible($('#class-board:not([hidden])')) || tourVisible($('#class-task-list:not([hidden])')) },
+  { title: 'Track your own progress', body: 'Tap the box on a task and pick not started, in progress or done. Try it on this sample. Nothing here is saved.', sample: true },
+  { title: 'Search', body: 'Search by title, subject code or words inside the notes.',
+    target: () => tourVisible($('#page-class-tasks .search')) },
+  { title: 'List or board', body: 'Switch between a simple list and a three-column board. The app remembers your choice.',
+    target: () => tourVisible($('#page-class-tasks .view-tabs')) },
+  { title: 'You are set', body: 'Your progress is saved in this browser only. Completed tasks and Calendar are in the sidebar menu. You can replay this tour from Settings.' },
+];
+let tourIndex = -1;
+let tourTimer = null;
+let tourSampleStatus = 'not_started';
+
+function tourSeen() { try { return localStorage.getItem(TOUR_KEY) === '1'; } catch (e) { return true; } }
+const tourTarget = () => { const s = TOUR_STEPS[tourIndex]; return s && s.target ? s.target() : null; };
+
+function renderTourSample() {
+  const s = tourSampleStatus;
+  const card = document.createElement('article');
+  card.className = 'task-card tour-sample-card';
+  card.dataset.status = s;
+  const head = document.createElement('div');
+  head.className = 'task-card-header';
+  const check = document.createElement('button');
+  check.type = 'button';
+  check.className = `status-check is-${s.replace(/_/g, '-')}`;
+  check.setAttribute('aria-label', `Sample task status: ${STATUS_LABELS[s]}. Press to change.`);
+  check.innerHTML = s === 'done' ? '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>'
+    : s === 'in_progress' ? '<svg class="i" aria-hidden="true"><use href="#i-minus"/></svg>' : '';
+  let menu = null;
+  const onOutside = (e) => {
+    if (menu && !menu.contains(e.target) && !check.contains(e.target)) closeMenu(false);
+  };
+  const closeMenu = (refocus) => {
+    if (!menu) return;
+    menu.remove();
+    menu = null;
+    check.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', onOutside, true);
+    if (refocus) check.focus();
+  };
+  check.setAttribute('aria-haspopup', 'listbox');
+  check.setAttribute('aria-expanded', 'false');
+  check.addEventListener('click', () => {
+    if (menu) { closeMenu(true); return; }
+    menu = document.createElement('div');
+    menu.className = 'status-dropdown';
+    menu.setAttribute('role', 'listbox');
+    menu.setAttribute('aria-label', 'Status');
+    STATUS_ORDER.forEach((st) => {
+      const opt = document.createElement('button');
+      opt.type = 'button';
+      opt.className = 'status-option' + (st === s ? ' is-active' : '');
+      opt.setAttribute('role', 'option');
+      opt.setAttribute('aria-selected', String(st === s));
+      opt.innerHTML = `<span class="status-dot dot-${st.replace(/_/g, '-')}"></span> ${STATUS_LABELS[st]}`;
+      opt.addEventListener('click', () => {
+        closeMenu(false);
+        tourSampleStatus = st;
+        renderTourSample();
+        tourSample.querySelector('.status-check').focus();
+      });
+      menu.appendChild(opt);
+    });
+    menu.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); closeMenu(true); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const opts = [...menu.children];
+        const i = opts.indexOf(document.activeElement);
+        opts[(i + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length].focus();
+      }
+    });
+    head.appendChild(menu);
+    check.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', onOutside, true);
+    (menu.querySelector('.is-active') || menu.firstChild).focus();
+  });
+  const title = document.createElement('h3');
+  title.className = 'task-card-title';
+  title.textContent = 'Sample: GENMATH worksheet';
+  head.append(check, title);
+  const foot = document.createElement('div');
+  foot.className = 'task-card-footer';
+  const state = document.createElement('span');
+  state.className = 'due-badge';
+  state.textContent = STATUS_LABELS[s];
+  foot.append(createSubjectTag('GENMATH'), state);
+  card.append(head, foot);
+  tourSample.replaceChildren(card);
+}
+
+function placeTour(el) {
+  tourOverlay.classList.toggle('is-centered', !el);
+  const vw = window.innerWidth, vh = window.innerHeight, gap = 16;
+  const cw = tourCard.offsetWidth, ch = tourCard.offsetHeight;
+  let x, y;
+  if (!el) {
+    x = (vw - cw) / 2;
+    y = (vh - ch) / 2;
+  } else {
+    const r = el.getBoundingClientRect();
+    const top = Math.max(8, r.top - 8), bottom = Math.min(vh - 8, r.bottom + 8);
+    const left = Math.max(8, r.left - 8), right = Math.min(vw - 8, r.right + 8);
+    tourSpot.style.top = `${top}px`;
+    tourSpot.style.left = `${left}px`;
+    tourSpot.style.width = `${Math.max(0, right - left)}px`;
+    tourSpot.style.height = `${Math.max(0, bottom - top)}px`;
+    if (vh - bottom >= ch + gap) y = bottom + gap;
+    else if (top >= ch + gap) y = top - ch - gap;
+    else y = vh - ch - gap;
+    x = Math.max(gap, Math.min(left, vw - cw - gap));
+  }
+  tourCard.style.left = `${Math.max(gap, x)}px`;
+  tourCard.style.top = `${Math.max(gap, y)}px`;
+}
+
+function showTourStep(i) {
+  tourIndex = i;
+  const step = TOUR_STEPS[i];
+  const last = i === TOUR_STEPS.length - 1;
+  $('#tour-step').textContent = `Step ${i + 1} of ${TOUR_STEPS.length}`;
+  $('#tour-title').textContent = step.title;
+  $('#tour-body').textContent = step.body;
+  tourSample.hidden = !step.sample;
+  if (step.sample) { tourSampleStatus = 'not_started'; renderTourSample(); }
+  $('#tour-back').hidden = i === 0;
+  $('#tour-skip').hidden = last;
+  $('#tour-next').textContent = last ? 'Done' : 'Next';
+  const el = tourTarget();
+  if (el) el.scrollIntoView({ block: 'center', inline: 'nearest' });
+  placeTour(el);
+  $('#tour-next').focus();
+}
+
+function startTour() {
+  if (!tourOverlay.hidden) return;
+  if (previewing) setPreview(false);
+  setPage('class-tasks');
+  setSidebarOpen(false, false);
+  tourOverlay._returnFocus = document.activeElement;
+  tourOverlay.classList.remove('is-closing');
+  tourOverlay.hidden = false;
+  document.body.style.overflow = 'hidden';
+  showTourStep(0);
+  // Layout can shift while the board loads, so keep the spotlight on its target.
+  clearInterval(tourTimer);
+  tourTimer = setInterval(() => { if (tourIndex >= 0) placeTour(tourTarget()); }, 400);
+}
+
+function endTour() {
+  if (tourOverlay.hidden || tourOverlay.classList.contains('is-closing')) return;
+  try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) {}
+  clearInterval(tourTimer);
+  tourTimer = null;
+  tourIndex = -1;
+  document.body.style.overflow = '';
+  hideAnimated(tourOverlay);
+}
+
+$('#tour-next').addEventListener('click', () => {
+  if (tourIndex >= TOUR_STEPS.length - 1) endTour(); else showTourStep(tourIndex + 1);
+});
+$('#tour-back').addEventListener('click', () => { if (tourIndex > 0) showTourStep(tourIndex - 1); });
+$('#tour-skip').addEventListener('click', endTour);
+$('#settings-replay').addEventListener('click', () => { closeSettings(); startTour(); });
+window.addEventListener('resize', () => { if (tourIndex >= 0) placeTour(tourTarget()); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !tourOverlay.hidden && !tourOverlay.classList.contains('is-closing')) endTour();
+});
+
 // --- Focus trap: Tab stays inside the open dialog ---
-const TRAP_SELECTORS = ['#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
+const TRAP_SELECTORS = ['#tour-overlay', '#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;
@@ -2516,6 +2798,7 @@ function init() {
   
 
   setPage(window.location.hash.slice(1) || 'class-tasks', false);
+  if (!tourSeen()) setTimeout(startTour, 800);
 
   // Time-based overdue: re-render each minute unless something is open
   setInterval(() => {

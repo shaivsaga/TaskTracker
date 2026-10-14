@@ -198,6 +198,20 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .announce-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--s4); margin-top: var(--s3); }
 .announce-count { margin-right: auto; color: var(--muted); font-size: var(--text-xs); line-height: 20px; }
 .announce-count.is-low { color: var(--danger); }
+.announce-toolbar { display: flex; gap: var(--s1); margin-top: var(--s3); }
+.announce-tool { display: grid; place-content: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--ink); font-size: var(--text-sm); line-height: 20px; cursor: pointer; }
+.announce-tool:hover { border-color: var(--line-strong); background: var(--hover); }
+.announce-tool[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.announce-tool svg { width: 16px; height: 16px; stroke-width: 1.75; }
+.announce-editor { min-height: calc(var(--s7) + var(--s4)); max-height: 240px; margin-top: var(--s2); padding: var(--s2) var(--s3); border: 1px solid var(--line-strong); border-radius: 4px; overflow-y: auto; outline: 0; color: var(--ink); background: var(--canvas); font-size: var(--text-sm); line-height: 20px; overflow-wrap: anywhere; }
+.announce-editor:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.announce-editor:empty::before { content: attr(data-placeholder); color: var(--muted); pointer-events: none; }
+.announce-editor ul, .announce-text ul { margin: var(--s1) 0; padding-left: var(--s5); list-style: square; }
+.announce-text.is-rich { white-space: normal; }
+.announce-text b, .announce-editor b { font-weight: 600; }
+.announce-text a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.announce-text a:hover { color: var(--accent-hover); }
+@media (max-width: 720px) { .announce-tool { width: 44px; height: 44px; } }
 .announce-list { margin: var(--s3) 0 0; padding: 0; list-style: none; }
 .announce-item { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; align-items: start; gap: var(--s3); padding: var(--s3) 0; border-top: 1px solid var(--line); }
 .announce-item:hover .task-delete-btn, .announce-item:focus-within .task-delete-btn { opacity: 1; }
@@ -614,3 +628,20 @@ kbd { padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-
 /* Visible focus for fields that removed the default outline */
 .dialog-doc:focus-visible, .dialog-title-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .quick-input:focus-visible { outline: 0; box-shadow: 0 2px 0 0 var(--accent); }
+
+/* ---------- First-time tutorial ---------- */
+.tour-overlay { position: fixed; inset: 0; z-index: 300; }
+.tour-overlay.is-centered { background: var(--scrim); }
+.tour-overlay:not([hidden]) { animation: fade-in 120ms ease-out; }
+.tour-overlay.is-closing { animation: fade-out 120ms ease-in forwards; }
+.tour-spot { position: fixed; border-radius: 4px; pointer-events: none; box-shadow: 0 0 0 200vmax var(--scrim), 0 0 0 2px var(--accent); transition: top 160ms var(--ease), left 160ms var(--ease), width 160ms var(--ease), height 160ms var(--ease); }
+.tour-overlay.is-centered .tour-spot { display: none; }
+.tour-card { position: fixed; display: grid; gap: var(--s3); width: min(360px, calc(100vw - var(--s4) * 2)); padding: var(--s4) var(--s5); border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); box-shadow: var(--shadow-overlay); }
+.tour-text { display: grid; gap: var(--s2); }
+.tour-step { margin: 0; color: var(--muted); font-family: var(--font-mono); font-size: var(--text-xs); line-height: 16px; }
+.tour-title { font-size: var(--text-md); line-height: 24px; }
+.tour-body { margin: 0; color: var(--ink); font-size: var(--text-sm); line-height: 20px; }
+.tour-sample-card { cursor: default; }
+.tour-sample-card .task-card-header { position: relative; }
+.tour-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--s3); }
+.tour-actions #tour-skip { margin-right: auto; }

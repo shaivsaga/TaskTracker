@@ -49,6 +49,7 @@
   <symbol id="i-alarm-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5M3.5 6L6.5 3M20.5 6L17.5 3"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M3.5 5.5h17v15h-17zM3.5 9.5h17M8 3v4M16 3v4"/></symbol>
   <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 6H20M8.5 12H20M8.5 18H20M4 6h.01M4 12h.01M4 18h.01"/></symbol>
 </svg>
     <div class="app-shell">
          <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
@@ -135,7 +136,12 @@
                 <button class="text-button" type="button" id="announce-add-btn">Post announcement</button>
               </div>
               <form class="announce-form" id="announce-form" hidden>
-                <textarea id="announce-input" rows="3" maxlength="280" placeholder="Write a note for the class" aria-label="Announcement text" required></textarea>
+                <div class="announce-toolbar" role="toolbar" aria-label="Formatting">
+                  <button class="announce-tool" type="button" data-cmd="bold" aria-label="Bold" aria-pressed="false" title="Bold (Ctrl+B)"><b>B</b></button>
+                  <button class="announce-tool" type="button" data-cmd="italic" aria-label="Italic" aria-pressed="false" title="Italic (Ctrl+I)"><i>I</i></button>
+                  <button class="announce-tool" type="button" data-cmd="insertUnorderedList" aria-label="Bulleted list" aria-pressed="false" title="Bulleted list"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></button>
+                </div>
+                <div class="announce-editor" id="announce-input" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Announcement text" data-placeholder="Write a note for the class"></div>
                 <div class="announce-actions">
                   <span class="announce-count" id="announce-count"></span>
                   
@@ -369,9 +375,9 @@
           <div class="settings-row">
             <div>
               <p class="settings-title">Replay tutorial</p>
-              <p class="settings-desc">Walk through the board again. Not available yet.</p>
+              <p class="settings-desc">Walk through the board again.</p>
             </div>
-            <button class="secondary-button" type="button" disabled>Replay</button>
+            <button class="secondary-button" type="button" id="settings-replay">Replay</button>
           </div>
           <div class="settings-row">
             <div>
@@ -420,6 +426,23 @@
           <span><kbd>Shift</kbd> + <kbd>Enter</kbd> Add and open</span>
           <span><kbd>cal</kbd> Pick date, time is optional</span>
           <span><kbd>Esc</kbd> Cancel</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tour-overlay" id="tour-overlay" hidden>
+      <div class="tour-spot" id="tour-spot" aria-hidden="true"></div>
+      <div class="tour-card" id="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+        <div class="tour-text" aria-live="polite">
+          <p class="tour-step" id="tour-step"></p>
+          <h2 class="tour-title" id="tour-title"></h2>
+          <p class="tour-body" id="tour-body"></p>
+        </div>
+        <div id="tour-sample" hidden></div>
+        <div class="tour-actions">
+          <button class="text-button" type="button" id="tour-skip">Skip</button>
+          <button class="secondary-button" type="button" id="tour-back">Back</button>
+          <button class="primary-button" type="button" id="tour-next">Next</button>
         </div>
       </div>
     </div>
