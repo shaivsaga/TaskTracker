@@ -2767,8 +2767,300 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !tourOverlay.hidden && !tourOverlay.classList.contains('is-closing')) endTour();
 });
 
+// --- Phase 7: transfer by QR code and link ---
+const TRANSFER_API = 'transfer.php';
+const TRANSFER_TOKEN_RE = /^[a-f0-9]{32}$/;
+
+// Read the token before checkAdmin() rewrites the address bar, then remove it from the URL.
+function takeTransferToken() {
+  try {
+    const p = new URLSearchParams(location.search);
+    if (!p.has('transfer')) return null;
+    const t = p.get('transfer');
+    p.delete('transfer');
+    const q = p.toString();
+    history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
+    return TRANSFER_TOKEN_RE.test(t || '') ? t : null;
+  } catch (e) { return null; }
+}
+const INCOMING_TRANSFER = takeTransferToken();
+
+const transferOverlay = $('#transfer-overlay');
+const importOverlay = $('#import-overlay');
+let activeTransfer = null;   // { token, expiresAt } on this device's clock
+let transferTimer = null;
+let transferBusy = false;
+let transferQrOk = false;
+let pendingImport = null;
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const transferHeaders = { 'Content-Type': 'application/json' };
+
+// ---- Sending ----
+function buildTransferPayload() {
+  const payload = { v: 1, progress };
+  if (isAdmin) payload.draft = { tasks: myTasks.map((t) => t.toJSON()), announcements };
+  return payload;
+}
+
+function transferUrl(token) {
+  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'index.html?transfer=' + token;
+}
+
+function setTransferView(view, message) {
+  const ready = view === 'ready';
+  $('#transfer-qr-frame').hidden = !ready || !transferQrOk;
+  $('#transfer-link-row').hidden = !ready;
+  $('#transfer-cancel-link').hidden = !ready;
+  $('#transfer-new').hidden = !(view === 'expired' || view === 'cancelled' || view === 'error');
+  $('#transfer-error').hidden = view !== 'error';
+  if (view === 'error') $('#transfer-error').textContent = message || 'Something went wrong.';
+  $('#transfer-intro').textContent = ready
+    ? (transferQrOk
+      ? 'Scan this code or open the link on your other device. It works for 10 minutes.'
+      : 'The QR code could not be drawn. Open the link on your other device. It works for 10 minutes.')
+    : view === 'loading' ? 'Creating a link for your progress.'
+    : 'Create a new link whenever you need one.';
+  if (view === 'loading') $('#transfer-countdown').textContent = 'Creating link…';
+  else if (view === 'expired') $('#transfer-countdown').textContent = 'This link has expired.';
+  else if (view === 'cancelled') $('#transfer-countdown').textContent = 'This link was cancelled.';
+  else if (view === 'error') $('#transfer-countdown').textContent = '';
+}
+
+function tickTransfer() {
+  if (!activeTransfer) return;
+  const left = Math.max(0, Math.ceil((activeTransfer.expiresAt - Date.now()) / 1000));
+  if (left === 0) {
+    clearInterval(transferTimer);
+    transferTimer = null;
+    activeTransfer = null;
+    setTransferView('expired');
+    actionFeedback.textContent = 'Transfer link expired.';
+    return;
+  }
+  $('#transfer-countdown').textContent = `Expires in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+}
+
+function showTransferLink() {
+  const url = transferUrl(activeTransfer.token);
+  $('#transfer-link').value = url;
+  transferQrOk = typeof window.drawTransferQR === 'function' && window.drawTransferQR($('#transfer-qr'), url, { size: 240 });
+  setTransferView('ready');
+  tickTransfer();
+  clearInterval(transferTimer);
+  transferTimer = setInterval(tickTransfer, 1000);
+}
+
+async function createTransfer() {
+  if (transferBusy) return;
+  transferBusy = true;
+  setTransferView('loading');
+  try {
+    const res = await fetch(TRANSFER_API, {
+      method: 'POST', headers: transferHeaders, cache: 'no-store',
+      body: JSON.stringify({ payload: buildTransferPayload() }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.error || 'Could not create the link.');
+    if (!TRANSFER_TOKEN_RE.test(out.token || '') || !Number.isFinite(out.expiresIn)) throw new Error('Unexpected response from the server.');
+    activeTransfer = { token: out.token, expiresAt: Date.now() + out.expiresIn * 1000 };
+    if (!transferOverlay.hidden) showTransferLink();
+  } catch (ex) {
+    setTransferView('error', ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message);
+  } finally { transferBusy = false; }
+}
+
+async function cancelTransfer() {
+  if (!activeTransfer || transferBusy) return;
+  const token = activeTransfer.token;
+  const btn = $('#transfer-cancel-link');
+  transferBusy = true;
+  btn.disabled = true;
+  try {
+    const res = await fetch(TRANSFER_API, { method: 'POST', headers: transferHeaders, body: JSON.stringify({ cancel: token }) });
+    if (!res.ok) throw new Error();
+    clearInterval(transferTimer);
+    transferTimer = null;
+    activeTransfer = null;
+    setTransferView('cancelled');
+    actionFeedback.textContent = 'Transfer link cancelled.';
+    $('#transfer-new').focus();
+  } catch (ex) {
+    showToast('Could not cancel the link. It still expires on its own.');
+  } finally { transferBusy = false; btn.disabled = false; }
+}
+
+async function copyTransferLink() {
+  const input = $('#transfer-link');
+  try {
+    await navigator.clipboard.writeText(input.value);
+    showToast('Link copied');
+  } catch (e) {
+    input.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e2) {}
+    showToast(ok ? 'Link copied' : 'Press Ctrl+C to copy');
+  }
+}
+
+function openTransfer() {
+  closeSettings();
+  transferOverlay._returnFocus = document.activeElement;
+  transferOverlay.classList.remove('is-closing');
+  transferOverlay.hidden = false;
+  $('#transfer-close').focus();
+  if (activeTransfer && activeTransfer.expiresAt > Date.now()) showTransferLink();
+  else { activeTransfer = null; createTransfer(); }
+}
+
+function closeTransfer() {
+  clearInterval(transferTimer);
+  transferTimer = null;
+  hideAnimated(transferOverlay);
+}
+
+$('#settings-transfer').addEventListener('click', openTransfer);
+$('#transfer-close').addEventListener('click', closeTransfer);
+$('#transfer-done').addEventListener('click', closeTransfer);
+$('#transfer-new').addEventListener('click', createTransfer);
+$('#transfer-cancel-link').addEventListener('click', cancelTransfer);
+$('#transfer-copy').addEventListener('click', copyTransferLink);
+$('#transfer-link').addEventListener('focus', (e) => e.target.select());
+transferOverlay.addEventListener('click', (e) => { if (e.target === transferOverlay) closeTransfer(); });
+
+// ---- Receiving ----
+// Returns { progress, draft } rebuilt from scratch, or null when the data is not usable.
+function validateTransfer(p) {
+  const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
+  if (!isObj(p) || p.v !== 1) return null;
+  const raw = Array.isArray(p.progress) && p.progress.length === 0 ? {} : p.progress;
+  if (!isObj(raw)) return null;
+  const entries = Object.entries(raw);
+  if (entries.length > 5000) return null;
+  const clean = {};
+  for (const [id, e] of entries) {
+    if (id === '__proto__' || !/^[\w.\-]{1,100}$/.test(id)) return null;
+    if (!isObj(e) || !STATUS_ORDER.includes(e.status) || !Number.isFinite(e.movedAt) || e.movedAt < 0) return null;
+    clean[id] = { status: e.status, movedAt: e.movedAt };
+  }
+  let draft = null;
+  if (p.draft != null) {
+    const d = p.draft;
+    if (!isObj(d) || !Array.isArray(d.tasks) || d.tasks.length > 2000) return null;
+    if (d.announcements != null && !Array.isArray(d.announcements)) return null;
+    draft = {
+      tasks: d.tasks.filter(isObj).map((o) => Task.fromJSON(o).toJSON()),
+      announcements: (d.announcements || [])
+        .filter((a) => isObj(a) && typeof a.text === 'string' && Number.isFinite(a.createdAt))
+        .slice(0, 200)
+        .map((a) => ({
+          id: typeof a.id === 'string' ? a.id.slice(0, 20) : Math.random().toString(36).slice(2, 10),
+          text: a.text.slice(0, 1000),
+          html: typeof a.html === 'string' && a.html.length <= 8000 ? a.html : '',
+          createdAt: a.createdAt,
+        })),
+    };
+  }
+  return { progress: clean, draft };
+}
+
+// Per task, the entry with the newer movedAt wins. A tie keeps the local one.
+function mergeProgress(local, incoming) {
+  const merged = {};
+  Object.keys(local).forEach((id) => { merged[id] = local[id]; });
+  let added = 0, updated = 0, kept = 0;
+  Object.entries(incoming).forEach(([id, e]) => {
+    const cur = Object.hasOwn(merged, id) ? merged[id] : null;
+    if (!cur) { merged[id] = e; if (e.status !== 'not_started') added++; }
+    else if (e.movedAt > cur.movedAt) { if (e.status !== cur.status) updated++; merged[id] = e; }
+    else if (e.status !== cur.status) kept++;
+  });
+  return { merged, added, updated, kept };
+}
+
+function openImport(data) {
+  pendingImport = data;
+  const r = mergeProgress(progress, data.progress);
+  const list = $('#import-summary');
+  list.replaceChildren();
+  const line = (text) => { const li = document.createElement('li'); li.textContent = text; list.appendChild(li); };
+  line(`${plural(r.added, 'task')} added to your progress, ${plural(r.updated, 'task')} updated to the newer status.`);
+  if (r.kept) line(`${plural(r.kept, 'task')} stay as they are here, because they changed more recently on this device.`);
+
+  const hasDraft = !!data.draft;
+  $('#import-draft-row').hidden = !(hasDraft && isAdmin);
+  $('#import-draft-note').hidden = !(hasDraft && !isAdmin);
+  if (hasDraft && isAdmin) {
+    $('#import-draft-check').checked = true;
+    $('#import-draft-text').textContent =
+      `Replace my draft here (${plural(myTasks.length, 'task')}) with the draft from the other device (${plural(data.draft.tasks.length, 'task')}, ${plural(data.draft.announcements.length, 'announcement')}).`;
+  }
+  importOverlay.classList.remove('is-closing');
+  importOverlay.hidden = false;
+  $('#import-cancel').focus();
+}
+
+function closeImport() {
+  pendingImport = null;
+  hideAnimated(importOverlay);
+}
+
+function applyImport() {
+  if (!pendingImport) return;
+  const data = pendingImport;
+  const before = { progress: JSON.parse(JSON.stringify(progress)), draft: isAdmin ? snapshot() : null };
+  progress = mergeProgress(progress, data.progress).merged;
+  applyProgress(myTasks);
+  applyProgress(publishedTasks);
+  const withDraft = !!(data.draft && isAdmin && $('#import-draft-check').checked);
+  if (withDraft) {
+    myTasks.length = 0;
+    data.draft.tasks.forEach((o) => myTasks.push(Task.fromJSON(o)));
+    announcements = data.draft.announcements.map((a) => ({ ...a }));
+    applyProgress(myTasks);
+  }
+  saveTasks();
+  renderAllTasks();
+  renderAnnouncements();
+  closeImport();
+  showToast(withDraft ? 'Progress merged and draft replaced' : 'Progress merged', 'Undo', () => {
+    progress = before.progress;
+    applyProgress(myTasks);
+    applyProgress(publishedTasks);
+    if (before.draft) restoreDraft(before.draft);
+    else { saveTasks(); renderAllTasks(); }
+  });
+}
+
+async function checkIncomingTransfer(token) {
+  try {
+    const res = await fetch(`${TRANSFER_API}?t=${token}`, { cache: 'no-store' });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(res.status === 429 ? 'Too many attempts. Try again in a few minutes.' : 'This transfer link is not valid or has expired.');
+      return;
+    }
+    const data = validateTransfer(out.payload);
+    if (!data) { showToast('The transfer data could not be read.'); return; }
+    openImport(data);
+  } catch (ex) {
+    showToast(ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : 'Could not load the transfer.');
+  }
+}
+
+$('#import-apply').addEventListener('click', applyImport);
+$('#import-cancel').addEventListener('click', closeImport);
+$('#import-close').addEventListener('click', closeImport);
+importOverlay.addEventListener('click', (e) => { if (e.target === importOverlay) closeImport(); });
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!importOverlay.hidden && !importOverlay.classList.contains('is-closing')) closeImport();
+  else if (!transferOverlay.hidden && !transferOverlay.classList.contains('is-closing')) closeTransfer();
+});
+
 // --- Focus trap: Tab stays inside the open dialog ---
-const TRAP_SELECTORS = ['#tour-overlay', '#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
+const TRAP_SELECTORS = ['#import-overlay', '#transfer-overlay', '#tour-overlay', '#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;
@@ -2832,7 +3124,8 @@ function init() {
   
 
   setPage(window.location.hash.slice(1) || 'class-tasks', false);
-  if (!tourSeen()) setTimeout(startTour, 800);
+  if (INCOMING_TRANSFER) checkIncomingTransfer(INCOMING_TRANSFER);
+  else if (!tourSeen()) setTimeout(startTour, 800);
 
   // Time-based overdue: re-render each minute unless something is open
   setInterval(() => {

@@ -387,9 +387,9 @@
           <div class="settings-row">
             <div>
               <p class="settings-title">Transfer data</p>
-              <p class="settings-desc">Move your progress to another device. Not available yet.</p>
+              <p class="settings-desc">Move your progress to another device with a QR code or link.</p>
             </div>
-            <button class="secondary-button" type="button" disabled>Transfer</button>
+            <button class="secondary-button" type="button" id="settings-transfer">Transfer</button>
           </div>
           <div class="settings-row" id="settings-logout-row" hidden>
             <div>
@@ -416,6 +416,55 @@
               <button class="danger-button is-solid" type="submit" id="settings-reset-submit" disabled>Reset all data</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="task-dialog-overlay" id="transfer-overlay" hidden>
+      <div class="task-dialog" role="dialog" aria-modal="true" aria-labelledby="transfer-title">
+        <div class="dialog-header">
+          <h2 class="dialog-heading" id="transfer-title">Transfer data</h2>
+          <button class="panel-close" type="button" id="transfer-close" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="dialog-body">
+          <p class="dialog-summary" id="transfer-intro">Scan this code or open the link on your other device. It works for 10 minutes.</p>
+          <div class="transfer-qr-frame" id="transfer-qr-frame" hidden>
+            <canvas id="transfer-qr" role="img" aria-label="QR code for the transfer link"></canvas>
+          </div>
+          <div class="transfer-link-row" id="transfer-link-row" hidden>
+            <input class="text-input" id="transfer-link" type="text" readonly aria-label="Transfer link" spellcheck="false">
+            <button class="secondary-button" type="button" id="transfer-copy">Copy</button>
+          </div>
+          <p class="transfer-countdown" id="transfer-countdown"></p>
+          <p class="form-error" id="transfer-error" role="alert" hidden></p>
+        </div>
+        <div class="dialog-footer">
+          <button class="text-button" type="button" id="transfer-cancel-link" hidden>Cancel link</button>
+          <button class="secondary-button" type="button" id="transfer-new" hidden>Create new link</button>
+          <button class="primary-button" type="button" id="transfer-done">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="task-dialog-overlay" id="import-overlay" hidden>
+      <div class="task-dialog" role="dialog" aria-modal="true" aria-labelledby="import-title">
+        <div class="dialog-header">
+          <h2 class="dialog-heading" id="import-title">Import progress</h2>
+          <button class="panel-close" type="button" id="import-close" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="dialog-body">
+          <p class="dialog-summary">Your progress on this device will be merged with the progress from the other device. For each task, whichever status changed most recently is kept.</p>
+          <ul class="import-summary" id="import-summary"></ul>
+          <label class="import-check" id="import-draft-row" hidden>
+            <input type="checkbox" id="import-draft-check" checked>
+            <span id="import-draft-text"></span>
+          </label>
+          <p class="import-note" id="import-draft-note" hidden>This transfer also contains an admin draft. It is ignored here because this browser is not in admin mode.</p>
+          <p class="import-note">You can undo right after importing.</p>
+        </div>
+        <div class="dialog-footer">
+          <button class="text-button" type="button" id="import-cancel">Cancel</button>
+          <button class="primary-button" type="button" id="import-apply">Merge</button>
         </div>
       </div>
     </div>
@@ -452,6 +501,8 @@
       </div>
     </div>
 
+    <script src="qrcode.js"></script>
+    <script src="qr-draw.js?v=10"></script>
     <script src="app.js"></script>
   </body>
 </html>
