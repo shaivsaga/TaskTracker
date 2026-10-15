@@ -361,6 +361,15 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .dialog-doc a:hover { color: var(--accent-hover); }
 .dialog-doc img { display: block; max-width: 100%; height: auto; margin: var(--s2) 0; cursor: default; }
 .dialog-doc img::selection { background: transparent; }
+.note-toolbar { display: flex; gap: var(--s1); margin-bottom: var(--s2); }
+.note-tool { display: grid; place-content: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--ink); font-size: var(--text-sm); line-height: 20px; cursor: pointer; }
+.note-tool:hover { border-color: var(--line-strong); background: var(--hover); }
+.note-tool[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.note-tool svg { width: 16px; height: 16px; stroke-width: 1.75; }
+.dialog-doc ul { margin: var(--s1) 0; padding-left: var(--s5); list-style: square; }
+.dialog-doc b { font-weight: 600; }
+.task-dialog.is-readonly .note-toolbar { display: none; }
+@media (max-width: 720px) { .note-tool { width: 44px; height: 44px; } }
 .dialog-footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--s4); padding: var(--s3) var(--s5); border-top: 1px solid var(--line); }
 .save-state { margin-right: auto; color: var(--muted); font-size: var(--text-xs); line-height: 16px; }
 .task-dialog.is-readonly .dialog-title-input { cursor: default; }

@@ -374,6 +374,18 @@ function sanitizeDoc(html) {
           if (/^data:image\/(png|jpeg|gif|webp);base64,/i.test(s)) { const i = document.createElement('img'); i.src = s; i.alt = ''; dst.appendChild(i); }
         } else if (tag === 'br') {
           dst.appendChild(document.createElement('br'));
+        } else if (tag === 'b' || tag === 'strong' || tag === 'i' || tag === 'em') {
+          const el = document.createElement(tag === 'b' || tag === 'strong' ? 'b' : 'i');
+          walk(n, el);
+          if (el.childNodes.length) dst.appendChild(el);
+        } else if (tag === 'ul' || tag === 'ol') {
+          const ul = document.createElement('ul');
+          walk(n, ul);
+          dst.appendChild(ul);
+        } else if (tag === 'li') {
+          const li = document.createElement('li');
+          walk(n, li);
+          dst.appendChild(li);
         } else if (tag === 'div' || tag === 'p') {
           const el = document.createElement('div');
           walk(n, el);
@@ -770,6 +782,28 @@ dialogDoc.addEventListener('click', (e) => {
 // Rebuild links when leaving the box, so URLs typed or pasted while editing become links.
 dialogDoc.addEventListener('focusout', () => { if (currentTask) refreshLinks(dialogDoc); });
 
+// Note formatting toolbar. sanitizeDoc keeps only b, i, ul and li, so nothing else can be stored.
+dialogDoc.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
+const noteTools = [...document.querySelectorAll('.note-tool')];
+function syncNoteTools() {
+  noteTools.forEach((b) => {
+    let on = false;
+    try { on = document.activeElement === dialogDoc && document.queryCommandState(b.dataset.cmd); } catch (e) {}
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+noteTools.forEach((b) => {
+  b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the note
+  b.addEventListener('click', () => {
+    if (!currentTask || !isEditable(currentTask)) return;
+    dialogDoc.focus();
+    document.execCommand(b.dataset.cmd);
+    autosave();
+    syncNoteTools();
+  });
+});
+document.addEventListener('selectionchange', () => { if (document.activeElement === dialogDoc) syncNoteTools(); });
+
 const dropHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 dialog.addEventListener('dragover', (e) => {
   if (!dropHasFiles(e) || dialog.classList.contains('is-readonly')) return;
@@ -1095,7 +1129,7 @@ function plainNotes(task) {
   const hit = notesTextCache.get(task);
   if (hit && hit.html === task.notes) return hit.text;
   const tpl = document.createElement('template'); // inert: embedded images are not loaded
-  tpl.innerHTML = (task.notes || '').replace(/<(?:br|\/div|\/p)\b[^>]*>/gi, ' ');
+  tpl.innerHTML = (task.notes || '').replace(/<(?:br|\/div|\/p|\/li)\b[^>]*>/gi, ' ');
   const text = (tpl.content.textContent || '').toLowerCase();
   notesTextCache.set(task, { html: task.notes, text });
   return text;
