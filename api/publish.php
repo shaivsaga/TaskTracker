@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-$config = require __DIR__ . '/config.php';
+$config = is_file(__DIR__ . '/config.php') ? require __DIR__ . '/config.php' : [];
 function fail($code, $msg) { http_response_code($code); echo json_encode(['error' => $msg]); exit; }
 // Announcement formatting: only <b> <i> <ul> <li> <br>, no attributes, balanced, text escaped as &amp; &lt; &gt; only. Anything else is rejected, never rewritten.
 function announce_html_ok($h) {
