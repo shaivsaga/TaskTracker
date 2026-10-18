@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 960 448" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="tasktracker-architecture-dark-title tasktracker-architecture-dark-desc" id="architecture-dark-root" xmlns:c2pa="http://c2pa.org/manifest"><metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTozOTEyNmU4ZC01ODI5LTQ3OGUtYWEyNy01YzIyYWE4ZmVhYzgAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaKk/bcMdiGw9bCq8Bqrb0iMAAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDoyNjYyZTliYy1hM2I2LTRmODYtYWEyOC00NmU5ODYzYjY1MmJscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNoliUSORL43LR5RCnks47V4AAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggcQZW2zp88TtVWXs787W4+utvsOWa7QH3d36qtzZ6uxykZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaKugJBoLLpCUzWAQ4Y4Y6jsAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRMAAAAAAAAAAAAAAAAZGhhc2hYIJ56QsMcZbP3QmBk2YM1MRLrkp8qb9YWcbZeEEKTBtv7ZG5hbWVuanVtYmYgbWFuaWZlc3RqZXhjbHVzaW9uc4GiZXN0YXJ0GQEkZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOjM5MTI2ZThkLTU4MjktNDc4ZS1hYTI3LTVjMjJhYThmZWFjOC9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOmZiZjk4NGMwLWE2OWQtNGQ0Mi05YzRmLTYxZTk1NWNkYjk4NHJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCBxBlbbOnzxO1VZezvztbj662+w5ZrtAfd3fqq3Nnq7HKJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFggwFh2Ow0GbhrOntOEmAtAaKahrYTBOlm+DMMBgruGGoWiY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFgg4p2/2uCcoh6XsJNy764bsZrqP+1dziYDlDk0W21xxsp0Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQIhKbUISLAJSMIkwd4z81wuTLvzgrUTnTCuBakf9Zk8hP4omnozimiryOfkEAb9yPKr6SSS4UEHrgU+OTrjAF+Y=</c2pa:manifest></metadata>
+<title id="tasktracker-architecture-dark-title">How TaskTracker fits together</title>
+<desc id="tasktracker-architecture-dark-desc">Architecture diagram: the President’s browser publishes through a password gate to PHP on Azure, which writes the shared Board and its saved versions; classmates read the Board directly and use a temporary transfer link; GitHub Actions deploys the code.</desc>
+<defs>
+      <style>#architecture-dark-root { --color-paper: #0D0F14;
+      --color-ink: #E8EDF5;
+      --color-muted: #9AA6B8;
+      --color-accent: #78A7FF;
+      --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+      --font-serif: 'IBM Plex Serif', Georgia, serif;
+      --font-mono: 'IBM Plex Mono', ui-monospace, monospace; }
+      #architecture-dark-root { font-family: var(--font-sans); color: var(--color-ink); }
+      #architecture-dark-root .diagram-container { width: 100%; overflow-x: auto; }
+      #architecture-dark-root .sub { font-size: 0.9rem; line-height: 1.5; color: var(--color-muted); margin-bottom: 1.5rem; max-width: 62ch; }
+      #architecture-dark-root .diagram-container { overflow-x: visible; }</style>
+<marker id="architecture-dark-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#9AA6B8"/></marker>
+<marker id="architecture-dark-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#78A7FF"/></marker>
+<marker id="architecture-dark-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#93B8FF"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#0D0F14"/>
+<rect x="40" y="136" width="880" height="240" rx="8" fill="#e8edf5" stroke="rgba(232,237,245,0.14)" stroke-width="0.8" fill-opacity="0.02"/>
+<rect x="228" y="140" width="196" height="12" rx="2" fill="#0D0F14"/>
+<text x="232" y="149" fill="#8795AA" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.14em">AZURE APP SERVICE · NGINX · PHP 8.5</text>
+<line x1="124" y1="104" x2="124" y2="176" stroke="#9AA6B8" stroke-width="1.2" marker-end="url(#architecture-dark-arrow)"/>
+<line x1="184" y1="204" x2="232" y2="204" stroke="#9AA6B8" stroke-width="1.2" marker-end="url(#architecture-dark-arrow)"/>
+<path d="M352,204 H472 Q480,204 480,212 V296" fill="none" stroke="#9AA6B8" stroke-width="1.2" marker-end="url(#architecture-dark-arrow)"/>
+<line x1="292" y1="232" x2="292" y2="296" stroke="#9AA6B8" stroke-width="1.2" marker-end="url(#architecture-dark-arrow)"/>
+<path d="M540,324 H582 Q590,324 590,316 V84 Q590,76 598,76 H776" fill="none" stroke="#9AA6B8" stroke-width="1.2" marker-end="url(#architecture-dark-arrow)"/>
+<line x1="836" y1="104" x2="836" y2="176" stroke="#9AA6B8" stroke-width="1.2" marker-end="url(#architecture-dark-arrow)"/>
+<path d="M836,232 V316 Q836,324 828,324 H760" fill="none" stroke="#9AA6B8" stroke-width="1.2" marker-end="url(#architecture-dark-arrow)"/>
+<line x1="440" y1="104" x2="440" y2="136" stroke="#9AA6B8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#architecture-dark-arrow)"/>
+<rect x="132" y="134" width="48" height="12" rx="2" fill="#0D0F14"/>
+<text x="136" y="143" fill="#8795AA" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="start" letter-spacing="0.06em">PUBLISH</text>
+<rect x="300" y="258" width="52" height="12" rx="2" fill="#0D0F14"/>
+<text x="304" y="267" fill="#8795AA" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="start" letter-spacing="0.06em">SNAPSHOT</text>
+<rect x="488" y="248" width="36" height="12" rx="2" fill="#0D0F14"/>
+<text x="492" y="257" fill="#8795AA" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="start" letter-spacing="0.06em">WRITE</text>
+<rect x="672" y="56" width="32" height="12" rx="2" fill="#0D0F14"/>
+<text x="688.0" y="65" fill="#8795AA" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">READ</text>
+<rect x="844" y="134" width="64" height="12" rx="2" fill="#0D0F14"/>
+<text x="848" y="143" fill="#8795AA" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="start" letter-spacing="0.06em">LINK OR QR</text>
+<rect x="844" y="268" width="68" height="12" rx="2" fill="#0D0F14"/>
+<text x="848" y="277" fill="#8795AA" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="start" letter-spacing="0.06em">10 MIN FILE</text>
+<rect x="448" y="114" width="44" height="12" rx="2" fill="#0D0F14"/>
+<text x="452" y="123" fill="#8795AA" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="start" letter-spacing="0.06em">DEPLOY</text>
+<rect x="64" y="48" width="120" height="56" rx="6" fill="#0D0F14"/>
+<rect x="64" y="48" width="120" height="56" rx="6" fill="#9aa6b8" stroke="#8795AA" stroke-width="1" fill-opacity="0.1"/>
+<rect x="72" y="54" width="28" height="12" rx="2" fill="none" stroke="#8795AA" stroke-opacity="0.55" stroke-width="0.8"/>
+<text x="86.0" y="63" fill="#9AA6B8" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">WEB</text>
+<text x="124.0" y="83" fill="#E8EDF5" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">President</text>
+<text x="124.0" y="97" fill="#9AA6B8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">browser · Draft</text>
+<rect x="380" y="48" width="120" height="56" rx="6" fill="#0D0F14"/>
+<rect x="380" y="48" width="120" height="56" rx="6" fill="#e8edf5" stroke="rgba(232,237,245,0.4)" stroke-width="1" fill-opacity="0.03"/>
+<rect x="388" y="54" width="28" height="12" rx="2" fill="none" stroke="rgba(232,237,245,0.4)" stroke-opacity="0.55" stroke-width="0.8"/>
+<text x="402.0" y="63" fill="#9AA6B8" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">EXT</text>
+<text x="440.0" y="83" fill="#E8EDF5" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">GitHub Actions</text>
+<text x="440.0" y="97" fill="#9AA6B8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">deploys code only</text>
+<rect x="776" y="48" width="120" height="56" rx="6" fill="#0D0F14"/>
+<rect x="776" y="48" width="120" height="56" rx="6" fill="#9aa6b8" stroke="#8795AA" stroke-width="1" fill-opacity="0.1"/>
+<rect x="784" y="54" width="28" height="12" rx="2" fill="none" stroke="#8795AA" stroke-opacity="0.55" stroke-width="0.8"/>
+<text x="798.0" y="63" fill="#9AA6B8" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">WEB</text>
+<text x="836.0" y="83" fill="#E8EDF5" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Classmate</text>
+<text x="836.0" y="97" fill="#9AA6B8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">browser · Status</text>
+<rect x="64" y="176" width="120" height="56" rx="6" fill="#0D0F14"/>
+<rect x="64" y="176" width="120" height="56" rx="6" fill="#78a7ff" stroke="rgba(120,167,255,0.75)" stroke-width="1" stroke-dasharray="4,4" fill-opacity="0.05"/>
+<rect x="72" y="182" width="32" height="12" rx="2" fill="none" stroke="rgba(120,167,255,0.75)" stroke-opacity="0.55" stroke-width="0.8"/>
+<text x="88.0" y="191" fill="#78A7FF" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">AUTH</text>
+<text x="124.0" y="211" fill="#E8EDF5" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Password gate</text>
+<text x="124.0" y="225" fill="#9AA6B8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">Basic Auth /api/</text>
+<rect x="232" y="176" width="120" height="56" rx="6" fill="#0D0F14"/>
+<rect x="232" y="176" width="120" height="56" rx="6" fill="#181D25" stroke="#E8EDF5" stroke-width="1"/>
+<rect x="240" y="182" width="28" height="12" rx="2" fill="none" stroke="#E8EDF5" stroke-opacity="0.55" stroke-width="0.8"/>
+<text x="254.0" y="191" fill="#9AA6B8" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">PHP</text>
+<text x="292.0" y="211" fill="#E8EDF5" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Publish API</text>
+<text x="292.0" y="225" fill="#9AA6B8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">publish, versions</text>
+<rect x="776" y="176" width="120" height="56" rx="6" fill="#0D0F14"/>
+<rect x="776" y="176" width="120" height="56" rx="6" fill="#181D25" stroke="#E8EDF5" stroke-width="1"/>
+<rect x="784" y="182" width="28" height="12" rx="2" fill="none" stroke="#E8EDF5" stroke-opacity="0.55" stroke-width="0.8"/>
+<text x="798.0" y="191" fill="#9AA6B8" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">PHP</text>
+<text x="836.0" y="211" fill="#E8EDF5" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Transfer</text>
+<text x="836.0" y="225" fill="#9AA6B8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">transfer.php</text>
+<rect x="232" y="296" width="120" height="56" rx="6" fill="#0D0F14"/>
+<rect x="232" y="296" width="120" height="56" rx="6" fill="#e8edf5" stroke="#9AA6B8" stroke-width="1" fill-opacity="0.05"/>
+<rect x="240" y="302" width="32" height="12" rx="2" fill="none" stroke="#9AA6B8" stroke-opacity="0.55" stroke-width="0.8"/>
+<text x="256.0" y="311" fill="#9AA6B8" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">FILE</text>
+<text x="292.0" y="331" fill="#E8EDF5" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Versions</text>
+<text x="292.0" y="345" fill="#9AA6B8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">data/versions/</text>
+<rect x="420" y="296" width="120" height="56" rx="6" fill="#0D0F14"/>
+<rect x="420" y="296" width="120" height="56" rx="6" fill="#78a7ff" stroke="#78A7FF" stroke-width="1" fill-opacity="0.12"/>
+<rect x="428" y="302" width="32" height="12" rx="2" fill="none" stroke="#78A7FF" stroke-opacity="0.55" stroke-width="0.8"/>
+<text x="444.0" y="311" fill="#78A7FF" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">FILE</text>
+<text x="480.0" y="331" fill="#E8EDF5" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Board</text>
+<text x="480.0" y="345" fill="#9AA6B8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">data/current.json</text>
+<rect x="640" y="296" width="120" height="56" rx="6" fill="#0D0F14"/>
+<rect x="640" y="296" width="120" height="56" rx="6" fill="#e8edf5" stroke="#9AA6B8" stroke-width="1" fill-opacity="0.05"/>
+<rect x="648" y="302" width="32" height="12" rx="2" fill="none" stroke="#9AA6B8" stroke-opacity="0.55" stroke-width="0.8"/>
+<text x="664.0" y="311" fill="#9AA6B8" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">FILE</text>
+<text x="700.0" y="331" fill="#E8EDF5" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Transfer links</text>
+<text x="700.0" y="345" fill="#9AA6B8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">data/transfers/</text>
+<line x1="40" y1="404" x2="920" y2="404" stroke="rgba(232,237,245,0.14)" stroke-width="0.8"/>
+<text x="40" y="423" fill="#9AA6B8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.14em">LEGEND</text>
+<rect x="112" y="414" width="20" height="12" rx="2" fill="#9aa6b8" stroke="#8795AA" stroke-width="1" fill-opacity="0.1"/>
+<text x="140" y="423" fill="#9AA6B8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">BROWSER</text>
+<rect x="224" y="414" width="20" height="12" rx="2" fill="#181D25" stroke="#E8EDF5" stroke-width="1"/>
+<text x="252" y="423" fill="#9AA6B8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">PHP CODE</text>
+<rect x="336" y="414" width="20" height="12" rx="2" fill="#78a7ff" stroke="rgba(120,167,255,0.75)" stroke-width="1" stroke-dasharray="4,4" fill-opacity="0.05"/>
+<text x="364" y="423" fill="#9AA6B8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">PASSWORD GATE</text>
+<rect x="448" y="414" width="20" height="12" rx="2" fill="#e8edf5" stroke="#9AA6B8" stroke-width="1" fill-opacity="0.05"/>
+<text x="476" y="423" fill="#9AA6B8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">FILE ON SERVER</text>
+<rect x="560" y="414" width="20" height="12" rx="2" fill="#78a7ff" stroke="#78A7FF" stroke-width="1" fill-opacity="0.12"/>
+<text x="588" y="423" fill="#9AA6B8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">SHARED BOARD</text>
+<rect x="672" y="414" width="20" height="12" rx="2" fill="#e8edf5" stroke="rgba(232,237,245,0.4)" stroke-width="1" fill-opacity="0.03"/>
+<text x="700" y="423" fill="#9AA6B8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">EXTERNAL</text>
+<line x1="784" y1="420" x2="804" y2="420" stroke="#9AA6B8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#architecture-dark-arrow)"/>
+<text x="812" y="423" fill="#9AA6B8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">DEPLOY ONLY</text>
+</svg>

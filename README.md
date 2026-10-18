@@ -19,7 +19,7 @@ A shared task board for a school class. The class president posts what the secti
 
 ## Why this exists
 
-I am the class president of my section. Deadlines, quizzes, summative tests, term exams,  rubrics and submission links were scattered across group chats, and people kept asking the same questions. TaskTracker puts it all in one place: I publish a task once, and everyone can see what is due, when, and what they still need to do.
+I am the class president of my section. Deadlines, quizzes, summative tests, term exams, rubrics and submission links were scattered across group chats, and people kept asking the same questions. TaskTracker puts it all in one place: I publish a task once, and everyone can see what is due, when, and what they still need to do.
 
 It is also a project for my computer science studies, so the design choices below matter as much as the features.
 
@@ -44,15 +44,10 @@ It is also a project for my computer science studies, so the design choices belo
 
 Progress is personal and stays on the device. Tasks are shared and come from the server.
 
-```mermaid
-flowchart LR
-    P[President's browser<br/>Draft in localStorage] -->|Publish, password required| A[api/publish.php]
-    A --> C[data/current.json<br/>the Board]
-    A --> V[data/versions/<br/>history]
-    C -->|read| S[Classmate's browser]
-    S --> L[Status in localStorage]
-    S <-->|QR or link, 10 minutes| T[transfer.php]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.svg">
+  <img src="docs/architecture.svg" alt="Architecture diagram. The President's browser publishes through a password gate to PHP on Azure, which writes the shared Board and saved versions. Classmates read the Board directly and use a temporary transfer link. GitHub Actions deploys the code.">
+</picture>
 
 - **Draft and Board.** The president edits a private Draft. Publishing replaces the public Board with it. Students only ever see the Board.
 - **Status stays local.** Each classmate's progress is saved in their own browser and is never sent to the server, so the president cannot see who has done what.
@@ -117,6 +112,7 @@ transfer.php      Temporary transfer links
 api/publish.php   Publish the Board (password protected)
 api/versions.php  Version history (password protected)
 deploy/           nginx rules and startup script for Azure
+docs/             Architecture diagram and screenshots
 data/             Created at runtime, not in git
 ```
 
