@@ -2804,7 +2804,7 @@ function buildTransferPayload() {
 }
 
 function transferUrl(token) {
-  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'index.html?transfer=' + token;
+  return location.origin + location.pathname.replace(/[^/]*$/, '') + '?transfer=' + token;
 }
 
 function setTransferView(view, message) {
