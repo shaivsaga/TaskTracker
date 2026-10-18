@@ -19,7 +19,7 @@ A shared task board for a school class. The class president posts what the secti
 
 ## Why this exists
 
-I am the class president of my section. Deadlines, practical tests, rubrics and submission links were scattered across group chats, and people kept asking the same questions. TaskTracker puts it all in one place: I publish a task once, and everyone can see what is due, when, and what they still need to do.
+I am the class president of my section. Deadlines, quizzes, summative tests, term exams,  rubrics and submission links were scattered across group chats, and people kept asking the same questions. TaskTracker puts it all in one place: I publish a task once, and everyone can see what is due, when, and what they still need to do.
 
 It is also a project for my computer science studies, so the design choices below matter as much as the features.
 
