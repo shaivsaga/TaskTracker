@@ -1,6 +1,9 @@
 /*
  * qrcode.js — Standard, zero-dependency QR code generator with brand styling & center logo.
  * Verified with standard phone camera & jsQR scanners.
+ *
+ * Includes qrcode-generator, Copyright (c) 2009 Kazuhiko Arase, MIT License.
+ * https://github.com/kazuhikoarase/qrcode-generator
  */
 (function(root, factory) {
   var qr = factory();

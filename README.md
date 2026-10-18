@@ -128,11 +128,11 @@ I test by hand with a checklist: both themes, collapsed and open sidebar, a 320 
 
 - Images pasted into notes are stored inside the note, which makes the Board file larger. Proper file uploads are planned.
 - Progress lives in the browser, so it does not follow a person to a new device without Transfer.
-- Phones can keep an old copy of the page after an update until it is refreshed. Automatic asset versioning is planned.
+- A phone that already has the site open may need one refresh after an update. New visits fetch the latest files automatically.
 
 ## Roadmap
 
-- [ ] Phone fixes: sidebar controls, calendar readability
+- [ ] Phone calendar readability
 - [ ] Update notice: a popup listing tasks that are new or changed since your last visit
 - [ ] Manage subjects from the admin area
 - [ ] File uploads for PDFs and images on tasks
@@ -148,6 +148,6 @@ I test by hand with a checklist: both themes, collapsed and open sidebar, a 320 
 Released under the [MIT License](LICENSE).
 
 - Fonts: [IBM Plex](https://github.com/IBM/plex), SIL Open Font License.
-- QR generation: `qrcode.js`. See the file header for its author and license.
+- QR generation: `qrcode.js`, which bundles [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase, MIT License.
 
 Built by [@shaivsaga](https://github.com/shaivsaga).
