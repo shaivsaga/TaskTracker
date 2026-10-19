@@ -2541,6 +2541,7 @@ function openSettings() {
   settingsOverlay.classList.remove('is-closing');
   settingsOverlay.hidden = false;
   $('#settings-close').focus();
+  document.getElementById('reset-admin-note').hidden = !isAdmin;
 }
 
 function closeSettings() {
