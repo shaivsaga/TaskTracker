@@ -1098,7 +1098,19 @@ function renderDonePage() {
 // --- Calendar ---
 let calMode = 'month';
 let calAnchor = todayDate();
+let calSelected = null;
+let calByDay = new Map();
+const calPhone = window.matchMedia('(max-width: 720px)');
 const calSort = (a, b) => (a.dueTime || '').localeCompare(b.dueTime || '');
+const calLongDate = (d) => d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+const calSameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+
+// Phone month view: the day picked in the grid, defaulting to today (or the 1st) of the shown month.
+function calPickDay() {
+  if (calSelected && calSameMonth(calSelected, calAnchor)) return calSelected;
+  const t = todayDate();
+  return calSameMonth(t, calAnchor) ? t : new Date(calAnchor.getFullYear(), calAnchor.getMonth(), 1);
+}
 
 function calRange() {
   const a = calAnchor;
@@ -1124,6 +1136,72 @@ function createCalChip(task) {
   return chip;
 }
 
+function createCalDots(list) {
+  const wrap = document.createElement('span');
+  wrap.className = 'cal-dots';
+  wrap.setAttribute('aria-hidden', 'true');
+  list.slice(0, 3).forEach((t) => {
+    const dot = document.createElement('span');
+    dot.className = 'cal-dot' + (t.subject && SUBJECTS[t.subject] ? ` ${SUBJECTS[t.subject]}` : '') + (t.status !== 'done' && t.isOverdue() ? ' is-overdue' : '');
+    dot.dataset.status = t.status;
+    wrap.appendChild(dot);
+  });
+  return wrap;
+}
+
+let calAgendaSig = '';
+function renderCalAgenda() {
+  const box = document.querySelector('#cal-agenda');
+  if (!box) return;
+  const on = calPhone.matches && calMode === 'month';
+  box.hidden = !on;
+  if (!on) { calAgendaSig = ''; return; }
+  const d = calPickDay();
+  const tasks = (calByDay.get(toInputValue(d)) || []).slice().sort(calSort);
+  // The page re-renders every minute; only touch the live region when the day's content really changed.
+  const sig = `${toInputValue(d)}|${tasks.map((t) => `${t.id}:${t.status}:${t.title}:${t.dueTime || ''}:${t.isOverdue() ? 1 : 0}`).join(',')}`;
+  if (sig === calAgendaSig) return;
+  calAgendaSig = sig;
+  document.querySelector('#cal-agenda-title').textContent = calLongDate(d);
+  const out = document.querySelector('#cal-agenda-list');
+  out.replaceChildren();
+  if (!tasks.length) {
+    const p = document.createElement('p');
+    p.className = 'cal-agenda-empty';
+    p.textContent = 'Nothing due this day.';
+    out.appendChild(p);
+    return;
+  }
+  tasks.forEach((t) => out.appendChild(createCalChip(t)));
+}
+
+const calFocus = (key) => document.querySelector(`#cal-grid [data-date="${key}"]`)?.focus({ preventScroll: true });
+
+function calSelect(d, focus) {
+  calSelected = d;
+  const key = toInputValue(d);
+  if (!calSameMonth(d, calAnchor)) {
+    calAnchor = new Date(d.getFullYear(), d.getMonth(), 1);
+    renderCalendar();
+  } else {
+    document.querySelectorAll('#cal-grid .cal-day.is-tappable').forEach((c) => {
+      const on = c.dataset.date === key;
+      c.classList.toggle('is-selected', on);
+      c.tabIndex = on ? 0 : -1;
+      if (on) c.setAttribute('aria-current', 'true'); else c.removeAttribute('aria-current');
+    });
+    renderCalAgenda();
+  }
+  if (focus) calFocus(key);
+}
+
+// Arrow keys move the selection by a day or a week; Enter/Space picks the focused day.
+function calKey(e, d) {
+  const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+  if (step) { e.preventDefault(); calSelect(new Date(d.getFullYear(), d.getMonth(), d.getDate() + step), true); }
+  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); calSelect(d, true); }
+}
+
 function syncCalTabs() {
   document.querySelectorAll('[data-cal-mode]').forEach((b) => {
     const on = b.dataset.calMode === calMode;
@@ -1144,6 +1222,7 @@ function renderCalendar() {
     ? `${short(start)} – ${short(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6))}`
     : calAnchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   grid.dataset.mode = calMode;
+  const focusedDay = grid.contains(document.activeElement) ? document.activeElement.dataset.date : '';
   grid.replaceChildren();
   for (let i = 0; i < 7; i++) {
     const h = document.createElement('div');
@@ -1152,6 +1231,9 @@ function renderCalendar() {
     grid.appendChild(h);
   }
   const max = calMode === 'week' ? 12 : 3;
+  const phoneMonth = calPhone.matches && calMode === 'month';
+  const picked = phoneMonth ? toInputValue(calPickDay()) : '';
+  calByDay = byDay;
   for (let i = 0; i < days; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const cell = document.createElement('div');
@@ -1161,6 +1243,22 @@ function renderCalendar() {
     num.textContent = d.getDate();
     cell.appendChild(num);
     const list = (byDay.get(toInputValue(d)) || []).slice().sort(calSort);
+    if (phoneMonth) {
+      const key = toInputValue(d);
+      cell.classList.add('is-tappable');
+      if (key === picked) cell.classList.add('is-selected');
+      const overdue = list.filter((t) => t.status !== 'done' && t.isOverdue()).length;
+      cell.dataset.date = key;
+      cell.tabIndex = key === picked ? 0 : -1;
+      cell.setAttribute('role', 'button');
+      if (key === picked) cell.setAttribute('aria-current', 'true');
+      cell.setAttribute('aria-label', `${calLongDate(d)}, ${list.length ? plural(list.length, 'task') : 'no tasks'}${overdue ? `, ${overdue} overdue` : ''}`);
+      if (list.length) cell.appendChild(createCalDots(list));
+      cell.addEventListener('click', () => calSelect(d));
+      cell.addEventListener('keydown', (e) => calKey(e, d));
+      grid.appendChild(cell);
+      continue;
+    }
     list.slice(0, max).forEach((t) => cell.appendChild(createCalChip(t)));
     if (list.length > max) {
       const more = document.createElement('button');
@@ -1173,6 +1271,8 @@ function renderCalendar() {
     grid.appendChild(cell);
   }
   document.querySelector('#cal-empty').hidden = dated.length > 0;
+  if (focusedDay) calFocus(focusedDay);
+  renderCalAgenda();
 }
 
 function calStep(dir) {
@@ -1183,7 +1283,8 @@ function calStep(dir) {
 }
 document.querySelector('#cal-prev').addEventListener('click', () => calStep(-1));
 document.querySelector('#cal-next').addEventListener('click', () => calStep(1));
-document.querySelector('#cal-today').addEventListener('click', () => { calAnchor = todayDate(); renderCalendar(); });
+document.querySelector('#cal-today').addEventListener('click', () => { calAnchor = todayDate(); calSelected = calAnchor; renderCalendar(); });
+calPhone.addEventListener('change', renderCalendar);
 document.querySelectorAll('[data-cal-mode]').forEach((b) => b.addEventListener('click', () => { calMode = b.dataset.calMode; syncCalTabs(); renderCalendar(); }));
 
 // --- Search, overview stats, nav badge ---

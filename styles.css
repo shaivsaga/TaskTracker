@@ -455,6 +455,25 @@ kbd { padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-
 .cal-more { padding: 0 var(--s2); background: transparent; color: var(--muted); font-size: var(--text-xs); line-height: 16px; text-align: left; cursor: pointer; }
 .cal-more:hover { color: var(--ink); }
 
+/* Phone month view: day cells are tap targets that show dots; the picked day's tasks list below the grid. */
+.cal-day.is-tappable { justify-items: center; align-content: start; gap: var(--s1); min-height: 56px; padding: var(--s1); cursor: pointer; }
+.cal-day.is-tappable .cal-num { justify-self: center; }
+@media (hover: hover) {
+  .cal-day.is-tappable:hover { background: var(--hover); }
+  .cal-day.is-tappable.is-outside:hover { background: var(--column-bg); }
+}
+.cal-day.is-tappable.is-selected, .cal-day.is-tappable.is-selected:hover { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-day.is-tappable:focus-visible { outline-offset: -2px; }
+.cal-dots { display: flex; justify-content: center; gap: 2px; }
+.cal-dots .cal-dot { width: 8px; height: 8px; border: 1px solid var(--line-strong); }
+.cal-dots .cal-dot[data-status="done"] { background: transparent; }
+.cal-dots .cal-dot.is-overdue { background: var(--danger); border-color: var(--danger); }
+.cal-agenda { margin-top: var(--s4); }
+.cal-agenda-title { margin-bottom: var(--s2); color: var(--ink); font-size: var(--text-sm); font-weight: 600; line-height: 20px; }
+.cal-agenda-list { display: grid; gap: var(--s1); }
+.cal-agenda .cal-chip { min-height: 44px; padding: var(--s2) var(--s3); font-size: var(--text-sm); line-height: 20px; }
+.cal-agenda-empty { color: var(--muted); font-size: var(--text-sm); line-height: 20px; }
+
 /* ---------- Loading + motion (short, answers an action) ---------- */
 .skeleton { background: var(--hover); animation: skeleton-pulse 1.2s ease-in-out infinite; }
 .skeleton-card { height: 76px; border: 1px solid var(--line); }
@@ -544,7 +563,8 @@ kbd { padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-
   .kanban-board { grid-template-columns: 1fr; }
   .kanban-column { min-height: 240px; }
   .cal-day { min-height: 80px; padding: var(--s1); }
-  .cal-time { display: none; }
+  .cal[data-mode="month"] .cal-dow { padding: var(--s2) 0; text-align: center; }
+  .cal .cal-time { display: none; }
   .task-row, .done-row { grid-template-columns: 24px auto minmax(0, 1fr) auto; row-gap: var(--s1); }
   .task-row > :nth-child(1), .done-row > :nth-child(1) { grid-column: 1; grid-row: 1; }
   .task-row > :nth-child(2), .done-row > :nth-child(2) { grid-column: 2 / 4; grid-row: 1; }
