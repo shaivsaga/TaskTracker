@@ -56,6 +56,7 @@
   <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M3.5 5.5h17v15h-17zM3.5 9.5h17M8 3v4M16 3v4"/></symbol>
   <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
   <symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 6H20M8.5 12H20M8.5 18H20M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><path d="M3.5 4.5h17v4h-17z"/><path d="M5 8.5v11h14v-11"/><path d="M10 12.5h4"/></symbol>
 </svg>
     <div class="app-shell">
          <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
@@ -88,6 +89,10 @@
           <a class="nav-item" href="#done" data-page="done">
             <svg class="i nav-icon" aria-hidden="true"><use href="#i-check-circle"/></svg>
             <span>Completed tasks</span>
+          </a>
+          <a class="nav-item" href="#past" data-page="past">
+            <svg class="i nav-icon" aria-hidden="true"><use href="#i-archive"/></svg>
+            <span>Past tasks</span>
           </a>
           <a class="nav-item" href="#calendar" data-page="calendar">
             <svg class="i nav-icon" aria-hidden="true"><use href="#i-calendar-days"/></svg>
@@ -262,6 +267,13 @@
             <div class="task-list" id="done-list" aria-label="Completed tasks"></div>
           </section>
 
+          <section class="page utility-page" id="page-past" data-page-view="past" aria-label="Past tasks" hidden>
+            <div class="page-heading">
+              <div><p class="page-supporting-copy">Tasks that were closed or have passed their due date. Nothing is lost, and you can still mark things done.</p></div>
+            </div>
+            <div class="task-list" id="past-list" aria-label="Past tasks"></div>
+          </section>
+
           <section class="page utility-page" id="page-calendar" data-page-view="calendar" aria-label="Calendar" hidden>
             <div class="page-heading">
               <h2 class="cal-title" id="cal-title"></h2>
@@ -407,7 +419,7 @@
           <div class="settings-row">
             <div>
               <p class="settings-title">Reset all data</p>
-              <p class="setting-desc">Clears your progress and view settings on this device.</p>
+              <p class="settings-desc">Clears your progress and view settings on this device.</p>
               <span id="reset-admin-note" hidden> Also clears your unpublished draft and saved checkpoints.</span>
             </div>
             <button class="danger-button" type="button" id="settings-reset-start">Reset</button>

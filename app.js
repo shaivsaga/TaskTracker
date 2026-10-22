@@ -57,6 +57,8 @@ class Task {
 
     this.subject = typeof opts.subject === 'string' ? opts.subject : '';
 
+    this.closedAt = typeof opts.closedAt === 'number' ? opts.closedAt : 0;
+
   }
 
   getDueDateDisplay() {
@@ -90,6 +92,16 @@ class Task {
     if (!ts) return false;
     return ts.getTime() < Date.now();
   }
+
+  // Past = closed by the admin, or more than 7 days past its due date.
+  isExpired() {
+    const ts = this.getDueTimestamp();
+    return !!ts && Date.now() - ts.getTime() > 7 * 86400000;
+  }
+
+  isPast() { return this.closedAt > 0 || this.isExpired(); }
+
+  getPastLabel() { return this.closedAt > 0 ? 'Closed' : 'Expired'; }
 
   getDueShort() {
     if (!this.dueDate) return 'Someday';
@@ -151,7 +163,8 @@ class Task {
       dueDate: this.dueDate ? toInputValue(this.dueDate) : undefined,
       dueTime: this.dueTime,
       notes: this.notes,
-      subject: this.subject
+      subject: this.subject,
+      closedAt: this.closedAt || undefined
     };
   }
 
@@ -172,7 +185,8 @@ class Task {
       })(),
       dueTime: typeof obj.dueTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(obj.dueTime) ? obj.dueTime : undefined,
       notes: sanitizeDoc(notes),
-      subject: obj.subject
+      subject: obj.subject,
+      closedAt: Number.isFinite(obj.closedAt) ? obj.closedAt : 0
     });
   }
 }
@@ -439,6 +453,26 @@ function linkify(root) {
 function refreshLinks(root) { unlinkify(root); linkify(root); }
 
 let dialogReturn = null;
+let dialogCloseBtn = null;
+function getCloseBtn() {
+  if (dialogCloseBtn) return dialogCloseBtn;
+  dialogCloseBtn = document.createElement('button');
+  dialogCloseBtn.type = 'button';
+  dialogCloseBtn.className = dialogDelete.className;
+  dialogCloseBtn.textContent = 'Close for class';
+  dialogCloseBtn.addEventListener('click', () => {
+    const task = currentTask;
+    if (!task || !isEditable(task)) return;
+    task.closedAt = Date.now();
+    saveTasks();
+    closeTaskDialog();
+    renderAllTasks();
+    showToast('Moved to Past tasks', 'Undo', () => { task.closedAt = 0; saveTasks(); renderAllTasks(); });
+  });
+  dialogDelete.insertAdjacentElement('beforebegin', dialogCloseBtn);
+  return dialogCloseBtn;
+}
+
 function openTaskDialog(task) {
   dialogReturn = { el: document.activeElement, id: task.id };
   currentTask = task;
@@ -451,6 +485,7 @@ function openTaskDialog(task) {
   dialogDateBtn.disabled = ro;
   dialogDelete.hidden = ro;
   dialogDuplicate.hidden = ro;
+  getCloseBtn().hidden = ro || task.closedAt > 0;
   dialogTitleInput.value = task.title === 'New Task' ? '' : task.title;
   updateDialogDue(task);
   updateDialogStatus(task);
@@ -933,7 +968,7 @@ function renderClassTasks() {
   board.querySelectorAll('.column-content').forEach((c) => {
     c.querySelectorAll('.task-card, .skeleton').forEach((n) => n.remove());
   });
-  const all = previewing ? myTasks : publishedTasks;
+  const all = (previewing ? myTasks : publishedTasks).filter((t) => !t.isPast());
   const q = classSearchQuery.trim().toLowerCase();
   const source = sortTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
   source.forEach((task) => {
@@ -953,6 +988,71 @@ function renderClassTasks() {
 
 // --- Completed tasks page ---
 const recordSource = () => ((isAdmin || previewing) ? myTasks : publishedTasks);
+
+function renderPastPage() {
+  const host = document.querySelector('#past-list');
+  if (!host) return;
+  host.replaceChildren();
+  // Finished tasks first, so the tab opens on wins before leftovers.
+  const past = sortTasks(recordSource().filter((t) => t.isPast()))
+    .sort((a, b) => (b.status === 'done') - (a.status === 'done'));
+  if (!past.length) {
+    const none = document.createElement('p');
+    none.className = 'list-empty';
+    none.textContent = 'Nothing here yet. Tasks land here once they are closed or a week past their due date.';
+    host.appendChild(none);
+    return;
+  }
+  const canEdit = isAdmin && !previewing;
+  const mkBtn = (label, fn) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'text-button';
+    b.textContent = label;
+    b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+    return b;
+  };
+  past.forEach((task) => {
+    const isDone = task.status === 'done';
+    const row = document.createElement('div');
+    row.className = 'task-row done-row';
+    row.tabIndex = 0;
+    const dot = document.createElement('span');
+    dot.className = 'status-dot ' + (isDone ? 'dot-done' : 'dot-not-started');
+    const title = document.createElement('span');
+    title.className = 'task-row-title' + (isDone ? ' is-done' : '');
+    title.textContent = task.title;
+    const tag = document.createElement('span');
+    tag.className = 'task-row-due';
+    tag.textContent = isDone ? 'Done' : task.getPastLabel();
+    const actions = document.createElement('span');
+    actions.style.cssText = 'display:flex;gap:12px;justify-content:flex-end';
+    actions.appendChild(mkBtn(isDone ? 'Mark not done' : 'Mark done', () => {
+      setStatus(task, isDone ? 'not_started' : 'done');
+      renderAllTasks();
+    }));
+    if (canEdit) {
+      actions.appendChild(mkBtn('Restore', () => {
+        task.closedAt = 0;
+        saveTasks();
+        renderAllTasks();
+        if (task.isExpired()) {
+          openTaskDialog(task);
+          showToast('Pick a new due date to bring this task back.');
+        } else {
+          showToast('Task restored');
+        }
+      }));
+      actions.appendChild(mkBtn('Delete', () => deleteTask(task)));
+    }
+    row.addEventListener('click', () => openTaskDialog(task));
+    row.addEventListener('keydown', (e) => {
+      if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTaskDialog(task); }
+    });
+    row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
+    host.appendChild(row);
+  });
+}
 
 function renderDonePage() {
   const host = document.querySelector('#done-list');
@@ -1094,16 +1194,17 @@ let classSearchQuery = '';
 
 function getVisibleTasks() {
   const q = searchQuery.trim().toLowerCase();
+  const active = myTasks.filter((t) => !t.isPast());
   return sortTasks(q
-    ? myTasks.filter((t) => t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
-    : myTasks);
+    ? active.filter((t) => t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
+    : active);
 }
 
 function updateOverview() {
-  const open = myTasks.filter((t) => t.status !== 'done');
+  const open = myTasks.filter((t) => t.status !== 'done' && !t.isPast());
   const dueToday = open.filter((t) => t.dueDate && dayDiff(t.dueDate) === 0).length;
   const overdue = open.filter((t) => t.dueDate && t.isOverdue()).length;
-  const inProgress = myTasks.filter((t) => t.status === 'in_progress').length;
+  const inProgress = myTasks.filter((t) => t.status === 'in_progress' && !t.isPast()).length;
   document.querySelector('#sum-open').textContent = `${open.length} open`;
   document.querySelector('#sum-progress').textContent = `${inProgress} in progress`;
   const sumToday = document.querySelector('#sum-today');
@@ -3095,6 +3196,7 @@ function renderAllTasks() {
   renderTaskList();
   renderClassTasks();
   renderDonePage();
+  renderPastPage();
   renderCalendar();
   updateOverview();
   if (staggerNext) {
