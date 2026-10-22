@@ -14,7 +14,6 @@ async function checkAdmin() {
     const params = new URLSearchParams(location.search);
     if (params.has('admin')) {
       localStorage.setItem(ADMIN_KEY, '1');
-      history.replaceState(null, '', location.pathname + location.hash);
     }
     if (localStorage.getItem(ADMIN_KEY) !== '1') return false;
     const res = await fetch('api/versions.php', { cache: 'no-store' });
@@ -2763,7 +2762,10 @@ function logoutAdmin() {
   try { localStorage.removeItem(ADMIN_KEY); } catch (e) {}
   isAdmin = false;
   previewing = false;
-  history.replaceState(null, '', location.pathname + '#class-tasks');
+  const params = new URLSearchParams(location.search);
+  params.delete('admin');
+  const query = params.toString();
+  history.replaceState(null, '', location.pathname + (query ? `?${query}` : '') + '#class-tasks');
   location.reload();
 }
 $('#settings-logout').addEventListener('click', logoutAdmin);
