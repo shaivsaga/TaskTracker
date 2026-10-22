@@ -1017,8 +1017,7 @@ function renderPastPage() {
     const row = document.createElement('div');
     row.className = 'task-row done-row';
     row.tabIndex = 0;
-    const dot = document.createElement('span');
-    dot.className = 'status-dot ' + (isDone ? 'dot-done' : 'dot-not-started');
+    const dot = createStatusCheck(task);
     const title = document.createElement('span');
     title.className = 'task-row-title' + (isDone ? ' is-done' : '');
     title.textContent = task.title;
@@ -1075,8 +1074,7 @@ function renderDonePage() {
     const row = document.createElement('div');
     row.className = 'task-row done-row' + (task.id === justChangedId ? ' is-entering' : '');
     row.tabIndex = 0;
-    const dot = document.createElement('span');
-    dot.className = 'status-dot dot-done';
+    const dot = createStatusCheck(task);
     const title = document.createElement('span');
     title.className = 'task-row-title is-done';
     title.textContent = task.title;
@@ -1370,7 +1368,7 @@ const SUBJECTS = {
 const STATUS_CODES = {
   ns: 'not_started', todo: 'not_started', 'not started': 'not_started',
   ip: 'in_progress', started: 'in_progress', doing: 'in_progress', 'in progress': 'in_progress',
-  c: 'done', d: 'done', done: 'done',
+  dn: 'done', done: 'done',
 };
 const WEEKDAYS = {
   sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2, wed: 3, wednesday: 3,
@@ -1555,6 +1553,11 @@ function quickWords(text) {
 // "3pm", "3:30pm", "15:30" -> "HH:MM" (or null)
 function parseTimeWord(w) {
   let m = /^(\d{1,2})(?::(\d{2}))?(am|pm)$/i.exec(w);
+  if (!m) {
+    // Shorthand: 1159pm -> 11:59pm, 315pm -> 3:15pm, 930am -> 9:30am
+    const c = /^(\d{1,2})(\d{2})(am|pm)$/i.exec(w);
+    if (c) m = [c[0], c[1], c[2], c[3]];
+  }
   if (m) {
     let h = +m[1];
     const min = +(m[2] || 0);
@@ -1688,6 +1691,9 @@ function renderQuickPreview() {
   );
   quickPrev = next;
   syncQuickChips(p);
+  const hasText = !!quickInput.value.trim();
+  document.querySelector('#quick-add-btn').disabled = !hasText;
+  document.querySelector('#quick-open-btn').disabled = !hasText;
 }
 
 function renderQuickChips() {
@@ -1696,7 +1702,7 @@ function renderQuickChips() {
   quickChipEls = [];
   const groups = [
     ['Subject', Object.keys(SUBJECTS).map((code) => ({ type: 'subject', code }))],
-    ['Status', [['ns', 'Not started', 'ns'], ['ip', 'In progress', 'ip'], ['d', 'Done', 'c/d']].map(([code, label, shown]) => ({ type: 'status', code, label, shown }))],
+    ['Status', [['ns', 'Not started', 'ns'], ['ip', 'In progress', 'ip'], ['dn', 'Done', 'dn']].map(([code, label, shown]) => ({ type: 'status', code, label, shown }))],
     ['Due', [
       { type: 'date', code: 'today', label: 'Today', shown: 'today' },
       { type: 'date', code: 'tmr', label: 'Tomorrow', shown: 'tmr' },
@@ -1784,9 +1790,14 @@ function openQuickAdd() {
 }
 
 function closeQuickAdd() {
+  closeDuePicker();
   hideAnimated(quickOverlay, 120);
   if (quickReturnFocus && quickReturnFocus.focus) quickReturnFocus.focus();
 }
+
+document.querySelector('#quick-add-btn').addEventListener('click', () => submitQuickAdd(false));
+document.querySelector('#quick-open-btn').addEventListener('click', () => submitQuickAdd(true));
+document.querySelector('#quick-cancel-btn').addEventListener('click', closeQuickAdd);
 
 function submitQuickAdd(openDetails) {
   if (!quickInput.value.trim()) return;
@@ -1795,6 +1806,7 @@ function submitQuickAdd(openDetails) {
   myTasks.push(task);
   if (p.status !== 'not_started') setStatus(task, p.status);
   else { justChangedId = task.id; saveTasks(); }
+  closeDuePicker();
   hideAnimated(quickOverlay, 120);
   if (searchQuery) { searchQuery = ''; document.querySelector('#task-search').value = ''; }
   setPage('my-tasks');
@@ -2107,8 +2119,7 @@ function openDuePicker(opts) {
   el.setAttribute('aria-label', 'Due date and time');
   el.innerHTML = `
     <div class="dp-fields">
-      <input class="dp-input dp-date" type="text" placeholder="Date" aria-label="Date" autocomplete="off" spellcheck="false">
-      <input class="dp-input dp-time" type="text" placeholder="Time (optional)" aria-label="Time, optional" autocomplete="off" spellcheck="false">
+      <input class="dp-input dp-date" type="text" placeholder="Date &amp; time" aria-label="Date and time, time optional" autocomplete="off" spellcheck="false" enterkeyhint="done">
     </div>
     <div class="dp-head">
       <span class="dp-month"></span>
@@ -2124,14 +2135,12 @@ function openDuePicker(opts) {
 
   const $ = (sel) => el.querySelector(sel);
   const dateIn = $('.dp-date');
-  const timeIn = $('.dp-time');
   const grid = $('.dp-grid');
   const monthEl = $('.dp-month');
 
   const emit = () => s.onChange({ date: s.date, time: s.time });
   const syncFields = () => {
-    dateIn.value = s.date ? formatDateText(s.date) : '';
-    timeIn.value = s.time ? formatTime(s.time) : '';
+    dateIn.value = s.date ? formatDateText(s.date) + (s.time ? ' ' + formatTime(s.time) : '') : '';
   };
   const gotoMonth = (d) => { s.view = new Date(d.getFullYear(), d.getMonth(), 1); renderGrid(); };
 
@@ -2179,40 +2188,27 @@ function openDuePicker(opts) {
     const r = parseDateField(dateIn.value);
     if (r.empty) return;
     let changed = false;
-    if (r.date) { s.date = r.date; gotoMonth(r.date); changed = true; }
-    if (r.time && (r.date || r.timeOnly)) {
+    if (r.date) { s.date = r.date; s.time = r.time || null; gotoMonth(r.date); changed = true; }
+    else if (r.timeOnly) {
       s.time = r.time;
       if (!s.date) { s.date = todayDate(); gotoMonth(s.date); }
       changed = true;
     }
-    if (changed) { timeIn.value = s.time ? formatTime(s.time) : ''; renderGrid(); emit(); }
-  });
-
-  timeIn.addEventListener('input', () => {
-    const t = parseTimeWord(timeIn.value.replace(/\s+/g, ''));
-    if (!t) return;
-    s.time = t;
-    if (!s.date) { s.date = todayDate(); dateIn.value = formatDateText(s.date); gotoMonth(s.date); }
-    emit();
+    if (changed) { renderGrid(); emit(); }
   });
 
   const commitDate = () => {
     if (!dateIn.value.trim() && s.date) { s.date = null; s.time = null; renderGrid(); emit(); }
     syncFields();
   };
-  const commitTime = () => {
-    if (!timeIn.value.trim() && s.time) { s.time = null; emit(); }
-    syncFields();
-  };
   dateIn.addEventListener('blur', commitDate);
-  timeIn.addEventListener('blur', commitTime);
-  [dateIn, timeIn].forEach((inp) => inp.addEventListener('keydown', (e) => {
+  dateIn.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     e.stopPropagation();
-    if (inp === dateIn) commitDate(); else commitTime();
+    commitDate();
     closeDuePicker('done');
-  }));
+  });
 
   $('.dp-prev').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() - 1, 1)));
   $('.dp-next').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() + 1, 1)));
@@ -2234,9 +2230,8 @@ function openDuePicker(opts) {
   el.style.top = `${top}px`;
   el.style.left = `${Math.min(Math.max(8, r.left), window.innerWidth - w - 8)}px`;
 
-  const target = s.focus === 'time' ? timeIn : dateIn;
-  target.focus();
-  target.select();
+  dateIn.focus();
+  dateIn.select();
 }
 
 // Esc closes only the picker (capture phase so the dialog / quick add stay open)

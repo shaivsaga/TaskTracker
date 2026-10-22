@@ -667,3 +667,21 @@ kbd { padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-
 .import-check input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); }
 .import-note { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 20px; }
 @media (max-width: 720px) { .transfer-link-row { flex-direction: column; } }
+
+#reset-admin-note[hidden] { display: none; }
+
+/* Picker: single combined field */
+.due-picker .dp-fields { display: block; }
+.due-picker .dp-fields .dp-input { width: 100%; box-sizing: border-box; }
+
+/* Quick add buttons */
+.quick-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.quick-actions button { min-height: 44px; }
+.quick-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Touch devices: no Shift+Enter, and no iOS zoom on focus */
+@media (hover: none) { .quick-keys { display: none; } }
+@media (max-width: 600px) {
+  .quick-input, .due-picker .dp-input { font-size: 16px; }
+  .quick-actions .primary-button { flex: 1; }
+}

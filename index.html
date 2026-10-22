@@ -420,7 +420,7 @@
             <div>
               <p class="settings-title">Reset all data</p>
               <p class="settings-desc">Clears your progress and view settings on this device.</p>
-              <span id="reset-admin-note" hidden> Also clears your unpublished draft and saved checkpoints.</span>
+              <p class="settings-desc" id="reset-admin-note" hidden>Also clears your unpublished draft and saved checkpoints.</p>
             </div>
             <button class="danger-button" type="button" id="settings-reset-start">Reset</button>
           </div>
@@ -491,9 +491,14 @@
     <div class="quick-overlay" id="quick-overlay" hidden>
       <div class="quick-add" role="dialog" aria-modal="true" aria-labelledby="quick-label">
         <label class="sr-only" id="quick-label" for="quick-input">Quick add task</label>
-        <input class="quick-input" id="quick-input" type="text" autocomplete="off" spellcheck="false" placeholder="Subject, task, status, date">
+        <input class="quick-input" id="quick-input" type="text" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="Subject, task, status, date">
         <div class="quick-preview" id="quick-preview" aria-live="polite"></div>
         <div class="quick-chips" id="quick-chips"></div>
+        <div class="quick-actions">
+          <button class="text-button" type="button" id="quick-cancel-btn">Cancel</button>
+          <button class="secondary-button" type="button" id="quick-open-btn" disabled>Add &amp; open</button>
+          <button class="primary-button" type="button" id="quick-add-btn" disabled>Add</button>
+        </div>
         <div class="quick-keys">
           <span><kbd>Enter</kbd> Add</span>
           <span><kbd>Shift</kbd> + <kbd>Enter</kbd> Add and open</span>
