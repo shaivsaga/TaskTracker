@@ -29,7 +29,7 @@ It is also a project for my computer science studies, so the design choices belo
 - A board of published tasks, as a Kanban board or a list, sorted by due date with overdue tasks first.
 - Set your own status on each task: Not started, In progress, or Done. Drag cards, or use the dropdown.
 - Completed tasks move to their own page and can be reopened at any time.
-- Month and week calendar views.
+- Month and week calendar views. On phones the month shows coloured dots with the selected day's tasks listed underneath, and the week is one row per day.
 - Task notes with bold, italic, bullets, clickable links and images.
 - Announcements pinned by the president.
 - Dark and light themes, a first-time tutorial, and quick-add shortcuts such as `tmr`, `3pm` and `ip`.
@@ -77,7 +77,7 @@ Progress is personal and stays on the device. Tasks are shared and come from the
 - Writes are serialized with a lock and replaced atomically, so a failed publish never leaves a half-written board.
 - Notes and announcements are sanitized to a small whitelist of tags before they are shown.
 - Transfer endpoints rebuild every payload from a strict whitelist and are rate limited per IP address.
-- Secret files and the `data/` folder are never served to the public. Only `data/current.json` is.
+- Secret files, the `data/` folder and the `deploy/` folder are never served to the public. Only `data/current.json` is.
 
 ## Getting started locally
 
@@ -96,7 +96,8 @@ The production site runs on Azure App Service with GitHub Actions.
 
 - Pushing to `main` deploys the code. `data/` is created on the server and is not in git.
 - Azure's PHP images use nginx, which ignores `.htaccess`. The equivalent rules, including the password on `api/` and blocking of hidden files and `data/`, are in [`deploy/nginx-default.conf`](deploy/nginx-default.conf).
-- [`deploy/startup.sh`](deploy/startup.sh) is set as the app's startup command, so the nginx rules are re-applied after every restart.
+- [`deploy/startup.sh`](deploy/startup.sh) copies that config into place at startup, so the rules are re-applied after every restart. Set the app's Startup Command to `/home/site/wwwroot/deploy/startup.sh`. If the file is missing or the new config fails `nginx -t`, the previous config stays.
+- The deploy stamps `styles.css`, `app.js` and `qr-draw.js` in `index.html` with the commit, so a reload after an update always gets the new files. Stamped files are cached for a year; the page itself and `qrcode.js` are revalidated.
 - The admin password file is created once on the server, outside the web folder, and is never committed.
 - HTTPS Only is turned on.
 
@@ -124,15 +125,15 @@ I test by hand with a checklist: both themes, collapsed and open sidebar, a 320 
 
 - Images pasted into notes are stored inside the note, which makes the Board file larger. Proper file uploads are planned.
 - Progress lives in the browser, so it does not follow a person to a new device without Transfer.
-- A phone that already has the site open may need one refresh after an update. New visits fetch the latest files automatically.
+- An already-open tab keeps running the old files until it is reloaded. A normal reload fetches the latest ones.
 
 ## Roadmap
 
-- [ ] Phone calendar readability
+- [x] Phone calendar readability
+- [x] Add to home screen on iPhone
 - [ ] Update notice: a popup listing tasks that are new or changed since your last visit
 - [ ] Manage subjects from the admin area
 - [ ] File uploads for PDFs and images on tasks
-- [ ] Add to home screen on Android and iPhone
 - [ ] Automatic cleanup of progress for deleted tasks
 - [ ] Optional personal to-do list, kept on the device
 - [ ] CSV export and progress charts
