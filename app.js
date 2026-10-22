@@ -1238,6 +1238,7 @@ function renderCalendar() {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const cell = document.createElement('div');
     cell.className = 'cal-day' + (calMode === 'month' && d.getMonth() !== calAnchor.getMonth() ? ' is-outside' : '') + (dayDiff(d) === 0 ? ' is-today' : '');
+    if (calMode === 'week') cell.dataset.dow = d.toLocaleDateString(undefined, { weekday: 'short' });
     const num = document.createElement('span');
     num.className = 'cal-num';
     num.textContent = d.getDate();

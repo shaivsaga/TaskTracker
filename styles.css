@@ -565,6 +565,17 @@ kbd { padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-
   .cal-day { min-height: 80px; padding: var(--s1); }
   .cal[data-mode="month"] .cal-dow { padding: var(--s2) 0; text-align: center; }
   .cal .cal-time { display: none; }
+  /* Week view on phones: one full-width row per day instead of seven ~45px columns. */
+  .cal[data-mode="week"] { grid-template-columns: minmax(0, 1fr); }
+  .cal[data-mode="week"] .cal-dow { display: none; }
+  .cal[data-mode="week"] .cal-day { grid-template-columns: 40px minmax(0, 1fr); column-gap: var(--s3); min-height: 0; padding: var(--s2) var(--s3); }
+  .cal[data-mode="week"] .cal-day::before { content: attr(data-dow); grid-column: 1; grid-row: 1; color: var(--muted); font-size: var(--text-xs); line-height: 16px; }
+  .cal[data-mode="week"] .cal-num { grid-column: 1; grid-row: 2; justify-self: start; }
+  .cal[data-mode="week"] .cal-chip, .cal[data-mode="week"] .cal-more { grid-column: 2; }
+  .cal[data-mode="week"] .cal-chip { min-height: 44px; padding: var(--s2) var(--s3); font-size: var(--text-sm); line-height: 20px; }
+  .cal[data-mode="week"] .cal-time { display: inline; }
+  .cal[data-mode="week"] .cal-chip-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+  .cal[data-mode="week"] .cal-day:not(:has(.cal-chip))::after { content: 'No tasks'; grid-column: 2; grid-row: 1; color: var(--muted); font-size: var(--text-xs); line-height: 16px; }
   .task-row, .done-row { grid-template-columns: 24px auto minmax(0, 1fr) auto; row-gap: var(--s1); }
   .task-row > :nth-child(1), .done-row > :nth-child(1) { grid-column: 1; grid-row: 1; }
   .task-row > :nth-child(2), .done-row > :nth-child(2) { grid-column: 2 / 4; grid-row: 1; }
