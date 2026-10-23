@@ -1,4 +1,6 @@
 <?php
+require __DIR__ . '/_session.php';
+tt_require_admin();
 header('Content-Type: application/json');
 $dir = dirname(__DIR__) . '/data/versions';
 

@@ -5,21 +5,30 @@ const sidebar = document.querySelector('.sidebar');
 const mobileMenu = document.querySelector('.mobile-menu');
 const actionFeedback = document.querySelector('#action-feedback');
 
-// --- Admin access: the server login (api/ Basic Auth) is the real gate ---
+// --- Admin access: Basic Auth signs in once (api/login.php), then an HttpOnly session cookie does the rest ---
 const ADMIN_KEY = 'class_tasks_admin';
+const SIGNED_OUT_KEY = 'class_tasks_signed_out';
 let isAdmin = false;
 
+const JSON_POST = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', cache: 'no-store' };
+const adminHint = () => {
+  try { return localStorage.getItem(ADMIN_KEY) === '1' || new URLSearchParams(location.search).has('admin'); } catch (e) { return false; }
+};
+async function hasSession() {
+  try { return (await fetch('api/versions.php', { cache: 'no-store' })).ok; } catch (e) { return false; }
+}
+async function signIn() {
+  try { return (await fetch('api/login.php', JSON_POST)).ok; } catch (e) { return false; }
+}
 async function checkAdmin() {
   try {
-    const params = new URLSearchParams(location.search);
-    if (params.has('admin')) {
-      localStorage.setItem(ADMIN_KEY, '1');
-    }
-    if (localStorage.getItem(ADMIN_KEY) !== '1') return false;
-    const res = await fetch('api/versions.php', { cache: 'no-store' });
-    if (res.ok) return true;
-    localStorage.removeItem(ADMIN_KEY);
-    return false;
+    const wanted = new URLSearchParams(location.search).has('admin');
+    if (!wanted && localStorage.getItem(ADMIN_KEY) !== '1') return false;
+    let ok = await hasSession();
+    // A saved ?admin link signs in on its own, unless this device was logged out on purpose.
+    if (!ok && wanted && localStorage.getItem(SIGNED_OUT_KEY) !== '1') ok = await signIn();
+    if (ok) { localStorage.setItem(ADMIN_KEY, '1'); localStorage.removeItem(SIGNED_OUT_KEY); }
+    return ok;
   } catch (e) { return false; }
 }
 
@@ -2721,7 +2730,7 @@ const resetInput = $('#settings-reset-input');
 const resetSubmit = $('#settings-reset-submit');
 const RESET_PHRASE = 'RESET';
 // Kept on reset: appearance, sign-in state, and the cached copy of the published board.
-const RESET_KEEP = new Set(['class_tasks_theme', SIDEBAR_KEY, ADMIN_KEY, KEYS.cache]);
+const RESET_KEEP = new Set(['class_tasks_theme', SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY, KEYS.cache]);
 
 function showResetConfirm(show, focus = true) {
   resetForm.hidden = !show;
@@ -2735,6 +2744,7 @@ function openSettings() {
   setSidebarOpen(false, false);
   showResetConfirm(false, false);
   $('#settings-logout-row').hidden = !isAdmin;
+  $('#settings-login-row').hidden = isAdmin || !adminHint();
   settingsOverlay.classList.remove('is-closing');
   settingsOverlay.hidden = false;
   $('#settings-close').focus();
@@ -2758,8 +2768,20 @@ function resetLocalData() {
 settingsOpen.addEventListener('click', openSettings);
 
 // Phase 4: client-only logout. Clears the admin flag and reloads into the student view. The draft stays in localStorage.
-function logoutAdmin() {
-  try { localStorage.removeItem(ADMIN_KEY); } catch (e) {}
+async function logoutAdmin() {
+  const btn = $('#settings-logout');
+  btn.disabled = true;
+  btn.classList.add('is-loading');
+  try {
+    const res = await fetch('api/logout.php', JSON_POST);
+    if (!res.ok) throw new Error();
+  } catch (e) {
+    btn.disabled = false;
+    btn.classList.remove('is-loading');
+    showToast('Could not log out. Check your connection and try again.');
+    return;
+  }
+  try { localStorage.setItem(SIGNED_OUT_KEY, '1'); } catch (e) {}
   isAdmin = false;
   previewing = false;
   const params = new URLSearchParams(location.search);
@@ -2769,6 +2791,19 @@ function logoutAdmin() {
   location.reload();
 }
 $('#settings-logout').addEventListener('click', logoutAdmin);
+$('#settings-login').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.classList.add('is-loading');
+  if (await signIn()) {
+    try { localStorage.setItem(ADMIN_KEY, '1'); localStorage.removeItem(SIGNED_OUT_KEY); } catch (e2) {}
+    location.reload();
+    return;
+  }
+  btn.disabled = false;
+  btn.classList.remove('is-loading');
+  showToast('Sign in failed or was cancelled.');
+});
 $('#settings-close').addEventListener('click', closeSettings);
 settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) closeSettings(); });
 resetStart.addEventListener('click', () => showResetConfirm(true));
