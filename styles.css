@@ -139,7 +139,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .secondary-button { color: var(--ink); background: transparent; border-color: var(--line-strong); }
 .secondary-button:hover, .secondary-button:active { background: var(--hover); }
 .primary-button:disabled, .secondary-button:disabled, .text-button:disabled { opacity: 0.4; cursor: not-allowed; }
-.primary-button.is-loading::after, .danger-button.is-loading::after { content: ''; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 700ms linear infinite; }
+.primary-button.is-loading::after, .secondary-button.is-loading::after, .danger-button.is-loading::after { content: ''; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 700ms linear infinite; }
 
 .text-button { padding: 0; background: transparent; color: var(--ink); font-size: var(--text-sm); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .text-button:hover { color: var(--accent); }
