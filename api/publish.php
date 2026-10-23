@@ -1,4 +1,6 @@
 <?php
+require __DIR__ . '/_session.php';
+tt_require_admin();
 header('Content-Type: application/json');
 $config = is_file(__DIR__ . '/config.php') ? require __DIR__ . '/config.php' : [];
 function fail($code, $msg) { http_response_code($code); echo json_encode(['error' => $msg]); exit; }
