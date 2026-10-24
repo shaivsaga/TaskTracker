@@ -53,6 +53,13 @@ foreach ($in['tasks'] as $t) {
   if (isset($t['subject']) && strlen($t['subject']) > 32) fail(422, "Task $n: subject is too long.");
   if (isset($t['dueDate']) && (!is_string($t['dueDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['dueDate']))) fail(422, "Task $n: dueDate must look like 2026-10-26.");
   if (isset($t['dueTime']) && (!is_string($t['dueTime']) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/D', $t['dueTime']))) fail(422, "Task $n: dueTime must look like 15:30.");
+  if (isset($t['files'])) {
+    if (!is_array($t['files']) || count($t['files']) > 10) fail(422, "Task $n: files must be a list of up to 10.");
+    foreach ($t['files'] as $f) {
+      if (!is_array($f) || !is_string($f['id'] ?? null) || !preg_match('/^[a-f0-9]{32}\.(pdf|pptx|docx|jpg|png)$/D', $f['id'])
+          || !is_string($f['name'] ?? null) || mb_strlen($f['name']) > 120 || !is_int($f['size'] ?? null) || $f['size'] < 0) fail(422, "Task $n: a file attachment is malformed.");
+    }
+  }
 }
 $anns = $in['announcements'] ?? [];
 if (count($anns) > 100) fail(422, 'Too many announcements (max 100).');

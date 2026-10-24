@@ -47,6 +47,15 @@ function toInputValue(d) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// Attached files live on the server (data/uploads); a task only keeps {id, name, size}.
+const FILE_ID_RE = /^[a-f0-9]{32}\.(pdf|pptx|docx|jpg|png)$/;
+function cleanFiles(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter((f) => f && typeof f.id === 'string' && FILE_ID_RE.test(f.id) && typeof f.name === 'string' && Number.isFinite(f.size))
+    .slice(0, 10)
+    .map((f) => ({ id: f.id, name: f.name.slice(0, 120), size: Math.max(0, Math.floor(f.size)) }));
+}
+
 // --- Task Data Model (Feature 1) ---
 class Task {
   constructor(opts = {}) {
@@ -66,6 +75,8 @@ class Task {
     this.subject = typeof opts.subject === 'string' ? opts.subject : '';
 
     this.closedAt = typeof opts.closedAt === 'number' ? opts.closedAt : 0;
+
+    this.files = Array.isArray(opts.files) ? opts.files : [];
 
   }
 
@@ -172,7 +183,8 @@ class Task {
       dueTime: this.dueTime,
       notes: this.notes,
       subject: this.subject,
-      closedAt: this.closedAt || undefined
+      closedAt: this.closedAt || undefined,
+      files: this.files.length ? this.files : undefined
     };
   }
 
@@ -194,7 +206,8 @@ class Task {
       dueTime: typeof obj.dueTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(obj.dueTime) ? obj.dueTime : undefined,
       notes: sanitizeDoc(notes),
       subject: obj.subject,
-      closedAt: Number.isFinite(obj.closedAt) ? obj.closedAt : 0
+      closedAt: Number.isFinite(obj.closedAt) ? obj.closedAt : 0,
+      files: cleanFiles(obj.files)
     });
   }
 }
@@ -267,6 +280,17 @@ const dialogDueHint = document.querySelector('#dialog-due-hint');
 const dialogDoc = document.querySelector('#dialog-doc');
 const dialogDelete = document.querySelector('#dialog-delete');
 const dialogDuplicate = document.querySelector('#dialog-duplicate');
+const dialogFilesField = document.querySelector('#dialog-files-field');
+const dialogFiles = document.querySelector('#dialog-files');
+const dialogAttachBtn = document.querySelector('#dialog-attach-btn');
+const dialogFileInput = document.querySelector('#dialog-file-input');
+dialogFileInput.accept = TTFiles.ACCEPT;
+dialogAttachBtn.addEventListener('click', () => dialogFileInput.click());
+dialogFileInput.addEventListener('change', () => {
+  const picked = [...dialogFileInput.files];
+  dialogFileInput.value = '';
+  if (picked.length) attachFiles(picked);
+});
 
 let currentTask = null;
 
@@ -393,7 +417,7 @@ function sanitizeDoc(html) {
         const tag = n.tagName.toLowerCase();
         if (tag === 'img') {
           const s = n.getAttribute('src') || '';
-          if (/^data:image\/(png|jpeg|gif|webp);base64,/i.test(s)) { const i = document.createElement('img'); i.src = s; i.alt = ''; dst.appendChild(i); }
+          if (/^data:image\/(png|jpeg|gif|webp);base64,/i.test(s) || /^uploads\/[a-f0-9]{32}\.(jpg|png)$/.test(s)) { const i = document.createElement('img'); i.src = s; i.alt = ''; dst.appendChild(i); }
         } else if (tag === 'br') {
           dst.appendChild(document.createElement('br'));
         } else if (tag === 'b' || tag === 'strong' || tag === 'i' || tag === 'em') {
@@ -500,6 +524,7 @@ function openTaskDialog(task) {
   dialogDoc.innerHTML = sanitizeDoc(task.notes || '');
   refreshLinks(dialogDoc);
   updateDialogSubject(task);
+  renderDialogFiles(task);
   dialogOverlay.classList.remove('is-closing');
   dialogOverlay.hidden = false;
   dialogOverlay.setAttribute('aria-hidden', 'false');
@@ -785,10 +810,81 @@ function insertDocImage(src) {
 
 async function insertDocImages(files) {
   for (const file of files) {
-    const src = await fileToDataUrl(file);
-    if (src) insertDocImage(src);
+    let src = null;
+    try {
+      const { blob, name } = await TTFiles.prepare(file);
+      const out = await TTFiles.upload(blob, name);
+      src = TTFiles.urlFor(out.id);
+    } catch (e) {
+      src = await fileToDataUrl(file);   // not signed in or offline: keep it inline instead of losing it
+      if (!src) { showToast(e.message || 'Could not add that image'); continue; }
+    }
+    insertDocImage(src);
   }
   autosave();
+}
+
+async function attachFiles(files) {
+  const task = currentTask;
+  if (!task || !isEditable(task)) return;
+  let added = 0;
+  for (const file of files) {
+    if (task.files.length >= 10) { showToast('A task can have up to 10 files.'); break; }
+    try {
+      showToast(`Uploading ${file.name || 'file'}…`);
+      const { blob, name } = await TTFiles.prepare(file);
+      const out = await TTFiles.upload(blob, name);
+      task.files.push({ id: out.id, name: out.name, size: out.size });
+      added++;
+      saveTasks();
+      if (currentTask === task) renderDialogFiles(task);
+    } catch (e) {
+      showToast(e.message === 'Failed to fetch' ? 'Cannot reach the server.' : e.message);
+      return;
+    }
+  }
+  if (added) { flashSaved(); showToast(added === 1 ? 'File attached' : `${added} files attached`); }
+}
+
+function renderDialogFiles(task) {
+  const editable = isEditable(task);
+  dialogFilesField.hidden = !editable && !task.files.length;
+  dialogAttachBtn.hidden = !editable;
+  dialogFiles.replaceChildren();
+  task.files.forEach((f) => {
+    const li = document.createElement('li');
+    li.className = 'file-item';
+    const a = document.createElement('a');
+    a.href = TTFiles.urlFor(f.id);
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = f.name;
+    if (/\.(pptx|docx)$/.test(f.id)) a.download = f.name;
+    const size = document.createElement('span');
+    size.className = 'file-size';
+    size.textContent = TTFiles.formatSize(f.size);
+    li.append(a, size);
+    if (editable) {
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'text-button';
+      rm.textContent = 'Remove';
+      rm.addEventListener('click', () => {
+        const index = task.files.indexOf(f);
+        if (index === -1) return;
+        task.files.splice(index, 1);
+        saveTasks();
+        renderDialogFiles(task);
+        showToast('File removed', 'Undo', () => {
+          task.files.splice(Math.min(index, task.files.length), 0, f);
+          saveTasks();
+          if (currentTask === task) renderDialogFiles(task);
+        });
+      });
+      li.append(rm);
+    }
+    dialogFiles.append(li);
+  });
 }
 
 function rangeFromPoint(x, y) {
@@ -810,8 +906,14 @@ dialogDoc.addEventListener('input', () => {
 
 dialogDoc.addEventListener('paste', (e) => {
   e.preventDefault();
-  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
-  if (files.length) { insertDocImages(files); return; }
+  const files = [...(e.clipboardData?.files || [])];
+  if (files.length) {
+    const imgs = files.filter((f) => f.type.startsWith('image/'));
+    const docs = files.filter((f) => !f.type.startsWith('image/'));
+    if (imgs.length) insertDocImages(imgs);
+    if (docs.length) attachFiles(docs);
+    return;
+  }
   document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
 });
 
@@ -858,17 +960,22 @@ dialog.addEventListener('dragleave', (e) => {
 });
 dialog.addEventListener('drop', (e) => {
   dialog.classList.remove('is-dropping');
-  const files = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith('image/'));
-  if (!files.length) return;
+  const all = [...(e.dataTransfer?.files || [])];
+  if (!all.length) return;
   e.preventDefault();
   if (dialog.classList.contains('is-readonly')) return;
-  const range = rangeFromPoint(e.clientX, e.clientY);
-  if (range && dialogDoc.contains(range.startContainer)) {
-    const sel = getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
+  const imgs = all.filter((f) => f.type.startsWith('image/'));
+  const docs = all.filter((f) => !f.type.startsWith('image/'));
+  if (imgs.length) {
+    const range = rangeFromPoint(e.clientX, e.clientY);
+    if (range && dialogDoc.contains(range.startContainer)) {
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    insertDocImages(imgs);
   }
-  insertDocImages(files);
+  if (docs.length) attachFiles(docs);
 });
 
 dialogDelete.addEventListener('click', () => {
