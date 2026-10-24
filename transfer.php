@@ -1,15 +1,16 @@
 <?php
 declare(strict_types=1);
 
-const TTL          = 600;      // seconds a link lives  
+const TTL          = 600;      // seconds a link lives
 const MAX_BODY     = 1048576;  // 1 MB
 const MAX_CREATES  = 30;       // creates + cancels per window per IP
 const MAX_READS    = 300;      // reads per window per IP
-const RATE_WINDOW  = 600;     
+const RATE_WINDOW  = 600;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
+require __DIR__ . '/api/_validate.php';
 
 function respond(int $code, $body = null) {
     http_response_code($code);
@@ -58,36 +59,6 @@ function rate_ok(string $dir, string $kind, int $limit): bool {
     flock($fh, LOCK_UN);
     fclose($fh);
     return $ok;
-}
-
-// Rebuilds the payload from a strict whitelist. Returns null if anything is off.
-function clean_payload($p) {
-    if (!is_array($p) || ($p['v'] ?? null) !== 1) return null;
-    $pr = $p['progress'] ?? null;
-    if (!is_array($pr) || count($pr) > 5000) return null;
-    $progress = [];
-    foreach ($pr as $id => $e) {
-        $id = (string)$id;
-        if ($id === '__proto__' || !preg_match('/^[\w.\-]{1,100}$/', $id)) return null;
-        if (!is_array($e)) return null;
-        $st = $e['status'] ?? null;
-        $mv = $e['movedAt'] ?? null;
-        if (!in_array($st, ['not_started', 'in_progress', 'done'], true)) return null;
-        if ((!is_int($mv) && !is_float($mv)) || $mv < 0 || $mv > 4102444800000) return null;
-        $progress[$id] = ['status' => $st, 'movedAt' => (int)round($mv)];
-    }
-    $clean = ['v' => 1, 'progress' => (object)$progress];
-    if (array_key_exists('draft', $p) && $p['draft'] !== null) {
-        $d = $p['draft'];
-        if (!is_array($d)) return null;
-        $tasks = $d['tasks'] ?? null;
-        $ann   = $d['announcements'] ?? [];
-        if (!is_array($tasks) || !is_array($ann) || count($tasks) > 2000 || count($ann) > 200) return null;
-        foreach ($tasks as $t) if (!is_array($t)) return null;
-        foreach ($ann as $a)   if (!is_array($a)) return null;
-        $clean['draft'] = ['tasks' => array_values($tasks), 'announcements' => array_values($ann)];
-    }
-    return $clean;
 }
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';

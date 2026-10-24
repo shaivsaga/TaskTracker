@@ -1,0 +1,14 @@
+name: PHP tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  php-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+      - run: php tests/php/run.php
