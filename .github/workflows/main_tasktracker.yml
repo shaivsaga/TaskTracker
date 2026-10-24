@@ -37,6 +37,13 @@ jobs:
       - name: Validate nginx config
         run: sudo apt-get update -qq && sudo apt-get install -y -qq nginx && bash deploy/check-nginx.sh
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run logic tests
+        run: node --test tests/logic.test.js
+
       - name: Stamp asset versions
         run: |
           V=${GITHUB_SHA::7}
