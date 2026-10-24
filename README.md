@@ -102,7 +102,7 @@ The production site runs on Azure App Service with GitHub Actions.
 - Azure's PHP images use nginx, which ignores `.htaccess`. The equivalent rules, including the password on `api/login.php`, the exact list of public API routes, and blocking of hidden files and `data/`, are in [`deploy/nginx-default.conf`](deploy/nginx-default.conf).
 - [`deploy/startup.sh`](deploy/startup.sh) copies that config into place at startup, so the rules are re-applied after every restart. Set the app's Startup Command to `/home/site/wwwroot/deploy/startup.sh`. If the file is missing or the new config fails `nginx -t`, the previous config stays, which on Azure means the default config without the TaskTracker rules. The script then prints a banner to the startup log and writes `/home/LogFiles/startup-nginx-error.txt`, so check there if sign-in stops working after a restart.
 - [`deploy/check-nginx.sh`](deploy/check-nginx.sh) runs `nginx -t` on the config without root. A GitHub Actions workflow runs it on pull requests, and the deploy job runs it before uploading, so an invalid config never ships. Regexes containing `{32}` must be quoted in nginx, or it reads the brace as a block.
-- The deploy stamps `styles.css`, `app.js`, `qr-draw.js` and `attachments.js` in `index.html` with the commit, so a reload after an update always gets the new files. Stamped files are cached for a year; the page itself and `qrcode.js` are revalidated.
+- The deploy stamps `styles.css`, `app.js`, `logic.js`, `qr-draw.js` and `attachments.js` in `index.html` with the commit, so a reload after an update always gets the new files. Stamped files are cached for a year; the page itself and `qrcode.js` are revalidated.
 - [`deploy/php-uploads.ini`](deploy/php-uploads.ini) raises PHP's upload limits at startup. `deploy/startup.sh` installs it, so the app needs a restart after this change.
 - With XAMPP, serve uploads by adding `Alias /TaskTracker/uploads "C:/xampp/htdocs/TaskTracker/data/uploads"` to Apache.
 - The admin password file is created once on the server, outside the web folder, and is never committed.
@@ -113,7 +113,8 @@ The production site runs on Azure App Service with GitHub Actions.
 ```
 index.html        Markup for every page and dialog, plus the icon sprite
 styles.css        Design tokens, layout and both themes
-app.js            All application behavior
+app.js            Application behavior: pages, dialogs, rendering, publishing
+logic.js          Pure logic (dates, Task model, sorting, progress merge, quick-add parsing)
 attachments.js    File picker, image compression and upload
 qr-draw.js        Draws the transfer QR code
 qrcode.js         QR code generator library
