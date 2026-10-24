@@ -1,0 +1,28 @@
+name: Tests
+
+on:
+  pull_request:
+    paths:
+      - 'logic.js'
+      - 'tests/**'
+      - '.github/workflows/tests.yml'
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'logic.js'
+      - 'tests/**'
+      - '.github/workflows/tests.yml'
+
+jobs:
+  node-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run logic tests
+        run: node --test tests/logic.test.js

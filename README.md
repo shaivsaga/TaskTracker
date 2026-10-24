@@ -132,7 +132,9 @@ data/             Created at runtime, not in git: board, versions, sessions, upl
 
 ## Testing
 
-I test by hand with a checklist: both themes, collapsed and open sidebar, a 320 px wide screen, touch targets on phones, keyboard-only use, and admin and student sessions. Automated tests for the core logic (merging, sorting, due dates and the sanitizers) are on the roadmap.
+The core logic (dates and due labels, the Task model, sorting, progress merging, the quick-add time and date parsers and attachment cleanup) is covered by automated tests in `tests/`. Run them with `node --test tests/logic.test.js`. They need Node 18 or newer and no packages. GitHub runs them on pull requests that touch `logic.js` or `tests/`, and the deploy runs them before it ships. The HTML sanitizers and the PHP validators are not covered yet.
+
+I also test by hand with a checklist: both themes, collapsed and open sidebar, a 320 px wide screen, touch targets on phones, keyboard-only use, and admin and student sessions. 
 
 ## Known limitations
 
@@ -152,7 +154,7 @@ I test by hand with a checklist: both themes, collapsed and open sidebar, a 320 
 - [ ] Automatic cleanup of progress for deleted tasks
 - [ ] Optional personal to-do list, kept on the device
 - [ ] CSV export and progress charts
-- [ ] Automated tests for the core logic
+- [x] Automated tests for the core logic
 - [ ] Longer term: reminders and insights, designed with privacy first
 
 ## Credits and license
