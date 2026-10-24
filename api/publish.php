@@ -1,26 +1,11 @@
 <?php
 require __DIR__ . '/_session.php';
+require __DIR__ . '/_validate.php';
 tt_require_admin();
 header('Content-Type: application/json');
 $config = is_file(__DIR__ . '/config.php') ? require __DIR__ . '/config.php' : [];
 function fail($code, $msg) { http_response_code($code); echo json_encode(['error' => $msg]); exit; }
-// Announcement formatting: only <b> <i> <ul> <li> <br>, no attributes, balanced, text escaped as &amp; &lt; &gt; only. Anything else is rejected, never rewritten.
-function announce_html_ok($h) {
-  if (!is_string($h) || strlen($h) > 8000 || !mb_check_encoding($h, 'UTF-8')) return false;
-  $stack = [];
-  foreach (preg_split('/(<[^<>]*>)/', $h, -1, PREG_SPLIT_DELIM_CAPTURE) as $p) {
-    if ($p === '') continue;
-    if ($p[0] === '<') {
-      if ($p === '<br>') continue;
-      if (!preg_match('/^<(\/?)(b|i|ul|li)>$/D', $p, $m)) return false;
-      if ($m[1] === '') { $stack[] = $m[2]; if (count($stack) > 20) return false; }
-      elseif (array_pop($stack) !== $m[2]) return false;
-    } elseif (strpbrk($p, '<>') !== false || preg_match('/&(?!(?:amp|lt|gt);)/', $p)) {
-      return false;
-    }
-  }
-  return !$stack;
-}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'POST only');
 $ct = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '')[0]));
 if ($ct !== 'application/json') fail(415, 'Content-Type must be application/json');
