@@ -2896,7 +2896,10 @@ const transferHeaders = { 'Content-Type': 'application/json' };
 // ---- Sending ----
 function buildTransferPayload() {
   const payload = { v: 1, progress };
-  if (isAdmin) payload.draft = { tasks: myTasks.map((t) => t.toJSON()), announcements };
+  if (isAdmin) {
+    const draft = { tasks: myTasks.map((t) => t.toJSON()), announcements };
+    if (JSON.stringify(draft).length < 700000) payload.draft = draft;
+  }
   return payload;
 }
 
