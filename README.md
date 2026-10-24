@@ -154,6 +154,10 @@ I test by hand with a checklist: both themes, collapsed and open sidebar, a 320 
 - [ ] Automated tests for the core logic
 - [ ] Longer term: reminders and insights, designed with privacy first
 
+## Decision notes
+
+Why things are built this way is in [`docs/adr/`](docs/adr/README.md).
+
 ## Credits and license
 
 Released under the [MIT License](LICENSE).
