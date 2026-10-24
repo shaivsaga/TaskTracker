@@ -75,7 +75,7 @@ Progress is personal and stays on the device. Tasks are shared and come from the
 
 ## Security notes
 
-- The admin API (`api/`) is protected by HTTP Basic Authentication, enforced by the web server.
+- Admin sign-in uses HTTP Basic Authentication on one endpoint only, `api/login.php`, enforced by nginx. A successful sign-in sets an HttpOnly, SameSite=Lax session cookie. The server stores only a hash of the session token, and sessions expire after 60 days of inactivity. Every other admin endpoint checks that cookie and answers 401 without a browser password prompt. `api/logout.php` revokes the session.
 - Publishing is validated on the server: field types and lengths, date and time formats, a maximum board size, and a rule that refuses to publish an empty board unless the president explicitly confirms clearing it.
 - Writes are serialized with a lock and replaced atomically, so a failed publish never leaves a half-written board.
 - Notes and announcements are sanitized to a small whitelist of tags before they are shown.
@@ -90,7 +90,7 @@ You need PHP 8.1 or newer, for example through XAMPP.
 1. Clone the repository into your web root (for XAMPP, `htdocs`).
 2. Start Apache and open `http://localhost/TaskTracker/`.
 3. Make sure the `data/` folder can be written by PHP. It is created on first use.
-4. To try the admin area, add `?admin` to the address. Publishing needs the `api/` folder to be password protected. Locally, create an `api/.htaccess` and `.htpasswd` of your own. They are not in this repository.
+4. To try the admin area, add `?admin` to the address. Signing in goes through `api/login.php`, which needs `REMOTE_USER` to be set by the web server. Locally, protect that one file with an `.htaccess` and `.htpasswd` of your own. They are not in this repository.
 
 `api/config.php` is optional. If it is missing, defaults are used.
 
@@ -99,8 +99,9 @@ You need PHP 8.1 or newer, for example through XAMPP.
 The production site runs on Azure App Service with GitHub Actions.
 
 - Pushing to `main` deploys the code. `data/` is created on the server and is not in git.
-- Azure's PHP images use nginx, which ignores `.htaccess`. The equivalent rules, including the password on `api/` and blocking of hidden files and `data/`, are in [`deploy/nginx-default.conf`](deploy/nginx-default.conf).
-- [`deploy/startup.sh`](deploy/startup.sh) copies that config into place at startup, so the rules are re-applied after every restart. Set the app's Startup Command to `/home/site/wwwroot/deploy/startup.sh`. If the file is missing or the new config fails `nginx -t`, the previous config stays.
+- Azure's PHP images use nginx, which ignores `.htaccess`. The equivalent rules, including the password on `api/login.php`, the exact list of public API routes, and blocking of hidden files and `data/`, are in [`deploy/nginx-default.conf`](deploy/nginx-default.conf).
+- [`deploy/startup.sh`](deploy/startup.sh) copies that config into place at startup, so the rules are re-applied after every restart. Set the app's Startup Command to `/home/site/wwwroot/deploy/startup.sh`. If the file is missing or the new config fails `nginx -t`, the previous config stays, which on Azure means the default config without the TaskTracker rules. The script then prints a banner to the startup log and writes `/home/LogFiles/startup-nginx-error.txt`, so check there if sign-in stops working after a restart.
+- [`deploy/check-nginx.sh`](deploy/check-nginx.sh) runs `nginx -t` on the config without root. A GitHub Actions workflow runs it on pull requests, and the deploy job runs it before uploading, so an invalid config never ships. Regexes containing `{32}` must be quoted in nginx, or it reads the brace as a block.
 - The deploy stamps `styles.css`, `app.js`, `qr-draw.js` and `attachments.js` in `index.html` with the commit, so a reload after an update always gets the new files. Stamped files are cached for a year; the page itself and `qrcode.js` are revalidated.
 - [`deploy/php-uploads.ini`](deploy/php-uploads.ini) raises PHP's upload limits at startup. `deploy/startup.sh` installs it, so the app needs a restart after this change.
 - With XAMPP, serve uploads by adding `Alias /TaskTracker/uploads "C:/xampp/htdocs/TaskTracker/data/uploads"` to Apache.
@@ -117,12 +118,15 @@ attachments.js    File picker, image compression and upload
 qr-draw.js        Draws the transfer QR code
 qrcode.js         QR code generator library
 transfer.php      Temporary transfer links
-api/publish.php   Publish the Board (password protected)
-api/upload.php    Receive an uploaded file (password protected)
-api/versions.php  Version history (password protected)
-deploy/           nginx rules and startup script for Azure
+api/login.php     Admin sign-in (the only Basic Auth endpoint), starts a session
+api/logout.php    Ends the session
+api/_session.php  Session helpers shared by the admin endpoints
+api/publish.php   Publish the Board (admin session)
+api/upload.php    Receive an uploaded file (admin session)
+api/versions.php  Version history (admin session)
+deploy/           nginx rules, startup script, config check and PHP upload limits
 docs/             Architecture diagram and screenshots
-data/             Created at runtime, not in git
+data/             Created at runtime, not in git: board, versions, sessions, uploads
 ```
 
 ## Testing
