@@ -37,8 +37,8 @@ jobs:
       - name: Stamp asset versions
         run: |
           V=${GITHUB_SHA::7}
-          sed -i -E "s#styles\.css(\?v=[^\"]*)?\"#styles.css?v=$V\"#; s#qr-draw\.js(\?v=[^\"]*)?\"#qr-draw.js?v=$V\"#; s#src=\"app\.js(\?v=[^\"]*)?\"#src=\"app.js?v=$V\"#" index.html
-          test "$(grep -c "?v=$V" index.html)" = "3"
+          sed -i -E "s#styles\.css(\?v=[^\"]*)?\"#styles.css?v=$V\"#; s#qr-draw\.js(\?v=[^\"]*)?\"#qr-draw.js?v=$V\"#; s#attachments\.js(\?v=[^\"]*)?\"#attachments.js?v=$V\"#; s#src=\"app\.js(\?v=[^\"]*)?\"#src=\"app.js?v=$V\"#" index.html
+          test "$(grep -c "?v=$V" index.html)" = "4"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4

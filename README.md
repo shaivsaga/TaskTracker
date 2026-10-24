@@ -31,12 +31,14 @@ It is also a project for my computer science studies, so the design choices belo
 - Completed tasks move to their own page and can be reopened at any time.
 - Month and week calendar views. On phones the month shows coloured dots with the selected day's tasks listed underneath, and the week is one row per day.
 - Task notes with bold, italic, bullets, clickable links and images.
+- Open PDF, PPTX, DOCX, JPG and PNG files attached to a task.
 - Announcements pinned by the president.
 - Dark and light themes, a first-time tutorial, and quick-add shortcuts such as `tmr`, `3pm` and `ip`.
 - Transfer your progress to another device with a QR code or a link.
 
 **For the president**
 - A private admin area to draft tasks and announcements, preview them as a student would see them, and publish.
+- Attach files to a task with a button, by pasting, or by dropping them in. Pasted images are compressed in the browser first.
 - A version history of every publish, so a mistake can be undone.
 - A diff of what changed since the last publish.
 
@@ -69,6 +71,7 @@ Progress is personal and stays on the device. Tasks are shared and come from the
 - Clearing a browser's site data removes that progress. Use Transfer to move it or keep a copy.
 - Transfer creates a temporary file on the server that expires after 10 minutes and can be cancelled early. It contains task ids, statuses and timestamps only.
 - The server never receives classmates' statuses unless they choose to transfer them.
+- Attached files can be opened by anyone who has the exact link, even before the task is published. The names are random and cannot be guessed.
 
 ## Security notes
 
@@ -76,6 +79,7 @@ Progress is personal and stays on the device. Tasks are shared and come from the
 - Publishing is validated on the server: field types and lengths, date and time formats, a maximum board size, and a rule that refuses to publish an empty board unless the president explicitly confirms clearing it.
 - Writes are serialized with a lock and replaced atomically, so a failed publish never leaves a half-written board.
 - Notes and announcements are sanitized to a small whitelist of tags before they are shown.
+- Uploads are admin only, limited to pdf, pptx, docx, jpg and png, checked by file content and not just the name, size limited, and stored under random names. Word and PowerPoint files always download.
 - Transfer endpoints rebuild every payload from a strict whitelist and are rate limited per IP address.
 - Secret files, the `data/` folder and the `deploy/` folder are never served to the public. Only `data/current.json` is.
 
@@ -97,7 +101,9 @@ The production site runs on Azure App Service with GitHub Actions.
 - Pushing to `main` deploys the code. `data/` is created on the server and is not in git.
 - Azure's PHP images use nginx, which ignores `.htaccess`. The equivalent rules, including the password on `api/` and blocking of hidden files and `data/`, are in [`deploy/nginx-default.conf`](deploy/nginx-default.conf).
 - [`deploy/startup.sh`](deploy/startup.sh) copies that config into place at startup, so the rules are re-applied after every restart. Set the app's Startup Command to `/home/site/wwwroot/deploy/startup.sh`. If the file is missing or the new config fails `nginx -t`, the previous config stays.
-- The deploy stamps `styles.css`, `app.js` and `qr-draw.js` in `index.html` with the commit, so a reload after an update always gets the new files. Stamped files are cached for a year; the page itself and `qrcode.js` are revalidated.
+- The deploy stamps `styles.css`, `app.js`, `qr-draw.js` and `attachments.js` in `index.html` with the commit, so a reload after an update always gets the new files. Stamped files are cached for a year; the page itself and `qrcode.js` are revalidated.
+- [`deploy/php-uploads.ini`](deploy/php-uploads.ini) raises PHP's upload limits at startup. `deploy/startup.sh` installs it, so the app needs a restart after this change.
+- With XAMPP, serve uploads by adding `Alias /TaskTracker/uploads "C:/xampp/htdocs/TaskTracker/data/uploads"` to Apache.
 - The admin password file is created once on the server, outside the web folder, and is never committed.
 - HTTPS Only is turned on.
 
@@ -107,10 +113,12 @@ The production site runs on Azure App Service with GitHub Actions.
 index.html        Markup for every page and dialog, plus the icon sprite
 styles.css        Design tokens, layout and both themes
 app.js            All application behavior
+attachments.js    File picker, image compression and upload
 qr-draw.js        Draws the transfer QR code
 qrcode.js         QR code generator library
 transfer.php      Temporary transfer links
 api/publish.php   Publish the Board (password protected)
+api/upload.php    Receive an uploaded file (password protected)
 api/versions.php  Version history (password protected)
 deploy/           nginx rules and startup script for Azure
 docs/             Architecture diagram and screenshots
@@ -123,7 +131,8 @@ I test by hand with a checklist: both themes, collapsed and open sidebar, a 320 
 
 ## Known limitations
 
-- Images pasted into notes are stored inside the note, which makes the Board file larger. Proper file uploads are planned.
+- Uploaded files are never deleted automatically, because older saved versions may still point to them. Cleanup of unused files is planned.
+- Images pasted into notes before this change are still stored inside the note.
 - Progress lives in the browser, so it does not follow a person to a new device without Transfer.
 - An already-open tab keeps running the old files until it is reloaded. A normal reload fetches the latest ones.
 
@@ -133,7 +142,8 @@ I test by hand with a checklist: both themes, collapsed and open sidebar, a 320 
 - [x] Add to home screen on iPhone
 - [ ] Update notice: a popup listing tasks that are new or changed since your last visit
 - [ ] Manage subjects from the admin area
-- [ ] File uploads for PDFs and images on tasks
+- [x] File uploads for PDFs and images on tasks
+- [ ] Clean up unused uploaded files
 - [ ] Automatic cleanup of progress for deleted tasks
 - [ ] Optional personal to-do list, kept on the device
 - [ ] CSV export and progress charts

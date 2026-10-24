@@ -344,6 +344,15 @@
               </div>
               <div class="dialog-doc" id="dialog-doc" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Notes" data-placeholder="Write notes, or drop images here"></div>
             </div>
+            <div class="field" id="dialog-files-field" hidden>
+              <div class="files-head">
+                <label class="field-label">Files</label>
+                <button class="text-button" type="button" id="dialog-attach-btn">Attach file</button>
+              </div>
+              <ul class="file-list" id="dialog-files"></ul>
+              <p class="file-hint">PDF, PPTX, DOCX, JPG or PNG. Up to 10 MB each. You can also paste or drop files here.</p>
+              <input type="file" id="dialog-file-input" multiple hidden>
+            </div>
           </div>
           <div class="dialog-footer">
             <span class="save-state" id="save-state" role="status" aria-live="polite"></span>
@@ -538,6 +547,7 @@
 
     <script src="qrcode.js"></script>
     <script src="qr-draw.js?v=10"></script>
+    <script src="attachments.js?v=1"></script>
     <script src="app.js"></script>
   </body>
 </html>
