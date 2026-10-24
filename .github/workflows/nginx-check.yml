@@ -1,0 +1,27 @@
+name: Check nginx config
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/nginx-default.conf'
+      - 'deploy/check-nginx.sh'
+      - '.github/workflows/nginx-check.yml'
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'deploy/nginx-default.conf'
+      - 'deploy/check-nginx.sh'
+      - '.github/workflows/nginx-check.yml'
+
+jobs:
+  nginx-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nginx
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq nginx
+      - name: nginx -t
+        run: bash deploy/check-nginx.sh
