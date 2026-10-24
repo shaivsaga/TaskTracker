@@ -19,9 +19,23 @@ function respond(int $code, $body = null) {
 
 const NOT_FOUND = ['error' => 'This transfer link is not valid or has expired.'];
 
+// The client's real address. Azure sits in front of nginx and appends the client to X-Forwarded-For,
+// so the LAST entry is the one Azure added and cannot be faked by the visitor. Falls back to REMOTE_ADDR.
+function client_ip(): string {
+    $xff = (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+    if ($xff !== '') {
+        $parts = array_map('trim', explode(',', $xff));
+        $last = (string)end($parts);
+        if (preg_match('/^\[([0-9a-f:.]+)\](?::\d+)?$/i', $last, $m)) $last = $m[1];            // [v6]:port
+        elseif (preg_match('/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/', $last, $m)) $last = $m[1]; // v4:port
+        if (filter_var($last, FILTER_VALIDATE_IP)) return $last;
+    }
+    return (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+}
+
 // Sliding-window rate limit per IP, one small file per IP, guarded by flock.
 function rate_ok(string $dir, string $kind, int $limit): bool {
-    $ip   = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    $ip   = client_ip();
     $file = $dir . '/rl_' . sha1($ip) . '.json';
     $fh   = @fopen($file, 'c+');
     if (!$fh) respond(500, ['error' => 'Transfer storage is not available.']);
