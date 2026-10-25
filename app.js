@@ -954,10 +954,13 @@ function renderPastPage() {
     tag.textContent = isDone ? 'Done' : task.getPastLabel();
     const actions = document.createElement('span');
     actions.style.cssText = 'display:flex;gap:12px;justify-content:flex-end';
-    actions.appendChild(mkBtn(isDone ? 'Mark not done' : 'Mark done', () => {
-      setStatus(task, isDone ? 'not_started' : 'done');
-      renderAllTasks();
-    }));
+    if (isDone) {
+      const reopen = mkBtn('Mark not done', () => {});
+      reopenWithConfirm(reopen, task);
+      actions.appendChild(reopen);
+    } else {
+      actions.appendChild(mkBtn('Mark done', () => { setStatus(task, 'done'); renderAllTasks(); }));
+    }
     if (canEdit) {
       actions.appendChild(mkBtn('Restore', () => {
         task.closedAt = 0;
@@ -978,6 +981,33 @@ function renderPastPage() {
     });
     row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
     host.appendChild(row);
+  });
+}
+
+// Reopening a done task replaces its completed time, so ask first and offer Undo.
+function reopenWithConfirm(btn, task) {
+  const label = btn.textContent;
+  let timer = null;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!btn.dataset.armed) {
+      btn.dataset.armed = '1';
+      btn.textContent = 'Confirm?';
+      btn.setAttribute('aria-label', 'Confirm marking this task not done');
+      timer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; btn.removeAttribute('aria-label'); }, 4000);
+      return;
+    }
+    clearTimeout(timer);
+    const prev = progress[task.id] ? { ...progress[task.id] } : null;
+    setStatus(task, 'not_started');
+    renderAllTasks();
+    showToast('Marked not done', 'Undo', () => {
+      if (prev) progress[task.id] = prev; else delete progress[task.id];
+      applyProgress(myTasks);
+      applyProgress(publishedTasks);
+      saveTasks();
+      renderAllTasks();
+    });
   });
 }
 
@@ -1013,7 +1043,7 @@ function renderDonePage() {
     undo.type = 'button';
     undo.className = 'text-button';
     undo.textContent = 'Mark not done';
-    undo.addEventListener('click', (e) => { e.stopPropagation(); setStatus(task, 'not_started'); renderAllTasks(); });
+    reopenWithConfirm(undo, task);
     row.addEventListener('click', () => openTaskDialog(task));
     row.addEventListener('keydown', (e) => {
       if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTaskDialog(task); }
