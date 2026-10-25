@@ -174,6 +174,70 @@ function setPublished(data) {
   applyProgress(publishedTasks);
 }
 
+// --- Update notice: one popup per visit listing tasks that are new or changed since this device last saw the Board ---
+const SEEN_KEY = 'class_tasks_seen';
+let liveBoard = null;      // set only after a successful live load of the Board
+let noticeShown = false;
+
+function checkUpdateNotice(board) {
+  if (!board || isAdmin || previewing || noticeShown || !board.tasks.length) return;
+  if (!tourOverlay.hidden || !importOverlay.hidden || !dialogOverlay.hidden) return;
+  const stamps = {};
+  board.tasks.forEach((t) => { stamps[String(t.id)] = Number.isFinite(t.changedAt) ? t.changedAt : 0; });
+  const seen = readJSON(SEEN_KEY, null);
+  if (!seen || typeof seen !== 'object' || Array.isArray(seen)) { writeJSON(SEEN_KEY, stamps); return; }  // first visit: start quietly
+  const fresh = board.tasks.filter((t) => { const id = String(t.id); return !Object.hasOwn(seen, id) || stamps[id] > seen[id]; });
+  if (!fresh.length) { writeJSON(SEEN_KEY, stamps); return; }
+  noticeShown = true;
+  showUpdateNotice(fresh.map((t) => ({ isNew: !Object.hasOwn(seen, String(t.id)), task: Task.fromJSON(t) })), () => writeJSON(SEEN_KEY, stamps));
+}
+
+function showUpdateNotice(items, onDismiss) {
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n; };
+  const overlay = el('div', 'task-dialog-overlay');
+  overlay.id = 'notice-overlay';
+  const box = el('div', 'task-dialog');
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-labelledby', 'notice-title');
+  const head = el('div', 'dialog-header');
+  const title = el('h2', 'dialog-heading', 'What changed');
+  title.id = 'notice-title';
+  const x = el('button', 'panel-close');
+  x.type = 'button';
+  x.setAttribute('aria-label', 'Close');
+  x.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-x"/></svg>';
+  head.append(title, x);
+  const body = el('div', 'dialog-body');
+  body.appendChild(el('p', 'dialog-summary', items.length === 1 ? '1 task is new or changed since your last visit.' : `${items.length} tasks are new or changed since your last visit.`));
+  const list = el('ul', 'import-summary');
+  items.slice(0, 8).forEach(({ isNew, task }) => {
+    list.appendChild(el('li', '', `${isNew ? 'New' : 'Updated'}: ${task.subject ? task.subject + ' · ' : ''}${task.title} · ${task.getDueShort()}`));
+  });
+  if (items.length > 8) list.appendChild(el('li', '', `and ${items.length - 8} more`));
+  body.appendChild(list);
+  const foot = el('div', 'dialog-footer');
+  const ok = el('button', 'primary-button', 'Got it');
+  ok.type = 'button';
+  foot.appendChild(ok);
+  box.append(head, body, foot);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    hideAnimated(overlay);
+    setTimeout(() => overlay.remove(), 300);
+    onDismiss();
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  ok.addEventListener('click', close);
+  x.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay._returnFocus = document.activeElement;
+  ok.focus();
+}
+
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
@@ -187,12 +251,15 @@ async function loadPublished() {
     if (!board) throw new Error('Invalid board data');
     writeJSON(KEYS.cache, board);
     note.hidden = true;
+    liveBoard = board;
   } catch (e) {
     board = normalizeBoard(readJSON(KEYS.cache, null));
     note.hidden = false;
+    liveBoard = null;
   }
   if (currentTask) return;
   setPublished(board);
+  checkUpdateNotice(liveBoard);
   renderAllTasks();
   renderAnnouncements();
 }
@@ -3176,7 +3243,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // --- Focus trap: Tab stays inside the open dialog ---
-const TRAP_SELECTORS = ['#import-overlay', '#transfer-overlay', '#tour-overlay', '#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
+const TRAP_SELECTORS = ['#notice-overlay', '#import-overlay', '#transfer-overlay', '#tour-overlay', '#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;

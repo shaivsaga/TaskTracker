@@ -68,9 +68,33 @@ for ($i = 0; $lock && $i < 50 && !$locked; $i++) { $locked = flock($lock, LOCK_E
 if (!$locked) { if ($lock) fclose($lock); fail(503, 'Another publish is in progress or locking is unavailable. Try again.'); }
 
 $now = time();  // taken inside the lock so publishedAt never goes backwards
+
+// Per-task changedAt, set here so a browser cannot fake it. New task, or a changed due date, time, Subject or attached files = now. Anything else keeps its old value.
+$liveFile  = $dataDir . '/current.json';
+$liveBoard = is_file($liveFile) ? json_decode((string)@file_get_contents($liveFile), true) : null;
+$livePub   = is_array($liveBoard) ? (int)($liveBoard['publishedAt'] ?? 0) : 0;
+$liveById  = [];
+foreach (is_array($liveBoard['tasks'] ?? null) ? $liveBoard['tasks'] : [] as $lt) {
+  if (is_array($lt) && is_string($lt['id'] ?? null)) $liveById[$lt['id']] = $lt;
+}
+$stamped = [];
+foreach ($in['tasks'] as $t) {
+  unset($t['changedAt']);
+  $old = $liveById[$t['id']] ?? null;
+  if ($old === null) {
+    $t['changedAt'] = $now;
+  } else {
+    $same = ($t['dueDate'] ?? '') === ($old['dueDate'] ?? '')
+      && ($t['dueTime'] ?? '') === ($old['dueTime'] ?? '')
+      && ($t['subject'] ?? '') === ($old['subject'] ?? '')
+      && json_encode($t['files'] ?? []) === json_encode($old['files'] ?? []);
+    $t['changedAt'] = $same ? (int)($old['changedAt'] ?? $livePub) : $now;
+  }
+  $stamped[] = $t;
+}
 $current = [
   'publishedAt'   => $now,
-  'tasks'         => array_values($in['tasks']),
+  'tasks'         => $stamped,
   'announcements' => array_values($in['announcements'] ?? []),
 ];
 if ($clear !== null) $current['announcements'] = [];  // clear-board never takes announcements from the request; they are carried over from the live board below
