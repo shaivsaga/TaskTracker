@@ -1,3 +1,8 @@
+import {
+  Task, dayDiff, toInputValue, sortTasks, lookup, parseTimeWord,
+  mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc
+} from './logic.js?v=2';
+
 const navItems = [...document.querySelectorAll('[data-page]')];
 const pages = [...document.querySelectorAll('[data-page-view]')];
 const breadcrumbCurrent = document.querySelector('#breadcrumb-current');
@@ -296,48 +301,6 @@ function updateDialogStatus(task) {
   dialogStatusLabel.textContent = s.label;
   dialogStatusDot.className = `status-dot ${s.dot}`;
   dialogStatusBtn.className = `prop-value status-value ${s.cls}`;
-}
-
-// Keeps only text, line breaks, blocks and data: images. Everything else is stripped.
-function sanitizeDoc(html) {
-  const tpl = document.createElement('template');
-  tpl.innerHTML = html;
-  const out = document.createElement('div');
-  const walk = (src, dst) => {
-    src.childNodes.forEach((n) => {
-      if (n.nodeType === 3) {
-        dst.appendChild(document.createTextNode(n.textContent));
-      } else if (n.nodeType === 1) {
-        const tag = n.tagName.toLowerCase();
-        if (tag === 'img') {
-          const s = n.getAttribute('src') || '';
-          if (/^data:image\/(png|jpeg|gif|webp);base64,/i.test(s) || /^uploads\/[a-f0-9]{32}\.(jpg|png)$/.test(s)) { const i = document.createElement('img'); i.src = s; i.alt = ''; dst.appendChild(i); }
-        } else if (tag === 'br') {
-          dst.appendChild(document.createElement('br'));
-        } else if (tag === 'b' || tag === 'strong' || tag === 'i' || tag === 'em') {
-          const el = document.createElement(tag === 'b' || tag === 'strong' ? 'b' : 'i');
-          walk(n, el);
-          if (el.childNodes.length) dst.appendChild(el);
-        } else if (tag === 'ul' || tag === 'ol') {
-          const ul = document.createElement('ul');
-          walk(n, ul);
-          dst.appendChild(ul);
-        } else if (tag === 'li') {
-          const li = document.createElement('li');
-          walk(n, li);
-          dst.appendChild(li);
-        } else if (tag === 'div' || tag === 'p') {
-          const el = document.createElement('div');
-          walk(n, el);
-          dst.appendChild(el);
-        } else if (tag !== 'script' && tag !== 'style') {
-          walk(n, dst);
-        }
-      }
-    });
-  };
-  walk(tpl.content, out);
-  return out.innerHTML;
 }
 
 // --- Links in notes: made at render time, never stored. sanitizeDoc flattens <a> back to its text on save. ---

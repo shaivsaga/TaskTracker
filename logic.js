@@ -1,8 +1,6 @@
 /* Pure logic for TaskTracker: dates, the Task model, sorting, progress merging and
    the quick-add parsers. Moved out of app.js unchanged so tests can load it without a browser.
-   Loaded as a plain script before app.js: no modules, no build step.
-   Nothing here touches the page, except Task.fromJSON, which needs the browser's
-   document and sanitizeDoc (defined in app.js) and is therefore not covered by the Node tests. */
+   Loaded as a module before app.js. Nothing here touches the page at load time. */
 
 // --- Date helpers (calendar days, local time) ---
 function dayDiff(date) {
@@ -21,6 +19,38 @@ function cleanFiles(list) {
     .filter((f) => f && typeof f.id === 'string' && FILE_ID_RE.test(f.id) && typeof f.name === 'string' && Number.isFinite(f.size))
     .slice(0, 10)
     .map((f) => ({ id: f.id, name: f.name.slice(0, 120), size: Math.max(0, Math.floor(f.size)) }));
+}
+
+function sanitizeDoc(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const out = document.createElement('div');
+  const walk = (src, dst) => {
+    src.childNodes.forEach((n) => {
+      if (n.nodeType === 3) dst.appendChild(document.createTextNode(n.textContent));
+      else if (n.nodeType === 1) {
+        const tag = n.tagName.toLowerCase();
+        if (tag === 'img') {
+          const s = n.getAttribute('src') || '';
+          if (/^data:image\/(png|jpeg|gif|webp);base64,/i.test(s) || /^uploads\/[a-f0-9]{32}\.(jpg|png)$/.test(s)) {
+            const i = document.createElement('img'); i.src = s; i.alt = ''; dst.appendChild(i);
+          }
+        } else if (tag === 'br') dst.appendChild(document.createElement('br'));
+        else if (tag === 'b' || tag === 'strong' || tag === 'i' || tag === 'em') {
+          const el = document.createElement(tag === 'b' || tag === 'strong' ? 'b' : 'i');
+          walk(n, el); if (el.childNodes.length) dst.appendChild(el);
+        } else if (tag === 'ul' || tag === 'ol') {
+          const ul = document.createElement('ul'); walk(n, ul); dst.appendChild(ul);
+        } else if (tag === 'li') {
+          const li = document.createElement('li'); walk(n, li); dst.appendChild(li);
+        } else if (tag === 'div' || tag === 'p') {
+          const el = document.createElement('div'); walk(n, el); dst.appendChild(el);
+        } else if (tag !== 'script' && tag !== 'style') walk(n, dst);
+      }
+    });
+  };
+  walk(tpl.content, out);
+  return out.innerHTML;
 }
 
 // --- Task Data Model (Feature 1) ---
@@ -266,3 +296,13 @@ function mergeProgress(local, incoming) {
   });
   return { merged, added, updated, kept };
 }
+
+const logicAPI = {
+  dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
+  makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc
+};
+Object.assign(globalThis, logicAPI);
+export {
+  dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
+  makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc
+};
