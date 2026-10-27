@@ -186,7 +186,7 @@ function checkUpdateNotice(board) {
   board.tasks.forEach((t) => { stamps[String(t.id)] = Number.isFinite(t.changedAt) ? t.changedAt : 0; });
   const seen = readJSON(SEEN_KEY, null);
   if (!seen || typeof seen !== 'object' || Array.isArray(seen)) { writeJSON(SEEN_KEY, stamps); return; }  // first visit: start quietly
-  const fresh = board.tasks.filter((t) => { const id = String(t.id); return !Object.hasOwn(seen, id) || stamps[id] > seen[id]; });
+  const fresh = board.tasks.filter((t) => { const id = String(t.id); return !Object.hasOwn(seen, id) || (seen[id] > 0 && stamps[id] > seen[id]); });
   if (!fresh.length) { writeJSON(SEEN_KEY, stamps); return; }
   noticeShown = true;
   showUpdateNotice(fresh.map((t) => ({ isNew: !Object.hasOwn(seen, String(t.id)), task: Task.fromJSON(t) })), () => writeJSON(SEEN_KEY, stamps));
@@ -238,6 +238,19 @@ function showUpdateNotice(items, onDismiss) {
   ok.focus();
 }
 
+// Drops progress for tasks that are gone from the Board and from this browser's Draft. Runs only after a live, non-empty Board load, so a failed or empty load never wipes anything.
+function pruneProgress(board) {
+  if (!board || !board.tasks.length) return;
+  const keep = new Set(board.tasks.map((t) => String(t.id)));
+  myTasks.forEach((t) => keep.add(t.id));
+  const draft = readJSON(KEYS.draft, null);
+  (draft && Array.isArray(draft.tasks) ? draft.tasks : []).forEach((t) => { if (t && t.id !== undefined) keep.add(String(t.id)); });
+  const gone = Object.keys(progress).filter((id) => !keep.has(id));
+  if (!gone.length) return;
+  gone.forEach((id) => { delete progress[id]; });
+  writeJSON(KEYS.progress, progress);
+}
+
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
@@ -260,6 +273,7 @@ async function loadPublished() {
   if (currentTask) return;
   setPublished(board);
   checkUpdateNotice(liveBoard);
+  pruneProgress(liveBoard);
   renderAllTasks();
   renderAnnouncements();
 }
