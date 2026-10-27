@@ -255,6 +255,7 @@ async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
   try {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) throw new Error('offline');
     const res = await fetch(`${API.current}?t=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     let data;
     if (res.status === 404) data = { tasks: [], announcements: [] };
