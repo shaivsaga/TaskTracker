@@ -4,7 +4,6 @@ const breadcrumbCurrent = document.querySelector('#breadcrumb-current');
 const sidebar = document.querySelector('.sidebar');
 const mobileMenu = document.querySelector('.mobile-menu');
 const actionFeedback = document.querySelector('#action-feedback');
-const TTFiles = window.TTFiles;
 
 // --- Admin access: Basic Auth signs in once (api/login.php), then an HttpOnly session cookie does the rest ---
 const ADMIN_KEY = 'class_tasks_admin';
@@ -256,7 +255,6 @@ async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
   try {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) throw new Error('offline');
     const res = await fetch(`${API.current}?t=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     let data;
     if (res.status === 404) data = { tasks: [], announcements: [] };
