@@ -266,13 +266,3 @@ function mergeProgress(local, incoming) {
   });
   return { merged, added, updated, kept };
 }
-
-const logicAPI = {
-  dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
-  makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS
-};
-Object.assign(globalThis, logicAPI);
-export {
-  dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
-  makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS
-};
