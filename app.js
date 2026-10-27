@@ -4,6 +4,7 @@ const breadcrumbCurrent = document.querySelector('#breadcrumb-current');
 const sidebar = document.querySelector('.sidebar');
 const mobileMenu = document.querySelector('.mobile-menu');
 const actionFeedback = document.querySelector('#action-feedback');
+const TTFiles = window.TTFiles;
 
 // --- Admin access: Basic Auth signs in once (api/login.php), then an HttpOnly session cookie does the rest ---
 const ADMIN_KEY = 'class_tasks_admin';
