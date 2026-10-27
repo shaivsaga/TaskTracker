@@ -37,6 +37,9 @@ jobs:
       - name: Validate nginx config
         run: sudo apt-get update -qq && sudo apt-get install -y -qq nginx && bash deploy/check-nginx.sh
 
+      - name: Run JavaScript tests
+        run: node --test tests/*.test.js
+
       - name: Stamp asset versions
         run: |
           V=${GITHUB_SHA::7}
