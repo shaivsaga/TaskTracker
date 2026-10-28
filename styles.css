@@ -728,3 +728,16 @@ kbd { padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-
 .file-hint { margin: var(--s2) 0 0; color: var(--muted); font-size: var(--text-xs); line-height: 16px; }
 .task-dialog.is-readonly .file-hint { display: none; }
 @media (max-width: 720px) { .file-item { min-height: 44px; } }
+
+/* ---------- Confirm dialog ---------- */
+.confirm-overlay { z-index: 160; }
+.confirm-dialog { max-width: 400px; }
+.confirm-dialog:focus { outline: 0; }
+.confirm-dialog .dialog-header { padding: var(--s4) var(--s5) var(--s2); border-bottom: 0; }
+.confirm-dialog .dialog-body { gap: var(--s2); padding-top: 0; }
+.confirm-dialog .dialog-footer { padding: var(--s3) var(--s5) var(--s5); border-top: 0; }
+.confirm-message { margin: 0; color: var(--ink); font-size: var(--text-sm); line-height: 20px; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .confirm-dialog .dialog-footer { flex-direction: column; align-items: stretch; gap: var(--s2); }
+  .confirm-dialog .dialog-footer button { width: 100%; min-height: 44px; }
+}

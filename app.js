@@ -85,6 +85,79 @@ function setStatus(task, status) {
   saveTasks();
 }
 
+// Leaving Done needs an explicit yes. Returns true when the change may proceed.
+const isReopen = (task, status) => task.status === 'done' && status !== 'done';
+
+let confirmOverlayEl = null;
+
+function ensureConfirmDialog() {
+  if (confirmOverlayEl) return confirmOverlayEl;
+  const overlay = document.createElement('div');
+  overlay.className = 'task-dialog-overlay confirm-overlay';
+  overlay.hidden = true;
+  overlay.innerHTML = `
+    <div class="task-dialog confirm-dialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+      <div class="dialog-header"><h2 class="dialog-heading" id="confirm-title"></h2></div>
+      <div class="dialog-body"><p class="confirm-message" id="confirm-message"></p></div>
+      <div class="dialog-footer">
+        <button type="button" class="secondary-button" data-confirm="cancel">Cancel</button>
+        <button type="button" class="primary-button" data-confirm="ok"></button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  confirmOverlayEl = overlay;
+  return overlay;
+}
+
+// Asks before a Done task is reopened. Runs onConfirm only on an explicit yes.
+function confirmReopen(task, newStatus, onConfirm) {
+  const overlay = ensureConfirmDialog();
+  if (!overlay.hidden) return;
+  const okBtn = overlay.querySelector('[data-confirm="ok"]');
+  const cancelBtn = overlay.querySelector('[data-confirm="cancel"]');
+  const opener = document.activeElement;
+
+  overlay.querySelector('#confirm-title').textContent = 'Reopen this task?';
+  overlay.querySelector('#confirm-message').textContent =
+    `\u201C${task.title}\u201D will move from Done to ${STATUS_LABELS[newStatus]}.`;
+  okBtn.textContent = 'Reopen';
+
+  const close = (accept) => {
+    overlay.removeEventListener('keydown', onKey, true);
+    overlay.removeEventListener('click', onBackdrop);
+    okBtn.onclick = null;
+    cancelBtn.onclick = null;
+    hideAnimated(overlay);
+    if (opener && opener.isConnected) opener.focus();
+    if (accept) onConfirm();
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopImmediatePropagation(); // keep the task dialog behind from closing too
+      close(false);
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    e.stopImmediatePropagation();
+    const active = document.activeElement;
+    if (active !== cancelBtn && active !== okBtn) { e.preventDefault(); cancelBtn.focus(); }
+    else if (e.shiftKey && active === cancelBtn) { e.preventDefault(); okBtn.focus(); }
+    else if (!e.shiftKey && active === okBtn) { e.preventDefault(); cancelBtn.focus(); }
+    else if (!e.shiftKey && active === cancelBtn) { e.preventDefault(); okBtn.focus(); }
+    else if (e.shiftKey && active === okBtn) { e.preventDefault(); cancelBtn.focus(); }
+  };
+  const onBackdrop = (e) => { if (e.target === overlay) close(false); };
+
+  okBtn.onclick = () => close(true);
+  cancelBtn.onclick = () => close(false);
+  overlay.addEventListener('click', onBackdrop);
+  overlay.addEventListener('keydown', onKey, true);
+  overlay.classList.remove('is-closing');
+  overlay.hidden = false;
+  cancelBtn.focus();
+}
+
 const dialogOverlay = document.querySelector('#task-dialog-overlay');
 const dialog = document.querySelector('.task-dialog');
 const dialogClose = document.querySelector('#dialog-close');
@@ -575,8 +648,9 @@ function handleDrop(e) {
 
   const newStatus = COLUMN_TO_STATUS[columnEl.dataset.status];
   if (newStatus && newStatus !== task.status) {
-    setStatus(task, newStatus);
-    renderAllTasks();
+    const apply = () => { setStatus(task, newStatus); renderAllTasks(); };
+    if (isReopen(task, newStatus)) confirmReopen(task, newStatus, apply);
+    else apply();
   }
 
   document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
@@ -1506,6 +1580,16 @@ function ensureStatusPopover() {
     opt.addEventListener('click', () => {
       if (!statusPopoverTask) return;
       const picked = statusPopoverTask;
+      const next = opt.dataset.status;
+      if (isReopen(picked, next)) {
+        closeStatusPopover();
+        confirmReopen(picked, next, () => {
+          setStatus(picked, next);
+          if (picked === currentTask) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
+          renderAllTasks();
+        });
+        return;
+      }
       const prev = progress[picked.id] ? { ...progress[picked.id] } : null;
       setStatus(picked, opt.dataset.status);
       if (picked === currentTask) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
@@ -3220,7 +3304,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // --- Focus trap: Tab stays inside the open dialog ---
-const TRAP_SELECTORS = ['#notice-overlay', '#import-overlay', '#transfer-overlay', '#tour-overlay', '#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
+const TRAP_SELECTORS = ['.confirm-overlay', '#notice-overlay', '#import-overlay', '#transfer-overlay', '#tour-overlay', '#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;
@@ -3232,6 +3316,8 @@ document.addEventListener('keydown', (e) => {
   if (!items.length) return;
   const first = items[0], last = items[items.length - 1];
   if (!ov.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  else if (ov.classList.contains('confirm-overlay') && !e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (ov.classList.contains('confirm-overlay') && e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
