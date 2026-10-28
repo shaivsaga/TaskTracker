@@ -1,7 +1,8 @@
 import {
   Task, dayDiff, toInputValue, sortTasks, lookup, parseTimeWord,
-  mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc
-} from './logic.js?v=2';
+  mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
+  clampPopoverPosition
+} from './logic.js?v=3';
 
 const navItems = [...document.querySelectorAll('[data-page]')];
 const pages = [...document.querySelectorAll('[data-page-view]')];
@@ -1625,8 +1626,9 @@ function openStatusPopover(task, anchorEl) {
   [...el.children].forEach((opt, i) => opt.classList.toggle('is-active', i === statusPopoverIndex));
   const rect = anchorEl.getBoundingClientRect();
   el.hidden = false;
-  el.style.top = `${rect.bottom + 4}px`;
-  el.style.left = `${rect.left}px`;
+  const { top, left } = clampPopoverPosition(rect, el.offsetWidth, el.offsetHeight, window.innerWidth, window.innerHeight);
+  el.style.top = `${top}px`;
+  el.style.left = `${left}px`;
 }
 
 function createStatusCheck(task) {

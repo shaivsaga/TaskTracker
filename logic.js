@@ -297,12 +297,29 @@ function mergeProgress(local, incoming) {
   return { merged, added, updated, kept };
 }
 
+// Position a fixed popover near its trigger without leaving the viewport.
+// Flips above the trigger when there is no room below (same rule as the
+// subject dropdown), then clamps both axes inside the viewport margins.
+function clampPopoverPosition(rect, width, height, viewportWidth, viewportHeight) {
+  const margin = 8;
+  const gap = 4;
+  const below = viewportHeight - rect.bottom - margin;
+  let top = height > below && rect.top > below
+    ? Math.max(margin, rect.top - height - gap)
+    : rect.bottom + gap;
+  top = Math.max(margin, Math.min(top, viewportHeight - height - margin));
+  const left = Math.max(margin, Math.min(rect.left, viewportWidth - width - margin));
+  return { top, left };
+}
+
 const logicAPI = {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
-  makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc
+  makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
+  clampPopoverPosition
 };
 Object.assign(globalThis, logicAPI);
 export {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
-  makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc
+  makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
+  clampPopoverPosition
 };
