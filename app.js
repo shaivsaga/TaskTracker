@@ -1,8 +1,8 @@
 import {
   Task, dayDiff, toInputValue, sortTasks, lookup, parseTimeWord,
   mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition
-} from './logic.js?v=3';
+  clampPopoverPosition, pageFromHash
+} from './logic.js?v=4';
 
 const navItems = [...document.querySelectorAll('[data-page]')];
 const pages = [...document.querySelectorAll('[data-page-view]')];
@@ -2415,7 +2415,8 @@ function setPage(pageName, updateHash = true) {
   document.title = `${activeItem.querySelector('span:not(.nav-badge)').textContent} — TaskTracker`;
 
   if (updateHash && window.location.hash !== `#${activePageName}`) {
-    history.replaceState(null, '', `#${activePageName}`);
+    if (updateHash === 'push') history.pushState(null, '', `#${activePageName}`);
+    else history.replaceState(null, '', `#${activePageName}`);
   }
 
   setSidebarOpen(false, false);
@@ -2425,8 +2426,15 @@ navItems.forEach((item) => {
   item.addEventListener('click', (event) => {
     event.preventDefault();
     if (previewing) setPreview(false);
-    setPage(item.dataset.page);
+    setPage(item.dataset.page, 'push');
   });
+});
+
+// Deep links: follow hash edits, pasted links, and Back/Forward navigation.
+const NAV_PAGES = navItems.map((item) => item.dataset.page);
+window.addEventListener('hashchange', () => {
+  if (previewing) setPreview(false);
+  setPage(pageFromHash(window.location.hash, NAV_PAGES, isAdmin), false);
 });
 
    // --- Phone sidebar: scrim, Escape, focus ---
@@ -3372,7 +3380,7 @@ function init() {
 
   
 
-  setPage(window.location.hash.slice(1) || 'class-tasks', false);
+  setPage(pageFromHash(window.location.hash, NAV_PAGES, isAdmin), false);
   if (INCOMING_TRANSFER) checkIncomingTransfer(INCOMING_TRANSFER);
   else if (!tourSeen()) setTimeout(startTour, 800);
 

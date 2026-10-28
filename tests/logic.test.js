@@ -10,7 +10,8 @@ import {
   parseTimeWord,
   makeDate,
   mergeProgress,
-  clampPopoverPosition
+  clampPopoverPosition,
+  pageFromHash
 } from '../logic.js';
 
 const dateOffset = (days) => {
@@ -148,4 +149,21 @@ test('clampPopoverPosition pins degenerate cases to the viewport margin', () => 
   // hidden/detached anchor (zero-size rect): stays inside the viewport
   const zero = clampPopoverPosition({ top: 0, bottom: 0, left: 0 }, 0, 0, 390, 844);
   assert.deepEqual(zero, { top: 8, left: 8 });
+});
+
+test('pageFromHash resolves deep links, falling back like the sidebar does', () => {
+  const pages = ['class-tasks', 'my-tasks', 'done', 'past', 'calendar'];
+  // audit case A2: a shared/bookmarked hash lands on the right page
+  assert.equal(pageFromHash('#calendar', pages, false), 'calendar');
+  assert.equal(pageFromHash('#done', pages, false), 'done');
+  assert.equal(pageFromHash('#past', pages, false), 'past');
+  assert.equal(pageFromHash('#class-tasks', pages, false), 'class-tasks');
+  // empty or missing hash -> default page
+  assert.equal(pageFromHash('', pages, false), 'class-tasks');
+  assert.equal(pageFromHash(undefined, pages, false), 'class-tasks');
+  // unknown hash -> default page, never an invalid one
+  assert.equal(pageFromHash('#bogus', pages, false), 'class-tasks');
+  // admin-only page falls back for students, opens for the admin
+  assert.equal(pageFromHash('#my-tasks', pages, false), 'class-tasks');
+  assert.equal(pageFromHash('#my-tasks', pages, true), 'my-tasks');
 });
