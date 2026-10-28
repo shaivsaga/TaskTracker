@@ -312,14 +312,24 @@ function clampPopoverPosition(rect, width, height, viewportWidth, viewportHeight
   return { top, left };
 }
 
+// Resolve a location hash to a navigable page name with the same fallbacks
+// the sidebar uses: unknown or empty hashes land on the first page, and the
+// admin-only page falls back for signed-out students.
+function pageFromHash(hash, knownPages, isAdmin) {
+  const name = String(hash || '').replace(/^#/, '');
+  if (!knownPages.includes(name)) return knownPages[0];
+  if (name === 'my-tasks' && !isAdmin) return knownPages[0];
+  return name;
+}
+
 const logicAPI = {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition
+  clampPopoverPosition, pageFromHash
 };
 Object.assign(globalThis, logicAPI);
 export {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition
+  clampPopoverPosition, pageFromHash
 };
