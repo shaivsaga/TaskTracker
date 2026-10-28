@@ -9,7 +9,8 @@ import {
   lookup,
   parseTimeWord,
   makeDate,
-  mergeProgress
+  mergeProgress,
+  clampPopoverPosition
 } from '../logic.js';
 
 const dateOffset = (days) => {
@@ -108,4 +109,43 @@ test('mergeProgress uses newer entries and keeps local entries on ties', () => {
     { added: result.added, updated: result.updated, kept: result.kept },
     { added: 1, updated: 1, kept: 1 }
   );
+});
+
+test('clampPopoverPosition flips the popover above the trigger near the viewport bottom', () => {
+  // Mobile 390x844: trigger at y 826-830, popover 150x116 — audit case A1
+  const pos = clampPopoverPosition({ top: 826, bottom: 830, left: 12 }, 150, 116, 390, 844);
+  assert.equal(pos.top, 706);
+  assert.equal(pos.left, 12);
+  assert.ok(pos.top >= 8 && pos.top + 116 <= 844 - 8, 'popover fully inside viewport');
+});
+
+test('clampPopoverPosition keeps a mid-screen popover below the trigger', () => {
+  const pos = clampPopoverPosition({ top: 545, bottom: 549, left: 20 }, 150, 116, 390, 844);
+  assert.equal(pos.top, 553);
+  assert.equal(pos.left, 20);
+});
+
+test('clampPopoverPosition keeps the popover fully visible for desktop bottom rows', () => {
+  const pos = clampPopoverPosition({ top: 640, bottom: 644, left: 100 }, 150, 116, 1280, 686);
+  assert.equal(pos.top, 520);
+  assert.equal(pos.left, 100);
+  assert.ok(pos.top + 116 <= 686 - 8, 'popover fully inside viewport');
+});
+
+test('clampPopoverPosition clamps the popover horizontally inside the viewport', () => {
+  const pos = clampPopoverPosition({ top: 100, bottom: 104, left: 350 }, 150, 116, 390, 844);
+  assert.equal(pos.left, 390 - 150 - 8);
+  assert.ok(pos.left + 150 <= 390, 'popover right edge inside viewport');
+});
+
+test('clampPopoverPosition pins degenerate cases to the viewport margin', () => {
+  // popover taller than the viewport: top pinned to the margin, never negative
+  const tall = clampPopoverPosition({ top: 20, bottom: 24, left: 8 }, 150, 2000, 390, 844);
+  assert.equal(tall.top, 8);
+  // trigger near the top with an oversized popover: no flip, still pinned to the margin
+  const topPin = clampPopoverPosition({ top: 826, bottom: 830, left: 8 }, 150, 2000, 390, 844);
+  assert.equal(topPin.top, 8);
+  // hidden/detached anchor (zero-size rect): stays inside the viewport
+  const zero = clampPopoverPosition({ top: 0, bottom: 0, left: 0 }, 0, 0, 390, 844);
+  assert.deepEqual(zero, { top: 8, left: 8 });
 });
