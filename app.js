@@ -1103,6 +1103,16 @@ function renderPastPage() {
   });
 }
 
+// Restore a task's progress entry to what it was before the last status change.
+// Shared by every Undo action so all of them persist and re-render the same way.
+function restoreProgress(taskId, prev) {
+  if (prev) progress[taskId] = prev; else delete progress[taskId];
+  applyProgress(myTasks);
+  applyProgress(publishedTasks);
+  saveTasks();
+  renderAllTasks();
+}
+
 // Reopening a done task replaces its completed time, so ask first and offer Undo.
 function reopenWithConfirm(btn, task) {
   const label = btn.textContent;
@@ -1120,13 +1130,7 @@ function reopenWithConfirm(btn, task) {
     const prev = progress[task.id] ? { ...progress[task.id] } : null;
     setStatus(task, 'not_started');
     renderAllTasks();
-    showToast('Marked not done', 'Undo', () => {
-      if (prev) progress[task.id] = prev; else delete progress[task.id];
-      applyProgress(myTasks);
-      applyProgress(publishedTasks);
-      saveTasks();
-      renderAllTasks();
-    });
+    showToast('Marked not done', 'Undo', () => restoreProgress(task.id, prev));
   });
 }
 
@@ -1585,9 +1589,11 @@ function ensureStatusPopover() {
       if (isReopen(picked, next)) {
         closeStatusPopover();
         confirmReopen(picked, next, () => {
+          const prev = progress[picked.id] ? { ...progress[picked.id] } : null;
           setStatus(picked, next);
           if (picked === currentTask) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
           renderAllTasks();
+          showToast('Marked not done', 'Undo', () => restoreProgress(picked.id, prev));
         });
         return;
       }
@@ -1597,13 +1603,7 @@ function ensureStatusPopover() {
       closeStatusPopover();
       renderAllTasks();
       if (opt.dataset.status === 'done') {
-        showToast('Marked done', 'Undo', () => {
-          if (prev) progress[picked.id] = prev; else delete progress[picked.id];
-          applyProgress(myTasks);
-          applyProgress(publishedTasks);
-          saveTasks();
-          renderAllTasks();
-        });
+        showToast('Marked done', 'Undo', () => restoreProgress(picked.id, prev));
       }
     });
     el.appendChild(opt);
