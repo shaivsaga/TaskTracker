@@ -11,7 +11,9 @@ import {
   makeDate,
   mergeProgress,
   clampPopoverPosition,
-  pageFromHash
+  pageFromHash,
+  STATUS_LABELS,
+  statusChangeMessage
 } from '../logic.js';
 
 const dateOffset = (days) => {
@@ -166,4 +168,13 @@ test('pageFromHash resolves deep links, falling back like the sidebar does', () 
   // admin-only page falls back for students, opens for the admin
   assert.equal(pageFromHash('#my-tasks', pages, false), 'class-tasks');
   assert.equal(pageFromHash('#my-tasks', pages, true), 'my-tasks');
+});
+
+test('statusChangeMessage names the status the task moved to', () => {
+  // review finding 1: a reopen to "In progress" must not announce "not done"
+  assert.equal(statusChangeMessage('done'), 'Marked done');
+  assert.equal(statusChangeMessage('not_started'), 'Marked not started');
+  assert.equal(statusChangeMessage('in_progress'), 'Marked in progress');
+  // every status has a label, so the message always names a real status
+  assert.deepEqual(Object.keys(STATUS_LABELS).sort(), ['done', 'in_progress', 'not_started']);
 });
