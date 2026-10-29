@@ -2,6 +2,18 @@
    the quick-add parsers. Moved out of app.js unchanged so tests can load it without a browser.
    Loaded as a module before app.js. Nothing here touches the page at load time. */
 
+// --- Status vocabulary ---
+// The canonical labels for the three statuses. Shared with app.js so the board,
+// the dialog, the status popover and the toasts all name a status the same way.
+const STATUS_LABELS = { not_started: 'Not started', in_progress: 'In progress', done: 'Done' };
+
+// Toast copy for a status change: always names the status the task moved to, so
+// reopening to "In progress" never announces "not done".
+function statusChangeMessage(status) {
+  const label = STATUS_LABELS[status] || status;
+  return `Marked ${String(label).toLowerCase()}`;
+}
+
 // --- Date helpers (calendar days, local time) ---
 function dayDiff(date) {
   const start = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -325,11 +337,11 @@ function pageFromHash(hash, knownPages, isAdmin) {
 const logicAPI = {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash
+  clampPopoverPosition, pageFromHash, STATUS_LABELS, statusChangeMessage
 };
 Object.assign(globalThis, logicAPI);
 export {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash
+  clampPopoverPosition, pageFromHash, STATUS_LABELS, statusChangeMessage
 };

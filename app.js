@@ -1,8 +1,8 @@
 import {
   Task, dayDiff, toInputValue, sortTasks, lookup, parseTimeWord,
   mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash
-} from './logic.js?v=4';
+  clampPopoverPosition, pageFromHash, STATUS_LABELS, statusChangeMessage
+} from './logic.js?v=5';
 
 const navItems = [...document.querySelectorAll('[data-page]')];
 const pages = [...document.querySelectorAll('[data-page-view]')];
@@ -649,9 +649,21 @@ function handleDrop(e) {
 
   const newStatus = COLUMN_TO_STATUS[columnEl.dataset.status];
   if (newStatus && newStatus !== task.status) {
-    const apply = () => { setStatus(task, newStatus); renderAllTasks(); };
-    if (isReopen(task, newStatus)) confirmReopen(task, newStatus, apply);
-    else apply();
+    if (isReopen(task, newStatus)) {
+      confirmReopen(task, newStatus, () => {
+        const prev = progress[task.id] ? { ...progress[task.id] } : null;
+        setStatus(task, newStatus);
+        renderAllTasks();
+        showToast(statusChangeMessage(newStatus), 'Undo', () => restoreProgress(task.id, prev));
+      });
+    } else {
+      const prev = progress[task.id] ? { ...progress[task.id] } : null;
+      setStatus(task, newStatus);
+      renderAllTasks();
+      if (newStatus === 'done') {
+        showToast(statusChangeMessage('done'), 'Undo', () => restoreProgress(task.id, prev));
+      }
+    }
   }
 
   document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
@@ -1110,6 +1122,16 @@ function restoreProgress(taskId, prev) {
   applyProgress(myTasks);
   applyProgress(publishedTasks);
   saveTasks();
+  // A dialog may still be open on this task: refresh it so it shows the restored status.
+  // Write the restored values onto currentTask itself so the refresh does not depend on
+  // currentTask being the same instance applyProgress just updated.
+  if (currentTask && currentTask.id === taskId) {
+    const p = progress[taskId];
+    currentTask.status = p ? p.status : 'not_started';
+    currentTask.movedAt = p ? p.movedAt : 0;
+    updateDialogStatus(currentTask);
+    updateDialogDue(currentTask);
+  }
   renderAllTasks();
 }
 
@@ -1130,7 +1152,7 @@ function reopenWithConfirm(btn, task) {
     const prev = progress[task.id] ? { ...progress[task.id] } : null;
     setStatus(task, 'not_started');
     renderAllTasks();
-    showToast('Marked not done', 'Undo', () => restoreProgress(task.id, prev));
+    showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
   });
 }
 
@@ -1553,7 +1575,6 @@ const STATUS_CODES = {
   ip: 'in_progress', started: 'in_progress', doing: 'in_progress', 'in progress': 'in_progress',
   dn: 'done', done: 'done',
 };
-const STATUS_LABELS = { not_started: 'Not started', in_progress: 'In progress', done: 'Done' };
 let justChangedId = null;
 let staggerNext = false;
 
@@ -1591,19 +1612,19 @@ function ensureStatusPopover() {
         confirmReopen(picked, next, () => {
           const prev = progress[picked.id] ? { ...progress[picked.id] } : null;
           setStatus(picked, next);
-          if (picked === currentTask) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
+          if (picked.id === currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
           renderAllTasks();
-          showToast('Marked not done', 'Undo', () => restoreProgress(picked.id, prev));
+          showToast(statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
         });
         return;
       }
       const prev = progress[picked.id] ? { ...progress[picked.id] } : null;
       setStatus(picked, opt.dataset.status);
-      if (picked === currentTask) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
+      if (picked.id === currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
       closeStatusPopover();
       renderAllTasks();
       if (opt.dataset.status === 'done') {
-        showToast('Marked done', 'Undo', () => restoreProgress(picked.id, prev));
+        showToast(statusChangeMessage('done'), 'Undo', () => restoreProgress(picked.id, prev));
       }
     });
     el.appendChild(opt);
