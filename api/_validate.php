@@ -44,9 +44,11 @@ function clean_payload($p) {
         $ann   = $d['announcements'] ?? [];
         if (!is_array($tasks) || !is_array($ann) || count($tasks) > 2000 || count($ann) > 200) return null;
         // Same per-field rules the publish path applies (publish.php:30-54), so a transfer can no
-        // longer carry board data the publish endpoint would have refused. The html check is the
-        // one that matters: the client re-sanitises on every render, but the server must not be
-        // relying on that. Anything that fails here is rejected, never rewritten.
+        // longer carry a field the publish endpoint would have refused. The count caps stay looser
+        // here (2000/200 vs publish's 300/100) — deliberate, since a transfer carries a saved draft
+        // rather than a publish. The html check is the one that matters: the client re-sanitises on
+        // every render, but the server must not be relying on that. Anything that fails here is
+        // rejected, never rewritten.
         foreach ($tasks as $t) {
             if (!is_array($t)) return null;
             if (!is_string($t['id'] ?? null) || $t['id'] === '' || strlen($t['id']) > 64) return null;
