@@ -1,7 +1,7 @@
 import {
   Task, dayDiff, toInputValue, sortTasks, lookup, parseTimeWord,
   mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash, STATUS_LABELS, statusChangeMessage
+  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
 } from './logic.js?v=5';
 
 const navItems = [...document.querySelectorAll('[data-page]')];
@@ -482,7 +482,7 @@ function closeTaskDialog() {
   const back = dialogReturn;
   dialogReturn = null;
   if (back) {
-    const target = back.el && back.el.isConnected ? back.el : document.querySelector(`[data-task-id="${back.id}"]`);
+    const target = back.el && back.el.isConnected ? back.el : document.querySelector(`[data-task-id="${CSS.escape(String(back.id))}"]`);
     if (target) target.focus();
   }
 }
@@ -3228,7 +3228,7 @@ function validateTransfer(p) {
   if (entries.length > 5000) return null;
   const clean = {};
   for (const [id, e] of entries) {
-    if (id === '__proto__' || !/^[\w.\-]{1,100}$/.test(id)) return null;
+    if (!taskIdOk(id)) return null;
     if (!isObj(e) || !STATUS_ORDER.includes(e.status) || !Number.isFinite(e.movedAt) || e.movedAt < 0) return null;
     clean[id] = { status: e.status, movedAt: e.movedAt };
   }
@@ -3237,8 +3237,11 @@ function validateTransfer(p) {
     const d = p.draft;
     if (!isObj(d) || !Array.isArray(d.tasks) || d.tasks.length > 2000) return null;
     if (d.announcements != null && !Array.isArray(d.announcements)) return null;
+    const tasks = d.tasks.filter(isObj);
+    // Task.fromJSON only does String(opts.id), and that id later lands in a CSS attribute selector.
+    if (!tasks.every((o) => taskIdOk(o.id))) return null;
     draft = {
-      tasks: d.tasks.filter(isObj).map((o) => Task.fromJSON(o).toJSON()),
+      tasks: tasks.map((o) => Task.fromJSON(o).toJSON()),
       announcements: (d.announcements || [])
         .filter((a) => isObj(a) && typeof a.text === 'string' && Number.isFinite(a.createdAt))
         .slice(0, 200)

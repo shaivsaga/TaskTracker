@@ -44,7 +44,29 @@ jobs:
         run: |
           V=${GITHUB_SHA::7}
           sed -i -E "s#styles\.css(\?v=[^\"]*)?\"#styles.css?v=$V\"#; s#qr-draw\.js(\?v=[^\"]*)?\"#qr-draw.js?v=$V\"#; s#attachments\.js(\?v=[^\"]*)?\"#attachments.js?v=$V\"#; s#logic\.js(\?v=[^\"]*)?\"#logic.js?v=$V\"#; s#src=\"app\.js(\?v=[^\"]*)?\"#src=\"app.js?v=$V\"#" index.html
+          # S5: app.js also carries a hand-written import of './logic.js?v=5'. Left unstamped
+          # it resolves logic.js to a second, different URL, so the browser fetches it twice
+          # and a missed bump can hand a returning visitor an immutable-cached stale module.
+          sed -i -E "s#(\./logic\.js)(\?v=[^']*)?'#\1?v=$V'#g" app.js
+          # Every ?v= left anywhere in a served file must be the stamp we just wrote.
+          STALE=$(grep -noE '\?v=[A-Za-z0-9._-]+' index.html app.js logic.js attachments.js qr-draw.js qrcode.js | grep -v "?v=$V" || true)
+          if [ -n "$STALE" ]; then
+            echo "::error::unstamped ?v= reference(s) remain:"; echo "$STALE"; exit 1
+          fi
           test "$(grep -c "?v=$V" index.html)" = "5"
+          test "$(grep -c "?v=$V" app.js)" = "1"
+
+      - name: Stage deployable files
+        run: |
+          # C2/C3 defence in depth: the build needs tests/ and the config checker, but
+          # production never does. Removing them from the artifact means a future nginx
+          # config regression cannot serve them.
+          #
+          # deploy/startup.sh, deploy/nginx-default.conf and deploy/php-uploads.ini MUST
+          # stay. The App Service Startup Command is /home/site/wwwroot/deploy/startup.sh,
+          # and without the conf the site would come up on Azure's default config, which
+          # has no password on api/ and no rules protecting data/.
+          rm -rf tests deploy/check-nginx.sh
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4

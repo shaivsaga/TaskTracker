@@ -12,6 +12,7 @@ import {
   mergeProgress,
   clampPopoverPosition,
   pageFromHash,
+  taskIdOk,
   STATUS_LABELS,
   statusChangeMessage
 } from '../logic.js';
@@ -177,4 +178,20 @@ test('statusChangeMessage names the status the task moved to', () => {
   assert.equal(statusChangeMessage('in_progress'), 'Marked in progress');
   // every status has a label, so the message always names a real status
   assert.deepEqual(Object.keys(STATUS_LABELS).sort(), ['done', 'in_progress', 'not_started']);
+});
+
+test('taskIdOk accepts generated ids and rejects anything that could break a selector', () => {
+  // review finding L2: a transfer draft task id reaches [data-task-id="..."] and progress[id]
+  assert.ok(taskIdOk('k3f9a2x1b7'));
+  assert.ok(taskIdOk('a-b_c.d'));
+  assert.ok(taskIdOk(42));                       // String(opts.id) in the Task constructor
+  assert.ok(taskIdOk(undefined));                // absent id: the constructor generates one
+  // a quote or bracket would escape the attribute selector
+  assert.equal(taskIdOk('x"]'), false);
+  assert.equal(taskIdOk('x\\'), false);
+  assert.equal(taskIdOk('a b'), false);
+  assert.equal(taskIdOk(''), false);
+  assert.equal(taskIdOk('x'.repeat(101)), false);
+  assert.equal(taskIdOk('__proto__'), false);    // the id is also an object key
+  assert.equal(taskIdOk({}), false);             // "[object Object]" has a space and brackets
 });

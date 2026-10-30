@@ -45,7 +45,7 @@ function sanitizeDoc(html) {
         if (tag === 'img') {
           const s = n.getAttribute('src') || '';
           if (/^data:image\/(png|jpeg|gif|webp);base64,/i.test(s) || /^uploads\/[a-f0-9]{32}\.(jpg|png)$/.test(s)) {
-            const i = document.createElement('img'); i.src = s; i.alt = ''; dst.appendChild(i);
+            const i = document.createElement('img'); i.src = s; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async'; dst.appendChild(i);
           }
         } else if (tag === 'br') dst.appendChild(document.createElement('br'));
         else if (tag === 'b' || tag === 'strong' || tag === 'i' || tag === 'em') {
@@ -63,6 +63,15 @@ function sanitizeDoc(html) {
   };
   walk(tpl.content, out);
   return out.innerHTML;
+}
+
+// A task id is used as a CSS attribute-selector value and as a progress object key, so it has
+// to stay boring. Same rule app.js applies to transfer progress ids, plus __proto__.
+const TASK_ID_RE = /^[\w.\-]{1,100}$/;
+function taskIdOk(id) {
+  if (id === undefined) return true;            // the Task constructor generates one
+  const s = String(id);
+  return s !== '__proto__' && TASK_ID_RE.test(s);
 }
 
 // --- Task Data Model (Feature 1) ---
@@ -337,11 +346,11 @@ function pageFromHash(hash, knownPages, isAdmin) {
 const logicAPI = {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash, STATUS_LABELS, statusChangeMessage
+  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
 };
 Object.assign(globalThis, logicAPI);
 export {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash, STATUS_LABELS, statusChangeMessage
+  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
 };

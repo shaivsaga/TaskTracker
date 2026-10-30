@@ -43,8 +43,30 @@ function clean_payload($p) {
         $tasks = $d['tasks'] ?? null;
         $ann   = $d['announcements'] ?? [];
         if (!is_array($tasks) || !is_array($ann) || count($tasks) > 2000 || count($ann) > 200) return null;
-        foreach ($tasks as $t) if (!is_array($t)) return null;
-        foreach ($ann as $a)   if (!is_array($a)) return null;
+        // Same per-field rules the publish path applies (publish.php:30-54), so a transfer can no
+        // longer carry board data the publish endpoint would have refused. The html check is the
+        // one that matters: the client re-sanitises on every render, but the server must not be
+        // relying on that. Anything that fails here is rejected, never rewritten.
+        foreach ($tasks as $t) {
+            if (!is_array($t)) return null;
+            if (!is_string($t['id'] ?? null) || $t['id'] === '' || strlen($t['id']) > 64) return null;
+            if (isset($t['title']) && (!is_string($t['title']) || mb_strlen($t['title']) > 500)) return null;
+            foreach (['notes', 'subject'] as $k) if (isset($t[$k]) && !is_string($t[$k])) return null;
+            if (isset($t['subject']) && strlen($t['subject']) > 32) return null;
+            if (isset($t['dueDate']) && (!is_string($t['dueDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['dueDate']))) return null;
+            if (isset($t['dueTime']) && (!is_string($t['dueTime']) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/D', $t['dueTime']))) return null;
+            if (isset($t['files'])) {
+                if (!is_array($t['files']) || count($t['files']) > 10) return null;
+                foreach ($t['files'] as $f) {
+                    if (!is_array($f) || !is_string($f['id'] ?? null) || !preg_match('/^[a-f0-9]{32}\.(pdf|pptx|docx|jpg|png)$/D', $f['id'])
+                        || !is_string($f['name'] ?? null) || mb_strlen($f['name']) > 120 || !is_int($f['size'] ?? null) || $f['size'] < 0) return null;
+                }
+            }
+        }
+        foreach ($ann as $a) {
+            if (!is_array($a) || !is_string($a['text'] ?? null) || mb_strlen($a['text']) > 500 || !is_numeric($a['createdAt'] ?? null)) return null;
+            if (isset($a['html']) && !announce_html_ok($a['html'])) return null;
+        }
         $clean['draft'] = ['tasks' => array_values($tasks), 'announcements' => array_values($ann)];
     }
     return $clean;
