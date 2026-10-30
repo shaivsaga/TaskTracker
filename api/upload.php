@@ -35,7 +35,9 @@ function content_ok($path, $ext) {
   }
   // docx / pptx are ZIP packages
   if (strncmp($head, "PK\x03\x04", 4) !== 0) return false;
-  if (!class_exists('ZipArchive')) return true;  // no zip extension: the ZIP signature is all we can check
+  // Fail closed. Without the zip extension the macro rejection and the zip-bomb guard below cannot
+  // run at all, and a signature-only pass would silently drop both. Refuse the file instead.
+  if (!class_exists('ZipArchive')) return false;
   $z = new ZipArchive();
   if ($z->open($path, ZipArchive::RDONLY) !== true) return false;
   $main = $ext === 'docx' ? 'word/document.xml' : 'ppt/presentation.xml';
@@ -69,6 +71,8 @@ $orig = trim((string)preg_replace('/[\x00-\x1f\x7f<>"]+/', '', $orig));
 $ext = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
 if ($ext === 'jpeg') $ext = 'jpg';
 if (!in_array($ext, UPLOAD_EXTS, true)) tt_json(415, ['error' => 'Only PDF, PPTX, DOCX, JPG and PNG files are allowed.']);
+// Asserted here so a host missing the extension says so, instead of blaming the file (see content_ok).
+if (($ext === 'docx' || $ext === 'pptx') && !class_exists('ZipArchive')) tt_json(500, ['error' => 'Office files cannot be checked on this server: the PHP zip extension is missing.']);
 if (!content_ok($f['tmp_name'], $ext)) tt_json(415, ['error' => 'That file does not look like a valid .' . $ext . ' file.']);
 $display = mb_substr($orig, 0, 120);
 
