@@ -1,0 +1,5 @@
+# Host scripts and configs run on Linux: a CRLF checkout breaks the shebang and nginx.
+*.sh text eol=lf
+*.conf text eol=lf
+*.ini text eol=lf
+*.mjs text eol=lf
