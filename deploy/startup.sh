@@ -18,12 +18,26 @@ nginx_failed() {
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $1" > "$MARKER" 2>/dev/null
   exit 1
 }
-if [ -f "$SRC" ]; then
-  cp "$SRC" "$DST" || nginx_failed "could not copy $SRC to $DST"
-  if ! nginx -t; then
-    nginx_failed "new config invalid"
+
+# Roll back BEFORE failing. 1faf82b put the restore after this call while also making
+# nginx_failed exit 1, so the restore became dead code and a rejected config stayed on
+# disk for any later nginx start to load.
+restore_and_fail() {
+  if [ -f "$DST.bak" ]; then
+    cp -p "$DST.bak" "$DST" && echo "startup: restored the previous nginx config from $DST.bak" >&2
+  else
+    echo "startup: no previous config to restore; $DST holds the rejected config" >&2
   fi
-  rm -f "$MARKER" 2>/dev/null
+  nginx_failed "$1"
+}
+
+if [ -f "$SRC" ]; then
+  [ -f "$DST" ] && cp -p "$DST" "$DST.bak" 2>/dev/null
+  cp "$SRC" "$DST" || restore_and_fail "could not copy $SRC to $DST"
+  if ! nginx -t; then
+    restore_and_fail "new config invalid"
+  fi
+  rm -f "$MARKER" "$DST.bak" 2>/dev/null
 else
   nginx_failed "$SRC not found"
 fi

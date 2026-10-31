@@ -5,6 +5,9 @@ on:
     paths:
       - 'deploy/nginx-default.conf'
       - 'deploy/check-nginx.sh'
+      - 'deploy/startup.sh'
+      - 'tests/nginx-conf.test.js'
+      - 'tests/startup.test.js'
       - '.github/workflows/nginx-check.yml'
   push:
     branches:
@@ -12,6 +15,9 @@ on:
     paths:
       - 'deploy/nginx-default.conf'
       - 'deploy/check-nginx.sh'
+      - 'deploy/startup.sh'
+      - 'tests/nginx-conf.test.js'
+      - 'tests/startup.test.js'
       - '.github/workflows/nginx-check.yml'
 
 jobs:
@@ -21,6 +27,11 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      # Runs before the nginx install: it needs no nginx, and it is the half of the
+      # validation that catches a duplicate of a directive the host's http context
+      # already owns (see tests/nginx-conf.test.js).
+      - name: Structural config and startup-script tests
+        run: node --test tests/nginx-conf.test.js tests/startup.test.js
       - name: Install nginx
         run: sudo apt-get update -qq && sudo apt-get install -y -qq nginx
       - name: nginx -t
