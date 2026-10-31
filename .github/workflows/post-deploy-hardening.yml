@@ -1,0 +1,33 @@
+name: Post-deploy hardening verification
+
+# The deploy workflow going green only proves Azure accepted the package. This asks
+# the live host the questions that prove the nginx rules are actually applied, and
+# fails loudly when they are not. It runs only after a successful deploy, and can be
+# dispatched by hand at any time.
+
+on:
+  workflow_run:
+    workflows: ["Build and deploy PHP app to Azure Web App - tasktracker"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-hardening:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      # Verify the commit that was actually deployed. `workflow_run` defaults checkout to
+      # the default branch, so without this the probes could be driven by a script that is
+      # newer or older than the artifact under test. A manual dispatch has no workflow_run,
+      # and falls back to the dispatched ref.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Ask the live host whether the hardening is applied
+        run: node deploy/verify-hardening.mjs https://dsct.dev
+        env:
+          VERIFY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}

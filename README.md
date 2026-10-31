@@ -100,13 +100,61 @@ The production site runs on Azure App Service with GitHub Actions.
 
 - Pushing to `main` deploys the code. `data/` is created on the server and is not in git.
 - Azure's PHP images use nginx, which ignores `.htaccess`. The equivalent rules, including the password on `api/login.php`, the exact list of public API routes, and blocking of hidden files and `data/`, are in [`deploy/nginx-default.conf`](deploy/nginx-default.conf).
-- [`deploy/startup.sh`](deploy/startup.sh) copies that config into place at startup, so the rules are re-applied after every restart. Set the app's Startup Command to `/home/site/wwwroot/deploy/startup.sh`. If the file is missing or the new config fails `nginx -t`, the script restores the config that was in place before it started, then exits non-zero. Restoring matters because the rejected file would otherwise stay on disk for the next nginx start to load; the script never leaves a config behind that `nginx -t` already refused. It prints a banner to the startup log and writes `/home/LogFiles/startup-nginx-error.txt`, so check there if sign-in stops working after a restart.
+- [`deploy/startup.sh`](deploy/startup.sh) copies that config into place at startup, so the rules are re-applied after every restart. The Startup Command must run it; the value on the live app is `/home/site/wwwroot/deploy/startup.sh; php-fpm;`. See [What `startup.sh` does](#what-startupsh-does) for the checks it runs and what it does when one fails.
+- After a deploy, [`deploy/verify-hardening.mjs`](deploy/verify-hardening.mjs) asks the live site whether the rules are actually being applied, because `nginx -t` only proves they parse. [`POST_DEPLOY_VERIFICATION.md`](POST_DEPLOY_VERIFICATION.md) explains the probes and how to read a failure.
 - [`deploy/check-nginx.sh`](deploy/check-nginx.sh) runs `nginx -t` on the config without root. A GitHub Actions workflow runs it on pull requests, and the deploy job runs it before uploading, so an invalid config never ships. Regexes containing `{32}` must be quoted in nginx, or it reads the brace as a block.
 - The deploy stamps `styles.css`, `app.js`, `logic.js`, `qr-draw.js` and `attachments.js` in `index.html` with the commit, so a reload after an update always gets the new files. Stamped files are cached for a year; the page itself and `qrcode.js` are revalidated.
 - [`deploy/php-uploads.ini`](deploy/php-uploads.ini) raises PHP's upload limits at startup. `deploy/startup.sh` installs it, so the app needs a restart after this change.
 - With XAMPP, serve uploads by adding `Alias /TaskTracker/uploads "C:/xampp/htdocs/TaskTracker/data/uploads"` to Apache.
 - The admin password file is created once on the server, outside the web folder, and is never committed.
 - HTTPS Only is turned on.
+
+### What `startup.sh` does
+
+In order: clear the previous boot's success marker, back up the config that is in place, copy the
+repo's config over it, run `nginx -t`, install the PHP upload limits, reload nginx, then probe the
+host to check the rules are actually live.
+
+**Validation.** `nginx -t` is run twice: once on the installed file, and again inside the reload
+step. It proves the file parses. It does not prove the rules are applied, so after the reload the
+script asks the host directly — `/Data/current.json`, `/package.json` and `/Tests/php/run.php` must
+all answer `403`, which `deny all` returns whether or not the file exists. A `401` is expected on
+`/api/login.php`, but that depends on the password file existing on the host rather than on the
+config, so a miss there is a warning, not a failure.
+
+**Backup and restoration.** The previous config is copied to `default.bak` before anything is
+overwritten, and kept until every check has passed. A backup that cannot be written stops the
+startup before the install, because without it there is nothing to roll back to. Any rejection
+*before* the reload — a failed copy, a config `nginx -t` refuses, a reload both methods fail —
+restores `default.bak`, so disk and nginx agree again.
+
+**The reload fallback.** `service nginx reload` needs a service manager App Service containers do
+not always have, so the script signals the running master with `nginx -s reload` first and keeps
+the service call as the fallback.
+
+**When it fails after the reload.** A reload that succeeds and a probe that then fails has no safe
+rollback: nginx is already serving the new config, so restoring the file would leave disk and
+memory disagreeing, and `default.bak` may be Azure's own default, which has no password on
+`api/login.php` and nothing protecting `data/`. So the script stops nginx instead, leaves both
+files on disk for inspection, and exits 1. Exiting non-zero is not enough on its own: the Startup
+Command is `/home/site/wwwroot/deploy/startup.sh; php-fpm;`, and the `;` starts php-fpm whatever
+the script returns.
+
+**When a check is skipped.** If `curl` is missing, or nginx is not answering on
+`127.0.0.1:8080` after five tries, the self-check is skipped and the startup carries on — a
+transient host problem must not take the site down. Neither skip writes a success marker, and the
+backup is kept as the operator's rollback copy.
+
+**The two markers.** Both live in `/home/LogFiles/`:
+
+| File | Means |
+| --- | --- |
+| `startup-nginx-error.txt` | this boot refused the config; the single line is the reason |
+| `startup-nginx-applied.txt` | this boot applied the config and passed the self-check; the second line is the SHA-256 of the installed file |
+
+The applied marker is deleted at the start of every boot, before any path can skip or fail, so it
+can only describe the boot that is running. Its absence is meaningful: it means this boot verified
+nothing, even if it also did not fail.
 
 ## Project structure
 
@@ -132,7 +180,9 @@ data/             Created at runtime, not in git: board, versions, sessions, upl
 
 ## Testing
 
-I test by hand with a checklist: both themes, collapsed and open sidebar, a 320 px wide screen, touch targets on phones, keyboard-only use, and admin and student sessions. Automated tests for the core logic (merging, sorting, due dates and the sanitizers) are on the roadmap.
+I test the interface by hand with a checklist: both themes, collapsed and open sidebar, a 320 px wide screen, touch targets on phones, keyboard-only use, and admin and student sessions.
+
+`npm test` runs the automated tests: the core logic (merging, sorting, due dates, sanitizers), the nginx config rules, the CI workflows, and the startup script. The startup tests run the real script against stubbed `nginx`, `curl` and `cp`, in a sandbox under the system temp directory, and assert what is on disk, what nginx has loaded, whether nginx is still running, the marker state and the exit status — not just the log text.
 
 ## Known limitations
 
