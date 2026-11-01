@@ -1,8 +1,9 @@
 import {
   Task, dayDiff, toInputValue, sortTasks, lookup, parseTimeWord,
   mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
-} from './logic.js?v=5';
+  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage,
+  subjectDisplay
+} from './logic.js?v=6';
 
 const navItems = [...document.querySelectorAll('[data-page]')];
 const pages = [...document.querySelectorAll('[data-page-view]')];
@@ -502,6 +503,7 @@ function createTaskCard(task) {
   titleEl.textContent = task.title;
 
   article.dataset.status = task.status;
+  if (task.subject) article.dataset.subject = subjectDisplay(task.subject);
   article.tabIndex = 0;
   article.addEventListener('click', (e) => {
     if (e.target.closest('.task-delete-btn')) return;
@@ -539,17 +541,18 @@ function createTaskCard(task) {
     if (task.dueDate) {
       const diff = dayDiff(task.dueDate);
       const isDone = task.status === 'done';
-      const overdueNow = task.isOverdue();
+      const tier = task.getUrgencyTier();
       const due = document.createElement('span');
-      due.className = 'due-badge' + (overdueNow && !isDone ? ' overdue' : diff <= 3 && !isDone ? ' due-soon' : '');
+      due.className = 'due-badge' + (tier ? ' ' + tier : '');
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       icon.setAttribute('class', 'i');
       icon.setAttribute('aria-hidden', 'true');
       const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-      use.setAttribute('href', '#i-' + (diff < 0 && !isDone ? 'alarm-clock' : 'calendar'));
+      use.setAttribute('href', '#i-' + (diff < 0 && !isDone && !task.isPast() ? 'alarm-clock' : 'calendar'));
       icon.appendChild(use);
       const label = document.createElement('span');
-      label.textContent = isDone ? task.getDueDateDisplay() : task.getDueLabel();
+      label.textContent = isDone ? task.getDueDateDisplay()
+        : task.isPast() ? task.getPastLabel() : task.getDuePill();
       if (!isDone) due.title = task.getDueShort();
       due.append(icon, label);
       footer.appendChild(due);
@@ -564,9 +567,19 @@ function createTaskCard(task) {
   return article;
 }
 
+function updateColumnToggle(columnEl) {
+  const btn = columnEl.querySelector('.column-toggle');
+  if (!btn) return;
+  const n = columnEl.querySelectorAll('.task-card').length;
+  const open = columnEl.classList.contains('is-open');
+  btn.textContent = open ? 'Hide Done' : `Show ${n} Done`;
+  btn.setAttribute('aria-expanded', String(open));
+}
+
 function updateColumn(columnEl) {
   const n = columnEl.querySelectorAll('.task-card').length;
   columnEl.querySelector('.column-count').textContent = `(${n})`;
+  updateColumnToggle(columnEl);
   const contentEl = columnEl.querySelector('.column-content');
   const isEmpty = n === 0;
   contentEl.classList.toggle('is-empty', isEmpty);
@@ -1021,6 +1034,28 @@ function showSkeletons() {
   });
 }
 
+// Personal progress: how many tasks due in the next two days are Done. It always
+// reports the whole board, so searching never changes the number.
+function renderClassProgress(source) {
+  const host = document.querySelector('#class-progress');
+  if (!host) return;
+  const dueSoon = source.filter((t) => t.dueDate && dayDiff(t.dueDate) <= 2);
+  const total = dueSoon.length;
+  const done = dueSoon.filter((t) => t.status === 'done').length;
+  host.hidden = total === 0;
+  const banner = document.querySelector('#done-today');
+  if (banner) banner.hidden = total === 0 || done !== total;
+  if (!total) return;
+  const label = document.querySelector('#class-progress-label');
+  if (label) label.textContent = `${done} of ${total} due soon are Done`;
+  const seg = document.querySelector('#class-progress-seg');
+  if (seg) seg.replaceChildren(...dueSoon.map((task) => {
+    const box = document.createElement('i');
+    if (task.status === 'done') box.className = 'is-done';
+    return box;
+  }));
+}
+
 // --- Class tasks: published list, same builders as admin, student-safe ---
 function renderClassTasks() {
   const board = document.querySelector('#class-board');
@@ -1035,6 +1070,7 @@ function renderClassTasks() {
     if (col) col.appendChild(createTaskCard(task));
   });
   board.querySelectorAll('.kanban-column').forEach(updateColumn);
+  renderClassProgress(all);
 
   classListEl.replaceChildren(...source.map(createTaskRow));
   if (!source.length) {
@@ -1203,7 +1239,7 @@ let calMode = 'month';
 let calAnchor = todayDate();
 let calSelected = null;
 let calByDay = new Map();
-const calPhone = window.matchMedia('(max-width: 720px)');
+const calPhone = window.matchMedia('(max-width: 839px)');
 const calSort = (a, b) => (a.dueTime || '').localeCompare(b.dueTime || '');
 const calLongDate = (d) => d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 const calSameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
@@ -1456,17 +1492,35 @@ document.querySelector('#empty-add-btn')?.addEventListener('click', startNewTask
 
 // Theme
 const themeToggle = document.querySelector('#theme-toggle');
-function applyTheme(theme) {
+const deviceDark = matchMedia('(prefers-color-scheme: dark)');
+// `pref` is what the person chose: 'light', 'dark' or 'device'. The device choice
+// resolves against the OS setting, so light and dark stay first-class without a hard default.
+function applyTheme(pref) {
+  const theme = pref === 'device' ? (deviceDark.matches ? 'dark' : 'light') : pref;
   document.documentElement.dataset.theme = theme;
-  document.getElementById('meta-theme-color')?.setAttribute('content', theme === 'light' ? '#EBEEF2' : '#0D0F14');
+  document.getElementById('meta-theme-color')?.setAttribute('content', theme === 'light' ? '#F8F4EA' : '#14131A');
   themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-  try { localStorage.setItem('class_tasks_theme', theme); } catch (e) {}
+  document.querySelectorAll('[data-theme-choice]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeChoice === pref)));
+  try { localStorage.setItem('class_tasks_theme', pref); } catch (e) {}
 }
 themeToggle.setAttribute('aria-label',
   document.documentElement.dataset.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
 themeToggle.addEventListener('click', () => {
   applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 });
+
+document.querySelectorAll('[data-theme-choice]').forEach((b) => {
+  b.addEventListener('click', () => applyTheme(b.dataset.themeChoice));
+});
+deviceDark.addEventListener('change', () => {
+  let pref = 'device';
+  try { pref = localStorage.getItem('class_tasks_theme') || 'device'; } catch (e) {}
+  if (pref === 'device') applyTheme('device');
+});
+try {
+  const saved = localStorage.getItem('class_tasks_theme') || 'device';
+  document.querySelectorAll('[data-theme-choice]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeChoice === saved)));
+} catch (e) {}
 
 // View switch (board / list), remembered per page
 const VIEW_KEYS = { class: 'class_tasks_view_class', admin: 'class_tasks_view_admin' };
@@ -1511,6 +1565,7 @@ function createTaskRow(task) {
   row.className = 'task-row';
   row.tabIndex = 0;
   row.dataset.taskId = task.id;
+  if (task.subject) row.dataset.subject = subjectDisplay(task.subject);
 
   // Checkbox: empty = not started, minus = in progress, check = done
   const check = createStatusCheck(task);
@@ -1524,9 +1579,10 @@ function createTaskRow(task) {
   title.textContent = task.title;
 
   const due = document.createElement('span');
-  const overdue = task.dueDate && task.status !== 'done' && task.isOverdue();
-  due.className = 'task-row-due' + (overdue ? ' is-overdue' : '');
-  due.textContent = task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel();
+  const tier = task.getUrgencyTier();
+  due.className = 'task-row-due' + (tier ? ' ' + tier : '');
+  due.textContent = task.status === 'done' ? task.getDueDateDisplay()
+    : task.isPast() ? task.getPastLabel() : task.getDuePill();
   if (task.status !== 'done') due.title = task.getDueShort();
 
   const del = document.createElement('button');
@@ -1567,8 +1623,9 @@ function renderTaskList() {
 
 // --- Subjects, quick add, announcements, shortcuts ---
 const SUBJECTS = {
-  GENSCI: 'bg-cyan', GENMATH: 'bg-pink', PKLP: 'bg-sunglow', EFFCOM: 'bg-green',
-  MABKOM: 'bg-sand', PERDEV: 'bg-yellow', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
+  GENSCI: 'GENSCI', GENMATH: 'GENMATH', PKLP: 'PKLP', EFFCOM: 'EFFCOM',
+  MABKOM: 'MABKOM', PERDEV: 'PERDEV', PE: 'PE', THEOLOGY: 'THEOLOGY',
+  CP104: 'CP104', FINMATH: 'FINMATH',
 };
 const STATUS_CODES = {
   ns: 'not_started', todo: 'not_started', 'not started': 'not_started',
@@ -1580,10 +1637,52 @@ let staggerNext = false;
 
 function createSubjectTag(code) {
   const tag = document.createElement('span');
-  tag.className = `subject-tag ${SUBJECTS[code] || ''}`;
-  tag.textContent = code;
+  const label = subjectDisplay(code);
+  tag.className = 'subject-tag';
+  tag.dataset.subject = SUBJECTS[label] || '';
+  tag.textContent = label;
   return tag;
 }
+
+// The 336px rail on list-style pages: subject legend plus the privacy line.
+function fillRails() {
+  document.querySelectorAll('[data-rail]').forEach((rail) => {
+    if (rail.dataset.filled) return;
+    rail.dataset.filled = '1';
+    const box = document.createElement('div');
+    box.className = 'rail-sticky';
+    const title = document.createElement('h2');
+    title.className = 'rail-title';
+    title.textContent = 'Subjects';
+    const legend = document.createElement('ul');
+    legend.className = 'rail-legend';
+    Object.keys(SUBJECTS).forEach((code) => {
+      const li = document.createElement('li');
+      const sw = document.createElement('span');
+      sw.className = 'rail-swatch';
+      sw.dataset.subject = code;
+      const name = document.createElement('span');
+      name.textContent = code;
+      li.append(sw, name);
+      legend.appendChild(li);
+    });
+    const note = document.createElement('p');
+    note.className = 'rail-note';
+    note.textContent = 'Your progress is saved on this device only. Nobody else can see it.';
+    box.append(title, legend);
+    if (rail.dataset.rail === 'admin') {
+      const quick = document.createElement('button');
+      quick.type = 'button';
+      quick.className = 'secondary-button rail-quick';
+      quick.textContent = 'Quick add';
+      quick.addEventListener('click', () => openQuickAdd());
+      box.appendChild(quick);
+    }
+    box.appendChild(note);
+    rail.appendChild(box);
+  });
+}
+fillRails();
 
 let statusPopoverEl = null;
 let statusPopoverTask = null;
@@ -2016,6 +2115,26 @@ quickInput.addEventListener('keydown', (e) => {
 });
 quickOverlay.addEventListener('click', (e) => { if (e.target === quickOverlay) closeQuickAdd(); });
 
+// On phones an announcement is one line until tapped. The full text stays in the
+// DOM, so screen readers still get all of it; only the visual box is clamped.
+function makeAnnounceExpandable(text) {
+  if (!window.matchMedia('(max-width: 839px)').matches) return;
+  text.classList.add('is-clamped');
+  text.tabIndex = 0;
+  text.setAttribute('role', 'button');
+  text.setAttribute('aria-expanded', 'false');
+  text.setAttribute('aria-label', 'Show full announcement');
+  const toggle = () => {
+    const open = text.classList.toggle('is-open');
+    text.setAttribute('aria-expanded', String(open));
+    text.setAttribute('aria-label', open ? 'Collapse announcement' : 'Show full announcement');
+  };
+  text.addEventListener('click', toggle);
+  text.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggle(); }
+  });
+}
+
 function renderPublicAnnouncements() {
   const list = document.querySelector('#announce-list-public');
   if (!list) return;
@@ -2038,6 +2157,7 @@ function renderPublicAnnouncements() {
     date.className = 'announce-date';
     date.textContent = new Date(a.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     fillAnnounce(text, a);
+    makeAnnounceExpandable(text);
     li.append(text, date);
     list.appendChild(li);
   });
@@ -2194,6 +2314,7 @@ function renderAnnouncements() {
       });
     });
     fillAnnounce(text, a);
+    makeAnnounceExpandable(text);
     li.append(text, date, del);
     announceList.appendChild(li);
   });
@@ -2422,8 +2543,10 @@ function setPage(pageName, updateHash = true) {
   const activePageName = activeItem.dataset.page;
   const activePage = pages.find((page) => page.dataset.pageView === activePageName);
 
+  // Match by target page, not by identity: the sidebar and the phone tab bar both
+  // carry the same data-page, and both must light up.
   navItems.forEach((item) => {
-    const isActive = item === activeItem;
+    const isActive = item.dataset.page === activePageName;
     item.classList.toggle('is-active', isActive);
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   });
@@ -2451,8 +2574,33 @@ navItems.forEach((item) => {
   });
 });
 
+// --- Done column starts collapsed on desktop; its header carries the count ---
+document.querySelectorAll('.column-toggle').forEach((btn) => {
+  const column = btn.closest('.kanban-column');
+  btn.addEventListener('click', () => {
+    column.classList.toggle('is-open');
+    updateColumnToggle(column);
+  });
+});
+
+// --- Phone status switcher: one board column at a time ---
+// Inert on desktop, where the stylesheet keeps .status-switch hidden and the board shows all three.
+document.querySelectorAll('.status-switch').forEach((sw) => {
+  const board = document.getElementById(sw.dataset.switch);
+  if (!board) return;
+  const sync = () => sw.querySelectorAll('[data-status-filter]').forEach((b) => {
+    const on = b.dataset.statusFilter === board.dataset.statusFilter;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  sw.querySelectorAll('[data-status-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => { board.dataset.statusFilter = btn.dataset.statusFilter; sync(); });
+  });
+  sync();
+});
+
 // Deep links: follow hash edits, pasted links, and Back/Forward navigation.
-const NAV_PAGES = navItems.map((item) => item.dataset.page);
+const NAV_PAGES = [...new Set(navItems.map((item) => item.dataset.page))];
 window.addEventListener('hashchange', () => {
   if (previewing) setPreview(false);
   setPage(pageFromHash(window.location.hash, NAV_PAGES, isAdmin), false);
@@ -2461,7 +2609,7 @@ window.addEventListener('hashchange', () => {
    // --- Phone sidebar: scrim, Escape, focus ---
    const sidebarScrim = document.querySelector('#sidebar-scrim');
    const mainContent = document.querySelector('.main-content');
-   const phoneQuery = matchMedia('(max-width: 720px)');
+   const phoneQuery = matchMedia('(max-width: 839px)');
 
    function setSidebarOpen(open, restoreFocus = true) {
      const phone = phoneQuery.matches;

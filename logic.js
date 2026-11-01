@@ -14,6 +14,15 @@ function statusChangeMessage(status) {
   return `Marked ${String(label).toLowerCase()}`;
 }
 
+// Subject codes are shown in one canonical, upper-case form. FINMATH101 is a legacy
+// alias of FINMATH still present in published data; it renders as FINMATH. The alias is
+// reported, never rewritten in place, so stored data keeps whatever the publisher sent.
+const SUBJECT_ALIASES = { FINMATH101: 'FINMATH' };
+function subjectDisplay(code) {
+  const key = String(code == null ? '' : code).trim().toUpperCase();
+  return SUBJECT_ALIASES[key] || key;
+}
+
 // --- Date helpers (calendar days, local time) ---
 function dayDiff(date) {
   const start = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -186,6 +195,21 @@ class Task {
     return this.dueTime ? `${text} · ${this.getTimeLabel()}` : text;
   }
 
+  // Urgency tier the UI colours by: hot within 2 days, warm within a week, quiet beyond.
+  // Closed, expired, done and undated tasks carry no tier — they are not "due" anything.
+  getUrgencyTier() {
+    if (!this.dueDate || this.status === 'done' || this.isPast()) return '';
+    const diff = dayDiff(this.dueDate);
+    if (diff <= 2) return 'hot';
+    if (diff <= 7) return 'warm';
+    return 'quiet';
+  }
+
+  // What the tier's pill reads. Overdue says so plainly; the countdown stays in the title.
+  getDuePill() {
+    return this.isOverdue() ? 'Past due' : this.getDueLabel();
+  }
+
   getTimeLabel() {
     if (!this.dueTime) return '';
     const [h, m] = this.dueTime.split(':').map(Number);
@@ -346,11 +370,13 @@ function pageFromHash(hash, knownPages, isAdmin) {
 const logicAPI = {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
+  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage,
+  subjectDisplay, SUBJECT_ALIASES
 };
 Object.assign(globalThis, logicAPI);
 export {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
+  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage,
+  subjectDisplay, SUBJECT_ALIASES
 };
