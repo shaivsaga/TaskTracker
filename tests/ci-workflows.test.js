@@ -29,7 +29,9 @@ function declaredWorkflowNames() {
 }
 
 function workflowRunTriggers(src) {
-  const block = /workflow_run:[ \t]*\n[ \t]+workflows:[ \t]*\[([^\]]*)\]/.exec(src);
+  // \r?: on Windows checkouts git gives CRLF (no .gitattributes rule covers *.yml),
+  // and a \n-only pattern silently matches nothing - the guard fails on the file it exists to guard.
+  const block = /workflow_run:[ \t]*\r?\n[ \t]+workflows:[ \t]*\[([^\]]*)\]/.exec(src);
   if (!block) return [];
   return block[1]
     .split(',')
