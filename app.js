@@ -1519,6 +1519,7 @@ deviceDark.addEventListener('change', () => {
 });
 try {
   const saved = localStorage.getItem('class_tasks_theme') || 'device';
+  applyTheme(saved);
   document.querySelectorAll('[data-theme-choice]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeChoice === saved)));
 } catch (e) {}
 

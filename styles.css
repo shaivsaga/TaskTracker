@@ -55,7 +55,7 @@
 
   /* Type scale */
   --text-xs: 12px; --text-sm: 14px; --text-md: 16px; --text-lg: 20px;
-  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease: cubic-bezier(.2, .7, .2, 1);
   --sidebar-w: 284px;
 
   /* Redesign geometry */
@@ -136,7 +136,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .brand { position: relative; display: flex; align-items: center; height: 56px; margin: 0 calc(var(--s3) * -1) var(--s3); padding: 0 var(--s4); border-bottom: 1px solid var(--line); }
 .brand-name { display: inline-flex; align-items: center; gap: var(--s2); color: var(--ink); font-size: var(--text-sm); font-weight: 600; letter-spacing: 0; white-space: nowrap; }
 .brand-mark { width: 18px; height: 18px; flex: none; color: var(--accent); }
-.sidebar-toggle { position: absolute; top: var(--s3); right: var(--s3); display: grid; place-content: center; width: 32px; height: 32px; color: var(--muted); background: transparent; cursor: pointer; }
+.sidebar-toggle { position: absolute; top: var(--s3); right: var(--s3); display: grid; place-content: center; width: 44px; height: 44px; color: var(--muted); background: transparent; cursor: pointer; }
 .sidebar-toggle:hover { color: var(--ink); background: var(--hover); }
 .sidebar-toggle svg { width: 18px; height: 18px; stroke-width: 1.75; }
 
@@ -189,7 +189,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .mobile-menu span { display: block; width: 16px; height: 2px; background: var(--muted); }
 
 .view-tabs { display: inline-flex; align-items: center; border: var(--rule) solid var(--control-line); border-radius: var(--r-soft); overflow: hidden; }
-.view-tab { min-height: 40px; padding: 0 var(--s3); background: transparent; color: var(--muted); font-size: var(--text-sm); font-weight: 500; cursor: pointer; }
+.view-tab { min-height: 44px; padding: 0 var(--s3); background: transparent; color: var(--muted); font-size: var(--text-sm); font-weight: 500; cursor: pointer; }
 .view-tab + .view-tab { border-left: var(--rule) solid var(--control-line); }
 .view-tab:hover { color: var(--ink); background: var(--hover); }
 .view-tab.is-active { color: var(--ink-inv); background: var(--ink); font-weight: 600; }
@@ -874,10 +874,10 @@ body{font:400 16px/24px var(--font-sans);font-variant-numeric:tabular-nums;}
 .icon-button{width:44px;height:44px;border:var(--bw) solid var(--ctl);border-radius:var(--r);background:var(--surface);color:var(--ink);box-shadow:none;}
 .icon-button:hover{background:var(--surface2);color:var(--ink);}
 .view-tabs{border:var(--bw) solid var(--ctl);border-radius:var(--r);background:var(--surface);}
-.view-tab{min-height:40px;padding:0 var(--s4);font-size:14px;line-height:20px;font-weight:600;color:var(--ink);}
+.view-tab{min-height:44px;padding:0 var(--s4);font-size:14px;line-height:20px;font-weight:600;color:var(--ink);}
 .view-tab.is-active{background:var(--ink);color:var(--bg);}
 .search{min-height:44px;border:var(--bw) solid var(--ctl);border-radius:var(--r);background:var(--surface);}
-.search input{min-height:40px;font-size:16px;}
+.search input{min-height:44px;font-size:16px;}
 .text-input{min-height:48px;border:var(--bw) solid var(--ctl);border-radius:var(--r);font-size:16px;}
 .danger-button{border:var(--bw) solid var(--danger);border-radius:var(--r);color:var(--danger);box-shadow:none;min-height:44px;}
 
