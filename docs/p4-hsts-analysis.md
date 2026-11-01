@@ -41,10 +41,15 @@ interceptable first hop (the plain-HTTP request before the 301) stays protected.
   clearing, or sending `max-age=0` — which only helps browsers that visit the (HTTPS) site again.
 - `deploy/verify-hardening.mjs:29` asserts HSTS with `/max-age=\d+/` — it matches **any** value, so
   a staged raise will not break the gate, and the gate today cannot distinguish 300 from a year.
-- **Critical context:** per POST_DEPLOY_VERIFICATION.md and HARDENING_GATE_REVIEW_2026-10-31 §E,
-  production hardening was **not verified in effect** (0/15 checks on 2026-10-31; the custom
-  config was not loaded by the host nginx). Production therefore sent **no HSTS at all** as of the
-  last measurement. `max-age=300` is the *intended* value, not an *observed* one.
+- **Status correction (supersedes the sources cited here at the time of writing):** the
+  "0/15 / hardening not in effect" reading in `POST_DEPLOY_VERIFICATION.md` and
+  `HARDENING_GATE_REVIEW_2026-10-31 §E` predates the hotfix — that header text was committed at
+  09:49Z on 2026-10-31. PR #28 (`f88b83c`) then loaded the config, and the CI post-deploy
+  verifier has passed against the live host since: run `41191712557`, conclusion **success**,
+  `workflow_run` on headSha `2222eb4`, 2026-10-31T10:11Z. The verifier exits non-zero on any
+  failed probe, so dsct.dev **is sending** `Strict-Transport-Security: max-age=300` today.
+  `max-age=300` is an *observed* value; the raise below changes a live header rather than
+  activating a dormant one.
 
 ## 2. Risks
 
