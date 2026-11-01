@@ -4,6 +4,13 @@
 **Documentation only.** Nothing here is implemented and no approval is assumed. Each section ends
 with the exact decision the owner must make.
 
+**Re-verified 2026-11-01 on `main` @ `5d7da89`** (this document is now tracked on main; the line refs
+were first taken at `2222eb4`). Every F1/F2/F3 claim below was re-checked against the code, and the
+publish/lock/versions behaviour was additionally driven end-to-end against a sandboxed copy of the real
+`api/publish.php` and `api/versions.php` (harness `tests/php/e2e_lib.php` plus the new checks in
+`tests/php/run.php`, 53 -> 98 checks). Corrections are marked **[corr]**, runtime evidence
+**[evidence]**. Nothing here is implemented and no approval is assumed.
+
 Evidence sources: repo code at `2222eb4`; SECURITY_AUDIT_REPORT.md, REMEDIATION_PLAN.md,
 HARDENING_GATE_REVIEW_2026-10-31.md, `.claude/DELIVERABLES.md`,
 `.claude/plans/phase4-owner-decisions.plan.md` (§3 = S1), PROJECT_HANDOFF.md §11. The first five
@@ -19,6 +26,14 @@ their line references below are quotes, so the briefs survive if the files move.
 There is **no `notesRef` anywhere in the repo** (grep across the worktree at `2222eb4`: 0 hits;
 independently confirmed in `.claude/DELIVERABLES.md` §I: "no `notesRef` anywhere in the file").
 `notes` is a plain string carried inline. The exact publish path:
+
+**[evidence]** Still 0 code hits at `5d7da89` (only this document and the plan name it), and the
+behaviour below is now confirmed by running the real endpoint, not only by inspection: a sandboxed
+copy of `api/publish.php` accepts a task carrying `notesRef`, `closedAt` and an unrelated junk key and
+persists all three verbatim into `current.json`; the next publish of the same task with empty `notes`
+and **no** `notesRef` is accepted **HTTP 200**, and the stored task drops all three keys. There is no
+409 and no carry-over on the write path - the only per-task value ever carried over today is
+`changedAt` (`publish.php:91`).
 
 1. `api/publish.php:15-17` — payload must be JSON with `tasks` an array.
 2. `api/publish.php:30-48` — per-task validation: id (non-empty, ≤64 chars), title (string,
@@ -43,8 +58,11 @@ it. **Nothing in `publish.php` stops a task arriving with empty `notes` and no r
   `Cache-Control: public, max-age=31536000, immutable` (nginx `map $arg_v $asset_cache`, stamped
   URLs), and the workflow asserts a year on those stamps. A browser holding a year-old `app.js`
   keeps publishing the old shape while the server has externalised other tasks' bodies. A new
-  client that fails to fetch a body before publishing (offline draft, 8 s timeout at
-  `app.js:337`) can also send empty notes with no ref.
+  client that fails to fetch a body before publishing (an offline draft, or simply the same budget
+  **[corr]** - the 8 s timeout at `app.js:337` is today's **board** fetch, `fetch(API.current` plus a
+  cache-buster, `{ cache: 'no-store', signal: AbortSignal.timeout(8000) })`; no body fetch exists yet,
+  so 8 s is a design input here rather than an existing body-fetch budget) can also send empty notes
+  with no ref.
 - If such a publish lands, the task's body is no longer referenced by `current.json` (and,
   after enough publishes/prunes, by any snapshot either), GC legitimately reaps it, and the notes
   are **silently and permanently gone** — while `current.json` stays perfectly parseable and
@@ -82,6 +100,23 @@ before S1b ships** — not after.
 6. Regression guard: unknown-key passthrough — assert the validator now has an explicit allowlist
    for task keys including `notesRef`, or that `notesRef` shape is validated when present.
 
+**[evidence]** Items 1, 3 and 4 are now covered format-agnostically by `tests/php/run.php`: it asserts
+that unknown task keys are persisted verbatim today, and that a successful empty-notes publish never
+orphans a body stored under `data/bodies/` - vacuous while bodies are inline, live the day S1b ships,
+and failing only in the dangerous combination (bodies externalised, no refusal/carry-over rule). Items
+2, 5 and 6 presuppose the settled ref format (explicit-delete marker, 422 for a malformed ref, key
+allowlist) and stay open until the owner chooses.
+
+**[corr]** The clear-board announcements precedent (`publish.php:100,111`) is *board-level and
+clear-path only*. Per task, `publish.php` carries exactly one value over, `changedAt` (`:91`), so either
+option introduces the first per-task refusal or carry-over rule; Option B is not "the existing pattern".
+
+**Blast radius:** zero today (`notesRef` is inert and no client sends it). The day S1b ships it is every
+task whose body was externalised: silent, permanent notes loss on a board that still parses and renders,
+so no "board still works" test catches it and the loss only surfaces when the admin opens that task.
+Option A's extra effect is admin-facing and recoverable: one publish answers 409, and a stale client has
+to reload before it can publish again.
+
 **DECISION NEEDED FROM OWNER:** Choose Option A (409 on empty-notes-no-ref, explicit delete
 marker) or Option B (server carry-over with the same marker), and confirm the contract is
 implemented and tested as a precondition of approving S1b — not after it.
@@ -102,6 +137,13 @@ implemented and tested as a precondition of approving S1b — not after it.
   count; `current.json` is replaced only via same-directory temp + `rename()`. A crash at any
   point leaves either the old file or a complete new one — never a truncated one.
 
+**[evidence]** Driven end-to-end: while another process holds `data/.publish.lock`, `publish.php` answers
+**503** after its ~5 s bounded wait with `current.json` byte-identical and no new snapshot, and
+`versions.php`'s delete answers **503** as well and removes nothing - one lock, both writers, nothing
+written on the failure path. After the holder exits the next publish succeeds with the lock file still
+on disk, so the guard is the `flock` and not the file's existence: a stale lock file is harmless and
+there is no PID/staleness logic to migrate.
+
 ### What the S1 migration changes and why F2 exists
 
 Both S1a (rewrite base64 out of `current.json` + `data/versions/*.json`) and S1b (externalise
@@ -109,7 +151,13 @@ bodies) need a **migration**: a one-off job that reads the live board and histor
 rewrites them in place. The phase4 plan (§3.2) describes the migration's *what* but never gives it
 a locking or atomicity story — which is exactly what the S1 adversarial review filed as F2
 (DELIVERABLES §I): the migration as stated takes **no `.publish.lock`** and states **no
-temp+rename**, so:
+temp+rename**:
+
+**[evidence]** Verified in the plan text itself: §3.2's S1a item 2 says only "a one-off,
+admin-triggered (or owner-run) job that does the same rewrite over `data/current.json` and
+`data/versions/*.json`" - no lock, no temp+rename, no failure story - and §3.5 covers only the ordering
+of the *publish* write (body first, then the board). F2 is a gap in the plan, not an artefact of this
+summary.
 
 - **Concurrent publish loses data.** Migration reads the board → admin publishes → migration
   writes back its **older** copy → the newer publish is silently overwritten and `publishedAt`
@@ -143,6 +191,11 @@ The migration must inherit the exact discipline `publish.php` already uses — n
 3. **Idempotency:** run the migration twice → second run changes nothing, reports success.
 4. **Skip path:** a corrupt/unreadable snapshot is reported, not modified or deleted.
 
+**Blast radius:** confined to the one-off migration run - an interleaved publish is silently rolled back
+(plus a non-monotonic `publishedAt`, which the prune order and the versions list key on), or a killed
+in-place snapshot rewrite destroys that history. No student-visible effect until the next publish, and
+no code change is needed to prevent it: the discipline already exists in `publish.php`.
+
 **DECISION NEEDED FROM OWNER:** Approve the migration contract — same `.publish.lock`, temp+rename
 for every rewritten file, skip-and-report, idempotent — as a mandatory acceptance condition for
 whichever S1 migration (S1a's or S1b's) gets implemented.
@@ -164,6 +217,12 @@ whichever S1 migration (S1a's or S1b's) gets implemented.
   unknown key is a file path yet. F3 is a **precondition of S1b, not a live bug** — the same
   conclusion the 2026-10-31 checkpoint reached ("do not implement now"; unknown keys are inert
   until S1b makes them point at files).
+
+**[evidence]** "Inert" means nothing dereferences a ref, not that refs are rejected: the real endpoint
+accepts a task carrying `notesRef: "../../api/.htpasswd"` with **HTTP 200** and stores it verbatim in the
+public `current.json`. The only live id-to-file reader, `versions.php`, is now covered by tests:
+traversal, `..%2f`-encoded, uppercase, zero-padded, `1e3`, negative, 20-digit, `1.0` and empty ids all
+answer **400**, and a rejected id never touches a file outside `data/versions/`.
 
 ### The proposal and why S1b forces it
 
@@ -205,6 +264,12 @@ Under S1b, two new paths make unknown keys dangerous:
 3. `publish.php` with a malformed ref → 422, nothing persisted.
 4. Round-trip: published ref id equals sha256 of the stored body bytes.
 
+**Blast radius:** no live bug (nothing dereferences a ref yet). After S1b: a crafted transfer imported
+by an admin and published persists an attacker-chosen ref into public `current.json`; if the body reader
+trusts it, that is a path-traversal file read, and if bodies are ever served as HTML it is stored XSS in
+the app's own origin. Both are closed by the same regex plus a basename/realpath layer - which is why
+this is an S1b acceptance criterion rather than a follow-up.
+
 **DECISION NEEDED FROM OWNER:** Confirm that `^[a-f0-9]{64}$` id validation on the body reader,
 plus ref-format validation in both `clean_payload()` and `publish.php`, is adopted as a **blocking
 acceptance criterion of S1b** — and whether the server derives (rather than trusts) body ids at
@@ -219,11 +284,15 @@ publish time.
 `data/current.json` (public) and each `data/versions/<unix-timestamp>.json` snapshot store the
 full board inline: `{publishedAt, tasks:[…], announcements:[…]}` where every task's `notes` is an
 inline HTML/text string, with pasted images embedded **inside those strings as base64 data URIs**
-(`insertDocImages` fallback, `app.js:745-767`) or as `uploads/<32hex>` references
+(`insertDocImages` fallback, `app.js:755-769`, the base64 fallback at `:763`; **[corr]** the plan's
+`745-767` is stale) or as `uploads/<32hex>` references
 (`sanitizeDoc`, `logic.js`, accepts both forms — the existing backward-compatibility hook).
 Measured on the live board (2026-10-30, phase4 plan §3.1): 1,702,291 bytes, **97% of it in four
 strings** (704 KB + 412 KB base64 + 336 KB + 201 KB doc bodies). Every publish writes a full
-snapshot (max 50 kept, `keep_versions`).
+snapshot (max 50 kept, `keep_versions`). **[corr]** `keep_versions` has no in-tree value: with
+`api/config.php` absent (it is gitignored) `publish.php:154-155` falls back to **20**, never fewer than
+3 - the "50" is the deployed value claimed by phase4 plan §1.6 and cannot be confirmed from the repo,
+so the sizing below rests on an unverifiable number.
 
 ### Migration shape (per phase4 plan §3.2–§3.4, condensed)
 
@@ -238,7 +307,11 @@ snapshot (max 50 kept, `keep_versions`).
   (F3), body fetched lazily when a dialog opens. GC: a body is deleted only when no snapshot,
   not `current.json`, and no live transfer references it — conservative, reference-counted,
   applied to both prune and `versions.php all:true`. The inline `excerpt` keeps list previews
-  and class search working at reduced fidelity.
+  and class search working at reduced fidelity. **[corr]** Not as the client stands: class search
+  matches `title + subject + notes` only (`app.js:1441-1442` via `plainNotes`, `:1432-1440`), so a task
+  carrying `notes: ""` plus `notesRef.excerpt` does not match on the excerpt at all until the client is
+  taught to search it. That is client work in another agent's scope, and the owner should price it as a
+  real regression rather than reduced fidelity.
 - **Rollback (hard requirement from DELIVERABLES §D):** ship S1b with **both** the ref and a
   retained inline copy for one deploy cycle, then drop the inline copy in a follow-up. Once
   inline copies are gone, reverting the code leaves old readers unable to fetch bodies — the
@@ -252,18 +325,24 @@ snapshot (max 50 kept, `keep_versions`).
    validation) must be settled **before** the format ships, or the format launches with its
    data-loss and traversal doors open.
 2. **Reduced search fidelity.** Load-time class search matches `title + subject + notes`
-   (`app.js:1414-1416` region); an externalised body is searchable only through its ≤2 KB
+   (`app.js:1441-1442`; **[corr]** the plan's `1414-1416` region is stale); an externalised body is
+   searchable only through its ≤2 KB
    excerpt. Full-body search would mean fetching every body — rejected for load cost. The owner
    must either accept this or set a larger inline threshold.
 3. **Host unknowns.** Whether `data/` survives redeploys and whether it is backed up are marked
    **[unknown]** (phase4 plan §3.9, PROJECT_HANDOFF §10). `data/bodies/` is irrecoverable without
    that answer.
-4. **Sizing.** `keep_versions => 50` means the body store must hold up to ~50 snapshots' worth of
+4. **Sizing.** `keep_versions` (20 in-tree, 50 on the host per phase4 plan §1.6, unverifiable from the
+   repo) means the body store must hold up to ~50 snapshots' worth of
    referenced bodies; a GC bug's blast radius is bounded only by conservatism ("when in doubt,
    keep").
 5. **Dependency order.** L5 (opaque version ids) before S1b, so the id scheme is chosen once;
    C5 (branch protection) before any S1 push to main, because only the deploy path can corrupt
    production data with this.
+6. **No body size cap is specified.** Today the only bound on `notes` is the 4 MB board cap
+   (`publish.php:13`). Under S1b the excerpt is capped (≤2 KB) but the **stored body** is not, and the
+   board cap no longer bounds it, so one pasted image can still write an unbounded `data/bodies/` file
+   unless a per-body maximum (and its 413 story) is fixed with the format.
 
 ### Required tests
 
@@ -272,6 +351,13 @@ Condensed from phase4 plan §3.6: logic tests for the ref/inline threshold decis
 on non-image blobs, and the GC reference rule; a manual run of the migration against a copy of
 the live payload confirming every task still renders (dialog, search, transfer, history); post-
 deploy proof that the payload is <20 KB gzipped and that a pre-migration snapshot still renders.
+
+**Blast radius:** the whole persisted board plus up to `keep_versions` snapshots on the live host (whose
+backup status is still **[unknown]**, risk 3), every reader including year-cached stale clients (the
+nginx map makes a stamped `app.js` immutable for 31536000 s), class-search fidelity (risk 2), and the
+transfer path's 700 KB draft cap that S1 reduces. It is forward-safe, not reversible: once the inline
+copy is dropped, reverting the code leaves pre-rollback readers unable to fetch bodies, so the rollback
+cycle is part of the change rather than a contingency.
 
 **DECISION NEEDED FROM OWNER:** Do you approve changing the persisted board format (S1b:
 externalised bodies under `data/bodies/` with `notesRef` in `current.json`), with the dual-write
@@ -299,6 +385,13 @@ on?
   $asset_cache` gives stamped assets `public, max-age=31536000, immutable` and everything else
   `no-cache`. That machinery is correct; the current.json fetch is the one place the cache-buster
   pattern was copied where it hurts.
+
+**[evidence]** Re-verified on main: in-tree `index.html` carries four hand-written placeholder stamps
+(`qr-draw.js?v=10`, `attachments.js?v=1`, `logic.js?v=5`, `app.js?v=3`, at `index.html:549-552`) and a
+plain `styles.css` link (`:32`); the deploy job rewrites all five to short SHAs
+(`main_tasktracker.yml:45-46`), asserts exactly five stamps in `index.html` plus the one `logic.js`
+import inside `app.js` and fails on a stale `?v=` (`:52-57`), while `qrcode.js` is deliberately left
+unstamped. `deploy/nginx-default.conf:5-7` maps `$arg_v` and applies the immutable header at `:174`.
 
 ### Options
 
@@ -353,5 +446,15 @@ revalidation against nginx's ETag), or choose the stamped-`publishedAt` variant 
   committing them as an owner decision).
 - The ~1.7 MB payload figure is from the 2026-10-30 measurement; HARDENING_GATE_REVIEW §F notes
   it was not re-verified later and should be treated as unconfirmed.
+- The decomposition of that 1.7 MB (97% in four strings: 704 KB + 412 KB base64 + 336 KB + 201 KB) comes
+  only from phase4 plan §3.1. There is no `data/` in the repo or in the worktree used for this
+  re-verification, so neither the total nor the split can be re-measured here; treat both as
+  source-reported.
+- `keep_versions` is unverifiable in-tree (host 50 per plan §1.6 vs the in-tree fallback 20): the file
+  that would hold it, `api/config.php`, is gitignored and absent.
+- The plan, DELIVERABLES, PROJECT_HANDOFF, SECURITY_AUDIT_REPORT, REMEDIATION_PLAN and
+  HARDENING_GATE_REVIEW are still untracked; the F2 plan citations above were read from the main
+  checkout's `.claude/plans/phase4-owner-decisions.plan.md` (its own `app.js` line refs are the stale
+  ones corrected here).
 - Whether `www.dsct.dev` or any subdomain exists in DNS is unknowable from the repo (see
   p4-hsts-analysis.md §5).
