@@ -13,10 +13,10 @@ approval is assumed. Every measurement below was taken with the tools named next
 
 | | File | Full path | Bytes | Modified |
 |---|---|---|---|---|
-| A | `TaskTracker UI redesign agent brief.pdf` | `C:\Users\shavionte\Downloads\` | 89,521 | 2026-10-30 17:48:09 |
-| B | `TaskTracker redesign full conversation handoff.pdf` | `C:\Users\shavionte\Downloads\` | 141,199 | 2026-10-30 17:07:52 |
-| C | `TaskTracker-redesign-mockup(3).html` | `C:\Users\shavionte\Downloads\` | 119,323 | 2026-10-31 17:00:36 |
-| D | `TaskTracker redesign v2.html` | `C:\Users\shavionte\Downloads\` | 818,632 | 2026-10-31 17:02:43 |
+| A | `TaskTracker UI redesign agent brief.pdf` | `%USERPROFILE%\Downloads\` | 89,521 | 2026-10-30 17:48:09 |
+| B | `TaskTracker redesign full conversation handoff.pdf` | `%USERPROFILE%\Downloads\` | 141,199 | 2026-10-30 17:07:52 |
+| C | `TaskTracker-redesign-mockup(3).html` | `%USERPROFILE%\Downloads\` | 119,323 | 2026-10-31 17:00:36 |
+| D | `TaskTracker redesign v2.html` | `%USERPROFILE%\Downloads\` | 818,632 | 2026-10-31 17:02:43 |
 
 Originals untouched. The v2 gallery was opened, its two packed pages were unpacked to
 `_agent-scratch/v2/` for reading, and both PDFs were text-extracted to `_agent-scratch/pdf/`. Both PDFs report
