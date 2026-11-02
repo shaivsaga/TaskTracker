@@ -51,7 +51,7 @@
  *      environment (TT_SRC, TT_DST, ...), because a raw Windows path interpolated into shell
  *      text loses its backslashes to bash quote removal and silently becomes a drive-relative
  *      path (C:\a\b -> C:ab) that resolves against the CURRENT DIRECTORY - which is how this
- *      harness used to drop ~20 `CUsersshavionte...logsmarker.txt` files into the repo root.
+ *      harness used to drop ~20 `CUsers<user>...logsmarker.txt` files into the repo root.
  *   2. Every temp dir lives under os.tmpdir(), is unique per run, and is removed afterwards;
  *      removal is guarded so it can only ever delete the directory the run itself created.
  *   3. The spawned script's cwd is the run's temp dir, never the repository, so a relative path

@@ -26,7 +26,7 @@ The redesign had been started in the **main security checkout** (`C:\xampp\htdoc
 `fix/security-remediation-phase0-3`, PR #27 open) instead of a branch of its own. Work was relocated to the
 dedicated worktree `TT-wt-ux` on `feat/ux-redesign`; the security checkout was left untouched.
 
-DeepSeek's original handoff artifacts remain in `C:\Users\shavionte\AppData\Local\Temp\tt-redesign\`
+DeepSeek's original handoff artifacts remain in `%TEMP%\tt-redesign\`
 (`AGENT-CONTEXT.md`, `PLAN.md`, `brief.txt`, `handoff.txt`, mockup + token dumps, Playwright harness).
 All were preserved; nothing was reset, cleaned or discarded.
 
@@ -170,7 +170,7 @@ cd C:/xampp/htdocs/TT-wt-ux && git status --short
 ```
 
 ```bash
-cd C:/Users/shavionte/AppData/Local/Temp/tt-redesign && TT_APP="http://localhost/TT-wt-ux/" TT_OUT="C:/Users/shavionte/AppData/Local/Temp/tt-redesign/shots/wt-after2" TT_TAG="wtafter" node matrix.js
+cd "$TEMP/tt-redesign" && TT_APP="http://localhost/TT-wt-ux/" TT_OUT="$TEMP/tt-redesign/shots/wt-after2" TT_TAG="wtafter" node matrix.js
 ```
 
 **Do not commit, push, merge or deploy from this worktree without the owner's say-so.**
