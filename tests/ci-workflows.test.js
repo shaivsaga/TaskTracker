@@ -57,3 +57,29 @@ test('the production verifier stays read-only', () => {
   assert.doesNotMatch(src, /method:[ \t]*['"](POST|PUT|PATCH|DELETE)['"]/i, 'the verifier sends a mutating request');
   assert.doesNotMatch(src, /\b(spawn|spawnSync|exec|execSync|execFile)\b/, 'the verifier shells out');
 });
+
+// --- Phase 1a: the JavaScript suite must run on pull requests, and a pull request must
+// never reach the production deploy. Both halves fail silently: without the trigger,
+// nothing runs until after the merge; without the gate on `build`, the deploy job that
+// needs it would ship a pull request to production.
+function jobBlock(src, name) {
+  const re = new RegExp('\\r?\\n  ' + name + ':\\r?\\n([\\s\\S]*?)(?=\\r?\\n  [a-zA-Z0-9_-]+:\\r?\\n|$)');
+  return re.exec(src)?.[1] ?? '';
+}
+
+test('main_tasktracker.yml runs the JavaScript suite on pull requests', () => {
+  const src = readWorkflow('main_tasktracker.yml');
+  assert.match(src, /\r?\n  pull_request:/, 'main_tasktracker.yml declares no pull_request trigger');
+  const job = jobBlock(src, 'js-tests');
+  assert.ok(job, 'main_tasktracker.yml declares no js-tests job');
+  assert.match(job, /github\.event_name == 'pull_request'/, 'the js-tests job does not restrict itself to pull requests');
+  assert.match(job, /node --test tests\/\*\.test\.js/, 'the js-tests job does not run the JavaScript suite');
+});
+
+test('a pull request can never reach the production deploy', () => {
+  const src = readWorkflow('main_tasktracker.yml');
+  const build = jobBlock(src, 'build');
+  assert.match(build, /if:\s*github\.event_name != 'pull_request'/, 'build still runs on pull_request, so the deploy job below it would run too');
+  const deploy = jobBlock(src, 'deploy');
+  assert.match(deploy, /needs:\s*build/, 'deploy no longer depends on build');
+});
