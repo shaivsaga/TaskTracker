@@ -54,7 +54,7 @@ if (dom.adminAnnounce && dom.adminEmpty) dom.adminEmpty.before(dom.adminAnnounce
 const myTasks = [];              // admin draft (definitions only)
 
 const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.includes(task);
-const findTask = (id) => [...myTasks, ...publishedTasks].find((t) => t.id === id);
+const findTask = (id) => [...myTasks, ...state.publishedTasks].find((t) => t.id === id);
 
 function applyProgress(list) {
   list.forEach((t) => { const p = state.progress[t.id]; t.status = p ? p.status : 'not_started'; t.movedAt = p ? p.movedAt : 0; });
@@ -613,13 +613,13 @@ function handleDrop(e) {
   if (newStatus && newStatus !== task.status) {
     if (isReopen(task, newStatus)) {
       confirmReopen(task, newStatus, () => {
-        const prev = state.progress[task.id] ? { ...progress[task.id] } : null;
+        const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
         setStatus(task, newStatus);
         renderAllTasks();
         showToast(statusChangeMessage(newStatus), 'Undo', () => restoreProgress(task.id, prev));
       });
     } else {
-      const prev = state.progress[task.id] ? { ...progress[task.id] } : null;
+      const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
       setStatus(task, newStatus);
       renderAllTasks();
       if (newStatus === 'done') {
@@ -1103,7 +1103,7 @@ function reopenWithConfirm(btn, task) {
       return;
     }
     clearTimeout(timer);
-    const prev = state.progress[task.id] ? { ...progress[task.id] } : null;
+    const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
     setStatus(task, 'not_started');
     renderAllTasks();
     showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
@@ -1549,7 +1549,7 @@ function ensureStatusPopover() {
       if (isReopen(picked, next)) {
         closeStatusPopover();
         confirmReopen(picked, next, () => {
-          const prev = state.progress[picked.id] ? { ...progress[picked.id] } : null;
+          const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
           setStatus(picked, next);
           if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
           renderAllTasks();
@@ -1557,7 +1557,7 @@ function ensureStatusPopover() {
         });
         return;
       }
-      const prev = state.progress[picked.id] ? { ...progress[picked.id] } : null;
+      const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
       setStatus(picked, opt.dataset.status);
       if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
       closeStatusPopover();
@@ -1617,7 +1617,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
     state.statusPopoverIndex = (state.statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
-    [...statusPopoverEl.children].forEach((opt, i) => opt.classList.toggle('is-active', i === state.statusPopoverIndex));
+    [...state.statusPopoverEl.children].forEach((opt, i) => opt.classList.toggle('is-active', i === state.statusPopoverIndex));
   }
   if (e.key === 'Enter') { state.statusPopoverEl.children[state.statusPopoverIndex].click(); }
 });
@@ -2529,7 +2529,7 @@ function renderHistory() {
   const list = $('#history-list');
   const items = [
     ...readJSON(KEYS.checkpoints, []).map((c) => ({ kind: 'Checkpoint', at: c.at, snap: c })),
-    ...serverVersions.map((v) => ({ kind: 'Published', at: v.publishedAt * 1000, note: v.note, snap: v, id: v.id })),
+    ...state.serverVersions.map((v) => ({ kind: 'Published', at: v.publishedAt * 1000, note: v.note, snap: v, id: v.id })),
   ].sort((a, b) => b.at - a.at);
   list.replaceChildren();
   if (!items.length) {
