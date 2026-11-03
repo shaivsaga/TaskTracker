@@ -18,3 +18,26 @@ export function formatTime(t) {
   d.setHours(h, m, 0, 0);
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
+
+
+// --- Pure data maps, moved out of app.js (slice 2.2) ------------------------------------------------
+// COLUMN_TO_STATUS/STATUS_TO_COLUMN drive the board columns; KEYS/API are the localStorage keys and
+// endpoint paths. Pure data: no DOM, no state, nothing evaluated at import time.
+export const COLUMN_TO_STATUS = {
+  todo: 'not_started',
+  progress: 'in_progress',
+  done: 'done',
+};
+
+export const STATUS_TO_COLUMN = {
+  not_started: 'todo',
+  in_progress: 'progress',
+  done: 'done',
+};
+
+export const KEYS = {
+  draft: 'class_tasks_draft', progress: 'class_tasks_progress', checkpoints: 'class_tasks_checkpoints',
+  cache: 'class_tasks_published_cache', legacy: 'class_tasks_mvp',
+};
+
+export const API = { publish: 'api/publish.php', versions: 'api/versions.php', current: 'data/current.json' };

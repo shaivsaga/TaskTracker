@@ -4,7 +4,8 @@ import {
   clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
 } from './logic.js?v=5';
 import { state } from './js/state.js';
-import { readJSON, writeJSON, plural, fmtWhen, formatTime } from './js/util.js';
+import { dom, cacheDom } from './js/dom.js';
+import { readJSON, writeJSON, plural, fmtWhen, formatTime, COLUMN_TO_STATUS, STATUS_TO_COLUMN, KEYS, API } from './js/util.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -13,12 +14,11 @@ import { readJSON, writeJSON, plural, fmtWhen, formatTime } from './js/util.js';
 // null and this line sets it at module-eval time, before anything reads it.
 state.calAnchor = todayDate();
 
-const navItems = [...document.querySelectorAll('[data-page]')];
-const pages = [...document.querySelectorAll('[data-page-view]')];
-const breadcrumbCurrent = document.querySelector('#breadcrumb-current');
-const sidebar = document.querySelector('.sidebar');
-const mobileMenu = document.querySelector('.mobile-menu');
-const actionFeedback = document.querySelector('#action-feedback');
+// --- Element cache: js/dom.js (slice 2.2) -----------------------------------------------------
+// cacheDom() fills the `dom` object once, here, before the first use of any cached element. The
+// top-level `const` lookups that used to live in app.js are gone on purpose: a missed site now
+// throws instead of quietly re-querying, and js/dom.js touches no DOM while it is evaluated.
+cacheDom();
 
 // --- Admin access: Basic Auth signs in once (api/login.php), then an HttpOnly session cookie does the rest ---
 const ADMIN_KEY = 'class_tasks_admin';
@@ -47,29 +47,10 @@ async function checkAdmin() {
 }
 
 // Move the announcement editor from the Class tasks page into Admin
-const adminAnnounce = document.querySelector('#announce-admin');
-const adminEmpty = document.querySelector('#page-my-tasks .empty-state');
-if (adminAnnounce && adminEmpty) adminEmpty.before(adminAnnounce);
+if (dom.adminAnnounce && dom.adminEmpty) dom.adminEmpty.before(dom.adminAnnounce);
 
-// ----------------------------------------------------------------------------
-
-const COLUMN_TO_STATUS = {
-  todo: 'not_started',
-  progress: 'in_progress',
-  done: 'done',
-};
-
-const STATUS_TO_COLUMN = {
-  not_started: 'todo',
-  in_progress: 'progress',
-  done: 'done',
-};
-
-const KEYS = {
-  draft: 'class_tasks_draft', progress: 'class_tasks_progress', checkpoints: 'class_tasks_checkpoints',
-  cache: 'class_tasks_published_cache', legacy: 'class_tasks_mvp',
-};
-const API = { publish: 'api/publish.php', versions: 'api/versions.php', current: 'data/current.json' };
+// --- Pure constant maps: js/util.js (slice 2.2) ------------------------------------------------
+// COLUMN_TO_STATUS, STATUS_TO_COLUMN, KEYS and API moved to js/util.js: pure data, no DOM, no state.
 const myTasks = [];              // admin draft (definitions only)
 
 const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.includes(task);
@@ -159,43 +140,26 @@ function confirmReopen(task, newStatus, onConfirm) {
   cancelBtn.focus();
 }
 
-const dialogOverlay = document.querySelector('#task-dialog-overlay');
-const dialog = document.querySelector('.task-dialog');
-const dialogClose = document.querySelector('#dialog-close');
-const dialogTitleInput = document.querySelector('#dialog-title-input');
-const dialogStatusBtn = document.querySelector('#dialog-status-btn');
-const dialogStatusDot = document.querySelector('#dialog-status-dot');
-const dialogStatusLabel = document.querySelector('#dialog-status-label');
-const dialogDateBtn = document.querySelector('#dialog-date-btn');
-const dialogDueClear = document.querySelector('#dialog-due-clear');
-const dialogDueHint = document.querySelector('#dialog-due-hint');
-const dialogDoc = document.querySelector('#dialog-doc');
-const dialogDelete = document.querySelector('#dialog-delete');
-const dialogDuplicate = document.querySelector('#dialog-duplicate');
-const dialogFilesField = document.querySelector('#dialog-files-field');
-const dialogFiles = document.querySelector('#dialog-files');
-const dialogAttachBtn = document.querySelector('#dialog-attach-btn');
-const dialogFileInput = document.querySelector('#dialog-file-input');
-dialogFileInput.accept = TTFiles.ACCEPT;
-dialogAttachBtn.addEventListener('click', () => dialogFileInput.click());
-dialogFileInput.addEventListener('change', () => {
-  const picked = [...dialogFileInput.files];
-  dialogFileInput.value = '';
+dom.dialogFileInput.accept = TTFiles.ACCEPT;
+dom.dialogAttachBtn.addEventListener('click', () => dom.dialogFileInput.click());
+dom.dialogFileInput.addEventListener('change', () => {
+  const picked = [...dom.dialogFileInput.files];
+  dom.dialogFileInput.value = '';
   if (picked.length) attachFiles(picked);
 });
 
 
 // Title is a one-line-looking textarea that grows with its content
 function fitDialogTitle() {
-  dialogTitleInput.style.height = 'auto';
-  dialogTitleInput.style.height = dialogTitleInput.scrollHeight + 'px';
+  dom.dialogTitleInput.style.height = 'auto';
+  dom.dialogTitleInput.style.height = dom.dialogTitleInput.scrollHeight + 'px';
 }
-dialogTitleInput.addEventListener('keydown', (e) => {
+dom.dialogTitleInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.isComposing) e.preventDefault();
 });
-dialogTitleInput.addEventListener('input', () => {
-  const clean = dialogTitleInput.value.replace(/[\r\n]+/g, ' ');
-  if (clean !== dialogTitleInput.value) dialogTitleInput.value = clean;
+dom.dialogTitleInput.addEventListener('input', () => {
+  const clean = dom.dialogTitleInput.value.replace(/[\r\n]+/g, ' ');
+  if (clean !== dom.dialogTitleInput.value) dom.dialogTitleInput.value = clean;
   fitDialogTitle();
 });
 window.addEventListener('resize', () => { if (state.currentTask) fitDialogTitle(); });
@@ -257,7 +221,7 @@ const SEEN_KEY = 'class_tasks_seen';
 
 function checkUpdateNotice(board) {
   if (!board || state.isAdmin || state.previewing || state.noticeShown || !board.tasks.length) return;
-  if (!tourOverlay.hidden || !importOverlay.hidden || !dialogOverlay.hidden) return;
+  if (!dom.tourOverlay.hidden || !dom.importOverlay.hidden || !dom.dialogOverlay.hidden) return;
   const stamps = {};
   board.tasks.forEach((t) => { stamps[String(t.id)] = Number.isFinite(t.changedAt) ? t.changedAt : 0; });
   const seen = readJSON(SEEN_KEY, null);
@@ -359,11 +323,11 @@ async function loadPublished() {
 }
 
 function updateDialogDue(task) {
-  dialogDateBtn.textContent = task.getDueShort();
-  dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
-  dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
-  dialogDateBtn.classList.toggle('empty-value', !task.dueDate);
-  dialogDueClear.hidden = !task.dueDate || !isEditable(task);
+  dom.dialogDateBtn.textContent = task.getDueShort();
+  dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
+  dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
+  dom.dialogDateBtn.classList.toggle('empty-value', !task.dueDate);
+  dom.dialogDueClear.hidden = !task.dueDate || !isEditable(task);
 }
 
 function updateDialogStatus(task) {
@@ -373,9 +337,9 @@ function updateDialogStatus(task) {
     done: { label: 'Done', dot: 'dot-done', cls: 'is-done' },
   };
   const s = map[task.status] || map.not_started;
-  dialogStatusLabel.textContent = s.label;
-  dialogStatusDot.className = `status-dot ${s.dot}`;
-  dialogStatusBtn.className = `prop-value status-value ${s.cls}`;
+  dom.dialogStatusLabel.textContent = s.label;
+  dom.dialogStatusDot.className = `status-dot ${s.dot}`;
+  dom.dialogStatusBtn.className = `prop-value status-value ${s.cls}`;
 }
 
 // --- Links in notes: made at render time, never stored. sanitizeDoc flattens <a> back to its text on save. ---
@@ -420,7 +384,7 @@ function getCloseBtn() {
   if (state.dialogCloseBtn) return state.dialogCloseBtn;
   state.dialogCloseBtn = document.createElement('button');
   state.dialogCloseBtn.type = 'button';
-  state.dialogCloseBtn.className = dialogDelete.className;
+  state.dialogCloseBtn.className = dom.dialogDelete.className;
   state.dialogCloseBtn.textContent = 'Close for class';
   state.dialogCloseBtn.addEventListener('click', () => {
     const task = state.currentTask;
@@ -431,7 +395,7 @@ function getCloseBtn() {
     renderAllTasks();
     showToast('Moved to Past tasks', 'Undo', () => { task.closedAt = 0; saveTasks(); renderAllTasks(); });
   });
-  dialogDelete.insertAdjacentElement('beforebegin', state.dialogCloseBtn);
+  dom.dialogDelete.insertAdjacentElement('beforebegin', state.dialogCloseBtn);
   return state.dialogCloseBtn;
 }
 
@@ -439,43 +403,43 @@ function openTaskDialog(task) {
   state.dialogReturn = { el: document.activeElement, id: task.id };
   state.currentTask = task;
   const ro = !isEditable(task);
-  dialog.classList.toggle('is-readonly', ro);
-  dialogTitleInput.readOnly = ro;
-  dialogDoc.contentEditable = ro ? 'false' : 'true';
-  dialogDoc.dataset.placeholder = ro ? 'No notes for this task.' : 'Write notes, or drop images here';
-  dialogSubjectBtn.disabled = ro;
-  dialogDateBtn.disabled = ro;
-  dialogDelete.hidden = ro;
-  dialogDuplicate.hidden = ro;
+  dom.dialog.classList.toggle('is-readonly', ro);
+  dom.dialogTitleInput.readOnly = ro;
+  dom.dialogDoc.contentEditable = ro ? 'false' : 'true';
+  dom.dialogDoc.dataset.placeholder = ro ? 'No notes for this task.' : 'Write notes, or drop images here';
+  dom.dialogSubjectBtn.disabled = ro;
+  dom.dialogDateBtn.disabled = ro;
+  dom.dialogDelete.hidden = ro;
+  dom.dialogDuplicate.hidden = ro;
   getCloseBtn().hidden = ro || task.closedAt > 0;
-  dialogTitleInput.value = task.title === 'New Task' ? '' : task.title;
+  dom.dialogTitleInput.value = task.title === 'New Task' ? '' : task.title;
   updateDialogDue(task);
   updateDialogStatus(task);
-  dialogDoc.innerHTML = sanitizeDoc(task.notes || '');
-  refreshLinks(dialogDoc);
+  dom.dialogDoc.innerHTML = sanitizeDoc(task.notes || '');
+  refreshLinks(dom.dialogDoc);
   updateDialogSubject(task);
   renderDialogFiles(task);
-  dialogOverlay.classList.remove('is-closing');
-  dialogOverlay.hidden = false;
-  dialogOverlay.setAttribute('aria-hidden', 'false');
+  dom.dialogOverlay.classList.remove('is-closing');
+  dom.dialogOverlay.hidden = false;
+  dom.dialogOverlay.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
   fitDialogTitle();
-  (ro ? dialogStatusBtn : dialogTitleInput).focus();
+  (ro ? dom.dialogStatusBtn : dom.dialogTitleInput).focus();
 }
 
 function closeTaskDialog() {
   if (!state.currentTask) return;
   if (isEditable(state.currentTask)) {
-    state.currentTask.title = dialogTitleInput.value.trim() || 'New Task';
-    state.currentTask.notes = sanitizeDoc(dialogDoc.innerHTML);
+    state.currentTask.title = dom.dialogTitleInput.value.trim() || 'New Task';
+    state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
     saveTasks();
   }
   state.currentTask = null;
   closeStatusPopover();
-  hideAnimated(dialogOverlay);
-  dialogOverlay.setAttribute('aria-hidden', 'true');
-  dialogSubjectDropdown.hidden = true;
-  dialogSubjectBtn.setAttribute('aria-expanded', 'false');
+  hideAnimated(dom.dialogOverlay);
+  dom.dialogOverlay.setAttribute('aria-hidden', 'true');
+  dom.dialogSubjectDropdown.hidden = true;
+  dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
   document.body.style.overflow = '';
   renderAllTasks();
   const back = state.dialogReturn;
@@ -669,13 +633,13 @@ function handleDrop(e) {
 
 // --- Event Listeners ---
 
-dialogClose.addEventListener('click', closeTaskDialog);
-dialogOverlay.addEventListener('click', (e) => { if (e.target === dialogOverlay) closeTaskDialog(); });
+dom.dialogClose.addEventListener('click', closeTaskDialog);
+dom.dialogOverlay.addEventListener('click', (e) => { if (e.target === dom.dialogOverlay) closeTaskDialog(); });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !dialogOverlay.hidden && !(state.statusPopoverEl && !state.statusPopoverEl.hidden)) closeTaskDialog();
+  if (e.key === 'Escape' && !dom.dialogOverlay.hidden && !(state.statusPopoverEl && !state.statusPopoverEl.hidden)) closeTaskDialog();
 });
 
-dialogStatusBtn.addEventListener('click', () => { if (state.currentTask) openStatusPopover(state.currentTask, dialogStatusBtn); });
+dom.dialogStatusBtn.addEventListener('click', () => { if (state.currentTask) openStatusPopover(state.currentTask, dom.dialogStatusBtn); });
 
 function openDialogDuePicker(anchor, focus) {
   if (!state.currentTask) return;
@@ -693,8 +657,8 @@ function openDialogDuePicker(anchor, focus) {
     },
   });
 }
-dialogDateBtn.addEventListener('click', () => openDialogDuePicker(dialogDateBtn, 'date'));
-dialogDueClear.addEventListener('click', (e) => {
+dom.dialogDateBtn.addEventListener('click', () => openDialogDuePicker(dom.dialogDateBtn, 'date'));
+dom.dialogDueClear.addEventListener('click', (e) => {
   e.stopPropagation();
   if (state.currentTask) {
     state.currentTask.dueDate = undefined;
@@ -733,12 +697,12 @@ function insertDocImage(src) {
   const img = document.createElement('img');
   img.src = src;
   img.alt = '';
-  dialogDoc.focus();
+  dom.dialogDoc.focus();
   const sel = getSelection();
-  let range = sel.rangeCount && dialogDoc.contains(sel.getRangeAt(0).startContainer) ? sel.getRangeAt(0) : null;
+  let range = sel.rangeCount && dom.dialogDoc.contains(sel.getRangeAt(0).startContainer) ? sel.getRangeAt(0) : null;
   if (!range) {
     range = document.createRange();
-    range.selectNodeContents(dialogDoc);
+    range.selectNodeContents(dom.dialogDoc);
     range.collapse(false);
   }
   range.deleteContents();
@@ -790,9 +754,9 @@ async function attachFiles(files) {
 
 function renderDialogFiles(task) {
   const editable = isEditable(task);
-  dialogFilesField.hidden = !editable && !task.files.length;
-  dialogAttachBtn.hidden = !editable;
-  dialogFiles.replaceChildren();
+  dom.dialogFilesField.hidden = !editable && !task.files.length;
+  dom.dialogAttachBtn.hidden = !editable;
+  dom.dialogFiles.replaceChildren();
   task.files.forEach((f) => {
     const li = document.createElement('li');
     li.className = 'file-item';
@@ -825,7 +789,7 @@ function renderDialogFiles(task) {
       });
       li.append(rm);
     }
-    dialogFiles.append(li);
+    dom.dialogFiles.append(li);
   });
 }
 
@@ -839,13 +803,13 @@ function rangeFromPoint(x, y) {
   return r;
 }
 
-dialogDoc.addEventListener('input', () => {
-  if (/^(<div>)?<br>(<\/div>)?$/.test(dialogDoc.innerHTML)) dialogDoc.innerHTML = '';
+dom.dialogDoc.addEventListener('input', () => {
+  if (/^(<div>)?<br>(<\/div>)?$/.test(dom.dialogDoc.innerHTML)) dom.dialogDoc.innerHTML = '';
   clearTimeout(state.docTimer);
   state.docTimer = setTimeout(autosave, 500);
 });
 
-dialogDoc.addEventListener('paste', (e) => {
+dom.dialogDoc.addEventListener('paste', (e) => {
   e.preventDefault();
   const files = [...(e.clipboardData?.files || [])];
   if (files.length) {
@@ -859,57 +823,56 @@ dialogDoc.addEventListener('paste', (e) => {
 });
 
 // Read-only (students): the browser opens the link itself (new tab). Admin editing: plain click places the caret, Ctrl/Cmd+click opens.
-dialogDoc.addEventListener('click', (e) => {
+dom.dialogDoc.addEventListener('click', (e) => {
   const a = e.target instanceof Element ? e.target.closest('a') : null;
-  if (!a || !dialogDoc.contains(a) || !dialogDoc.isContentEditable) return;
+  if (!a || !dom.dialogDoc.contains(a) || !dom.dialogDoc.isContentEditable) return;
   e.preventDefault();
   if (e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener,noreferrer');
 });
 // Rebuild links when leaving the box, so URLs typed or pasted while editing become links.
-dialogDoc.addEventListener('focusout', () => { if (state.currentTask) refreshLinks(dialogDoc); });
+dom.dialogDoc.addEventListener('focusout', () => { if (state.currentTask) refreshLinks(dom.dialogDoc); });
 
 // Note formatting toolbar. sanitizeDoc keeps only b, i, ul and li, so nothing else can be stored.
-dialogDoc.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
-const noteTools = [...document.querySelectorAll('.note-tool')];
+dom.dialogDoc.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
 function syncNoteTools() {
-  noteTools.forEach((b) => {
+  dom.noteTools.forEach((b) => {
     let on = false;
-    try { on = document.activeElement === dialogDoc && document.queryCommandState(b.dataset.cmd); } catch (e) {}
+    try { on = document.activeElement === dom.dialogDoc && document.queryCommandState(b.dataset.cmd); } catch (e) {}
     b.setAttribute('aria-pressed', String(on));
   });
 }
-noteTools.forEach((b) => {
+dom.noteTools.forEach((b) => {
   b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the note
   b.addEventListener('click', () => {
     if (!state.currentTask || !isEditable(state.currentTask)) return;
-    dialogDoc.focus();
+    dom.dialogDoc.focus();
     document.execCommand(b.dataset.cmd);
     autosave();
     syncNoteTools();
   });
 });
-document.addEventListener('selectionchange', () => { if (document.activeElement === dialogDoc) syncNoteTools(); });
+document.addEventListener('selectionchange', () => { if (document.activeElement === dom.dialogDoc) syncNoteTools(); });
 
 const dropHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
-dialog.addEventListener('dragover', (e) => {
-  if (!dropHasFiles(e) || dialog.classList.contains('is-readonly')) return;
+dom.dialog.addEventListener('dragover', (e) => {
+  if (!dropHasFiles(e) || dom.dialog.classList.contains('is-readonly')) return;
   e.preventDefault();
-  dialog.classList.add('is-dropping');
+  dom.dialog.classList.add('is-dropping');
 });
-dialog.addEventListener('dragleave', (e) => {
-  if (!dialog.contains(e.relatedTarget)) dialog.classList.remove('is-dropping');
+dom.dialog.addEventListener('dragleave', (e) => {
+  if (!dom.dialog.contains(e.relatedTarget)) dom.dialog.classList.remove('is-dropping');
 });
-dialog.addEventListener('drop', (e) => {
-  dialog.classList.remove('is-dropping');
+dom.dialog.addEventListener('drop', (e) => {
+  dom.dialog.classList.remove('is-dropping');
   const all = [...(e.dataTransfer?.files || [])];
   if (!all.length) return;
   e.preventDefault();
-  if (dialog.classList.contains('is-readonly')) return;
+  if (dom.dialog.classList.contains('is-readonly')) return;
   const imgs = all.filter((f) => f.type.startsWith('image/'));
   const docs = all.filter((f) => !f.type.startsWith('image/'));
   if (imgs.length) {
     const range = rangeFromPoint(e.clientX, e.clientY);
-    if (range && dialogDoc.contains(range.startContainer)) {
+    if (range && dom.dialogDoc.contains(range.startContainer)) {
       const sel = getSelection();
       sel.removeAllRanges();
       sel.addRange(range);
@@ -919,11 +882,11 @@ dialog.addEventListener('drop', (e) => {
   if (docs.length) attachFiles(docs);
 });
 
-dialogDelete.addEventListener('click', () => {
+dom.dialogDelete.addEventListener('click', () => {
   if (!state.currentTask) return;
   const task = state.currentTask;
   closeStatusPopover();
-  hideAnimated(dialogOverlay);
+  hideAnimated(dom.dialogOverlay);
   document.body.style.overflow = '';
   const idx = myTasks.indexOf(task);
   if (idx !== -1) deleteTask(task); else closeTaskDialog();
@@ -943,10 +906,6 @@ document.querySelectorAll('.kanban-column').forEach(columnEl => {
 });
 
 // --- Toast, autosave feedback, skeletons ---
-const toastEl = document.querySelector('#toast');
-const toastMessage = document.querySelector('#toast-message');
-const toastAction = document.querySelector('#toast-action');
-const saveState = document.querySelector('#save-state');
 
 // Plays the CSS exit animation, then hides. Skips the wait for reduced motion.
 function hideAnimated(el, ms = 180) {
@@ -961,34 +920,34 @@ function hideAnimated(el, ms = 180) {
 
 function hideToast() {
   clearTimeout(state.toastTimer);
-  toastEl.hidden = true;
+  dom.toastEl.hidden = true;
 }
 
 function showToast(message, actionLabel, onAction) {
-  toastMessage.textContent = message;
-  toastAction.textContent = actionLabel || '';
-  toastAction.hidden = !actionLabel;
-  toastAction.onclick = () => { hideToast(); if (onAction) onAction(); };
-  toastEl.hidden = false;
+  dom.toastMessage.textContent = message;
+  dom.toastAction.textContent = actionLabel || '';
+  dom.toastAction.hidden = !actionLabel;
+  dom.toastAction.onclick = () => { hideToast(); if (onAction) onAction(); };
+  dom.toastEl.hidden = false;
   clearTimeout(state.toastTimer);
   state.toastTimer = setTimeout(hideToast, actionLabel ? 8000 : 5000);
-  actionFeedback.textContent = '';
-  setTimeout(() => { actionFeedback.textContent = message + (actionLabel ? `. ${actionLabel} available.` : ''); }, 60);
+  dom.actionFeedback.textContent = '';
+  setTimeout(() => { dom.actionFeedback.textContent = message + (actionLabel ? `. ${actionLabel} available.` : ''); }, 60);
 }
 // Don't dismiss the toast while someone is tabbing to its Undo button
-toastEl.addEventListener('focusin', () => clearTimeout(state.toastTimer));
-toastEl.addEventListener('focusout', () => { clearTimeout(state.toastTimer); state.toastTimer = setTimeout(hideToast, 3000); });
+dom.toastEl.addEventListener('focusin', () => clearTimeout(state.toastTimer));
+dom.toastEl.addEventListener('focusout', () => { clearTimeout(state.toastTimer); state.toastTimer = setTimeout(hideToast, 3000); });
 
 function flashSaved() {
-  saveState.textContent = 'Saved';
+  dom.saveState.textContent = 'Saved';
   clearTimeout(state.saveTimer);
-  state.saveTimer = setTimeout(() => { saveState.textContent = ''; }, 1600);
+  state.saveTimer = setTimeout(() => { dom.saveState.textContent = ''; }, 1600);
 }
 
 // Saves the task being edited in the panel and confirms it.
 function autosave() {
   if (!state.currentTask || !isEditable(state.currentTask)) return;
-  state.currentTask.notes = sanitizeDoc(dialogDoc.innerHTML);
+  state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
   saveTasks();
   flashSaved();
 }
@@ -1005,7 +964,7 @@ function showSkeletons() {
       content.appendChild(s);
     }
   });
-  [taskListEl, classListEl].forEach((list) => {
+  [dom.taskListEl, dom.classListEl].forEach((list) => {
     list.innerHTML = '';
     for (let i = 0; i < 4; i++) {
       const s = document.createElement('div');
@@ -1031,12 +990,12 @@ function renderClassTasks() {
   });
   board.querySelectorAll('.kanban-column').forEach(updateColumn);
 
-  classListEl.replaceChildren(...source.map(createTaskRow));
+  dom.classListEl.replaceChildren(...source.map(createTaskRow));
   if (!source.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
     none.textContent = q && all.length ? 'No tasks match your search.' : 'No class assignments yet.';
-    classListEl.appendChild(none);
+    dom.classListEl.appendChild(none);
   }
 }
 
@@ -1443,16 +1402,15 @@ document.querySelector('#new-task-btn')?.addEventListener('click', startNewTask)
 document.querySelector('#empty-add-btn')?.addEventListener('click', startNewTask);
 
 // Theme
-const themeToggle = document.querySelector('#theme-toggle');
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   document.getElementById('meta-theme-color')?.setAttribute('content', theme === 'light' ? '#EBEEF2' : '#0D0F14');
-  themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  dom.themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
   try { localStorage.setItem('class_tasks_theme', theme); } catch (e) {}
 }
-themeToggle.setAttribute('aria-label',
+dom.themeToggle.setAttribute('aria-label',
   document.documentElement.dataset.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-themeToggle.addEventListener('click', () => {
+dom.themeToggle.addEventListener('click', () => {
   applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 });
 
@@ -1463,8 +1421,6 @@ const SCOPES = {
   class: { page: '#page-class-tasks', board: '#class-board', list: '#class-task-list' },
   admin: { page: '#page-my-tasks', board: '#page-my-tasks .kanban-board', list: '#task-list' },
 };
-const taskListEl = document.querySelector('#task-list');
-const classListEl = document.querySelector('#class-task-list');
 
 function applyView(scope, view) {
   const s = SCOPES[scope];
@@ -1536,21 +1492,21 @@ function createTaskRow(task) {
 }
 
 function renderTaskList() {
-  taskListEl.innerHTML = '';
+  dom.taskListEl.innerHTML = '';
   const visible = getVisibleTasks();
-  visible.forEach((task) => taskListEl.appendChild(createTaskRow(task)));
+  visible.forEach((task) => dom.taskListEl.appendChild(createTaskRow(task)));
   if (visible.length === 0 && state.searchQuery.trim()) {
     const none = document.createElement('p');
     none.className = 'list-empty';
     none.textContent = 'No tasks match your search.';
-    taskListEl.appendChild(none);
+    dom.taskListEl.appendChild(none);
   }
   const add = document.createElement('button');
   add.type = 'button';
   add.className = 'task-list-add';
   add.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-plus"/></svg><span>New task</span>';
   add.addEventListener('click', startNewTask);
-  taskListEl.appendChild(add);
+  dom.taskListEl.appendChild(add);
 }
 
 // --- Subjects, quick add, announcements, shortcuts ---
@@ -1666,15 +1622,13 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { state.statusPopoverEl.children[state.statusPopoverIndex].click(); }
 });
 
-const dialogSubjectBtn = document.querySelector('#dialog-subject-btn');
-const dialogSubjectDropdown = document.querySelector('#dialog-subject-dropdown');
 
 function updateDialogSubject(task) {
-  dialogSubjectBtn.innerHTML = '';
-  dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
-  if (task.subject) dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
-  else dialogSubjectBtn.textContent = 'Empty';
-  dialogSubjectDropdown.hidden = true;
+  dom.dialogSubjectBtn.innerHTML = '';
+  dom.dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
+  if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
+  else dom.dialogSubjectBtn.textContent = 'Empty';
+  dom.dialogSubjectDropdown.hidden = true;
 }
 function selectSubject(code) {
   if (!state.currentTask) return;
@@ -1689,40 +1643,37 @@ function selectSubject(code) {
   opt.setAttribute('role', 'option');
   if (code) opt.appendChild(createSubjectTag(code)); else opt.textContent = 'None';
   opt.addEventListener('click', () => selectSubject(code));
-  dialogSubjectDropdown.appendChild(opt);
+  dom.dialogSubjectDropdown.appendChild(opt);
 });
 // Lives on <body> (same as the status menu) so the dialog's scroll area can't clip it
-dialogSubjectDropdown.classList.add('status-popover');
-document.body.appendChild(dialogSubjectDropdown);
+dom.dialogSubjectDropdown.classList.add('status-popover');
+document.body.appendChild(dom.dialogSubjectDropdown);
 
-dialogSubjectBtn.addEventListener('click', () => {
-  const open = dialogSubjectBtn.getAttribute('aria-expanded') === 'true';
-  dialogSubjectBtn.setAttribute('aria-expanded', String(!open));
-  dialogSubjectDropdown.hidden = open;
+dom.dialogSubjectBtn.addEventListener('click', () => {
+  const open = dom.dialogSubjectBtn.getAttribute('aria-expanded') === 'true';
+  dom.dialogSubjectBtn.setAttribute('aria-expanded', String(!open));
+  dom.dialogSubjectDropdown.hidden = open;
   if (open) return;
-  const r = dialogSubjectBtn.getBoundingClientRect();
-  const h = dialogSubjectDropdown.offsetHeight;
-  const w = dialogSubjectDropdown.offsetWidth;
+  const r = dom.dialogSubjectBtn.getBoundingClientRect();
+  const h = dom.dialogSubjectDropdown.offsetHeight;
+  const w = dom.dialogSubjectDropdown.offsetWidth;
   const below = window.innerHeight - r.bottom - 8;
   const top = h > below && r.top > below ? Math.max(8, r.top - h - 4) : r.bottom + 4;
-  dialogSubjectDropdown.style.top = `${top}px`;
-  dialogSubjectDropdown.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+  dom.dialogSubjectDropdown.style.top = `${top}px`;
+  dom.dialogSubjectDropdown.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
 });
 window.addEventListener('resize', () => {
-  dialogSubjectDropdown.hidden = true;
-  dialogSubjectBtn.setAttribute('aria-expanded', 'false');
+  dom.dialogSubjectDropdown.hidden = true;
+  dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
 });
 document.addEventListener('click', (e) => {
-  if (!dialogSubjectBtn.contains(e.target) && !dialogSubjectDropdown.contains(e.target)) {
-    dialogSubjectBtn.setAttribute('aria-expanded', 'false');
-    dialogSubjectDropdown.hidden = true;
+  if (!dom.dialogSubjectBtn.contains(e.target) && !dom.dialogSubjectDropdown.contains(e.target)) {
+    dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
+    dom.dialogSubjectDropdown.hidden = true;
   }
 });
 
 // --- Quick add: "GENMATH worksheet ip 10/5" ---
-const quickOverlay = document.querySelector('#quick-overlay');
-const quickInput = document.querySelector('#quick-input');
-const quickPreview = document.querySelector('#quick-preview');
 
 // Splits on spaces but keeps "not started" and "in progress" as one word.
 function quickWords(text) {
@@ -1743,10 +1694,10 @@ function isDateWord(w) {
 
 
 function openQuickPicker(kind) {
-  const p = parseQuickAdd(quickInput.value);
+  const p = parseQuickAdd(dom.quickInput.value);
   const chip = state.quickChipEls.find((c) => c.dataset.type === (kind === 'time' ? 'time' : 'pick'));
   openDuePicker({
-    anchor: chip || quickInput,
+    anchor: chip || dom.quickInput,
     focus: kind,
     date: p.dueDate || null,
     time: p.dueTime || null,
@@ -1755,16 +1706,16 @@ function openQuickPicker(kind) {
       state.quickPicked = { date, time };
       renderQuickPreview();
     },
-    onDone: () => quickInput.focus(),
+    onDone: () => dom.quickInput.focus(),
   });
 }
 
 function clearQuickDue(refocus = true) {
   state.quickPicked = { date: null, time: null };
-  const kept = quickWords(quickInput.value).filter((w) => !isDateWord(w) && !parseTimeWord(w));
-  quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
+  const kept = quickWords(dom.quickInput.value).filter((w) => !isDateWord(w) && !parseTimeWord(w));
+  dom.quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
   closeDuePicker();
-  if (refocus) quickInput.focus();
+  if (refocus) dom.quickInput.focus();
   renderQuickPreview();
 }
 
@@ -1823,8 +1774,8 @@ function quickField(label, content, changed) {
 }
 
 function renderQuickPreview() {
-  quickPreview.replaceChildren();
-  const p = (quickInput.value.trim() || state.quickPicked.date) ? parseQuickAdd(quickInput.value) : null;
+  dom.quickPreview.replaceChildren();
+  const p = (dom.quickInput.value.trim() || state.quickPicked.date) ? parseQuickAdd(dom.quickInput.value) : null;
   const next = {
     subject: p ? p.subject : '',
     status: p && p.typedStatus ? p.status : '',
@@ -1841,7 +1792,7 @@ function renderQuickPreview() {
     ));
     if (p.dueTime) dueNode.appendChild(quickText(formatTime(p.dueTime), 'quick-chip is-mono'));
   }
-  quickPreview.append(
+  dom.quickPreview.append(
     quickField('Task', p && quickText(p.title, 'quick-title')),
     quickField('Subject', p && p.subject ? createSubjectTag(p.subject) : null, changed('subject')),
     quickField('Status', p ? quickText(STATUS_LABELS[p.status], 'quick-chip') : null, changed('status')),
@@ -1849,7 +1800,7 @@ function renderQuickPreview() {
   );
   state.quickPrev = next;
   syncQuickChips(p);
-  const hasText = !!quickInput.value.trim();
+  const hasText = !!dom.quickInput.value.trim();
   document.querySelector('#quick-add-btn').disabled = !hasText;
   document.querySelector('#quick-open-btn').disabled = !hasText;
 }
@@ -1926,30 +1877,30 @@ function applyQuickToken(type, code) {
   }[type];
   const wasOn = state.quickChipEls.some((c) => c.dataset.type === type && c.dataset.code === code && c.classList.contains('is-selected'));
   if (type === 'date') state.quickPicked.date = null;
-  const kept = quickWords(quickInput.value).filter((w) => !isToken(w));
+  const kept = quickWords(dom.quickInput.value).filter((w) => !isToken(w));
   if (!wasOn) { if (type === 'subject') kept.unshift(code); else kept.push(code); }
-  quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
-  quickInput.focus();
+  dom.quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
+  dom.quickInput.focus();
   renderQuickPreview();
 }
 
 function openQuickAdd() {
-  if (!dialogOverlay.hidden && !dialogOverlay.classList.contains('is-closing')) return;
+  if (!dom.dialogOverlay.hidden && !dom.dialogOverlay.classList.contains('is-closing')) return;
   state.quickReturnFocus = document.activeElement;
-  quickInput.value = '';
+  dom.quickInput.value = '';
   state.quickPicked = { date: null, time: null };
   closeDuePicker();
   state.quickPrev = { subject: '', status: '', due: '' };
   renderQuickChips();
   renderQuickPreview();
-  quickOverlay.classList.remove('is-closing');
-  quickOverlay.hidden = false;
-  quickInput.focus();
+  dom.quickOverlay.classList.remove('is-closing');
+  dom.quickOverlay.hidden = false;
+  dom.quickInput.focus();
 }
 
 function closeQuickAdd() {
   closeDuePicker();
-  hideAnimated(quickOverlay, 120);
+  hideAnimated(dom.quickOverlay, 120);
   if (state.quickReturnFocus && state.quickReturnFocus.focus) state.quickReturnFocus.focus();
 }
 
@@ -1958,14 +1909,14 @@ document.querySelector('#quick-open-btn').addEventListener('click', () => submit
 document.querySelector('#quick-cancel-btn').addEventListener('click', closeQuickAdd);
 
 function submitQuickAdd(openDetails) {
-  if (!quickInput.value.trim()) return;
-  const p = parseQuickAdd(quickInput.value);
+  if (!dom.quickInput.value.trim()) return;
+  const p = parseQuickAdd(dom.quickInput.value);
   const task = new Task({ title: p.title, subject: p.subject, dueDate: p.dueDate, dueTime: p.dueTime });
   myTasks.push(task);
   if (p.status !== 'not_started') setStatus(task, p.status);
   else { state.justChangedId = task.id; saveTasks(); }
   closeDuePicker();
-  hideAnimated(quickOverlay, 120);
+  hideAnimated(dom.quickOverlay, 120);
   if (state.searchQuery) { state.searchQuery = ''; document.querySelector('#task-search').value = ''; }
   setPage('my-tasks');
   renderAllTasks();
@@ -1973,21 +1924,21 @@ function submitQuickAdd(openDetails) {
   else showToast('Task added');
 }
 
-quickInput.addEventListener('input', () => {
-  const m = /(^|\s)(cal|date)\s$/i.exec(quickInput.value);
+dom.quickInput.addEventListener('input', () => {
+  const m = /(^|\s)(cal|date)\s$/i.exec(dom.quickInput.value);
   if (m) {
-    quickInput.value = quickInput.value.slice(0, m.index + m[1].length);
+    dom.quickInput.value = dom.quickInput.value.slice(0, m.index + m[1].length);
     renderQuickPreview();
     openQuickPicker('date');
     return;
   }
   renderQuickPreview();
 });
-quickInput.addEventListener('keydown', (e) => {
+dom.quickInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); submitQuickAdd(e.shiftKey); }
   if (e.key === 'Escape') { e.preventDefault(); closeQuickAdd(); }
 });
-quickOverlay.addEventListener('click', (e) => { if (e.target === quickOverlay) closeQuickAdd(); });
+dom.quickOverlay.addEventListener('click', (e) => { if (e.target === dom.quickOverlay) closeQuickAdd(); });
 
 function renderPublicAnnouncements() {
   const list = document.querySelector('#announce-list-public');
@@ -2017,16 +1968,12 @@ function renderPublicAnnouncements() {
 }
 
 // --- Pinned announcements ---
-const announceList = document.querySelector('#announce-list');
-const announceForm = document.querySelector('#announce-form');
-const announceInput = document.querySelector('#announce-input');
-const announceCount = document.querySelector('#announce-count');
 const ANNOUNCE_MAX = 280;
 
 function updateAnnounceCount() {
-  const left = ANNOUNCE_MAX - cleanAnnounce(announceInput).text.length;
-  announceCount.textContent = (left < 0 ? `${-left} over` : `${left} left`) + ' · Ctrl+Enter to pin';
-  announceCount.classList.toggle('is-low', left <= 20);
+  const left = ANNOUNCE_MAX - cleanAnnounce(dom.announceInput).text.length;
+  dom.announceCount.textContent = (left < 0 ? `${-left} over` : `${left} left`) + ' · Ctrl+Enter to pin';
+  dom.announceCount.classList.toggle('is-low', left <= 20);
 }
 // Rich announcements: a separate whitelist from sanitizeDoc. Stored as b, i, ul, li, br only.
 const ANN_INLINE = { b: 'b', strong: 'b', i: 'i', em: 'i' };
@@ -2098,46 +2045,45 @@ function fillAnnounce(el, a) {
   linkify(el);
 }
 
-announceInput.addEventListener('input', () => {
-  if (/^(<div>)?<br>(<\/div>)?$/.test(announceInput.innerHTML)) announceInput.innerHTML = '';
+dom.announceInput.addEventListener('input', () => {
+  if (/^(<div>)?<br>(<\/div>)?$/.test(dom.announceInput.innerHTML)) dom.announceInput.innerHTML = '';
   updateAnnounceCount();
 });
-announceInput.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
-announceInput.addEventListener('paste', (e) => {
+dom.announceInput.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
+dom.announceInput.addEventListener('paste', (e) => {
   e.preventDefault();
   document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
 });
-announceInput.addEventListener('drop', (e) => { if (dropHasFiles(e)) e.preventDefault(); });
+dom.announceInput.addEventListener('drop', (e) => { if (dropHasFiles(e)) e.preventDefault(); });
 
-const announceTools = [...document.querySelectorAll('.announce-tool')];
 function syncAnnounceTools() {
-  announceTools.forEach((b) => {
+  dom.announceTools.forEach((b) => {
     let on = false;
-    try { on = document.activeElement === announceInput && document.queryCommandState(b.dataset.cmd); } catch (e) {}
+    try { on = document.activeElement === dom.announceInput && document.queryCommandState(b.dataset.cmd); } catch (e) {}
     b.setAttribute('aria-pressed', String(on));
   });
 }
-announceTools.forEach((b) => {
+dom.announceTools.forEach((b) => {
   b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the editor
   b.addEventListener('click', () => {
-    announceInput.focus();
+    dom.announceInput.focus();
     document.execCommand(b.dataset.cmd);
     updateAnnounceCount();
     syncAnnounceTools();
   });
 });
-document.addEventListener('selectionchange', () => { if (document.activeElement === announceInput) syncAnnounceTools(); });
+document.addEventListener('selectionchange', () => { if (document.activeElement === dom.announceInput) syncAnnounceTools(); });
 
 function saveAnnouncements() { saveTasks(); updateAdminBar(diffDraft()); }
 
 function renderAnnouncements() {
   renderPublicAnnouncements();
-  announceList.replaceChildren();
+  dom.announceList.replaceChildren();
   if (!state.announcements.length) {
     const empty = document.createElement('li');
     empty.className = 'announce-empty';
     empty.textContent = 'No pinned announcements.';
-    announceList.appendChild(empty);
+    dom.announceList.appendChild(empty);
     return;
   }
   state.announcements.forEach((a) => {
@@ -2167,22 +2113,22 @@ function renderAnnouncements() {
     });
     fillAnnounce(text, a);
     li.append(text, date, del);
-    announceList.appendChild(li);
+    dom.announceList.appendChild(li);
   });
   
 }
 
 function toggleAnnounceForm(show) {
-  announceForm.hidden = !show;
-  if (show) announceInput.focus();
-  else announceInput.innerHTML = '';
+  dom.announceForm.hidden = !show;
+  if (show) dom.announceInput.focus();
+  else dom.announceInput.innerHTML = '';
   updateAnnounceCount();
 }
-document.querySelector('#announce-add-btn').addEventListener('click', () => toggleAnnounceForm(announceForm.hidden));
+document.querySelector('#announce-add-btn').addEventListener('click', () => toggleAnnounceForm(dom.announceForm.hidden));
 document.querySelector('#announce-cancel').addEventListener('click', () => toggleAnnounceForm(false));
-announceForm.addEventListener('submit', (e) => {
+dom.announceForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  const { html, text } = cleanAnnounce(announceInput);
+  const { html, text } = cleanAnnounce(dom.announceInput);
   if (!text) return;
   if (text.length > ANNOUNCE_MAX) { showToast(`Announcement is ${text.length - ANNOUNCE_MAX} characters over the limit`); return; }
   if (html.length > 8000) { showToast('Too much formatting in this announcement'); return; }
@@ -2191,8 +2137,8 @@ announceForm.addEventListener('submit', (e) => {
   renderAnnouncements();
   toggleAnnounceForm(false);
 });
-announceInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); announceForm.requestSubmit(); }
+dom.announceInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); dom.announceForm.requestSubmit(); }
   if (e.key === 'Escape') { e.preventDefault(); toggleAnnounceForm(false); }
 });
 
@@ -2201,7 +2147,7 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target;
   if (t instanceof Element && t.closest('input, textarea, select, [contenteditable]')) return;
-  if (!state.isAdmin || !dialogOverlay.hidden || !quickOverlay.hidden || !tourOverlay.hidden) return;
+  if (!state.isAdmin || !dom.dialogOverlay.hidden || !dom.quickOverlay.hidden || !dom.tourOverlay.hidden) return;
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openQuickAdd(); }
   if (e.key === '/') { e.preventDefault(); setPage('my-tasks'); document.querySelector('#task-search').focus(); }
 });
@@ -2370,39 +2316,38 @@ document.addEventListener('click', (e) => {
 
 // --- Sidebar collapse ---
 const SIDEBAR_KEY = 'class_tasks_sidebar';
-const sidebarToggle = document.querySelector('#sidebar-toggle');
 function setSidebarCollapsed(collapsed, save = true) {
   document.documentElement.dataset.sidebar = collapsed ? 'collapsed' : 'open';
-  sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
-  sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
-  navItems.forEach((item) => {
+  dom.sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+  dom.sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+  dom.navItems.forEach((item) => {
     if (collapsed) item.title = item.querySelector('span:not(.nav-badge)').textContent;
     else item.removeAttribute('title');
   });
   if (save) { try { localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0'); } catch (e) {} }
 }
-sidebarToggle.addEventListener('click', () => {
+dom.sidebarToggle.addEventListener('click', () => {
   setSidebarCollapsed(document.documentElement.dataset.sidebar !== 'collapsed');
 });
 setSidebarCollapsed(document.documentElement.dataset.sidebar === 'collapsed', false);
 
 // --- Navigation ---
 function setPage(pageName, updateHash = true) {
-  const activeItem = navItems.find((item) => item.dataset.page === (pageName === 'my-tasks' && !state.isAdmin ? 'class-tasks' : pageName)) || navItems[0];
+  const activeItem = dom.navItems.find((item) => item.dataset.page === (pageName === 'my-tasks' && !state.isAdmin ? 'class-tasks' : pageName)) || dom.navItems[0];
   const activePageName = activeItem.dataset.page;
-  const activePage = pages.find((page) => page.dataset.pageView === activePageName);
+  const activePage = dom.pages.find((page) => page.dataset.pageView === activePageName);
 
-  navItems.forEach((item) => {
+  dom.navItems.forEach((item) => {
     const isActive = item === activeItem;
     item.classList.toggle('is-active', isActive);
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   });
 
-  pages.forEach((page) => {
+  dom.pages.forEach((page) => {
     page.hidden = page !== activePage;
   });
 
-  breadcrumbCurrent.textContent = activeItem.querySelector('span:not(.nav-badge)').textContent;
+  dom.breadcrumbCurrent.textContent = activeItem.querySelector('span:not(.nav-badge)').textContent;
   document.title = `${activeItem.querySelector('span:not(.nav-badge)').textContent} — TaskTracker`;
 
   if (updateHash && window.location.hash !== `#${activePageName}`) {
@@ -2413,7 +2358,7 @@ function setPage(pageName, updateHash = true) {
   setSidebarOpen(false, false);
 }
 
-navItems.forEach((item) => {
+dom.navItems.forEach((item) => {
   item.addEventListener('click', (event) => {
     event.preventDefault();
     if (state.previewing) setPreview(false);
@@ -2422,43 +2367,39 @@ navItems.forEach((item) => {
 });
 
 // Deep links: follow hash edits, pasted links, and Back/Forward navigation.
-const NAV_PAGES = navItems.map((item) => item.dataset.page);
+const NAV_PAGES = dom.navItems.map((item) => item.dataset.page);
 window.addEventListener('hashchange', () => {
   if (state.previewing) setPreview(false);
   setPage(pageFromHash(window.location.hash, NAV_PAGES, state.isAdmin), false);
 });
 
    // --- Phone sidebar: scrim, Escape, focus ---
-   const sidebarScrim = document.querySelector('#sidebar-scrim');
-   const mainContent = document.querySelector('.main-content');
    const phoneQuery = matchMedia('(max-width: 720px)');
 
    function setSidebarOpen(open, restoreFocus = true) {
      const phone = phoneQuery.matches;
      const on = open && phone;
-     sidebar.classList.toggle('is-open', on);
-     sidebarScrim.hidden = !on;
-     sidebar.inert = phone && !on;
-     mainContent.inert = on;
-     mobileMenu.setAttribute('aria-expanded', String(on));
+     dom.sidebar.classList.toggle('is-open', on);
+     dom.sidebarScrim.hidden = !on;
+     dom.sidebar.inert = phone && !on;
+     dom.mainContent.inert = on;
+     dom.mobileMenu.setAttribute('aria-expanded', String(on));
      document.body.style.overflow = on ? 'hidden' : '';
-     if (on) (sidebar.querySelector('.nav-item.is-active') || sidebar.querySelector('.nav-item')).focus();
-     else if (restoreFocus && phone) mobileMenu.focus();
+     if (on) (dom.sidebar.querySelector('.nav-item.is-active') || dom.sidebar.querySelector('.nav-item')).focus();
+     else if (restoreFocus && phone) dom.mobileMenu.focus();
    }
 
-   mobileMenu.addEventListener('click', () => setSidebarOpen(!sidebar.classList.contains('is-open')));
-     sidebarScrim.addEventListener('click', () => setSidebarOpen(false));
+   dom.mobileMenu.addEventListener('click', () => setSidebarOpen(!dom.sidebar.classList.contains('is-open')));
+     dom.sidebarScrim.addEventListener('click', () => setSidebarOpen(false));
   document.querySelector('#sidebar-close').addEventListener('click', () => setSidebarOpen(false));
    document.addEventListener('keydown', (e) => {
-     if (e.key === 'Escape' && sidebar.classList.contains('is-open')) setSidebarOpen(false);
+     if (e.key === 'Escape' && dom.sidebar.classList.contains('is-open')) setSidebarOpen(false);
    });
    phoneQuery.addEventListener('change', () => setSidebarOpen(false, false));
    setSidebarOpen(false, false);
 
 // --- Admin: diff, checkpoints, publish, history, import/export, preview ---
 const $ = (sel) => document.querySelector(sel);
-const publishOverlay = $('#publish-overlay');
-const historyOverlay = $('#history-overlay');
 
 const snapshot = () => ({ tasks: myTasks.map((t) => t.toJSON()), announcements: JSON.parse(JSON.stringify(state.announcements)) });
 const describeDiff = (d) => [d.added && `${d.added} added`, d.edited && `${d.edited} edited`, d.removed && `${d.removed} removed`, d.ann && 'announcements changed'].filter(Boolean).join(', ') || 'No changes';
@@ -2539,9 +2480,9 @@ function openPublishDialog() {
   $('#publish-clear-input').value = '';
   $('#publish-error').hidden = true;
   syncPublishClear();
-  publishOverlay._returnFocus = document.activeElement;
-  publishOverlay.classList.remove('is-closing');
-  publishOverlay.hidden = false;
+  dom.publishOverlay._returnFocus = document.activeElement;
+  dom.publishOverlay.classList.remove('is-closing');
+  dom.publishOverlay.hidden = false;
   $('#publish-note').focus();
 }
 
@@ -2570,7 +2511,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
     if (!board) throw new Error('Published, but the response was unreadable. Reload to check.');
     writeJSON(KEYS.cache, board);
     setPublished(board);
-    hideAnimated(publishOverlay);
+    hideAnimated(dom.publishOverlay);
     renderAllTasks();
     renderAnnouncements();
     showToast('Published');
@@ -2629,7 +2570,7 @@ function renderHistory() {
     restore.addEventListener('click', () => {
       const before = snapshot();
       restoreDraft(it.snap);
-      hideAnimated(historyOverlay);
+      hideAnimated(dom.historyOverlay);
       showToast('Restored to draft. Nothing is live until you apply.', 'Undo', () => restoreDraft(before));
     });
     const del = document.createElement('button');
@@ -2666,9 +2607,9 @@ async function loadVersions() {
 
 $('#btn-history').addEventListener('click', () => {
   renderHistory();
-  historyOverlay._returnFocus = document.activeElement;
-  historyOverlay.classList.remove('is-closing');
-  historyOverlay.hidden = false;
+  dom.historyOverlay._returnFocus = document.activeElement;
+  dom.historyOverlay.classList.remove('is-closing');
+  dom.historyOverlay.hidden = false;
   $('#history-close').focus();
   loadVersions();
 });
@@ -2697,7 +2638,7 @@ $('#history-clear').addEventListener('click', async (e) => {
 });
 
 // Wiring
-[[publishOverlay, '#publish-close, #publish-cancel'], [historyOverlay, '#history-close']].forEach(([ov, sel]) => {
+[[dom.publishOverlay, '#publish-close, #publish-cancel'], [dom.historyOverlay, '#history-close']].forEach(([ov, sel]) => {
   ov.querySelectorAll(sel).forEach((b) => b.addEventListener('click', () => hideAnimated(ov)));
   ov.addEventListener('click', (e) => { if (e.target === ov) hideAnimated(ov); });
 });
@@ -2712,7 +2653,7 @@ $('#btn-discard').addEventListener('click', () => {
 });
 
 // Duplicate (task dialog)
-dialogDuplicate.addEventListener('click', () => {
+dom.dialogDuplicate.addEventListener('click', () => {
   if (!state.currentTask || !isEditable(state.currentTask)) return;
   const source = state.currentTask;
   closeTaskDialog();
@@ -2729,31 +2670,25 @@ document.addEventListener('keydown', (e) => {
   if (!state.isAdmin || !(e.metaKey || e.ctrlKey)) return;
   const typing = e.target instanceof Element && e.target.closest('input, textarea, [contenteditable]');
   if (e.key.toLowerCase() === 's') { e.preventDefault(); saveCheckpoint(); }
-  if (e.key === 'Enter' && !typing && dialogOverlay.hidden && quickOverlay.hidden && tourOverlay.hidden) { e.preventDefault(); openPublishDialog(); }
+  if (e.key === 'Enter' && !typing && dom.dialogOverlay.hidden && dom.quickOverlay.hidden && dom.tourOverlay.hidden) { e.preventDefault(); openPublishDialog(); }
 });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!publishOverlay.hidden) hideAnimated(publishOverlay);
-  else if (!historyOverlay.hidden) hideAnimated(historyOverlay);
+  if (!dom.publishOverlay.hidden) hideAnimated(dom.publishOverlay);
+  else if (!dom.historyOverlay.hidden) hideAnimated(dom.historyOverlay);
 });
 
 // --- Settings and reset ---
-const settingsOverlay = $('#settings-overlay');
-const settingsOpen = $('#settings-open');
-const resetForm = $('#settings-reset-form');
-const resetStart = $('#settings-reset-start');
-const resetInput = $('#settings-reset-input');
-const resetSubmit = $('#settings-reset-submit');
 const RESET_PHRASE = 'RESET';
 // Kept on reset: appearance, sign-in state, and the cached copy of the published board.
 const RESET_KEEP = new Set(['class_tasks_theme', SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY, KEYS.cache]);
 
 function showResetConfirm(show, focus = true) {
-  resetForm.hidden = !show;
-  resetStart.hidden = show;
-  resetInput.value = '';
-  resetSubmit.disabled = true;
-  if (focus) (show ? resetInput : resetStart).focus();
+  dom.resetForm.hidden = !show;
+  dom.resetStart.hidden = show;
+  dom.resetInput.value = '';
+  dom.resetSubmit.disabled = true;
+  if (focus) (show ? dom.resetInput : dom.resetStart).focus();
 }
 
 function openSettings() {
@@ -2761,15 +2696,15 @@ function openSettings() {
   showResetConfirm(false, false);
   $('#settings-logout-row').hidden = !state.isAdmin;
   $('#settings-login-row').hidden = state.isAdmin || !adminHint();
-  settingsOverlay.classList.remove('is-closing');
-  settingsOverlay.hidden = false;
+  dom.settingsOverlay.classList.remove('is-closing');
+  dom.settingsOverlay.hidden = false;
   $('#settings-close').focus();
   document.getElementById('reset-admin-note').hidden = !state.isAdmin;
 }
 
 function closeSettings() {
-  hideAnimated(settingsOverlay);
-  (phoneQuery.matches ? mobileMenu : settingsOpen).focus();
+  hideAnimated(dom.settingsOverlay);
+  (phoneQuery.matches ? dom.mobileMenu : dom.settingsOpen).focus();
 }
 
 function resetLocalData() {
@@ -2781,7 +2716,7 @@ function resetLocalData() {
   } catch (e) { return false; }
 }
 
-settingsOpen.addEventListener('click', openSettings);
+dom.settingsOpen.addEventListener('click', openSettings);
 
 // Phase 4: client-only logout. Clears the admin flag and reloads into the student view. The draft stays in localStorage.
 async function logoutAdmin() {
@@ -2821,30 +2756,26 @@ $('#settings-login').addEventListener('click', async (e) => {
   showToast('Sign in failed or was cancelled.');
 });
 $('#settings-close').addEventListener('click', closeSettings);
-settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) closeSettings(); });
-resetStart.addEventListener('click', () => showResetConfirm(true));
+dom.settingsOverlay.addEventListener('click', (e) => { if (e.target === dom.settingsOverlay) closeSettings(); });
+dom.resetStart.addEventListener('click', () => showResetConfirm(true));
 $('#settings-reset-cancel').addEventListener('click', () => showResetConfirm(false));
-resetInput.addEventListener('input', () => { resetSubmit.disabled = resetInput.value.trim() !== RESET_PHRASE; });
-resetForm.addEventListener('submit', (e) => {
+dom.resetInput.addEventListener('input', () => { dom.resetSubmit.disabled = dom.resetInput.value.trim() !== RESET_PHRASE; });
+dom.resetForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  if (resetInput.value.trim() !== RESET_PHRASE) return;
-  resetSubmit.disabled = true;
-  resetSubmit.classList.add('is-loading');
+  if (dom.resetInput.value.trim() !== RESET_PHRASE) return;
+  dom.resetSubmit.disabled = true;
+  dom.resetSubmit.classList.add('is-loading');
   if (resetLocalData()) { location.reload(); return; }
-  resetSubmit.classList.remove('is-loading');
-  resetSubmit.disabled = false;
+  dom.resetSubmit.classList.remove('is-loading');
+  dom.resetSubmit.disabled = false;
   showToast('Could not reset. Browser storage is unavailable.');
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !settingsOverlay.hidden && !settingsOverlay.classList.contains('is-closing')) closeSettings();
+  if (e.key === 'Escape' && !dom.settingsOverlay.hidden && !dom.settingsOverlay.classList.contains('is-closing')) closeSettings();
 });
 
 // --- Phase 5: first-time tutorial. Sample content lives only inside the overlay: never in progress, the draft or the board. ---
 const TOUR_KEY = 'class_tasks_tour_seen';
-const tourOverlay = $('#tour-overlay');
-const tourSpot = $('#tour-spot');
-const tourCard = $('#tour-card');
-const tourSample = $('#tour-sample');
 const tourVisible = (el) => (el && el.getClientRects().length ? el : null);
 const TOUR_STEPS = [
   { title: 'Welcome to TaskTracker', body: 'A quick tour of how the class board works. It takes under a minute and you can skip it at any time.' },
@@ -2905,7 +2836,7 @@ function renderTourSample() {
         closeMenu(false);
         state.tourSampleStatus = st;
         renderTourSample();
-        tourSample.querySelector('.status-check').focus();
+        dom.tourSample.querySelector('.status-check').focus();
       });
       menu.appendChild(opt);
     });
@@ -2934,13 +2865,13 @@ function renderTourSample() {
   dueBadge.textContent = STATUS_LABELS[s];
   foot.append(createSubjectTag('GENMATH'), dueBadge);
   card.append(head, foot);
-  tourSample.replaceChildren(card);
+  dom.tourSample.replaceChildren(card);
 }
 
 function placeTour(el) {
-  tourOverlay.classList.toggle('is-centered', !el);
+  dom.tourOverlay.classList.toggle('is-centered', !el);
   const vw = window.innerWidth, vh = window.innerHeight, gap = 16;
-  const cw = tourCard.offsetWidth, ch = tourCard.offsetHeight;
+  const cw = dom.tourCard.offsetWidth, ch = dom.tourCard.offsetHeight;
   let x, y;
   if (!el) {
     x = (vw - cw) / 2;
@@ -2949,17 +2880,17 @@ function placeTour(el) {
     const r = el.getBoundingClientRect();
     const top = Math.max(8, r.top - 8), bottom = Math.min(vh - 8, r.bottom + 8);
     const left = Math.max(8, r.left - 8), right = Math.min(vw - 8, r.right + 8);
-    tourSpot.style.top = `${top}px`;
-    tourSpot.style.left = `${left}px`;
-    tourSpot.style.width = `${Math.max(0, right - left)}px`;
-    tourSpot.style.height = `${Math.max(0, bottom - top)}px`;
+    dom.tourSpot.style.top = `${top}px`;
+    dom.tourSpot.style.left = `${left}px`;
+    dom.tourSpot.style.width = `${Math.max(0, right - left)}px`;
+    dom.tourSpot.style.height = `${Math.max(0, bottom - top)}px`;
     if (vh - bottom >= ch + gap) y = bottom + gap;
     else if (top >= ch + gap) y = top - ch - gap;
     else y = vh - ch - gap;
     x = Math.max(gap, Math.min(left, vw - cw - gap));
   }
-  tourCard.style.left = `${Math.max(gap, x)}px`;
-  tourCard.style.top = `${Math.max(gap, y)}px`;
+  dom.tourCard.style.left = `${Math.max(gap, x)}px`;
+  dom.tourCard.style.top = `${Math.max(gap, y)}px`;
 }
 
 function showTourStep(i) {
@@ -2969,7 +2900,7 @@ function showTourStep(i) {
   $('#tour-step').textContent = `Step ${i + 1} of ${TOUR_STEPS.length}`;
   $('#tour-title').textContent = step.title;
   $('#tour-body').textContent = step.body;
-  tourSample.hidden = !step.sample;
+  dom.tourSample.hidden = !step.sample;
   if (step.sample) { state.tourSampleStatus = 'not_started'; renderTourSample(); }
   $('#tour-back').hidden = i === 0;
   $('#tour-skip').hidden = last;
@@ -2981,13 +2912,13 @@ function showTourStep(i) {
 }
 
 function startTour() {
-  if (!tourOverlay.hidden) return;
+  if (!dom.tourOverlay.hidden) return;
   if (state.previewing) setPreview(false);
   setPage('class-tasks');
   setSidebarOpen(false, false);
-  tourOverlay._returnFocus = document.activeElement;
-  tourOverlay.classList.remove('is-closing');
-  tourOverlay.hidden = false;
+  dom.tourOverlay._returnFocus = document.activeElement;
+  dom.tourOverlay.classList.remove('is-closing');
+  dom.tourOverlay.hidden = false;
   document.body.style.overflow = 'hidden';
   showTourStep(0);
   // Layout can shift while the board loads, so keep the spotlight on its target.
@@ -2996,13 +2927,13 @@ function startTour() {
 }
 
 function endTour() {
-  if (tourOverlay.hidden || tourOverlay.classList.contains('is-closing')) return;
+  if (dom.tourOverlay.hidden || dom.tourOverlay.classList.contains('is-closing')) return;
   try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) {}
   clearInterval(state.tourTimer);
   state.tourTimer = null;
   state.tourIndex = -1;
   document.body.style.overflow = '';
-  hideAnimated(tourOverlay);
+  hideAnimated(dom.tourOverlay);
 }
 
 $('#tour-next').addEventListener('click', () => {
@@ -3013,7 +2944,7 @@ $('#tour-skip').addEventListener('click', endTour);
 $('#settings-replay').addEventListener('click', () => { closeSettings(); startTour(); });
 window.addEventListener('resize', () => { if (state.tourIndex >= 0) placeTour(tourTarget()); });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !tourOverlay.hidden && !tourOverlay.classList.contains('is-closing')) endTour();
+  if (e.key === 'Escape' && !dom.tourOverlay.hidden && !dom.tourOverlay.classList.contains('is-closing')) endTour();
 });
 
 // --- Phase 7: transfer by QR code and link ---
@@ -3034,8 +2965,6 @@ function takeTransferToken() {
 }
 const INCOMING_TRANSFER = takeTransferToken();
 
-const transferOverlay = $('#transfer-overlay');
-const importOverlay = $('#import-overlay');
 
 const transferHeaders = { 'Content-Type': 'application/json' };
 
@@ -3081,7 +3010,7 @@ function tickTransfer() {
     state.transferTimer = null;
     state.activeTransfer = null;
     setTransferView('expired');
-    actionFeedback.textContent = 'Transfer link expired.';
+    dom.actionFeedback.textContent = 'Transfer link expired.';
     return;
   }
   $('#transfer-countdown').textContent = `Expires in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
@@ -3110,7 +3039,7 @@ async function createTransfer() {
     if (!res.ok) throw new Error(out.error || 'Could not create the link.');
     if (!TRANSFER_TOKEN_RE.test(out.token || '') || !Number.isFinite(out.expiresIn)) throw new Error('Unexpected response from the server.');
     state.activeTransfer = { token: out.token, expiresAt: Date.now() + out.expiresIn * 1000 };
-    if (!transferOverlay.hidden) showTransferLink();
+    if (!dom.transferOverlay.hidden) showTransferLink();
   } catch (ex) {
     setTransferView('error', ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message);
   } finally { state.transferBusy = false; }
@@ -3129,7 +3058,7 @@ async function cancelTransfer() {
     state.transferTimer = null;
     state.activeTransfer = null;
     setTransferView('cancelled');
-    actionFeedback.textContent = 'Transfer link cancelled.';
+    dom.actionFeedback.textContent = 'Transfer link cancelled.';
     $('#transfer-new').focus();
   } catch (ex) {
     showToast('Could not cancel the link. It still expires on its own.');
@@ -3151,9 +3080,9 @@ async function copyTransferLink() {
 
 function openTransfer() {
   closeSettings();
-  transferOverlay._returnFocus = document.activeElement;
-  transferOverlay.classList.remove('is-closing');
-  transferOverlay.hidden = false;
+  dom.transferOverlay._returnFocus = document.activeElement;
+  dom.transferOverlay.classList.remove('is-closing');
+  dom.transferOverlay.hidden = false;
   $('#transfer-close').focus();
   if (state.activeTransfer && state.activeTransfer.expiresAt > Date.now()) showTransferLink();
   else { state.activeTransfer = null; createTransfer(); }
@@ -3162,7 +3091,7 @@ function openTransfer() {
 function closeTransfer() {
   clearInterval(state.transferTimer);
   state.transferTimer = null;
-  hideAnimated(transferOverlay);
+  hideAnimated(dom.transferOverlay);
 }
 
 $('#settings-transfer').addEventListener('click', openTransfer);
@@ -3172,7 +3101,7 @@ $('#transfer-new').addEventListener('click', createTransfer);
 $('#transfer-cancel-link').addEventListener('click', cancelTransfer);
 $('#transfer-copy').addEventListener('click', copyTransferLink);
 $('#transfer-link').addEventListener('focus', (e) => e.target.select());
-transferOverlay.addEventListener('click', (e) => { if (e.target === transferOverlay) closeTransfer(); });
+dom.transferOverlay.addEventListener('click', (e) => { if (e.target === dom.transferOverlay) closeTransfer(); });
 
 // ---- Receiving ----
 // Returns { progress, draft } rebuilt from scratch, or null when the data is not usable.
@@ -3230,14 +3159,14 @@ function openImport(data) {
     $('#import-draft-text').textContent =
       `Replace my draft here (${plural(myTasks.length, 'task')}) with the draft from the other device (${plural(data.draft.tasks.length, 'task')}, ${plural(data.draft.announcements.length, 'announcement')}).`;
   }
-  importOverlay.classList.remove('is-closing');
-  importOverlay.hidden = false;
+  dom.importOverlay.classList.remove('is-closing');
+  dom.importOverlay.hidden = false;
   $('#import-cancel').focus();
 }
 
 function closeImport() {
   state.pendingImport = null;
-  hideAnimated(importOverlay);
+  hideAnimated(dom.importOverlay);
 }
 
 function applyImport() {
@@ -3286,12 +3215,12 @@ async function checkIncomingTransfer(token) {
 $('#import-apply').addEventListener('click', applyImport);
 $('#import-cancel').addEventListener('click', closeImport);
 $('#import-close').addEventListener('click', closeImport);
-importOverlay.addEventListener('click', (e) => { if (e.target === importOverlay) closeImport(); });
+dom.importOverlay.addEventListener('click', (e) => { if (e.target === dom.importOverlay) closeImport(); });
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!importOverlay.hidden && !importOverlay.classList.contains('is-closing')) closeImport();
-  else if (!transferOverlay.hidden && !transferOverlay.classList.contains('is-closing')) closeTransfer();
+  if (!dom.importOverlay.hidden && !dom.importOverlay.classList.contains('is-closing')) closeImport();
+  else if (!dom.transferOverlay.hidden && !dom.transferOverlay.classList.contains('is-closing')) closeTransfer();
 });
 
 // --- Focus trap: Tab stays inside the open dialog ---
@@ -3368,7 +3297,7 @@ function init() {
   // Time-based overdue: re-render each minute unless something is open
   setInterval(() => {
     const popoverOpen = state.statusPopoverEl && !state.statusPopoverEl.hidden;
-    if (document.hidden || popoverOpen || !dialogOverlay.hidden || !quickOverlay.hidden) return;
+    if (document.hidden || popoverOpen || !dom.dialogOverlay.hidden || !dom.quickOverlay.hidden) return;
     renderAllTasks();
   }, 60000);
 }
