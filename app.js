@@ -3,6 +3,15 @@ import {
   mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
   clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
 } from './logic.js?v=5';
+import { state } from './js/state.js';
+import { readJSON, writeJSON, plural, fmtWhen, formatTime } from './js/util.js';
+
+// --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
+// Every top-level mutable variable moved to the single `state` object. Deleting the declarations
+// here is deliberate: a missed site throws a ReferenceError instead of reading a second copy.
+// calAnchor is the only field whose initial value needs a call (todayDate()), so state.js keeps it
+// null and this line sets it at module-eval time, before anything reads it.
+state.calAnchor = todayDate();
 
 const navItems = [...document.querySelectorAll('[data-page]')];
 const pages = [...document.querySelectorAll('[data-page-view]')];
@@ -14,7 +23,6 @@ const actionFeedback = document.querySelector('#action-feedback');
 // --- Admin access: Basic Auth signs in once (api/login.php), then an HttpOnly session cookie does the rest ---
 const ADMIN_KEY = 'class_tasks_admin';
 const SIGNED_OUT_KEY = 'class_tasks_signed_out';
-let isAdmin = false;
 
 const JSON_POST = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', cache: 'no-store' };
 const adminHint = () => {
@@ -63,36 +71,28 @@ const KEYS = {
 };
 const API = { publish: 'api/publish.php', versions: 'api/versions.php', current: 'data/current.json' };
 const myTasks = [];              // admin draft (definitions only)
-let publishedTasks = [];         // what the class sees
-let publishedAnnouncements = [];
-let progress = {};               // taskId -> { status, movedAt }, per browser
-let previewing = false;
-let changedIds = new Set();
 
-const readJSON = (k, fallback) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch (e) { return fallback; } };
-const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
-const isEditable = (task) => isAdmin && !previewing && myTasks.includes(task);
+const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.includes(task);
 const findTask = (id) => [...myTasks, ...publishedTasks].find((t) => t.id === id);
 
 function applyProgress(list) {
-  list.forEach((t) => { const p = progress[t.id]; t.status = p ? p.status : 'not_started'; t.movedAt = p ? p.movedAt : 0; });
+  list.forEach((t) => { const p = state.progress[t.id]; t.status = p ? p.status : 'not_started'; t.movedAt = p ? p.movedAt : 0; });
 }
 function setStatus(task, status) {
-  progress[task.id] = { status, movedAt: Date.now() };
+  state.progress[task.id] = { status, movedAt: Date.now() };
   if (status === 'done') navigator.vibrate?.(12);
   applyProgress(myTasks);
-  applyProgress(publishedTasks);
-  justChangedId = task.id;
+  applyProgress(state.publishedTasks);
+  state.justChangedId = task.id;
   saveTasks();
 }
 
 // Leaving Done needs an explicit yes. Returns true when the change may proceed.
 const isReopen = (task, status) => task.status === 'done' && status !== 'done';
 
-let confirmOverlayEl = null;
 
 function ensureConfirmDialog() {
-  if (confirmOverlayEl) return confirmOverlayEl;
+  if (state.confirmOverlayEl) return state.confirmOverlayEl;
   const overlay = document.createElement('div');
   overlay.className = 'task-dialog-overlay confirm-overlay';
   overlay.hidden = true;
@@ -106,7 +106,7 @@ function ensureConfirmDialog() {
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  confirmOverlayEl = overlay;
+  state.confirmOverlayEl = overlay;
   return overlay;
 }
 
@@ -184,7 +184,6 @@ dialogFileInput.addEventListener('change', () => {
   if (picked.length) attachFiles(picked);
 });
 
-let currentTask = null;
 
 // Title is a one-line-looking textarea that grows with its content
 function fitDialogTitle() {
@@ -199,12 +198,12 @@ dialogTitleInput.addEventListener('input', () => {
   if (clean !== dialogTitleInput.value) dialogTitleInput.value = clean;
   fitDialogTitle();
 });
-window.addEventListener('resize', () => { if (currentTask) fitDialogTitle(); });
+window.addEventListener('resize', () => { if (state.currentTask) fitDialogTitle(); });
 
 // --- Persistence: progress (everyone) + draft (admin) ---
 function saveTasks() {
-  const ok = writeJSON(KEYS.progress, progress)
-    && (!isAdmin || writeJSON(KEYS.draft, { tasks: myTasks.map((t) => t.toJSON()), announcements }));
+  const ok = writeJSON(KEYS.progress, state.progress)
+    && (!state.isAdmin || writeJSON(KEYS.draft, { tasks: myTasks.map((t) => t.toJSON()), announcements: state.announcements }));
   if (!ok) showToast('Storage is full. Remove large images.');
 }
 
@@ -214,8 +213,8 @@ function migrateLegacy() {
     if (!raw || localStorage.getItem(KEYS.draft)) return;
     localStorage.setItem(KEYS.legacy + '_backup', raw);
     const old = JSON.parse(raw);
-    old.forEach((o) => { if (o.status && o.status !== 'not_started') progress[o.id] = { status: o.status, movedAt: 0 }; });
-    writeJSON(KEYS.progress, progress);
+    old.forEach((o) => { if (o.status && o.status !== 'not_started') state.progress[o.id] = { status: o.status, movedAt: 0 }; });
+    writeJSON(KEYS.progress, state.progress);
     writeJSON(KEYS.draft, {
       tasks: old.map((o) => Task.fromJSON(o).toJSON()),
       announcements: readJSON('class_tasks_announcements', []),
@@ -224,13 +223,13 @@ function migrateLegacy() {
 }
 
 function loadTasks() {
-  progress = readJSON(KEYS.progress, {});
-  if (!isAdmin) return;
+  state.progress = readJSON(KEYS.progress, {});
+  if (!state.isAdmin) return;
   migrateLegacy();
   const draft = readJSON(KEYS.draft, { tasks: [], announcements: [] });
   myTasks.length = 0;
   (draft.tasks || []).forEach((o) => myTasks.push(Task.fromJSON(o)));
-  announcements = Array.isArray(draft.announcements) ? draft.announcements : [];
+  state.announcements = Array.isArray(draft.announcements) ? draft.announcements : [];
   applyProgress(myTasks);
 }
 
@@ -248,18 +247,16 @@ function normalizeBoard(data) {
 
 function setPublished(data) {
   const board = normalizeBoard(data) || { tasks: [], announcements: [] };
-  publishedTasks = board.tasks.map((o) => Task.fromJSON(o));
-  publishedAnnouncements = board.announcements;
-  applyProgress(publishedTasks);
+  state.publishedTasks = board.tasks.map((o) => Task.fromJSON(o));
+  state.publishedAnnouncements = board.announcements;
+  applyProgress(state.publishedTasks);
 }
 
 // --- Update notice: one popup per visit listing tasks that are new or changed since this device last saw the Board ---
 const SEEN_KEY = 'class_tasks_seen';
-let liveBoard = null;      // set only after a successful live load of the Board
-let noticeShown = false;
 
 function checkUpdateNotice(board) {
-  if (!board || isAdmin || previewing || noticeShown || !board.tasks.length) return;
+  if (!board || state.isAdmin || state.previewing || state.noticeShown || !board.tasks.length) return;
   if (!tourOverlay.hidden || !importOverlay.hidden || !dialogOverlay.hidden) return;
   const stamps = {};
   board.tasks.forEach((t) => { stamps[String(t.id)] = Number.isFinite(t.changedAt) ? t.changedAt : 0; });
@@ -267,7 +264,7 @@ function checkUpdateNotice(board) {
   if (!seen || typeof seen !== 'object' || Array.isArray(seen)) { writeJSON(SEEN_KEY, stamps); return; }  // first visit: start quietly
   const fresh = board.tasks.filter((t) => { const id = String(t.id); return !Object.hasOwn(seen, id) || (seen[id] > 0 && stamps[id] > seen[id]); });
   if (!fresh.length) { writeJSON(SEEN_KEY, stamps); return; }
-  noticeShown = true;
+  state.noticeShown = true;
   showUpdateNotice(fresh.map((t) => ({ isNew: !Object.hasOwn(seen, String(t.id)), task: Task.fromJSON(t) })), () => writeJSON(SEEN_KEY, stamps));
 }
 
@@ -324,10 +321,10 @@ function pruneProgress(board) {
   myTasks.forEach((t) => keep.add(t.id));
   const draft = readJSON(KEYS.draft, null);
   (draft && Array.isArray(draft.tasks) ? draft.tasks : []).forEach((t) => { if (t && t.id !== undefined) keep.add(String(t.id)); });
-  const gone = Object.keys(progress).filter((id) => !keep.has(id));
+  const gone = Object.keys(state.progress).filter((id) => !keep.has(id));
   if (!gone.length) return;
-  gone.forEach((id) => { delete progress[id]; });
-  writeJSON(KEYS.progress, progress);
+  gone.forEach((id) => { delete state.progress[id]; });
+  writeJSON(KEYS.progress, state.progress);
 }
 
 async function loadPublished() {
@@ -347,16 +344,16 @@ async function loadPublished() {
     if (!board) throw new Error('Invalid board data');
     writeJSON(KEYS.cache, board);
     note.hidden = true;
-    liveBoard = board;
+    state.liveBoard = board;
   } catch (e) {
     board = normalizeBoard(readJSON(KEYS.cache, null));
     note.hidden = false;
-    liveBoard = null;
+    state.liveBoard = null;
   }
-  if (currentTask) return;
+  if (state.currentTask) return;
   setPublished(board);
-  checkUpdateNotice(liveBoard);
-  pruneProgress(liveBoard);
+  checkUpdateNotice(state.liveBoard);
+  pruneProgress(state.liveBoard);
   renderAllTasks();
   renderAnnouncements();
 }
@@ -419,16 +416,14 @@ function linkify(root) {
 }
 function refreshLinks(root) { unlinkify(root); linkify(root); }
 
-let dialogReturn = null;
-let dialogCloseBtn = null;
 function getCloseBtn() {
-  if (dialogCloseBtn) return dialogCloseBtn;
-  dialogCloseBtn = document.createElement('button');
-  dialogCloseBtn.type = 'button';
-  dialogCloseBtn.className = dialogDelete.className;
-  dialogCloseBtn.textContent = 'Close for class';
-  dialogCloseBtn.addEventListener('click', () => {
-    const task = currentTask;
+  if (state.dialogCloseBtn) return state.dialogCloseBtn;
+  state.dialogCloseBtn = document.createElement('button');
+  state.dialogCloseBtn.type = 'button';
+  state.dialogCloseBtn.className = dialogDelete.className;
+  state.dialogCloseBtn.textContent = 'Close for class';
+  state.dialogCloseBtn.addEventListener('click', () => {
+    const task = state.currentTask;
     if (!task || !isEditable(task)) return;
     task.closedAt = Date.now();
     saveTasks();
@@ -436,13 +431,13 @@ function getCloseBtn() {
     renderAllTasks();
     showToast('Moved to Past tasks', 'Undo', () => { task.closedAt = 0; saveTasks(); renderAllTasks(); });
   });
-  dialogDelete.insertAdjacentElement('beforebegin', dialogCloseBtn);
-  return dialogCloseBtn;
+  dialogDelete.insertAdjacentElement('beforebegin', state.dialogCloseBtn);
+  return state.dialogCloseBtn;
 }
 
 function openTaskDialog(task) {
-  dialogReturn = { el: document.activeElement, id: task.id };
-  currentTask = task;
+  state.dialogReturn = { el: document.activeElement, id: task.id };
+  state.currentTask = task;
   const ro = !isEditable(task);
   dialog.classList.toggle('is-readonly', ro);
   dialogTitleInput.readOnly = ro;
@@ -469,13 +464,13 @@ function openTaskDialog(task) {
 }
 
 function closeTaskDialog() {
-  if (!currentTask) return;
-  if (isEditable(currentTask)) {
-    currentTask.title = dialogTitleInput.value.trim() || 'New Task';
-    currentTask.notes = sanitizeDoc(dialogDoc.innerHTML);
+  if (!state.currentTask) return;
+  if (isEditable(state.currentTask)) {
+    state.currentTask.title = dialogTitleInput.value.trim() || 'New Task';
+    state.currentTask.notes = sanitizeDoc(dialogDoc.innerHTML);
     saveTasks();
   }
-  currentTask = null;
+  state.currentTask = null;
   closeStatusPopover();
   hideAnimated(dialogOverlay);
   dialogOverlay.setAttribute('aria-hidden', 'true');
@@ -483,8 +478,8 @@ function closeTaskDialog() {
   dialogSubjectBtn.setAttribute('aria-expanded', 'false');
   document.body.style.overflow = '';
   renderAllTasks();
-  const back = dialogReturn;
-  dialogReturn = null;
+  const back = state.dialogReturn;
+  state.dialogReturn = null;
   if (back) {
     const target = back.el && back.el.isConnected ? back.el : document.querySelector(`[data-task-id="${CSS.escape(String(back.id))}"]`);
     if (target) target.focus();
@@ -518,8 +513,8 @@ function createTaskCard(task) {
     }
   });
 
-  if (task.id === justChangedId) article.classList.add('is-entering');
-  if (isEditable(task) && changedIds.has(task.id)) article.classList.add('is-changed');
+  if (task.id === state.justChangedId) article.classList.add('is-entering');
+  if (isEditable(task) && state.changedIds.has(task.id)) article.classList.add('is-changed');
   header.append(createStatusCheck(task), titleEl);
 
   // Delete button
@@ -577,8 +572,8 @@ function updateColumn(columnEl) {
   const emptyMsg = contentEl.querySelector('.column-empty');
   if (emptyMsg) {
     if (!emptyMsg.dataset.default) emptyMsg.dataset.default = emptyMsg.textContent;
-    const searching = columnEl.closest('#page-class-tasks') ? classSearchQuery.trim()
-      : columnEl.closest('#page-my-tasks') ? searchQuery.trim() : '';
+    const searching = columnEl.closest('#page-class-tasks') ? state.classSearchQuery.trim()
+      : columnEl.closest('#page-my-tasks') ? state.searchQuery.trim() : '';
     emptyMsg.textContent = searching ? 'No tasks match your search.' : emptyMsg.dataset.default;
     emptyMsg.hidden = !isEmpty;
   }
@@ -599,14 +594,13 @@ function deleteTask(task) {
 }
 
 // --- Drag & Drop ---
-let draggedCard = null;
 
 function handleDragStart(e) {
-  draggedCard = e.target.closest('.task-card');
-  if (!draggedCard) return;
-  draggedCard.classList.add('is-dragging');
+  state.draggedCard = e.target.closest('.task-card');
+  if (!state.draggedCard) return;
+  state.draggedCard.classList.add('is-dragging');
   e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', draggedCard.dataset.taskId);
+  e.dataTransfer.setData('text/plain', state.draggedCard.dataset.taskId);
 }
 
 function clearDropPlaceholder() {
@@ -615,9 +609,9 @@ function clearDropPlaceholder() {
 
 function handleDragEnd(e) {
   clearDropPlaceholder();
-  if (draggedCard) {
-    draggedCard.classList.remove('is-dragging');
-    draggedCard = null;
+  if (state.draggedCard) {
+    state.draggedCard.classList.remove('is-dragging');
+    state.draggedCard = null;
   }
   document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
 }
@@ -630,7 +624,7 @@ function handleDragOver(e) {
     document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
     columnEl.classList.add('drag-over');
     const content = columnEl.querySelector('.column-content');
-    const sameColumn = draggedCard && draggedCard.dataset.status === COLUMN_TO_STATUS[columnEl.dataset.status];
+    const sameColumn = state.draggedCard && state.draggedCard.dataset.status === COLUMN_TO_STATUS[columnEl.dataset.status];
     if (!sameColumn && !content.querySelector('.drop-placeholder')) {
       clearDropPlaceholder();
       const ph = document.createElement('div');
@@ -645,9 +639,9 @@ function handleDragOver(e) {
 function handleDrop(e) {
   e.preventDefault();
   const columnEl = e.target.closest('.kanban-column');
-  if (!columnEl || !draggedCard) return;
+  if (!columnEl || !state.draggedCard) return;
 
-  const taskId = draggedCard.dataset.taskId;
+  const taskId = state.draggedCard.dataset.taskId;
   const task = findTask(taskId);
   if (!task) return;
 
@@ -655,13 +649,13 @@ function handleDrop(e) {
   if (newStatus && newStatus !== task.status) {
     if (isReopen(task, newStatus)) {
       confirmReopen(task, newStatus, () => {
-        const prev = progress[task.id] ? { ...progress[task.id] } : null;
+        const prev = state.progress[task.id] ? { ...progress[task.id] } : null;
         setStatus(task, newStatus);
         renderAllTasks();
         showToast(statusChangeMessage(newStatus), 'Undo', () => restoreProgress(task.id, prev));
       });
     } else {
-      const prev = progress[task.id] ? { ...progress[task.id] } : null;
+      const prev = state.progress[task.id] ? { ...progress[task.id] } : null;
       setStatus(task, newStatus);
       renderAllTasks();
       if (newStatus === 'done') {
@@ -678,23 +672,23 @@ function handleDrop(e) {
 dialogClose.addEventListener('click', closeTaskDialog);
 dialogOverlay.addEventListener('click', (e) => { if (e.target === dialogOverlay) closeTaskDialog(); });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !dialogOverlay.hidden && !(statusPopoverEl && !statusPopoverEl.hidden)) closeTaskDialog();
+  if (e.key === 'Escape' && !dialogOverlay.hidden && !(state.statusPopoverEl && !state.statusPopoverEl.hidden)) closeTaskDialog();
 });
 
-dialogStatusBtn.addEventListener('click', () => { if (currentTask) openStatusPopover(currentTask, dialogStatusBtn); });
+dialogStatusBtn.addEventListener('click', () => { if (state.currentTask) openStatusPopover(state.currentTask, dialogStatusBtn); });
 
 function openDialogDuePicker(anchor, focus) {
-  if (!currentTask) return;
+  if (!state.currentTask) return;
   openDuePicker({
     anchor,
     focus,
-    date: currentTask.dueDate || null,
-    time: currentTask.dueTime || null,
+    date: state.currentTask.dueDate || null,
+    time: state.currentTask.dueTime || null,
     onChange: ({ date, time }) => {
-      if (!currentTask) return;
-      currentTask.dueDate = date || undefined;
-      currentTask.dueTime = date ? (time || undefined) : undefined;
-      updateDialogDue(currentTask);
+      if (!state.currentTask) return;
+      state.currentTask.dueDate = date || undefined;
+      state.currentTask.dueTime = date ? (time || undefined) : undefined;
+      updateDialogDue(state.currentTask);
       autosave();
     },
   });
@@ -702,10 +696,10 @@ function openDialogDuePicker(anchor, focus) {
 dialogDateBtn.addEventListener('click', () => openDialogDuePicker(dialogDateBtn, 'date'));
 dialogDueClear.addEventListener('click', (e) => {
   e.stopPropagation();
-  if (currentTask) {
-    currentTask.dueDate = undefined;
-    currentTask.dueTime = undefined;
-    updateDialogDue(currentTask);
+  if (state.currentTask) {
+    state.currentTask.dueDate = undefined;
+    state.currentTask.dueTime = undefined;
+    updateDialogDue(state.currentTask);
     autosave();
   }
 });
@@ -773,7 +767,7 @@ async function insertDocImages(files) {
 }
 
 async function attachFiles(files) {
-  const task = currentTask;
+  const task = state.currentTask;
   if (!task || !isEditable(task)) return;
   let added = 0;
   for (const file of files) {
@@ -785,7 +779,7 @@ async function attachFiles(files) {
       task.files.push({ id: out.id, name: out.name, size: out.size });
       added++;
       saveTasks();
-      if (currentTask === task) renderDialogFiles(task);
+      if (state.currentTask === task) renderDialogFiles(task);
     } catch (e) {
       showToast(e.message === 'Failed to fetch' ? 'Cannot reach the server.' : e.message);
       return;
@@ -826,7 +820,7 @@ function renderDialogFiles(task) {
         showToast('File removed', 'Undo', () => {
           task.files.splice(Math.min(index, task.files.length), 0, f);
           saveTasks();
-          if (currentTask === task) renderDialogFiles(task);
+          if (state.currentTask === task) renderDialogFiles(task);
         });
       });
       li.append(rm);
@@ -845,11 +839,10 @@ function rangeFromPoint(x, y) {
   return r;
 }
 
-let docTimer = null;
 dialogDoc.addEventListener('input', () => {
   if (/^(<div>)?<br>(<\/div>)?$/.test(dialogDoc.innerHTML)) dialogDoc.innerHTML = '';
-  clearTimeout(docTimer);
-  docTimer = setTimeout(autosave, 500);
+  clearTimeout(state.docTimer);
+  state.docTimer = setTimeout(autosave, 500);
 });
 
 dialogDoc.addEventListener('paste', (e) => {
@@ -873,7 +866,7 @@ dialogDoc.addEventListener('click', (e) => {
   if (e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener,noreferrer');
 });
 // Rebuild links when leaving the box, so URLs typed or pasted while editing become links.
-dialogDoc.addEventListener('focusout', () => { if (currentTask) refreshLinks(dialogDoc); });
+dialogDoc.addEventListener('focusout', () => { if (state.currentTask) refreshLinks(dialogDoc); });
 
 // Note formatting toolbar. sanitizeDoc keeps only b, i, ul and li, so nothing else can be stored.
 dialogDoc.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
@@ -888,7 +881,7 @@ function syncNoteTools() {
 noteTools.forEach((b) => {
   b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the note
   b.addEventListener('click', () => {
-    if (!currentTask || !isEditable(currentTask)) return;
+    if (!state.currentTask || !isEditable(state.currentTask)) return;
     dialogDoc.focus();
     document.execCommand(b.dataset.cmd);
     autosave();
@@ -927,14 +920,14 @@ dialog.addEventListener('drop', (e) => {
 });
 
 dialogDelete.addEventListener('click', () => {
-  if (!currentTask) return;
-  const task = currentTask;
+  if (!state.currentTask) return;
+  const task = state.currentTask;
   closeStatusPopover();
   hideAnimated(dialogOverlay);
   document.body.style.overflow = '';
   const idx = myTasks.indexOf(task);
   if (idx !== -1) deleteTask(task); else closeTaskDialog();
-  currentTask = null;
+  state.currentTask = null;
 });
 
 // Column drop zones (My Tasks page)
@@ -954,8 +947,6 @@ const toastEl = document.querySelector('#toast');
 const toastMessage = document.querySelector('#toast-message');
 const toastAction = document.querySelector('#toast-action');
 const saveState = document.querySelector('#save-state');
-let toastTimer = null;
-let saveTimer = null;
 
 // Plays the CSS exit animation, then hides. Skips the wait for reduced motion.
 function hideAnimated(el, ms = 180) {
@@ -969,7 +960,7 @@ function hideAnimated(el, ms = 180) {
 }
 
 function hideToast() {
-  clearTimeout(toastTimer);
+  clearTimeout(state.toastTimer);
   toastEl.hidden = true;
 }
 
@@ -979,25 +970,25 @@ function showToast(message, actionLabel, onAction) {
   toastAction.hidden = !actionLabel;
   toastAction.onclick = () => { hideToast(); if (onAction) onAction(); };
   toastEl.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(hideToast, actionLabel ? 8000 : 5000);
+  clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(hideToast, actionLabel ? 8000 : 5000);
   actionFeedback.textContent = '';
   setTimeout(() => { actionFeedback.textContent = message + (actionLabel ? `. ${actionLabel} available.` : ''); }, 60);
 }
 // Don't dismiss the toast while someone is tabbing to its Undo button
-toastEl.addEventListener('focusin', () => clearTimeout(toastTimer));
-toastEl.addEventListener('focusout', () => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 3000); });
+toastEl.addEventListener('focusin', () => clearTimeout(state.toastTimer));
+toastEl.addEventListener('focusout', () => { clearTimeout(state.toastTimer); state.toastTimer = setTimeout(hideToast, 3000); });
 
 function flashSaved() {
   saveState.textContent = 'Saved';
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { saveState.textContent = ''; }, 1600);
+  clearTimeout(state.saveTimer);
+  state.saveTimer = setTimeout(() => { saveState.textContent = ''; }, 1600);
 }
 
 // Saves the task being edited in the panel and confirms it.
 function autosave() {
-  if (!currentTask || !isEditable(currentTask)) return;
-  currentTask.notes = sanitizeDoc(dialogDoc.innerHTML);
+  if (!state.currentTask || !isEditable(state.currentTask)) return;
+  state.currentTask.notes = sanitizeDoc(dialogDoc.innerHTML);
   saveTasks();
   flashSaved();
 }
@@ -1031,8 +1022,8 @@ function renderClassTasks() {
   board.querySelectorAll('.column-content').forEach((c) => {
     c.querySelectorAll('.task-card, .skeleton').forEach((n) => n.remove());
   });
-  const all = (previewing ? myTasks : publishedTasks).filter((t) => !t.isPast());
-  const q = classSearchQuery.trim().toLowerCase();
+  const all = (state.previewing ? myTasks : state.publishedTasks).filter((t) => !t.isPast());
+  const q = state.classSearchQuery.trim().toLowerCase();
   const source = sortTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
   source.forEach((task) => {
     const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
@@ -1050,7 +1041,7 @@ function renderClassTasks() {
 }
 
 // --- Completed tasks page ---
-const recordSource = () => ((isAdmin || previewing) ? myTasks : publishedTasks);
+const recordSource = () => ((state.isAdmin || state.previewing) ? myTasks : state.publishedTasks);
 
 function renderPastPage() {
   const host = document.querySelector('#past-list');
@@ -1066,7 +1057,7 @@ function renderPastPage() {
     host.appendChild(none);
     return;
   }
-  const canEdit = isAdmin && !previewing;
+  const canEdit = state.isAdmin && !state.previewing;
   const mkBtn = (label, fn) => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -1122,19 +1113,19 @@ function renderPastPage() {
 // Restore a task's progress entry to what it was before the last status change.
 // Shared by every Undo action so all of them persist and re-render the same way.
 function restoreProgress(taskId, prev) {
-  if (prev) progress[taskId] = prev; else delete progress[taskId];
+  if (prev) state.progress[taskId] = prev; else delete state.progress[taskId];
   applyProgress(myTasks);
-  applyProgress(publishedTasks);
+  applyProgress(state.publishedTasks);
   saveTasks();
   // A dialog may still be open on this task: refresh it so it shows the restored status.
   // Write the restored values onto currentTask itself so the refresh does not depend on
   // currentTask being the same instance applyProgress just updated.
-  if (currentTask && currentTask.id === taskId) {
-    const p = progress[taskId];
-    currentTask.status = p ? p.status : 'not_started';
-    currentTask.movedAt = p ? p.movedAt : 0;
-    updateDialogStatus(currentTask);
-    updateDialogDue(currentTask);
+  if (state.currentTask && state.currentTask.id === taskId) {
+    const p = state.progress[taskId];
+    state.currentTask.status = p ? p.status : 'not_started';
+    state.currentTask.movedAt = p ? p.movedAt : 0;
+    updateDialogStatus(state.currentTask);
+    updateDialogDue(state.currentTask);
   }
   renderAllTasks();
 }
@@ -1153,7 +1144,7 @@ function reopenWithConfirm(btn, task) {
       return;
     }
     clearTimeout(timer);
-    const prev = progress[task.id] ? { ...progress[task.id] } : null;
+    const prev = state.progress[task.id] ? { ...progress[task.id] } : null;
     setStatus(task, 'not_started');
     renderAllTasks();
     showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
@@ -1179,7 +1170,7 @@ function renderDonePage() {
   };
   done.forEach((task) => {
     const row = document.createElement('div');
-    row.className = 'task-row done-row' + (task.id === justChangedId ? ' is-entering' : '');
+    row.className = 'task-row done-row' + (task.id === state.justChangedId ? ' is-entering' : '');
     row.tabIndex = 0;
     const dot = createStatusCheck(task);
     const title = document.createElement('span');
@@ -1203,10 +1194,6 @@ function renderDonePage() {
 }
 
 // --- Calendar ---
-let calMode = 'month';
-let calAnchor = todayDate();
-let calSelected = null;
-let calByDay = new Map();
 const calPhone = window.matchMedia('(max-width: 720px)');
 const calSort = (a, b) => (a.dueTime || '').localeCompare(b.dueTime || '');
 const calLongDate = (d) => d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -1214,14 +1201,14 @@ const calSameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth
 
 // Phone month view: the day picked in the grid, defaulting to today (or the 1st) of the shown month.
 function calPickDay() {
-  if (calSelected && calSameMonth(calSelected, calAnchor)) return calSelected;
+  if (state.calSelected && calSameMonth(state.calSelected, state.calAnchor)) return state.calSelected;
   const t = todayDate();
-  return calSameMonth(t, calAnchor) ? t : new Date(calAnchor.getFullYear(), calAnchor.getMonth(), 1);
+  return calSameMonth(t, state.calAnchor) ? t : new Date(state.calAnchor.getFullYear(), state.calAnchor.getMonth(), 1);
 }
 
 function calRange() {
-  const a = calAnchor;
-  if (calMode === 'week') return { start: new Date(a.getFullYear(), a.getMonth(), a.getDate() - a.getDay()), days: 7 };
+  const a = state.calAnchor;
+  if (state.calMode === 'week') return { start: new Date(a.getFullYear(), a.getMonth(), a.getDate() - a.getDay()), days: 7 };
   const first = new Date(a.getFullYear(), a.getMonth(), 1);
   const last = new Date(a.getFullYear(), a.getMonth() + 1, 0);
   return { start: new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay()), days: Math.ceil((first.getDay() + last.getDate()) / 7) * 7 };
@@ -1256,19 +1243,18 @@ function createCalDots(list) {
   return wrap;
 }
 
-let calAgendaSig = '';
 function renderCalAgenda() {
   const box = document.querySelector('#cal-agenda');
   if (!box) return;
-  const on = calPhone.matches && calMode === 'month';
+  const on = calPhone.matches && state.calMode === 'month';
   box.hidden = !on;
-  if (!on) { calAgendaSig = ''; return; }
+  if (!on) { state.calAgendaSig = ''; return; }
   const d = calPickDay();
-  const tasks = (calByDay.get(toInputValue(d)) || []).slice().sort(calSort);
+  const tasks = (state.calByDay.get(toInputValue(d)) || []).slice().sort(calSort);
   // The page re-renders every minute; only touch the live region when the day's content really changed.
   const sig = `${toInputValue(d)}|${tasks.map((t) => `${t.id}:${t.status}:${t.title}:${t.dueTime || ''}:${t.isOverdue() ? 1 : 0}`).join(',')}`;
-  if (sig === calAgendaSig) return;
-  calAgendaSig = sig;
+  if (sig === state.calAgendaSig) return;
+  state.calAgendaSig = sig;
   document.querySelector('#cal-agenda-title').textContent = calLongDate(d);
   const out = document.querySelector('#cal-agenda-list');
   out.replaceChildren();
@@ -1285,10 +1271,10 @@ function renderCalAgenda() {
 const calFocus = (key) => document.querySelector(`#cal-grid [data-date="${key}"]`)?.focus({ preventScroll: true });
 
 function calSelect(d, focus) {
-  calSelected = d;
+  state.calSelected = d;
   const key = toInputValue(d);
-  if (!calSameMonth(d, calAnchor)) {
-    calAnchor = new Date(d.getFullYear(), d.getMonth(), 1);
+  if (!calSameMonth(d, state.calAnchor)) {
+    state.calAnchor = new Date(d.getFullYear(), d.getMonth(), 1);
     renderCalendar();
   } else {
     document.querySelectorAll('#cal-grid .cal-day.is-tappable').forEach((c) => {
@@ -1311,7 +1297,7 @@ function calKey(e, d) {
 
 function syncCalTabs() {
   document.querySelectorAll('[data-cal-mode]').forEach((b) => {
-    const on = b.dataset.calMode === calMode;
+    const on = b.dataset.calMode === state.calMode;
     b.classList.toggle('is-active', on);
     b.setAttribute('aria-pressed', String(on));
   });
@@ -1325,10 +1311,10 @@ function renderCalendar() {
   const byDay = new Map();
   dated.forEach((t) => { const k = toInputValue(t.dueDate); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(t); });
   const short = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  document.querySelector('#cal-title').textContent = calMode === 'week'
+  document.querySelector('#cal-title').textContent = state.calMode === 'week'
     ? `${short(start)} – ${short(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6))}`
-    : calAnchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-  grid.dataset.mode = calMode;
+    : state.calAnchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  grid.dataset.mode = state.calMode;
   const focusedDay = grid.contains(document.activeElement) ? document.activeElement.dataset.date : '';
   grid.replaceChildren();
   for (let i = 0; i < 7; i++) {
@@ -1337,15 +1323,15 @@ function renderCalendar() {
     h.textContent = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i).toLocaleDateString(undefined, { weekday: 'short' });
     grid.appendChild(h);
   }
-  const max = calMode === 'week' ? 12 : 3;
-  const phoneMonth = calPhone.matches && calMode === 'month';
+  const max = state.calMode === 'week' ? 12 : 3;
+  const phoneMonth = calPhone.matches && state.calMode === 'month';
   const picked = phoneMonth ? toInputValue(calPickDay()) : '';
-  calByDay = byDay;
+  state.calByDay = byDay;
   for (let i = 0; i < days; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const cell = document.createElement('div');
-    cell.className = 'cal-day' + (calMode === 'month' && d.getMonth() !== calAnchor.getMonth() ? ' is-outside' : '') + (dayDiff(d) === 0 ? ' is-today' : '');
-    if (calMode === 'week') cell.dataset.dow = d.toLocaleDateString(undefined, { weekday: 'short' });
+    cell.className = 'cal-day' + (state.calMode === 'month' && d.getMonth() !== state.calAnchor.getMonth() ? ' is-outside' : '') + (dayDiff(d) === 0 ? ' is-today' : '');
+    if (state.calMode === 'week') cell.dataset.dow = d.toLocaleDateString(undefined, { weekday: 'short' });
     const num = document.createElement('span');
     num.className = 'cal-num';
     num.textContent = d.getDate();
@@ -1373,7 +1359,7 @@ function renderCalendar() {
       more.type = 'button';
       more.className = 'cal-more';
       more.textContent = `+${list.length - max} more`;
-      more.addEventListener('click', () => { calAnchor = d; calMode = 'week'; syncCalTabs(); renderCalendar(); });
+      more.addEventListener('click', () => { state.calAnchor = d; state.calMode = 'week'; syncCalTabs(); renderCalendar(); });
       cell.appendChild(more);
     }
     grid.appendChild(cell);
@@ -1384,23 +1370,21 @@ function renderCalendar() {
 }
 
 function calStep(dir) {
-  calAnchor = calMode === 'week'
-    ? new Date(calAnchor.getFullYear(), calAnchor.getMonth(), calAnchor.getDate() + dir * 7)
-    : new Date(calAnchor.getFullYear(), calAnchor.getMonth() + dir, 1);
+  state.calAnchor = state.calMode === 'week'
+    ? new Date(state.calAnchor.getFullYear(), state.calAnchor.getMonth(), state.calAnchor.getDate() + dir * 7)
+    : new Date(state.calAnchor.getFullYear(), state.calAnchor.getMonth() + dir, 1);
   renderCalendar();
 }
 document.querySelector('#cal-prev').addEventListener('click', () => calStep(-1));
 document.querySelector('#cal-next').addEventListener('click', () => calStep(1));
-document.querySelector('#cal-today').addEventListener('click', () => { calAnchor = todayDate(); calSelected = calAnchor; renderCalendar(); });
+document.querySelector('#cal-today').addEventListener('click', () => { state.calAnchor = todayDate(); state.calSelected = state.calAnchor; renderCalendar(); });
 calPhone.addEventListener('change', renderCalendar);
-document.querySelectorAll('[data-cal-mode]').forEach((b) => b.addEventListener('click', () => { calMode = b.dataset.calMode; syncCalTabs(); renderCalendar(); }));
+document.querySelectorAll('[data-cal-mode]').forEach((b) => b.addEventListener('click', () => { state.calMode = b.dataset.calMode; syncCalTabs(); renderCalendar(); }));
 
 // --- Search, overview stats, nav badge ---
-let searchQuery = '';
-let classSearchQuery = '';
 
 function getVisibleTasks() {
-  const q = searchQuery.trim().toLowerCase();
+  const q = state.searchQuery.trim().toLowerCase();
   const active = myTasks.filter((t) => !t.isPast());
   return sortTasks(q
     ? active.filter((t) => t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
@@ -1427,7 +1411,7 @@ function updateOverview() {
 }
 
 document.querySelector('#task-search').addEventListener('input', (e) => {
-  searchQuery = e.target.value;
+  state.searchQuery = e.target.value;
   renderAllTasks();
 });
 
@@ -1446,7 +1430,7 @@ function matchesClassSearch(task, q) {
   return task.title.toLowerCase().includes(q) || task.subject.toLowerCase().includes(q) || plainNotes(task).includes(q);
 }
 document.querySelector('#class-task-search').addEventListener('input', (e) => {
-  classSearchQuery = e.target.value;
+  state.classSearchQuery = e.target.value;
   renderClassTasks();
   
 });
@@ -1518,8 +1502,8 @@ function createTaskRow(task) {
 
   // Checkbox: empty = not started, minus = in progress, check = done
   const check = createStatusCheck(task);
-  if (task.id === justChangedId) row.classList.add('is-entering');
-  if (isEditable(task) && changedIds.has(task.id)) row.classList.add('is-changed');
+  if (task.id === state.justChangedId) row.classList.add('is-entering');
+  if (isEditable(task) && state.changedIds.has(task.id)) row.classList.add('is-changed');
 
   const title = document.createElement('span');
   title.className = 'task-row-title'
@@ -1555,7 +1539,7 @@ function renderTaskList() {
   taskListEl.innerHTML = '';
   const visible = getVisibleTasks();
   visible.forEach((task) => taskListEl.appendChild(createTaskRow(task)));
-  if (visible.length === 0 && searchQuery.trim()) {
+  if (visible.length === 0 && state.searchQuery.trim()) {
     const none = document.createElement('p');
     none.className = 'list-empty';
     none.textContent = 'No tasks match your search.';
@@ -1579,8 +1563,6 @@ const STATUS_CODES = {
   ip: 'in_progress', started: 'in_progress', doing: 'in_progress', 'in progress': 'in_progress',
   dn: 'done', done: 'done',
 };
-let justChangedId = null;
-let staggerNext = false;
 
 function createSubjectTag(code) {
   const tag = document.createElement('span');
@@ -1589,13 +1571,10 @@ function createSubjectTag(code) {
   return tag;
 }
 
-let statusPopoverEl = null;
-let statusPopoverTask = null;
-let statusPopoverIndex = 0;
 const STATUS_ORDER = ['not_started', 'in_progress', 'done'];
 
 function ensureStatusPopover() {
-  if (statusPopoverEl) return statusPopoverEl;
+  if (state.statusPopoverEl) return state.statusPopoverEl;
   const el = document.createElement('div');
   el.className = 'status-dropdown status-popover';
   el.setAttribute('role', 'listbox');
@@ -1608,23 +1587,23 @@ function ensureStatusPopover() {
     opt.dataset.status = status;
     opt.innerHTML = `<span class="status-dot dot-${status.replace(/_/g, '-')}"></span> ${STATUS_LABELS[status]}`;
     opt.addEventListener('click', () => {
-      if (!statusPopoverTask) return;
-      const picked = statusPopoverTask;
+      if (!state.statusPopoverTask) return;
+      const picked = state.statusPopoverTask;
       const next = opt.dataset.status;
       if (isReopen(picked, next)) {
         closeStatusPopover();
         confirmReopen(picked, next, () => {
-          const prev = progress[picked.id] ? { ...progress[picked.id] } : null;
+          const prev = state.progress[picked.id] ? { ...progress[picked.id] } : null;
           setStatus(picked, next);
-          if (picked.id === currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
+          if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
           renderAllTasks();
           showToast(statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
         });
         return;
       }
-      const prev = progress[picked.id] ? { ...progress[picked.id] } : null;
+      const prev = state.progress[picked.id] ? { ...progress[picked.id] } : null;
       setStatus(picked, opt.dataset.status);
-      if (picked.id === currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
+      if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
       closeStatusPopover();
       renderAllTasks();
       if (opt.dataset.status === 'done') {
@@ -1634,21 +1613,21 @@ function ensureStatusPopover() {
     el.appendChild(opt);
   });
   document.body.appendChild(el);
-  statusPopoverEl = el;
+  state.statusPopoverEl = el;
   return el;
 }
 
 function closeStatusPopover() {
-  if (!statusPopoverEl) return;
-  statusPopoverEl.hidden = true;
-  statusPopoverTask = null;
+  if (!state.statusPopoverEl) return;
+  state.statusPopoverEl.hidden = true;
+  state.statusPopoverTask = null;
 }
 
 function openStatusPopover(task, anchorEl) {
   const el = ensureStatusPopover();
-  statusPopoverTask = task;
-  statusPopoverIndex = STATUS_ORDER.indexOf(task.status);
-  [...el.children].forEach((opt, i) => opt.classList.toggle('is-active', i === statusPopoverIndex));
+  state.statusPopoverTask = task;
+  state.statusPopoverIndex = STATUS_ORDER.indexOf(task.status);
+  [...el.children].forEach((opt, i) => opt.classList.toggle('is-active', i === state.statusPopoverIndex));
   const rect = anchorEl.getBoundingClientRect();
   el.hidden = false;
   const { top, left } = clampPopoverPosition(rect, el.offsetWidth, el.offsetHeight, window.innerWidth, window.innerHeight);
@@ -1659,32 +1638,32 @@ function openStatusPopover(task, anchorEl) {
 function createStatusCheck(task) {
   const check = document.createElement('button');
   check.type = 'button';
-  check.className = `status-check is-${task.status.replace(/_/g, '-')}` + (task.id === justChangedId ? ' is-popping' : '');
+  check.className = `status-check is-${task.status.replace(/_/g, '-')}` + (task.id === state.justChangedId ? ' is-popping' : '');
   check.setAttribute('aria-label', 'Change status');
   check.innerHTML = task.status === 'done' ? '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>'
     : task.status === 'in_progress' ? '<svg class="i" aria-hidden="true"><use href="#i-minus"/></svg>' : '';
   check.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (statusPopoverTask === task && statusPopoverEl && !statusPopoverEl.hidden) { closeStatusPopover(); return; }
+    if (state.statusPopoverTask === task && state.statusPopoverEl && !state.statusPopoverEl.hidden) { closeStatusPopover(); return; }
     openStatusPopover(task, check);
   });
   return check;
 }
 
 document.addEventListener('click', (e) => {
-  if (statusPopoverEl && !statusPopoverEl.hidden && !statusPopoverEl.contains(e.target) && !e.target.closest('.status-check, .status-value')) {
+  if (state.statusPopoverEl && !state.statusPopoverEl.hidden && !state.statusPopoverEl.contains(e.target) && !e.target.closest('.status-check, .status-value')) {
     closeStatusPopover();
   }
 });
 document.addEventListener('keydown', (e) => {
-  if (!statusPopoverEl || statusPopoverEl.hidden) return;
+  if (!state.statusPopoverEl || state.statusPopoverEl.hidden) return;
   if (e.key === 'Escape') { closeStatusPopover(); return; }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
-    statusPopoverIndex = (statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
-    [...statusPopoverEl.children].forEach((opt, i) => opt.classList.toggle('is-active', i === statusPopoverIndex));
+    state.statusPopoverIndex = (state.statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
+    [...statusPopoverEl.children].forEach((opt, i) => opt.classList.toggle('is-active', i === state.statusPopoverIndex));
   }
-  if (e.key === 'Enter') { statusPopoverEl.children[statusPopoverIndex].click(); }
+  if (e.key === 'Enter') { state.statusPopoverEl.children[state.statusPopoverIndex].click(); }
 });
 
 const dialogSubjectBtn = document.querySelector('#dialog-subject-btn');
@@ -1698,9 +1677,9 @@ function updateDialogSubject(task) {
   dialogSubjectDropdown.hidden = true;
 }
 function selectSubject(code) {
-  if (!currentTask) return;
-  currentTask.subject = code;
-  updateDialogSubject(currentTask);
+  if (!state.currentTask) return;
+  state.currentTask.subject = code;
+  updateDialogSubject(state.currentTask);
   autosave();
 }
 [''].concat(Object.keys(SUBJECTS)).forEach((code) => {
@@ -1744,8 +1723,6 @@ document.addEventListener('click', (e) => {
 const quickOverlay = document.querySelector('#quick-overlay');
 const quickInput = document.querySelector('#quick-input');
 const quickPreview = document.querySelector('#quick-preview');
-let quickReturnFocus = null;
-let quickPicked = { date: null, time: null };
 
 // Splits on spaces but keeps "not started" and "in progress" as one word.
 function quickWords(text) {
@@ -1764,16 +1741,10 @@ function isDateWord(w) {
   return /^(\d{1,2})[\/-](\d{1,2})$/.test(w) || ['today', 'tmr', 'tomorrow'].includes(l) || lookup(WEEKDAYS, l) !== undefined;
 }
 
-function formatTime(t) {
-  const [h, m] = t.split(':').map(Number);
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-}
 
 function openQuickPicker(kind) {
   const p = parseQuickAdd(quickInput.value);
-  const chip = quickChipEls.find((c) => c.dataset.type === (kind === 'time' ? 'time' : 'pick'));
+  const chip = state.quickChipEls.find((c) => c.dataset.type === (kind === 'time' ? 'time' : 'pick'));
   openDuePicker({
     anchor: chip || quickInput,
     focus: kind,
@@ -1781,7 +1752,7 @@ function openQuickPicker(kind) {
     time: p.dueTime || null,
     onChange: ({ date, time }) => {
       if (!date) { clearQuickDue(false); return; }
-      quickPicked = { date, time };
+      state.quickPicked = { date, time };
       renderQuickPreview();
     },
     onDone: () => quickInput.focus(),
@@ -1789,7 +1760,7 @@ function openQuickPicker(kind) {
 }
 
 function clearQuickDue(refocus = true) {
-  quickPicked = { date: null, time: null };
+  state.quickPicked = { date: null, time: null };
   const kept = quickWords(quickInput.value).filter((w) => !isDateWord(w) && !parseTimeWord(w));
   quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
   closeDuePicker();
@@ -1825,15 +1796,13 @@ function parseQuickAdd(text) {
       rest.push(word);
     }
   });
-  if (quickPicked.date) { out.dueDate = quickPicked.date; out.dueTime = quickPicked.time || undefined; }   // picker wins
+  if (state.quickPicked.date) { out.dueDate = state.quickPicked.date; out.dueTime = state.quickPicked.time || undefined; }   // picker wins
   if (!out.dueDate) out.dueTime = undefined;              // time needs a date
   out.status = out.status || 'not_started';
   out.title = (rest.join(' ') || (out.subject ? `${out.subject} task` : 'New Task')).slice(0, 500);
   return out;
 }
 
-let quickPrev = { subject: '', status: '', due: '' };
-let quickChipEls = [];
 
 function quickText(text, cls) {
   const s = document.createElement('span');
@@ -1855,13 +1824,13 @@ function quickField(label, content, changed) {
 
 function renderQuickPreview() {
   quickPreview.replaceChildren();
-  const p = (quickInput.value.trim() || quickPicked.date) ? parseQuickAdd(quickInput.value) : null;
+  const p = (quickInput.value.trim() || state.quickPicked.date) ? parseQuickAdd(quickInput.value) : null;
   const next = {
     subject: p ? p.subject : '',
     status: p && p.typedStatus ? p.status : '',
     due: p && p.dueDate ? toInputValue(p.dueDate) + (p.dueTime || '') : '',
   };
-  const changed = (k) => next[k] !== '' && next[k] !== quickPrev[k];
+  const changed = (k) => next[k] !== '' && next[k] !== state.quickPrev[k];
   let dueNode = null;
   if (p && p.dueDate) {
     dueNode = document.createElement('span');
@@ -1878,7 +1847,7 @@ function renderQuickPreview() {
     quickField('Status', p ? quickText(STATUS_LABELS[p.status], 'quick-chip') : null, changed('status')),
     quickField('Due', dueNode, changed('due'))
   );
-  quickPrev = next;
+  state.quickPrev = next;
   syncQuickChips(p);
   const hasText = !!quickInput.value.trim();
   document.querySelector('#quick-add-btn').disabled = !hasText;
@@ -1888,7 +1857,7 @@ function renderQuickPreview() {
 function renderQuickChips() {
   const host = document.querySelector('#quick-chips');
   host.replaceChildren();
-  quickChipEls = [];
+  state.quickChipEls = [];
   const groups = [
     ['Subject', Object.keys(SUBJECTS).map((code) => ({ type: 'subject', code }))],
     ['Status', [['ns', 'Not started', 'ns'], ['ip', 'In progress', 'ip'], ['dn', 'Done', 'dn']].map(([code, label, shown]) => ({ type: 'status', code, label, shown }))],
@@ -1922,21 +1891,21 @@ function renderQuickChips() {
       }
       btn.addEventListener('click', () => applyQuickToken(type, code));
       group.appendChild(btn);
-      quickChipEls.push(btn);
+      state.quickChipEls.push(btn);
     });
     host.appendChild(group);
   });
 }
 
 function syncQuickChips(p) {
-  quickChipEls.forEach((el) => {
+  state.quickChipEls.forEach((el) => {
     const { type, code } = el.dataset;
     let on = false;
     if (p) {
       if (type === 'subject') on = p.subject === code;
       else if (type === 'status') on = p.typedStatus && p.status === STATUS_CODES[code];
-      else if (type === 'date') on = !!p.dueDate && !quickPicked.date && dayDiff(p.dueDate) === (code === 'today' ? 0 : 1);
-      else if (type === 'pick') on = !!quickPicked.date;
+      else if (type === 'date') on = !!p.dueDate && !state.quickPicked.date && dayDiff(p.dueDate) === (code === 'today' ? 0 : 1);
+      else if (type === 'pick') on = !!state.quickPicked.date;
       else if (type === 'time') on = !!p.dueTime;
     }
     if (type === 'clear') el.hidden = !(p && p.dueDate);
@@ -1955,8 +1924,8 @@ function applyQuickToken(type, code) {
     status: (w) => !!lookup(STATUS_CODES, w.toLowerCase()),
     date: isDateWord,
   }[type];
-  const wasOn = quickChipEls.some((c) => c.dataset.type === type && c.dataset.code === code && c.classList.contains('is-selected'));
-  if (type === 'date') quickPicked.date = null;
+  const wasOn = state.quickChipEls.some((c) => c.dataset.type === type && c.dataset.code === code && c.classList.contains('is-selected'));
+  if (type === 'date') state.quickPicked.date = null;
   const kept = quickWords(quickInput.value).filter((w) => !isToken(w));
   if (!wasOn) { if (type === 'subject') kept.unshift(code); else kept.push(code); }
   quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
@@ -1966,11 +1935,11 @@ function applyQuickToken(type, code) {
 
 function openQuickAdd() {
   if (!dialogOverlay.hidden && !dialogOverlay.classList.contains('is-closing')) return;
-  quickReturnFocus = document.activeElement;
+  state.quickReturnFocus = document.activeElement;
   quickInput.value = '';
-  quickPicked = { date: null, time: null };
+  state.quickPicked = { date: null, time: null };
   closeDuePicker();
-  quickPrev = { subject: '', status: '', due: '' };
+  state.quickPrev = { subject: '', status: '', due: '' };
   renderQuickChips();
   renderQuickPreview();
   quickOverlay.classList.remove('is-closing');
@@ -1981,7 +1950,7 @@ function openQuickAdd() {
 function closeQuickAdd() {
   closeDuePicker();
   hideAnimated(quickOverlay, 120);
-  if (quickReturnFocus && quickReturnFocus.focus) quickReturnFocus.focus();
+  if (state.quickReturnFocus && state.quickReturnFocus.focus) state.quickReturnFocus.focus();
 }
 
 document.querySelector('#quick-add-btn').addEventListener('click', () => submitQuickAdd(false));
@@ -1994,10 +1963,10 @@ function submitQuickAdd(openDetails) {
   const task = new Task({ title: p.title, subject: p.subject, dueDate: p.dueDate, dueTime: p.dueTime });
   myTasks.push(task);
   if (p.status !== 'not_started') setStatus(task, p.status);
-  else { justChangedId = task.id; saveTasks(); }
+  else { state.justChangedId = task.id; saveTasks(); }
   closeDuePicker();
   hideAnimated(quickOverlay, 120);
-  if (searchQuery) { searchQuery = ''; document.querySelector('#task-search').value = ''; }
+  if (state.searchQuery) { state.searchQuery = ''; document.querySelector('#task-search').value = ''; }
   setPage('my-tasks');
   renderAllTasks();
   if (openDetails) openTaskDialog(task, null, false);
@@ -2023,7 +1992,7 @@ quickOverlay.addEventListener('click', (e) => { if (e.target === quickOverlay) c
 function renderPublicAnnouncements() {
   const list = document.querySelector('#announce-list-public');
   if (!list) return;
-  const items = (previewing || isAdmin) ? announcements : publishedAnnouncements;
+  const items = (state.previewing || state.isAdmin) ? state.announcements : state.publishedAnnouncements;
   list.replaceChildren();
   if (!items.length) {
     const empty = document.createElement('li');
@@ -2051,7 +2020,6 @@ function renderPublicAnnouncements() {
 const announceList = document.querySelector('#announce-list');
 const announceForm = document.querySelector('#announce-form');
 const announceInput = document.querySelector('#announce-input');
-let announcements = [];
 const announceCount = document.querySelector('#announce-count');
 const ANNOUNCE_MAX = 280;
 
@@ -2165,14 +2133,14 @@ function saveAnnouncements() { saveTasks(); updateAdminBar(diffDraft()); }
 function renderAnnouncements() {
   renderPublicAnnouncements();
   announceList.replaceChildren();
-  if (!announcements.length) {
+  if (!state.announcements.length) {
     const empty = document.createElement('li');
     empty.className = 'announce-empty';
     empty.textContent = 'No pinned announcements.';
     announceList.appendChild(empty);
     return;
   }
-  announcements.forEach((a) => {
+  state.announcements.forEach((a) => {
     const li = document.createElement('li');
     li.className = 'announce-item';
     const text = document.createElement('p');
@@ -2187,12 +2155,12 @@ function renderAnnouncements() {
     del.setAttribute('aria-label', 'Remove announcement');
     del.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
     del.addEventListener('click', () => {
-      const index = announcements.indexOf(a);
-      announcements.splice(index, 1);
+      const index = state.announcements.indexOf(a);
+      state.announcements.splice(index, 1);
       saveAnnouncements();
       renderAnnouncements();
       showToast('Announcement removed', 'Undo', () => {
-        announcements.splice(Math.min(index, announcements.length), 0, a);
+        state.announcements.splice(Math.min(index, state.announcements.length), 0, a);
         saveAnnouncements();
         renderAnnouncements();
       });
@@ -2218,7 +2186,7 @@ announceForm.addEventListener('submit', (e) => {
   if (!text) return;
   if (text.length > ANNOUNCE_MAX) { showToast(`Announcement is ${text.length - ANNOUNCE_MAX} characters over the limit`); return; }
   if (html.length > 8000) { showToast('Too much formatting in this announcement'); return; }
-  announcements.unshift({ id: Math.random().toString(36).slice(2, 10), text, html, createdAt: Date.now() });
+  state.announcements.unshift({ id: Math.random().toString(36).slice(2, 10), text, html, createdAt: Date.now() });
   saveAnnouncements();
   renderAnnouncements();
   toggleAnnounceForm(false);
@@ -2233,7 +2201,7 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target;
   if (t instanceof Element && t.closest('input, textarea, select, [contenteditable]')) return;
-  if (!isAdmin || !dialogOverlay.hidden || !quickOverlay.hidden || !tourOverlay.hidden) return;
+  if (!state.isAdmin || !dialogOverlay.hidden || !quickOverlay.hidden || !tourOverlay.hidden) return;
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openQuickAdd(); }
   if (e.key === '/') { e.preventDefault(); setPage('my-tasks'); document.querySelector('#task-search').focus(); }
 });
@@ -2244,22 +2212,20 @@ function formatDateText(d) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-let dpEl = null;
-let dpState = null;
 
 function closeDuePicker(reason) {
-  if (!dpEl) return;
-  const done = dpState && dpState.onDone;
-  const el = dpEl;
-  dpEl = null;
-  dpState = null;
+  if (!state.dpEl) return;
+  const done = state.dpState && state.dpState.onDone;
+  const el = state.dpEl;
+  state.dpEl = null;
+  state.dpState = null;
   el.remove();
   if (done && (reason === 'esc' || reason === 'done')) done();
 }
 
 // opts: { anchor, focus: 'date'|'time', date, time, onChange({date, time}), onDone }
 function openDuePicker(opts) {
-  if (dpEl && dpState.anchor === opts.anchor && dpState.focus === opts.focus) { closeDuePicker(); return; }
+  if (state.dpEl && state.dpState.anchor === opts.anchor && state.dpState.focus === opts.focus) { closeDuePicker(); return; }
   closeDuePicker();
 
   const s = {
@@ -2372,8 +2338,8 @@ function openDuePicker(opts) {
   $('.dp-clear').addEventListener('click', () => { s.date = null; s.time = null; emit(); closeDuePicker(); });
 
   document.body.appendChild(el);
-  dpEl = el;
-  dpState = s;
+  state.dpEl = el;
+  state.dpState = s;
   syncFields();
   renderGrid();
   
@@ -2392,14 +2358,14 @@ function openDuePicker(opts) {
 
 // Esc closes only the picker (capture phase so the dialog / quick add stay open)
 document.addEventListener('keydown', (e) => {
-  if (dpEl && e.key === 'Escape') {
+  if (state.dpEl && e.key === 'Escape') {
     e.preventDefault();
     e.stopPropagation();
     closeDuePicker('esc');
   }
 }, true);
 document.addEventListener('click', (e) => {
-  if (dpEl && !dpEl.contains(e.target) && !dpState.anchor.contains(e.target)) closeDuePicker();
+  if (state.dpEl && !state.dpEl.contains(e.target) && !state.dpState.anchor.contains(e.target)) closeDuePicker();
 });
 
 // --- Sidebar collapse ---
@@ -2422,7 +2388,7 @@ setSidebarCollapsed(document.documentElement.dataset.sidebar === 'collapsed', fa
 
 // --- Navigation ---
 function setPage(pageName, updateHash = true) {
-  const activeItem = navItems.find((item) => item.dataset.page === (pageName === 'my-tasks' && !isAdmin ? 'class-tasks' : pageName)) || navItems[0];
+  const activeItem = navItems.find((item) => item.dataset.page === (pageName === 'my-tasks' && !state.isAdmin ? 'class-tasks' : pageName)) || navItems[0];
   const activePageName = activeItem.dataset.page;
   const activePage = pages.find((page) => page.dataset.pageView === activePageName);
 
@@ -2450,7 +2416,7 @@ function setPage(pageName, updateHash = true) {
 navItems.forEach((item) => {
   item.addEventListener('click', (event) => {
     event.preventDefault();
-    if (previewing) setPreview(false);
+    if (state.previewing) setPreview(false);
     setPage(item.dataset.page, 'push');
   });
 });
@@ -2458,8 +2424,8 @@ navItems.forEach((item) => {
 // Deep links: follow hash edits, pasted links, and Back/Forward navigation.
 const NAV_PAGES = navItems.map((item) => item.dataset.page);
 window.addEventListener('hashchange', () => {
-  if (previewing) setPreview(false);
-  setPage(pageFromHash(window.location.hash, NAV_PAGES, isAdmin), false);
+  if (state.previewing) setPreview(false);
+  setPage(pageFromHash(window.location.hash, NAV_PAGES, state.isAdmin), false);
 });
 
    // --- Phone sidebar: scrim, Escape, focus ---
@@ -2490,18 +2456,16 @@ window.addEventListener('hashchange', () => {
    setSidebarOpen(false, false);
 
 // --- Admin: diff, checkpoints, publish, history, import/export, preview ---
-let lastSavedAt = null;
 const $ = (sel) => document.querySelector(sel);
 const publishOverlay = $('#publish-overlay');
 const historyOverlay = $('#history-overlay');
 
-const snapshot = () => ({ tasks: myTasks.map((t) => t.toJSON()), announcements: JSON.parse(JSON.stringify(announcements)) });
-const fmtWhen = (ts) => new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const snapshot = () => ({ tasks: myTasks.map((t) => t.toJSON()), announcements: JSON.parse(JSON.stringify(state.announcements)) });
 const describeDiff = (d) => [d.added && `${d.added} added`, d.edited && `${d.edited} edited`, d.removed && `${d.removed} removed`, d.ann && 'announcements changed'].filter(Boolean).join(', ') || 'No changes';
 
 function diffDraft() {
   const defs = (list) => new Map(list.map((t) => [t.id, JSON.stringify(t.toJSON())]));
-  const pub = defs(publishedTasks);
+  const pub = defs(state.publishedTasks);
   const cur = defs(myTasks);
   const changed = new Set();
   let added = 0, edited = 0, removed = 0;
@@ -2510,15 +2474,15 @@ function diffDraft() {
     else if (pub.get(id) !== json) { edited++; changed.add(id); }
   });
   pub.forEach((_, id) => { if (!cur.has(id)) removed++; });
-  const ann = JSON.stringify(announcements) !== JSON.stringify(publishedAnnouncements);
+  const ann = JSON.stringify(state.announcements) !== JSON.stringify(state.publishedAnnouncements);
   return { added, edited, removed, ann, changed, total: added + edited + removed + (ann ? 1 : 0) };
 }
 
 function updateAdminBar(diff) {
-  if (!isAdmin) return;
+  if (!state.isAdmin) return;
   $('#admin-status').textContent = [
     diff.total ? `Unpublished changes: ${diff.total}` : 'No unpublished changes',
-    lastSavedAt && `Saved ${new Date(lastSavedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+    state.lastSavedAt && `Saved ${new Date(state.lastSavedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
   ].filter(Boolean).join(' · ');
   $('#btn-apply').disabled = !diff.total;
   $('#btn-discard').disabled = !diff.total;
@@ -2527,7 +2491,7 @@ function updateAdminBar(diff) {
 function restoreDraft(snap) {
   myTasks.length = 0;
   (snap.tasks || []).forEach((o) => myTasks.push(Task.fromJSON(o)));
-  announcements = snap.announcements ? JSON.parse(JSON.stringify(snap.announcements)) : [];
+  state.announcements = snap.announcements ? JSON.parse(JSON.stringify(snap.announcements)) : [];
   applyProgress(myTasks);
   saveTasks();
   renderAllTasks();
@@ -2538,13 +2502,13 @@ function saveCheckpoint() {
   const list = readJSON(KEYS.checkpoints, []);
   list.unshift({ at: Date.now(), ...snapshot() });
   if (!writeJSON(KEYS.checkpoints, list.slice(0, 20))) { showToast('Storage is full. Checkpoint not saved.'); return; }
-  lastSavedAt = Date.now();
+  state.lastSavedAt = Date.now();
   updateAdminBar(diffDraft());
   showToast('Checkpoint saved');
 }
 
 function setPreview(on) {
-  previewing = on;
+  state.previewing = on;
   $('#preview-banner').hidden = !on;
   if (on) setPage('class-tasks');
   renderAllTasks();
@@ -2553,7 +2517,7 @@ function setPreview(on) {
 
 // Clear-board mode: the draft has no tasks but the live board does. Publishing then needs the typed phrase, and the request carries an explicit clearBoard intent (the server refuses a bare empty publish).
 const CLEAR_PHRASE = 'CLEAR BOARD';
-const isClearBoardPublish = () => myTasks.length === 0 && publishedTasks.length > 0;
+const isClearBoardPublish = () => myTasks.length === 0 && state.publishedTasks.length > 0;
 const clearPhraseOk = () => $('#publish-clear-input').value.trim() === CLEAR_PHRASE;
 function syncPublishClear() {
   const clear = isClearBoardPublish();
@@ -2567,7 +2531,7 @@ function openPublishDialog() {
   const d = diffDraft();
   if (!d.total) { showToast('Nothing to publish'); return; }
   const undated = myTasks.filter((t) => !t.dueDate).length;
-  const n = publishedTasks.length;
+  const n = state.publishedTasks.length;
   $('#publish-summary').textContent = isClearBoardPublish()
     ? `This removes all ${n} published assignment${n === 1 ? '' : 's'} from the class board.` + (d.ann ? ' Announcement changes stay unpublished.' : '')
     : `${describeDiff(d)}.` + (undated ? ` ${undated} task${undated === 1 ? ' has' : 's have'} no due date.` : '');
@@ -2593,7 +2557,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
   try {
     const note = $('#publish-note').value.trim();
     const body = clearing
-      ? { tasks: [], announcements: [], note, clearBoard: { confirm: CLEAR_PHRASE, expectedCount: publishedTasks.length } }
+      ? { tasks: [], announcements: [], note, clearBoard: { confirm: CLEAR_PHRASE, expectedCount: state.publishedTasks.length } }
       : { ...snapshot(), note };
     const res = await fetch(API.publish, {
       method: 'POST',
@@ -2620,7 +2584,6 @@ $('#publish-form').addEventListener('submit', async (e) => {
 });
 
 // History
-let serverVersions = [];
 function renderHistory() {
   const list = $('#history-list');
   const items = [
@@ -2680,7 +2643,7 @@ function renderHistory() {
         try {
           const res = await fetch(API.versions, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) });
           if (!res.ok) throw new Error();
-          serverVersions = serverVersions.filter((v) => v.id !== it.id);
+          state.serverVersions = state.serverVersions.filter((v) => v.id !== it.id);
         } catch (ex) { showToast('Could not delete that version'); return; }
       }
       renderHistory();
@@ -2696,7 +2659,7 @@ async function loadVersions() {
     const res = await fetch(API.versions, { cache: 'no-store' });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || 'Could not load versions');
-    serverVersions = out.versions;
+    state.serverVersions = out.versions;
   } catch (ex) { showToast(ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message); }
   renderHistory();
 }
@@ -2710,16 +2673,15 @@ $('#btn-history').addEventListener('click', () => {
   loadVersions();
 });
 
-let clearTimer = null;
 $('#history-clear').addEventListener('click', async (e) => {
   const btn = e.currentTarget;
   if (!btn.dataset.armed) {
     btn.dataset.armed = '1';
     btn.textContent = 'Click again to confirm';
-    clearTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Clear all history'; }, 4000);
+    state.clearTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Clear all history'; }, 4000);
     return;
   }
-  clearTimeout(clearTimer);
+  clearTimeout(state.clearTimer);
   delete btn.dataset.armed;
   btn.textContent = 'Clear all history';
   btn.disabled = true;
@@ -2727,7 +2689,7 @@ $('#history-clear').addEventListener('click', async (e) => {
   try {
     const res = await fetch(API.versions, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true }) });
     if (!res.ok) throw new Error();
-    serverVersions = [];
+    state.serverVersions = [];
     showToast('History cleared');
   } catch (ex) { showToast('Checkpoints cleared. Server versions could not be.'); }
   btn.disabled = false;
@@ -2745,18 +2707,18 @@ $('#btn-preview').addEventListener('click', () => setPreview(true));
 $('#preview-exit').addEventListener('click', () => setPreview(false));
 $('#btn-discard').addEventListener('click', () => {
   const before = snapshot();
-  restoreDraft({ tasks: publishedTasks.map((t) => t.toJSON()), announcements: publishedAnnouncements });
+  restoreDraft({ tasks: state.publishedTasks.map((t) => t.toJSON()), announcements: state.publishedAnnouncements });
   showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
 });
 
 // Duplicate (task dialog)
 dialogDuplicate.addEventListener('click', () => {
-  if (!currentTask || !isEditable(currentTask)) return;
-  const source = currentTask;
+  if (!state.currentTask || !isEditable(state.currentTask)) return;
+  const source = state.currentTask;
   closeTaskDialog();
   const copy = Task.fromJSON({ ...source.toJSON(), id: undefined, title: `${source.title} (copy)` });
   myTasks.push(copy);
-  justChangedId = copy.id;
+  state.justChangedId = copy.id;
   saveTasks();
   renderAllTasks();
   openTaskDialog(copy);
@@ -2764,7 +2726,7 @@ dialogDuplicate.addEventListener('click', () => {
 
 // Shortcuts: Ctrl/Cmd+S = checkpoint, Ctrl/Cmd+Enter = apply
 document.addEventListener('keydown', (e) => {
-  if (!isAdmin || !(e.metaKey || e.ctrlKey)) return;
+  if (!state.isAdmin || !(e.metaKey || e.ctrlKey)) return;
   const typing = e.target instanceof Element && e.target.closest('input, textarea, [contenteditable]');
   if (e.key.toLowerCase() === 's') { e.preventDefault(); saveCheckpoint(); }
   if (e.key === 'Enter' && !typing && dialogOverlay.hidden && quickOverlay.hidden && tourOverlay.hidden) { e.preventDefault(); openPublishDialog(); }
@@ -2797,12 +2759,12 @@ function showResetConfirm(show, focus = true) {
 function openSettings() {
   setSidebarOpen(false, false);
   showResetConfirm(false, false);
-  $('#settings-logout-row').hidden = !isAdmin;
-  $('#settings-login-row').hidden = isAdmin || !adminHint();
+  $('#settings-logout-row').hidden = !state.isAdmin;
+  $('#settings-login-row').hidden = state.isAdmin || !adminHint();
   settingsOverlay.classList.remove('is-closing');
   settingsOverlay.hidden = false;
   $('#settings-close').focus();
-  document.getElementById('reset-admin-note').hidden = !isAdmin;
+  document.getElementById('reset-admin-note').hidden = !state.isAdmin;
 }
 
 function closeSettings() {
@@ -2836,8 +2798,8 @@ async function logoutAdmin() {
     return;
   }
   try { localStorage.setItem(SIGNED_OUT_KEY, '1'); } catch (e) {}
-  isAdmin = false;
-  previewing = false;
+  state.isAdmin = false;
+  state.previewing = false;
   const params = new URLSearchParams(location.search);
   params.delete('admin');
   const query = params.toString();
@@ -2895,15 +2857,12 @@ const TOUR_STEPS = [
     target: () => tourVisible($('#page-class-tasks .view-tabs')) },
   { title: 'You are set', body: 'Your progress is saved in this browser only. Completed tasks and Calendar are in the sidebar menu. You can replay this tour from Settings.' },
 ];
-let tourIndex = -1;
-let tourTimer = null;
-let tourSampleStatus = 'not_started';
 
 function tourSeen() { try { return localStorage.getItem(TOUR_KEY) === '1'; } catch (e) { return true; } }
-const tourTarget = () => { const s = TOUR_STEPS[tourIndex]; return s && s.target ? s.target() : null; };
+const tourTarget = () => { const s = TOUR_STEPS[state.tourIndex]; return s && s.target ? s.target() : null; };
 
 function renderTourSample() {
-  const s = tourSampleStatus;
+  const s = state.tourSampleStatus;
   const card = document.createElement('article');
   card.className = 'task-card tour-sample-card';
   card.dataset.status = s;
@@ -2944,7 +2903,7 @@ function renderTourSample() {
       opt.innerHTML = `<span class="status-dot dot-${st.replace(/_/g, '-')}"></span> ${STATUS_LABELS[st]}`;
       opt.addEventListener('click', () => {
         closeMenu(false);
-        tourSampleStatus = st;
+        state.tourSampleStatus = st;
         renderTourSample();
         tourSample.querySelector('.status-check').focus();
       });
@@ -2970,10 +2929,10 @@ function renderTourSample() {
   head.append(check, title);
   const foot = document.createElement('div');
   foot.className = 'task-card-footer';
-  const state = document.createElement('span');
-  state.className = 'due-badge';
-  state.textContent = STATUS_LABELS[s];
-  foot.append(createSubjectTag('GENMATH'), state);
+  const dueBadge = document.createElement('span');
+  dueBadge.className = 'due-badge';
+  dueBadge.textContent = STATUS_LABELS[s];
+  foot.append(createSubjectTag('GENMATH'), dueBadge);
   card.append(head, foot);
   tourSample.replaceChildren(card);
 }
@@ -3004,14 +2963,14 @@ function placeTour(el) {
 }
 
 function showTourStep(i) {
-  tourIndex = i;
+  state.tourIndex = i;
   const step = TOUR_STEPS[i];
   const last = i === TOUR_STEPS.length - 1;
   $('#tour-step').textContent = `Step ${i + 1} of ${TOUR_STEPS.length}`;
   $('#tour-title').textContent = step.title;
   $('#tour-body').textContent = step.body;
   tourSample.hidden = !step.sample;
-  if (step.sample) { tourSampleStatus = 'not_started'; renderTourSample(); }
+  if (step.sample) { state.tourSampleStatus = 'not_started'; renderTourSample(); }
   $('#tour-back').hidden = i === 0;
   $('#tour-skip').hidden = last;
   $('#tour-next').textContent = last ? 'Done' : 'Next';
@@ -3023,7 +2982,7 @@ function showTourStep(i) {
 
 function startTour() {
   if (!tourOverlay.hidden) return;
-  if (previewing) setPreview(false);
+  if (state.previewing) setPreview(false);
   setPage('class-tasks');
   setSidebarOpen(false, false);
   tourOverlay._returnFocus = document.activeElement;
@@ -3032,27 +2991,27 @@ function startTour() {
   document.body.style.overflow = 'hidden';
   showTourStep(0);
   // Layout can shift while the board loads, so keep the spotlight on its target.
-  clearInterval(tourTimer);
-  tourTimer = setInterval(() => { if (tourIndex >= 0) placeTour(tourTarget()); }, 400);
+  clearInterval(state.tourTimer);
+  state.tourTimer = setInterval(() => { if (state.tourIndex >= 0) placeTour(tourTarget()); }, 400);
 }
 
 function endTour() {
   if (tourOverlay.hidden || tourOverlay.classList.contains('is-closing')) return;
   try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) {}
-  clearInterval(tourTimer);
-  tourTimer = null;
-  tourIndex = -1;
+  clearInterval(state.tourTimer);
+  state.tourTimer = null;
+  state.tourIndex = -1;
   document.body.style.overflow = '';
   hideAnimated(tourOverlay);
 }
 
 $('#tour-next').addEventListener('click', () => {
-  if (tourIndex >= TOUR_STEPS.length - 1) endTour(); else showTourStep(tourIndex + 1);
+  if (state.tourIndex >= TOUR_STEPS.length - 1) endTour(); else showTourStep(state.tourIndex + 1);
 });
-$('#tour-back').addEventListener('click', () => { if (tourIndex > 0) showTourStep(tourIndex - 1); });
+$('#tour-back').addEventListener('click', () => { if (state.tourIndex > 0) showTourStep(state.tourIndex - 1); });
 $('#tour-skip').addEventListener('click', endTour);
 $('#settings-replay').addEventListener('click', () => { closeSettings(); startTour(); });
-window.addEventListener('resize', () => { if (tourIndex >= 0) placeTour(tourTarget()); });
+window.addEventListener('resize', () => { if (state.tourIndex >= 0) placeTour(tourTarget()); });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !tourOverlay.hidden && !tourOverlay.classList.contains('is-closing')) endTour();
 });
@@ -3077,20 +3036,14 @@ const INCOMING_TRANSFER = takeTransferToken();
 
 const transferOverlay = $('#transfer-overlay');
 const importOverlay = $('#import-overlay');
-let activeTransfer = null;   // { token, expiresAt } on this device's clock
-let transferTimer = null;
-let transferBusy = false;
-let transferQrOk = false;
-let pendingImport = null;
 
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const transferHeaders = { 'Content-Type': 'application/json' };
 
 // ---- Sending ----
 function buildTransferPayload() {
-  const payload = { v: 1, progress };
-  if (isAdmin) {
-    const draft = { tasks: myTasks.map((t) => t.toJSON()), announcements };
+  const payload = { v: 1, progress: state.progress };
+  if (state.isAdmin) {
+    const draft = { tasks: myTasks.map((t) => t.toJSON()), announcements: state.announcements };
     if (JSON.stringify(draft).length < 700000) payload.draft = draft;
   }
   return payload;
@@ -3102,14 +3055,14 @@ function transferUrl(token) {
 
 function setTransferView(view, message) {
   const ready = view === 'ready';
-  $('#transfer-qr-frame').hidden = !ready || !transferQrOk;
+  $('#transfer-qr-frame').hidden = !ready || !state.transferQrOk;
   $('#transfer-link-row').hidden = !ready;
   $('#transfer-cancel-link').hidden = !ready;
   $('#transfer-new').hidden = !(view === 'expired' || view === 'cancelled' || view === 'error');
   $('#transfer-error').hidden = view !== 'error';
   if (view === 'error') $('#transfer-error').textContent = message || 'Something went wrong.';
   $('#transfer-intro').textContent = ready
-    ? (transferQrOk
+    ? (state.transferQrOk
       ? 'Scan this code or open the link on your other device. It works for 10 minutes.'
       : 'The QR code could not be drawn. Open the link on your other device. It works for 10 minutes.')
     : view === 'loading' ? 'Creating a link for your progress.'
@@ -3121,12 +3074,12 @@ function setTransferView(view, message) {
 }
 
 function tickTransfer() {
-  if (!activeTransfer) return;
-  const left = Math.max(0, Math.ceil((activeTransfer.expiresAt - Date.now()) / 1000));
+  if (!state.activeTransfer) return;
+  const left = Math.max(0, Math.ceil((state.activeTransfer.expiresAt - Date.now()) / 1000));
   if (left === 0) {
-    clearInterval(transferTimer);
-    transferTimer = null;
-    activeTransfer = null;
+    clearInterval(state.transferTimer);
+    state.transferTimer = null;
+    state.activeTransfer = null;
     setTransferView('expired');
     actionFeedback.textContent = 'Transfer link expired.';
     return;
@@ -3135,18 +3088,18 @@ function tickTransfer() {
 }
 
 function showTransferLink() {
-  const url = transferUrl(activeTransfer.token);
+  const url = transferUrl(state.activeTransfer.token);
   $('#transfer-link').value = url;
-  transferQrOk = typeof window.drawTransferQR === 'function' && window.drawTransferQR($('#transfer-qr'), url, { size: 240 });
+  state.transferQrOk = typeof window.drawTransferQR === 'function' && window.drawTransferQR($('#transfer-qr'), url, { size: 240 });
   setTransferView('ready');
   tickTransfer();
-  clearInterval(transferTimer);
-  transferTimer = setInterval(tickTransfer, 1000);
+  clearInterval(state.transferTimer);
+  state.transferTimer = setInterval(tickTransfer, 1000);
 }
 
 async function createTransfer() {
-  if (transferBusy) return;
-  transferBusy = true;
+  if (state.transferBusy) return;
+  state.transferBusy = true;
   setTransferView('loading');
   try {
     const res = await fetch(TRANSFER_API, {
@@ -3156,31 +3109,31 @@ async function createTransfer() {
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || 'Could not create the link.');
     if (!TRANSFER_TOKEN_RE.test(out.token || '') || !Number.isFinite(out.expiresIn)) throw new Error('Unexpected response from the server.');
-    activeTransfer = { token: out.token, expiresAt: Date.now() + out.expiresIn * 1000 };
+    state.activeTransfer = { token: out.token, expiresAt: Date.now() + out.expiresIn * 1000 };
     if (!transferOverlay.hidden) showTransferLink();
   } catch (ex) {
     setTransferView('error', ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message);
-  } finally { transferBusy = false; }
+  } finally { state.transferBusy = false; }
 }
 
 async function cancelTransfer() {
-  if (!activeTransfer || transferBusy) return;
-  const token = activeTransfer.token;
+  if (!state.activeTransfer || state.transferBusy) return;
+  const token = state.activeTransfer.token;
   const btn = $('#transfer-cancel-link');
-  transferBusy = true;
+  state.transferBusy = true;
   btn.disabled = true;
   try {
     const res = await fetch(TRANSFER_API, { method: 'POST', headers: transferHeaders, body: JSON.stringify({ cancel: token }) });
     if (!res.ok) throw new Error();
-    clearInterval(transferTimer);
-    transferTimer = null;
-    activeTransfer = null;
+    clearInterval(state.transferTimer);
+    state.transferTimer = null;
+    state.activeTransfer = null;
     setTransferView('cancelled');
     actionFeedback.textContent = 'Transfer link cancelled.';
     $('#transfer-new').focus();
   } catch (ex) {
     showToast('Could not cancel the link. It still expires on its own.');
-  } finally { transferBusy = false; btn.disabled = false; }
+  } finally { state.transferBusy = false; btn.disabled = false; }
 }
 
 async function copyTransferLink() {
@@ -3202,13 +3155,13 @@ function openTransfer() {
   transferOverlay.classList.remove('is-closing');
   transferOverlay.hidden = false;
   $('#transfer-close').focus();
-  if (activeTransfer && activeTransfer.expiresAt > Date.now()) showTransferLink();
-  else { activeTransfer = null; createTransfer(); }
+  if (state.activeTransfer && state.activeTransfer.expiresAt > Date.now()) showTransferLink();
+  else { state.activeTransfer = null; createTransfer(); }
 }
 
 function closeTransfer() {
-  clearInterval(transferTimer);
-  transferTimer = null;
+  clearInterval(state.transferTimer);
+  state.transferTimer = null;
   hideAnimated(transferOverlay);
 }
 
@@ -3261,8 +3214,8 @@ function validateTransfer(p) {
 }
 
 function openImport(data) {
-  pendingImport = data;
-  const r = mergeProgress(progress, data.progress);
+  state.pendingImport = data;
+  const r = mergeProgress(state.progress, data.progress);
   const list = $('#import-summary');
   list.replaceChildren();
   const line = (text) => { const li = document.createElement('li'); li.textContent = text; list.appendChild(li); };
@@ -3270,9 +3223,9 @@ function openImport(data) {
   if (r.kept) line(`${plural(r.kept, 'task')} stay as they are here, because they changed more recently on this device.`);
 
   const hasDraft = !!data.draft;
-  $('#import-draft-row').hidden = !(hasDraft && isAdmin);
-  $('#import-draft-note').hidden = !(hasDraft && !isAdmin);
-  if (hasDraft && isAdmin) {
+  $('#import-draft-row').hidden = !(hasDraft && state.isAdmin);
+  $('#import-draft-note').hidden = !(hasDraft && !state.isAdmin);
+  if (hasDraft && state.isAdmin) {
     $('#import-draft-check').checked = true;
     $('#import-draft-text').textContent =
       `Replace my draft here (${plural(myTasks.length, 'task')}) with the draft from the other device (${plural(data.draft.tasks.length, 'task')}, ${plural(data.draft.announcements.length, 'announcement')}).`;
@@ -3283,22 +3236,22 @@ function openImport(data) {
 }
 
 function closeImport() {
-  pendingImport = null;
+  state.pendingImport = null;
   hideAnimated(importOverlay);
 }
 
 function applyImport() {
-  if (!pendingImport) return;
-  const data = pendingImport;
-  const before = { progress: JSON.parse(JSON.stringify(progress)), draft: isAdmin ? snapshot() : null };
-  progress = mergeProgress(progress, data.progress).merged;
+  if (!state.pendingImport) return;
+  const data = state.pendingImport;
+  const before = { progress: JSON.parse(JSON.stringify(state.progress)), draft: state.isAdmin ? snapshot() : null };
+  state.progress = mergeProgress(state.progress, data.progress).merged;
   applyProgress(myTasks);
-  applyProgress(publishedTasks);
-  const withDraft = !!(data.draft && isAdmin && $('#import-draft-check').checked);
+  applyProgress(state.publishedTasks);
+  const withDraft = !!(data.draft && state.isAdmin && $('#import-draft-check').checked);
   if (withDraft) {
     myTasks.length = 0;
     data.draft.tasks.forEach((o) => myTasks.push(Task.fromJSON(o)));
-    announcements = data.draft.announcements.map((a) => ({ ...a }));
+    state.announcements = data.draft.announcements.map((a) => ({ ...a }));
     applyProgress(myTasks);
   }
   saveTasks();
@@ -3306,9 +3259,9 @@ function applyImport() {
   renderAnnouncements();
   closeImport();
   showToast(withDraft ? 'Progress merged and draft replaced' : 'Progress merged', 'Undo', () => {
-    progress = before.progress;
+    state.progress = before.progress;
     applyProgress(myTasks);
-    applyProgress(publishedTasks);
+    applyProgress(state.publishedTasks);
     if (before.draft) restoreDraft(before.draft);
     else { saveTasks(); renderAllTasks(); }
   });
@@ -3362,9 +3315,9 @@ document.addEventListener('keydown', (e) => {
 
 // --- Initialization ---
 function renderAllTasks() {
-  if (isAdmin) {
+  if (state.isAdmin) {
     const diff = diffDraft();
-    changedIds = diff.changed;
+    state.changedIds = diff.changed;
     updateAdminBar(diff);
   }
   document.querySelectorAll('#page-my-tasks .column-content').forEach((content) => {
@@ -3381,14 +3334,14 @@ function renderAllTasks() {
   renderPastPage();
   renderCalendar();
   updateOverview();
-  if (staggerNext) {
+  if (state.staggerNext) {
     document.querySelectorAll('.kanban-board .task-card, .task-list .task-row').forEach((el, i) => {
       el.classList.add('is-entering');
       el.style.animationDelay = `${Math.min(i, 8) * 40}ms`;
     });
-    staggerNext = false;
+    state.staggerNext = false;
   }
-  justChangedId = null;
+  state.justChangedId = null;
   
 }
 
@@ -3401,28 +3354,28 @@ function init() {
     setView(scope, v === 'list' || v === 'board' ? v : VIEW_DEFAULTS[scope], false);
   });
   showSkeletons();
-  staggerNext = true;
+  state.staggerNext = true;
   loadPublished();
   setInterval(loadPublished, 300000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadPublished(); });
 
   
 
-  setPage(pageFromHash(window.location.hash, NAV_PAGES, isAdmin), false);
+  setPage(pageFromHash(window.location.hash, NAV_PAGES, state.isAdmin), false);
   if (INCOMING_TRANSFER) checkIncomingTransfer(INCOMING_TRANSFER);
   else if (!tourSeen()) setTimeout(startTour, 800);
 
   // Time-based overdue: re-render each minute unless something is open
   setInterval(() => {
-    const popoverOpen = statusPopoverEl && !statusPopoverEl.hidden;
+    const popoverOpen = state.statusPopoverEl && !state.statusPopoverEl.hidden;
     if (document.hidden || popoverOpen || !dialogOverlay.hidden || !quickOverlay.hidden) return;
     renderAllTasks();
   }, 60000);
 }
 
 async function start() {
-  isAdmin = await checkAdmin();
-  document.querySelector('#nav-admin').hidden = !isAdmin;
+  state.isAdmin = await checkAdmin();
+  document.querySelector('#nav-admin').hidden = !state.isAdmin;
   init();
 }
 
