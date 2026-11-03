@@ -1,0 +1,28 @@
+<!-- localStorage class_tasks_progress after moving fx002 to in_progress -->
+{
+  "fx002": {
+    "movedAt": 1793678400000,
+    "status": "in_progress"
+  }
+}
+
+<!-- the card that changed (#page-class-tasks .task-card[data-task-id="fx002"]) -->
+<article class="task-card is-entering" data-task-id="fx002" draggable="true" data-status="in_progress" tabindex="0">
+  <div class="task-card-header">
+    <button type="button" class="status-check is-in-progress is-popping" aria-label="Change status">
+      <svg class="i" aria-hidden="true">
+        <use href="#i-minus"></use>
+      </svg>
+    </button>
+    <h3 class="task-card-title">Problem set 4: limits and continuity</h3>
+  </div>
+  <div class="task-card-footer">
+    <span class="subject-tag bg-pink">GENMATH</span>
+    <span class="due-badge overdue" title="Oct 31 · 11:59 PM">
+      <svg class="i" aria-hidden="true">
+        <use href="#i-alarm-clock"></use>
+      </svg>
+      <span>3 days overdue · 11:59 PM</span>
+    </span>
+  </div>
+</article>

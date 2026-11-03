@@ -1,0 +1,62 @@
+<!-- #settings-overlay (#settings-open) -->
+<div class="task-dialog-overlay" id="settings-overlay">
+  <div class="task-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="dialog-header">
+      <h2 class="dialog-heading" id="settings-title">Settings</h2>
+      <button class="panel-close" type="button" id="settings-close" aria-label="Close">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="dialog-body settings-body">
+      <div class="settings-row">
+        <div>
+          <p class="settings-title">Replay tutorial</p>
+          <p class="settings-desc">Watch the tutorial again.</p>
+        </div>
+        <button class="secondary-button" type="button" id="settings-replay">Replay</button>
+      </div>
+      <div class="settings-row">
+        <div>
+          <p class="settings-title">Transfer data</p>
+          <p class="settings-desc">Move your progress to another device with a QR code or link.</p>
+        </div>
+        <button class="secondary-button" type="button" id="settings-transfer">Transfer</button>
+      </div>
+      <div class="settings-row" id="settings-login-row" hidden="">
+        <div>
+          <p class="settings-title">Admin sign in</p>
+          <p class="settings-desc">Sign in once on this device. You stay signed in until you log out.</p>
+        </div>
+        <button class="secondary-button" type="button" id="settings-login">Sign in</button>
+      </div>
+      <div class="settings-row" id="settings-logout-row" hidden="">
+        <div>
+          <p class="settings-title">Log out of admin</p>
+          <p class="settings-desc">Returns this browser to the student view. Your unpublished draft stays on this device.</p>
+        </div>
+        <button class="secondary-button" type="button" id="settings-logout">Log out</button>
+      </div>
+      <div class="settings-row">
+        <div>
+          <p class="settings-title">Reset all data</p>
+          <p class="settings-desc">Clears your progress and view settings on this device.</p>
+          <p class="settings-desc" id="reset-admin-note" hidden="">Also clears your unpublished draft and saved checkpoints.</p>
+        </div>
+        <button class="danger-button" type="button" id="settings-reset-start">Reset</button>
+      </div>
+      <form class="settings-confirm" id="settings-reset-form" hidden="">
+        <p class="form-error" id="settings-reset-warning">This can't be undone.</p>
+        <div class="field">
+          <label class="field-label" for="settings-reset-input">Type RESET to confirm</label>
+          <input class="text-input" id="settings-reset-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="settings-reset-warning" value="">
+        </div>
+        <div class="settings-confirm-actions">
+          <button class="text-button" type="button" id="settings-reset-cancel">Cancel</button>
+          <button class="danger-button is-solid" type="submit" id="settings-reset-submit" disabled="">Reset all data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

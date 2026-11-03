@@ -1,0 +1,218 @@
+<!-- #page-calendar (#calendar) -->
+<section class="page utility-page" id="page-calendar" data-page-view="calendar" aria-label="Calendar">
+  <div class="page-heading">
+    <h2 class="cal-title" id="cal-title">November 2026</h2>
+    <div class="page-actions">
+      <div class="view-tabs" role="group" aria-label="Calendar view">
+        <button type="button" class="view-tab is-active" data-cal-mode="month" aria-pressed="true">Month</button>
+        <button type="button" class="view-tab" data-cal-mode="week" aria-pressed="false">Week</button>
+      </div>
+      <button class="secondary-button" type="button" id="cal-today">Today</button>
+      <div class="cal-nav">
+        <button class="icon-button" type="button" id="cal-prev" aria-label="Previous">
+          <svg class="i" aria-hidden="true">
+            <use href="#i-chevron-left"></use>
+          </svg>
+        </button>
+        <button class="icon-button" type="button" id="cal-next" aria-label="Next">
+          <svg class="i" aria-hidden="true">
+            <use href="#i-chevron-right"></use>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="cal" id="cal-grid" data-mode="month">
+    <div class="cal-dow">Sun</div>
+    <div class="cal-dow">Mon</div>
+    <div class="cal-dow">Tue</div>
+    <div class="cal-dow">Wed</div>
+    <div class="cal-dow">Thu</div>
+    <div class="cal-dow">Fri</div>
+    <div class="cal-dow">Sat</div>
+    <div class="cal-day">
+      <span class="cal-num">1</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">2</span>
+      <button type="button" class="cal-chip is-overdue" data-status="not_started" title="PKLP · Read chapter 7 of Noli Me Tangere">
+        <span class="cal-dot bg-sunglow"></span>
+        <span class="cal-chip-title">Read chapter 7 of Noli Me Tangere</span>
+      </button>
+      <button type="button" class="cal-chip is-overdue" data-status="not_started" title="PERDEV · Journal entry: community immersion prep">
+        <span class="cal-dot bg-yellow"></span>
+        <span class="cal-time">5:00 PM</span>
+        <span class="cal-chip-title">Journal entry: community immersion prep</span>
+      </button>
+    </div>
+    <div class="cal-day is-today">
+      <span class="cal-num">3</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="MABKOM · Submit the statistical survey draft">
+        <span class="cal-dot bg-sand"></span>
+        <span class="cal-chip-title">Submit the statistical survey draft</span>
+      </button>
+      <button type="button" class="cal-chip is-overdue" data-status="not_started" title="GENSCI · Oral recitation: Newton's laws">
+        <span class="cal-dot bg-cyan"></span>
+        <span class="cal-time">9:30 AM</span>
+        <span class="cal-chip-title">Oral recitation: Newton's laws</span>
+      </button>
+      <button type="button" class="cal-chip" data-status="not_started" title="PE · Warm-up routine chart">
+        <span class="cal-dot bg-yellow"></span>
+        <span class="cal-time">11:00 PM</span>
+        <span class="cal-chip-title">Warm-up routine chart</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">4</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="EFFCOM · Essay: the role of youth in civic duty">
+        <span class="cal-dot bg-green"></span>
+        <span class="cal-chip-title">Essay: the role of youth in civic duty</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">5</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="PERDEV · Upload the signed consent form">
+        <span class="cal-dot bg-yellow"></span>
+        <span class="cal-chip-title">Upload the signed consent form</span>
+      </button>
+      <button type="button" class="cal-chip" data-status="not_started" title="MABKOM · Group presentation slides">
+        <span class="cal-dot bg-sand"></span>
+        <span class="cal-time">1:00 PM</span>
+        <span class="cal-chip-title">Group presentation slides</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">6</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="THEOLOGY · Reflection paper on servant leadership">
+        <span class="cal-dot bg-stone"></span>
+        <span class="cal-chip-title">Reflection paper on servant leadership</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">7</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="CP104 · Draft the database schema for the capstone">
+        <span class="cal-dot bg-blue"></span>
+        <span class="cal-chip-title">Draft the database schema for the capstone</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">8</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="FINMATH101 · Financial ratios worksheet">
+        <span class="cal-dot bg-mauve"></span>
+        <span class="cal-time">8:00 AM</span>
+        <span class="cal-chip-title">Financial ratios worksheet</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">9</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="GENSCI · Lab safety quiz review">
+        <span class="cal-dot bg-cyan"></span>
+        <span class="cal-chip-title">Lab safety quiz review</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">10</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="GENSCI · Diagram of the water cycle">
+        <span class="cal-dot bg-cyan"></span>
+        <span class="cal-chip-title">Diagram of the water cycle</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">11</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="EFFCOM · Prepare the annotated bibliography covering every source cited in the literature review, with a one-paragraph summary of each source and a note on how it will be used in the final argument of the paper">
+        <span class="cal-dot bg-green"></span>
+        <span class="cal-chip-title">Prepare the annotated bibliography covering every source cited in the literature review, with a one-paragraph summary of each source and a note on how it will be used in the final argument of the paper</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">12</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="GENMATH · Long-title stress case: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word">
+        <span class="cal-dot bg-pink"></span>
+        <span class="cal-chip-title">Long-title stress case: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">13</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">14</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">15</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="EFFCOM · Term paper outline">
+        <span class="cal-dot bg-green"></span>
+        <span class="cal-chip-title">Term paper outline</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">16</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">17</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">18</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">19</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">20</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">21</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">22</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">23</span>
+      <button type="button" class="cal-chip" data-status="not_started" title="CP104 · Capstone prototype demo">
+        <span class="cal-dot bg-blue"></span>
+        <span class="cal-time">3:30 PM</span>
+        <span class="cal-chip-title">Capstone prototype demo</span>
+      </button>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">24</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">25</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">26</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">27</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">28</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">29</span>
+    </div>
+    <div class="cal-day">
+      <span class="cal-num">30</span>
+    </div>
+    <div class="cal-day is-outside">
+      <span class="cal-num">1</span>
+    </div>
+    <div class="cal-day is-outside">
+      <span class="cal-num">2</span>
+    </div>
+    <div class="cal-day is-outside">
+      <span class="cal-num">3</span>
+    </div>
+    <div class="cal-day is-outside">
+      <span class="cal-num">4</span>
+    </div>
+    <div class="cal-day is-outside">
+      <span class="cal-num">5</span>
+    </div>
+  </div>
+  <section class="cal-agenda" id="cal-agenda" aria-labelledby="cal-agenda-title" aria-live="polite" aria-atomic="true" hidden="">
+    <h3 class="cal-agenda-title" id="cal-agenda-title"></h3>
+    <div class="cal-agenda-list" id="cal-agenda-list"></div>
+  </section>
+  <p class="list-empty" id="cal-empty" hidden="">No tasks have a due date yet. Add one and it shows up here.</p>
+</section>

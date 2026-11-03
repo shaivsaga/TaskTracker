@@ -1,0 +1,75 @@
+<!-- #task-dialog-overlay (first card: fx002) -->
+<div class="task-dialog-overlay" id="task-dialog-overlay" aria-hidden="false">
+  <div class="task-dialog is-readonly" role="dialog" aria-modal="true" aria-label="Task details">
+    <div class="dialog-header">
+      <textarea class="dialog-title-input" id="dialog-title-input" rows="1" maxlength="500" aria-label="Task title" placeholder="New task" spellcheck="false" readonly="" style="height: 0px;" value="Problem set 4: limits and continuity"></textarea>
+      <button class="panel-close" type="button" id="dialog-close" aria-label="Close task">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="dialog-body">
+      <div class="dialog-controls">
+        <div class="field">
+          <label class="field-label">Status</label>
+          <button class="prop-value status-value is-not-started" type="button" id="dialog-status-btn">
+            <span class="status-dot dot-not-started" id="dialog-status-dot"></span>
+            <span id="dialog-status-label">Not started</span>
+          </button>
+        </div>
+        <div class="field">
+          <label class="field-label">Subject</label>
+          <button class="prop-value" type="button" id="dialog-subject-btn" aria-haspopup="listbox" aria-expanded="false" disabled="">
+            <span class="subject-tag bg-pink">GENMATH</span>
+          </button>
+        </div>
+        <div class="field field-due">
+          <label class="field-label">
+            Due
+            <span class="due-hint is-overdue" id="dialog-due-hint">3 days overdue</span>
+          </label>
+          <div class="due-controls">
+            <button class="prop-value" type="button" id="dialog-date-btn" disabled="">Oct 31 · 11:59 PM</button>
+            <button class="prop-clear" type="button" id="dialog-due-clear" hidden="" aria-label="Clear due date">
+              <svg class="i prop-clear-icon" aria-hidden="true">
+                <use href="#i-x"></use>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="note-toolbar" role="toolbar" aria-label="Note formatting">
+          <button class="note-tool" type="button" data-cmd="bold" aria-label="Bold" aria-pressed="false" title="Bold (Ctrl+B)">
+            <b>B</b>
+          </button>
+          <button class="note-tool" type="button" data-cmd="italic" aria-label="Italic" aria-pressed="false" title="Italic (Ctrl+I)">
+            <i>I</i>
+          </button>
+          <button class="note-tool" type="button" data-cmd="insertUnorderedList" aria-label="Bulleted list" aria-pressed="false" title="Bulleted list">
+            <svg class="i" aria-hidden="true">
+              <use href="#i-list"></use>
+            </svg>
+          </button>
+        </div>
+        <div class="dialog-doc" id="dialog-doc" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Notes" data-placeholder="No notes for this task."></div>
+      </div>
+      <div class="field" id="dialog-files-field" hidden="">
+        <div class="files-head">
+          <label class="field-label">Files</label>
+          <button class="text-button" type="button" id="dialog-attach-btn" hidden="">Attach file</button>
+        </div>
+        <ul class="file-list" id="dialog-files"></ul>
+        <p class="file-hint">PDF, PPTX, DOCX, JPG or PNG. Up to 10 MB each. You can also paste or drop files here.</p>
+        <input type="file" id="dialog-file-input" multiple="" hidden="" accept=".pdf,.pptx,.docx,.jpg,.jpeg,.png" value="">
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <span class="save-state" id="save-state" role="status" aria-live="polite"></span>
+      <button class="text-button" type="button" id="dialog-duplicate" hidden="">Duplicate</button>
+      <button type="button" class="text-button" hidden="">Close for class</button>
+      <button class="text-button" type="button" id="dialog-delete" hidden="">Delete task</button>
+    </div>
+  </div>
+</div>

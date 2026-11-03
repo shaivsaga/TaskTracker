@@ -1,0 +1,590 @@
+<!-- head, after 1 click(s) on #theme-toggle -->
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A shared classroom workspace for keeping schoolwork on track.">
+  <title>Class tasks — TaskTracker</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="TaskTracker">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#0D0F14" id="meta-theme-color">
+  <link rel="preconnect" href="http&lt;path>">
+  <link rel="preconnect" href="http&lt;path>" crossorigin="">
+  <link rel="stylesheet" href="http&lt;path>">
+  <script>try { var t = localStorage.getItem('class_tasks_theme') || 'dark'; document.documentElement.dataset.theme = t; document.getElementById('meta-theme-color').content = t === 'light' ? '#EBEEF2' : '#0D0F14'; } catch (e) { document.documentElement.dataset.theme = 'dark'; }</script>
+  <script>try { document.documentElement.dataset.sidebar = localStorage.getItem('class_tasks_sidebar') === '1' ? 'collapsed' : 'open'; } catch (e) { document.documentElement.dataset.sidebar = 'open'; }</script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<!-- #theme-toggle -->
+<button class="icon-button" type="button" id="theme-toggle" aria-label="Switch to light mode">
+  <svg class="i icon-moon" aria-hidden="true">
+    <use href="#i-moon"></use>
+  </svg>
+  <svg class="i icon-sun" aria-hidden="true">
+    <use href="#i-sun"></use>
+  </svg>
+</button>
+
+<!-- #page-class-tasks -->
+<section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Class tasks" data-view="list">
+  <div class="page-heading">
+    <div>
+      <p class="page-supporting-copy">Assignments posted for the class. Your progress is saved on this device only.</p>
+    </div>
+    <div class="page-actions">
+      <label class="search">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-search"></use>
+        </svg>
+        <input type="search" id="class-task-search" placeholder="Search tasks" aria-label="Search class tasks" autocomplete="off" value="">
+      </label>
+      <div class="view-tabs" role="group" aria-label="View">
+        <button type="button" class="view-tab" data-view="board" aria-pressed="false">Board</button>
+        <button type="button" class="view-tab is-active" data-view="list" aria-pressed="true">List</button>
+      </div>
+    </div>
+  </div>
+  <p class="sync-note" id="sync-note" hidden="">Offline. Showing the last synced version.</p>
+  <div class="preview-banner" id="preview-banner" hidden="">
+    <span>Previewing as a student. Showing your unpublished draft.</span>
+    <button class="text-button" type="button" id="preview-exit">Exit preview</button>
+  </div>
+  <section class="announcements" aria-label="Pinned announcements">
+    <div class="announce-header">
+      <h2>
+        <svg class="i" aria-hidden="true">
+          <use href="#i-pin"></use>
+        </svg>
+        Pinned
+      </h2>
+    </div>
+    <ul class="announce-list" id="announce-list-public">
+      <li class="announce-item">
+        <p class="announce-text is-rich">
+          Submission of the
+          <b>term paper</b>
+          moved to
+          <i>Friday</i>
+          . Bring your draft.
+          <ul>
+            <li>Print two copies</li>
+            <li>Staple the rubric on top</li>
+          </ul>
+        </p>
+        <span class="announce-date">Nov 2</span>
+      </li>
+      <li class="announce-item">
+        <p class="announce-text">No classes on Monday; use the time for the capstone prototype.</p>
+        <span class="announce-date">Oct 30</span>
+      </li>
+      <li class="announce-item">
+        <p class="announce-text is-rich">
+          Reminder:
+          <ul>
+            <li>
+              Wash and return the
+              <b>beakers</b>
+            </li>
+            <li>Wipe the bench</li>
+          </ul>
+        </p>
+        <span class="announce-date">Oct 25</span>
+      </li>
+    </ul>
+  </section>
+  <div class="task-list" id="class-task-list" aria-label="Class task list">
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx002" style="animation-delay: 0ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Problem set 4: limits and continuity</span>
+      <span class="subject-tag bg-pink">GENMATH</span>
+      <span class="task-row-due is-overdue" title="Oct 31 · 11:59 PM">3 days overdue · 11:59 PM</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx004" style="animation-delay: 40ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Journal entry: community immersion prep</span>
+      <span class="subject-tag bg-yellow">PERDEV</span>
+      <span class="task-row-due is-overdue" title="Nov 2 · 5:00 PM">1 day overdue · 5:00 PM</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx003" style="animation-delay: 80ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Read chapter 7 of Noli Me Tangere</span>
+      <span class="subject-tag bg-sunglow">PKLP</span>
+      <span class="task-row-due is-overdue" title="Mon, Nov 2">1 day overdue</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx005" style="animation-delay: 120ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Oral recitation: Newton's laws</span>
+      <span class="subject-tag bg-cyan">GENSCI</span>
+      <span class="task-row-due is-overdue" title="Nov 3 · 9:30 AM">2 hr overdue · 9:30 AM</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx007" style="animation-delay: 160ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Warm-up routine chart</span>
+      <span class="subject-tag bg-yellow">PE</span>
+      <span class="task-row-due" title="Nov 3 · 11:00 PM">Due today · 11:00 PM</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx006" style="animation-delay: 200ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Submit the statistical survey draft</span>
+      <span class="subject-tag bg-sand">MABKOM</span>
+      <span class="task-row-due" title="Tue, Nov 3">Due today</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx008" style="animation-delay: 240ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Essay: the role of youth in civic duty</span>
+      <span class="subject-tag bg-green">EFFCOM</span>
+      <span class="task-row-due" title="Wed, Nov 4">Due tomorrow</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx009" style="animation-delay: 280ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Group presentation slides</span>
+      <span class="subject-tag bg-sand">MABKOM</span>
+      <span class="task-row-due" title="Nov 5 · 1:00 PM">In 2 days · 1:00 PM</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx021" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Upload the signed consent form</span>
+      <span class="subject-tag bg-yellow">PERDEV</span>
+      <span class="task-row-due" title="Thu, Nov 5">In 2 days</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx010" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Reflection paper on servant leadership</span>
+      <span class="subject-tag bg-stone">THEOLOGY</span>
+      <span class="task-row-due" title="Fri, Nov 6">In 3 days</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx011" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Draft the database schema for the capstone</span>
+      <span class="subject-tag bg-blue">CP104</span>
+      <span class="task-row-due" title="Sat, Nov 7">In 4 days</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx012" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Financial ratios worksheet</span>
+      <span class="subject-tag bg-mauve">FINMATH101</span>
+      <span class="task-row-due" title="Nov 8 · 8:00 AM">In 5 days · 8:00 AM</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx013" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Lab safety quiz review</span>
+      <span class="subject-tag bg-cyan">GENSCI</span>
+      <span class="task-row-due" title="Mon, Nov 9">In 6 days</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx022" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Diagram of the water cycle</span>
+      <span class="subject-tag bg-cyan">GENSCI</span>
+      <span class="task-row-due" title="Tue, Nov 10">In 7 days</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx019" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Prepare the annotated bibliography covering every source cited in the literature review, with a one-paragraph summary of each source and a note on how it will be used in the final argument of the paper</span>
+      <span class="subject-tag bg-green">EFFCOM</span>
+      <span class="task-row-due" title="Wed, Nov 11">In 8 days</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx020" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Long-title stress case: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word</span>
+      <span class="subject-tag bg-pink">GENMATH</span>
+      <span class="task-row-due" title="Thu, Nov 12">In 9 days</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx014" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Term paper outline</span>
+      <span class="subject-tag bg-green">EFFCOM</span>
+      <span class="task-row-due" title="Sun, Nov 15">In 12 days</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx015" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Capstone prototype demo</span>
+      <span class="subject-tag bg-blue">CP104</span>
+      <span class="task-row-due" title="Nov 23 · 3:30 PM">In 2 weeks · 3:30 PM</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx016" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Final practical exam</span>
+      <span class="subject-tag bg-yellow">PE</span>
+      <span class="task-row-due" title="Tue, Dec 8">In 5 weeks</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx018" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Someday: ask about the retreat venue</span>
+      <span class="subject-tag bg-stone">THEOLOGY</span>
+      <span class="task-row-due" title="Someday">Someday</span>
+      <span></span>
+    </div>
+    <div class="task-row is-entering" tabindex="0" data-task-id="fx017" style="animation-delay: 320ms;">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Someday: organise the class photo archive</span>
+      <span class="subject-tag bg-sand">MABKOM</span>
+      <span class="task-row-due" title="Someday">Someday</span>
+      <span></span>
+    </div>
+  </div>
+  <div class="kanban-board" id="class-board" aria-label="Class task board" hidden="">
+    <div class="kanban-column" data-status="todo">
+      <div class="column-header">
+        <div>
+          <h2>To Do</h2>
+          <span class="column-count">(21)</span>
+        </div>
+        <span class="column-marker marker-todo" aria-hidden="true"></span>
+      </div>
+      <div class="column-content">
+        <p class="column-empty" hidden="" data-default="No class assignments yet.">No class assignments yet.</p>
+        <article class="task-card is-entering" data-task-id="fx002" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Problem set 4: limits and continuity</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-pink">GENMATH</span>
+            <span class="due-badge overdue" title="Oct 31 · 11:59 PM">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-alarm-clock"></use>
+              </svg>
+              <span>3 days overdue · 11:59 PM</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx004" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Journal entry: community immersion prep</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-yellow">PERDEV</span>
+            <span class="due-badge overdue" title="Nov 2 · 5:00 PM">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-alarm-clock"></use>
+              </svg>
+              <span>1 day overdue · 5:00 PM</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx003" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Read chapter 7 of Noli Me Tangere</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-sunglow">PKLP</span>
+            <span class="due-badge overdue" title="Mon, Nov 2">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-alarm-clock"></use>
+              </svg>
+              <span>1 day overdue</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx005" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Oral recitation: Newton's laws</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-cyan">GENSCI</span>
+            <span class="due-badge overdue" title="Nov 3 · 9:30 AM">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>2 hr overdue · 9:30 AM</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx007" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Warm-up routine chart</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-yellow">PE</span>
+            <span class="due-badge due-soon" title="Nov 3 · 11:00 PM">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>Due today · 11:00 PM</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx006" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Submit the statistical survey draft</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-sand">MABKOM</span>
+            <span class="due-badge due-soon" title="Tue, Nov 3">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>Due today</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx008" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Essay: the role of youth in civic duty</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-green">EFFCOM</span>
+            <span class="due-badge due-soon" title="Wed, Nov 4">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>Due tomorrow</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx009" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Group presentation slides</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-sand">MABKOM</span>
+            <span class="due-badge due-soon" title="Nov 5 · 1:00 PM">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 2 days · 1:00 PM</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx021" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Upload the signed consent form</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-yellow">PERDEV</span>
+            <span class="due-badge due-soon" title="Thu, Nov 5">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 2 days</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx010" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Reflection paper on servant leadership</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-stone">THEOLOGY</span>
+            <span class="due-badge due-soon" title="Fri, Nov 6">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 3 days</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx011" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Draft the database schema for the capstone</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-blue">CP104</span>
+            <span class="due-badge" title="Sat, Nov 7">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 4 days</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx012" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Financial ratios worksheet</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-mauve">FINMATH101</span>
+            <span class="due-badge" title="Nov 8 · 8:00 AM">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 5 days · 8:00 AM</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx013" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Lab safety quiz review</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-cyan">GENSCI</span>
+            <span class="due-badge" title="Mon, Nov 9">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 6 days</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx022" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Diagram of the water cycle</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-cyan">GENSCI</span>
+            <span class="due-badge" title="Tue, Nov 10">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 7 days</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx019" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Prepare the annotated bibliography covering every source cited in the literature review, with a one-paragraph summary of each source and a note on how it will be used in the final argument of the paper</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-green">EFFCOM</span>
+            <span class="due-badge" title="Wed, Nov 11">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 8 days</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx020" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Long-title stress case: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-pink">GENMATH</span>
+            <span class="due-badge" title="Thu, Nov 12">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 9 days</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx014" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Term paper outline</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-green">EFFCOM</span>
+            <span class="due-badge" title="Sun, Nov 15">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 12 days</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx015" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Capstone prototype demo</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-blue">CP104</span>
+            <span class="due-badge" title="Nov 23 · 3:30 PM">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 2 weeks · 3:30 PM</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx016" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Final practical exam</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-yellow">PE</span>
+            <span class="due-badge" title="Tue, Dec 8">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>In 5 weeks</span>
+            </span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx018" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Someday: ask about the retreat venue</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-stone">THEOLOGY</span>
+          </div>
+        </article>
+        <article class="task-card is-entering" data-task-id="fx017" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Someday: organise the class photo archive</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-sand">MABKOM</span>
+          </div>
+        </article>
+      </div>
+    </div>
+    <div class="kanban-column" data-status="progress">
+      <div class="column-header">
+        <div>
+          <h2>In Progress</h2>
+          <span class="column-count">(0)</span>
+        </div>
+        <span class="column-marker marker-progress" aria-hidden="true"></span>
+      </div>
+      <div class="column-content is-empty">
+        <p class="column-empty" data-default="Nothing in progress.">Nothing in progress.</p>
+      </div>
+    </div>
+    <div class="kanban-column" data-status="done">
+      <div class="column-header">
+        <div>
+          <h2>Submitted / Done</h2>
+          <span class="column-count">(0)</span>
+        </div>
+        <span class="column-marker marker-done" aria-hidden="true"></span>
+      </div>
+      <div class="column-content is-empty">
+        <p class="column-empty" data-default="No submitted work yet.">No submitted work yet.</p>
+      </div>
+    </div>
+  </div>
+</section>
