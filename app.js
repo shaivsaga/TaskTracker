@@ -9,6 +9,7 @@ import { readJSON, writeJSON, plural, fmtWhen, formatTime, COLUMN_TO_STATUS, STA
 import * as calendar from './js/calendar.js';
 import * as quickAdd from './js/quick-add.js';
 import * as tour from './js/tour.js';
+import * as settings from './js/settings.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -1224,18 +1225,7 @@ function startNewTask() {
 document.querySelector('#new-task-btn')?.addEventListener('click', startNewTask);
 document.querySelector('#empty-add-btn')?.addEventListener('click', startNewTask);
 
-// Theme
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  document.getElementById('meta-theme-color')?.setAttribute('content', theme === 'light' ? '#EBEEF2' : '#0D0F14');
-  dom.themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-  try { localStorage.setItem('class_tasks_theme', theme); } catch (e) {}
-}
-dom.themeToggle.setAttribute('aria-label',
-  document.documentElement.dataset.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-dom.themeToggle.addEventListener('click', () => {
-  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
-});
+// Theme: moved to js/settings.js (slice 2.4); its toggle registers from settings.init() below.
 
 // View switch (board / list), remembered per page
 const VIEW_KEYS = { class: 'class_tasks_view_class', admin: 'class_tasks_view_admin' };
@@ -2295,100 +2285,16 @@ document.addEventListener('keydown', (e) => {
   else if (!dom.historyOverlay.hidden) hideAnimated(dom.historyOverlay);
 });
 
-// --- Settings and reset ---
-const RESET_PHRASE = 'RESET';
-// Kept on reset: appearance, sign-in state, and the cached copy of the published board.
-const RESET_KEEP = new Set(['class_tasks_theme', SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY, KEYS.cache]);
-
-function showResetConfirm(show, focus = true) {
-  dom.resetForm.hidden = !show;
-  dom.resetStart.hidden = show;
-  dom.resetInput.value = '';
-  dom.resetSubmit.disabled = true;
-  if (focus) (show ? dom.resetInput : dom.resetStart).focus();
-}
-
-function openSettings() {
-  setSidebarOpen(false, false);
-  showResetConfirm(false, false);
-  $('#settings-logout-row').hidden = !state.isAdmin;
-  $('#settings-login-row').hidden = state.isAdmin || !adminHint();
-  dom.settingsOverlay.classList.remove('is-closing');
-  dom.settingsOverlay.hidden = false;
-  $('#settings-close').focus();
-  document.getElementById('reset-admin-note').hidden = !state.isAdmin;
-}
-
-function closeSettings() {
-  hideAnimated(dom.settingsOverlay);
-  (phoneQuery.matches ? dom.mobileMenu : dom.settingsOpen).focus();
-}
-
-function resetLocalData() {
-  try {
-    Object.keys(localStorage)
-      .filter((k) => k.startsWith('class_tasks_') && !RESET_KEEP.has(k))
-      .forEach((k) => localStorage.removeItem(k));
-    return true;
-  } catch (e) { return false; }
-}
-
-dom.settingsOpen.addEventListener('click', openSettings);
-
-// Phase 4: client-only logout. Clears the admin flag and reloads into the student view. The draft stays in localStorage.
-async function logoutAdmin() {
-  const btn = $('#settings-logout');
-  btn.disabled = true;
-  btn.classList.add('is-loading');
-  try {
-    const res = await fetch('api/logout.php', JSON_POST);
-    if (!res.ok) throw new Error();
-  } catch (e) {
-    btn.disabled = false;
-    btn.classList.remove('is-loading');
-    showToast('Could not log out. Check your connection and try again.');
-    return;
-  }
-  try { localStorage.setItem(SIGNED_OUT_KEY, '1'); } catch (e) {}
-  state.isAdmin = false;
-  state.previewing = false;
-  const params = new URLSearchParams(location.search);
-  params.delete('admin');
-  const query = params.toString();
-  history.replaceState(null, '', location.pathname + (query ? `?${query}` : '') + '#class-tasks');
-  location.reload();
-}
-$('#settings-logout').addEventListener('click', logoutAdmin);
-$('#settings-login').addEventListener('click', async (e) => {
-  const btn = e.currentTarget;
-  btn.disabled = true;
-  btn.classList.add('is-loading');
-  if (await signIn()) {
-    try { localStorage.setItem(ADMIN_KEY, '1'); localStorage.removeItem(SIGNED_OUT_KEY); } catch (e2) {}
-    location.reload();
-    return;
-  }
-  btn.disabled = false;
-  btn.classList.remove('is-loading');
-  showToast('Sign in failed or was cancelled.');
-});
-$('#settings-close').addEventListener('click', closeSettings);
-dom.settingsOverlay.addEventListener('click', (e) => { if (e.target === dom.settingsOverlay) closeSettings(); });
-dom.resetStart.addEventListener('click', () => showResetConfirm(true));
-$('#settings-reset-cancel').addEventListener('click', () => showResetConfirm(false));
-dom.resetInput.addEventListener('input', () => { dom.resetSubmit.disabled = dom.resetInput.value.trim() !== RESET_PHRASE; });
-dom.resetForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  if (dom.resetInput.value.trim() !== RESET_PHRASE) return;
-  dom.resetSubmit.disabled = true;
-  dom.resetSubmit.classList.add('is-loading');
-  if (resetLocalData()) { location.reload(); return; }
-  dom.resetSubmit.classList.remove('is-loading');
-  dom.resetSubmit.disabled = false;
-  showToast('Could not reset. Browser storage is unavailable.');
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !dom.settingsOverlay.hidden && !dom.settingsOverlay.classList.contains('is-closing')) closeSettings();
+// --- Settings and theme: js/settings.js (slice 2.4) ---------------------------------------------
+// The moved listeners register here, exactly where the settings panel's listeners used to, so their
+// order against the publish/history Escape handler above and the tour listeners below is unchanged.
+// The theme toggle moved here too (its block sat next to the new-task button); it is the only
+// listener on #theme-toggle, so its later registration competes with nothing. Every dep is declared
+// above this point, so it can be passed by value - phoneQuery is a MediaQueryList and the module only
+// reads .matches when closeSettings runs.
+settings.init({
+  $, setSidebarOpen, hideAnimated, phoneQuery, adminHint, signIn, showToast,
+  JSON_POST, SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY,
 });
 
 // --- Tutorial: js/tour.js (slice 2.3) -----------------------------------------------------------
@@ -2398,7 +2304,7 @@ document.addEventListener('keydown', (e) => {
 // the hub functions the module still calls.
 tour.init({
   $, STATUS_LABELS, STATUS_ORDER, createSubjectTag,
-  setPreview, setPage, setSidebarOpen, hideAnimated, closeSettings,
+  setPreview, setPage, setSidebarOpen, hideAnimated, closeSettings: settings.closeSettings,
 });
 
 // --- Phase 7: transfer by QR code and link ---
@@ -2533,7 +2439,7 @@ async function copyTransferLink() {
 }
 
 function openTransfer() {
-  closeSettings();
+  settings.closeSettings();
   dom.transferOverlay._returnFocus = document.activeElement;
   dom.transferOverlay.classList.remove('is-closing');
   dom.transferOverlay.hidden = false;
