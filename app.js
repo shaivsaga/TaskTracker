@@ -13,6 +13,7 @@ import * as settings from './js/settings.js';
 import * as nav from './js/nav.js';
 import * as transfer from './js/transfer.js';
 import * as announcements from './js/announcements.js';
+import * as publish from './js/publish.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -1557,9 +1558,9 @@ quickAdd.init({
 // editor, toolbar and form listeners, then the keyboard shortcuts, the publish/history Escape
 // handler, settings, tour and the transfer/import and focus-trap listeners. renderAnnouncements is
 // exported because loadPublished, the bootstrap init and js/transfer.js's replaced-draft path call
-// it. updateAdminBar and diffDraft stay in app.js - the publish block below still owns them.
+// it. updateAdminBar and diffDraft come from js/publish.js, which moved them in this slice.
 announcements.init({
-  lookup, linkify, dropHasFiles, showToast, saveTasks, updateAdminBar, diffDraft,
+  lookup, linkify, dropHasFiles, showToast, saveTasks, updateAdminBar: publish.updateAdminBar, diffDraft: publish.diffDraft,
 });
 
 // --- Keyboard shortcuts: N = new task, / = search ---
@@ -1740,264 +1741,26 @@ document.addEventListener('click', (e) => {
 // the phone-sidebar media query is built at the same point. setPage and setSidebarOpen moved with
 // them: the nav-item listeners, the deep-link handler, app.js's own call sites and the quick-add,
 // settings and tour init deps now reach them as nav.setPage / nav.setSidebarOpen. `pageFromHash`
-// is the logic.js import above; `setPreview` is a hoisted function declaration below, so passing
-// it by value is safe (quickAdd.init already passes renderAllTasks the same way).
+// is the logic.js import above; `setPreview` is js/publish.js's export below, so passing it by value
+// is safe (quickAdd.init already passes renderAllTasks the same way).
 nav.init({
-  pageFromHash, setPreview,
+  pageFromHash, setPreview: publish.setPreview,
 });
 
-// --- Admin: diff, checkpoints, publish, history, import/export, preview ---
+// --- Publish: js/publish.js (slice 2.5) ---------------------------------------------------------
+// The moved listeners register here, exactly where the admin region's first listener used to, so the
+// page's listener order is unchanged: the announce handlers above, then this region's element
+// listeners and the Ctrl/Cmd+S, Ctrl/Cmd+Enter and Escape handlers, then settings, tour, the
+// transfer/import listeners and the focus trap. snapshot, restoreDraft, diffDraft, updateAdminBar
+// and setPreview are exported because the nav, tour and transfer init deps and renderAllTasks below
+// call them; the module gets every app.js name it needs through init(deps). `$` stays: publish.js
+// and the focus-trap selector list both use it, and it has to be declared before the init calls.
 const $ = (sel) => document.querySelector(sel);
 
-const snapshot = () => ({ tasks: myTasks.map((t) => t.toJSON()), announcements: JSON.parse(JSON.stringify(state.announcements)) });
-const describeDiff = (d) => [d.added && `${d.added} added`, d.edited && `${d.edited} edited`, d.removed && `${d.removed} removed`, d.ann && 'announcements changed'].filter(Boolean).join(', ') || 'No changes';
-
-function diffDraft() {
-  const defs = (list) => new Map(list.map((t) => [t.id, JSON.stringify(t.toJSON())]));
-  const pub = defs(state.publishedTasks);
-  const cur = defs(myTasks);
-  const changed = new Set();
-  let added = 0, edited = 0, removed = 0;
-  cur.forEach((json, id) => {
-    if (!pub.has(id)) { added++; changed.add(id); }
-    else if (pub.get(id) !== json) { edited++; changed.add(id); }
-  });
-  pub.forEach((_, id) => { if (!cur.has(id)) removed++; });
-  const ann = JSON.stringify(state.announcements) !== JSON.stringify(state.publishedAnnouncements);
-  return { added, edited, removed, ann, changed, total: added + edited + removed + (ann ? 1 : 0) };
-}
-
-function updateAdminBar(diff) {
-  if (!state.isAdmin) return;
-  $('#admin-status').textContent = [
-    diff.total ? `Unpublished changes: ${diff.total}` : 'No unpublished changes',
-    state.lastSavedAt && `Saved ${new Date(state.lastSavedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
-  ].filter(Boolean).join(' · ');
-  $('#btn-apply').disabled = !diff.total;
-  $('#btn-discard').disabled = !diff.total;
-}
-
-function restoreDraft(snap) {
-  myTasks.length = 0;
-  (snap.tasks || []).forEach((o) => myTasks.push(Task.fromJSON(o)));
-  state.announcements = snap.announcements ? JSON.parse(JSON.stringify(snap.announcements)) : [];
-  applyProgress(myTasks);
-  saveTasks();
-  renderAllTasks();
-  announcements.renderAnnouncements();
-}
-
-function saveCheckpoint() {
-  const list = readJSON(KEYS.checkpoints, []);
-  list.unshift({ at: Date.now(), ...snapshot() });
-  if (!writeJSON(KEYS.checkpoints, list.slice(0, 20))) { showToast('Storage is full. Checkpoint not saved.'); return; }
-  state.lastSavedAt = Date.now();
-  updateAdminBar(diffDraft());
-  showToast('Checkpoint saved');
-}
-
-function setPreview(on) {
-  state.previewing = on;
-  $('#preview-banner').hidden = !on;
-  if (on) nav.setPage('class-tasks');
-  renderAllTasks();
-  announcements.renderAnnouncements();
-}
-
-// Clear-board mode: the draft has no tasks but the live board does. Publishing then needs the typed phrase, and the request carries an explicit clearBoard intent (the server refuses a bare empty publish).
-const CLEAR_PHRASE = 'CLEAR BOARD';
-const isClearBoardPublish = () => myTasks.length === 0 && state.publishedTasks.length > 0;
-const clearPhraseOk = () => $('#publish-clear-input').value.trim() === CLEAR_PHRASE;
-function syncPublishClear() {
-  const clear = isClearBoardPublish();
-  $('#publish-clear-warning').hidden = !clear;
-  $('#publish-clear').hidden = !clear;
-  $('#publish-submit').disabled = clear && !clearPhraseOk();
-}
-$('#publish-clear-input').addEventListener('input', syncPublishClear);
-
-function openPublishDialog() {
-  const d = diffDraft();
-  if (!d.total) { showToast('Nothing to publish'); return; }
-  const undated = myTasks.filter((t) => !t.dueDate).length;
-  const n = state.publishedTasks.length;
-  $('#publish-summary').textContent = isClearBoardPublish()
-    ? `This removes all ${n} published assignment${n === 1 ? '' : 's'} from the class board.` + (d.ann ? ' Announcement changes stay unpublished.' : '')
-    : `${describeDiff(d)}.` + (undated ? ` ${undated} task${undated === 1 ? ' has' : 's have'} no due date.` : '');
-  $('#publish-note').value = '';
-  $('#publish-clear-input').value = '';
-  $('#publish-error').hidden = true;
-  syncPublishClear();
-  dom.publishOverlay._returnFocus = document.activeElement;
-  dom.publishOverlay.classList.remove('is-closing');
-  dom.publishOverlay.hidden = false;
-  $('#publish-note').focus();
-}
-
-$('#publish-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const btn = $('#publish-submit');
-  const err = $('#publish-error');
-  const clearing = isClearBoardPublish();
-  if (clearing && !clearPhraseOk()) { err.textContent = `Type ${CLEAR_PHRASE} exactly to confirm.`; err.hidden = false; return; }
-  btn.disabled = true;
-  btn.classList.add('is-loading');
-  err.hidden = true;
-  try {
-    const note = $('#publish-note').value.trim();
-    const body = clearing
-      ? { tasks: [], announcements: [], note, clearBoard: { confirm: CLEAR_PHRASE, expectedCount: state.publishedTasks.length } }
-      : { ...snapshot(), note };
-    const res = await fetch(API.publish, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const out = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(out.error || 'Publish failed');
-    const board = normalizeBoard(out.current);
-    if (!board) throw new Error('Published, but the response was unreadable. Reload to check.');
-    writeJSON(KEYS.cache, board);
-    setPublished(board);
-    hideAnimated(dom.publishOverlay);
-    renderAllTasks();
-    announcements.renderAnnouncements();
-    showToast('Published');
-  } catch (ex) {
-    err.textContent = ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message;
-    err.hidden = false;
-  } finally {
-    btn.disabled = clearing && !clearPhraseOk();
-    btn.classList.remove('is-loading');
-  }
-});
-
-// History
-function renderHistory() {
-  const list = $('#history-list');
-  const items = [
-    ...readJSON(KEYS.checkpoints, []).map((c) => ({ kind: 'Checkpoint', at: c.at, snap: c })),
-    ...state.serverVersions.map((v) => ({ kind: 'Published', at: v.publishedAt * 1000, note: v.note, snap: v, id: v.id })),
-  ].sort((a, b) => b.at - a.at);
-  list.replaceChildren();
-  if (!items.length) {
-    const none = document.createElement('li');
-    none.className = 'announce-empty';
-    none.textContent = 'No saved versions yet.';
-    list.appendChild(none);
-    return;
-  }
-  items.forEach((it) => {
-    const li = document.createElement('li');
-    li.className = 'history-item';
-    const head = document.createElement('div');
-    head.className = 'history-head';
-    const label = document.createElement('span');
-    label.className = 'history-label';
-    label.textContent = `${it.kind} · ${fmtWhen(it.at)}` + (it.note ? ` · ${it.note}` : '');
-    const count = document.createElement('span');
-    count.className = 'announce-date';
-    count.textContent = `${it.snap.tasks.length} tasks`;
-    const preview = document.createElement('button');
-    preview.type = 'button';
-    preview.className = 'text-button';
-    preview.textContent = 'Preview';
-    const restore = document.createElement('button');
-    restore.type = 'button';
-    restore.className = 'text-button';
-    restore.textContent = 'Restore to draft';
-    const detail = document.createElement('ul');
-    detail.className = 'history-detail';
-    detail.hidden = true;
-    it.snap.tasks.forEach((t) => {
-      const d = document.createElement('li');
-      d.textContent = (t.subject ? `${t.subject} · ` : '') + t.title;
-      detail.appendChild(d);
-    });
-    preview.addEventListener('click', () => { detail.hidden = !detail.hidden; });
-    restore.addEventListener('click', () => {
-      const before = snapshot();
-      restoreDraft(it.snap);
-      hideAnimated(dom.historyOverlay);
-      showToast('Restored to draft. Nothing is live until you apply.', 'Undo', () => restoreDraft(before));
-    });
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'text-button';
-    del.textContent = 'Delete';
-    del.addEventListener('click', async () => {
-      if (it.kind === 'Checkpoint') {
-        writeJSON(KEYS.checkpoints, readJSON(KEYS.checkpoints, []).filter((c) => c.at !== it.at));
-      } else {
-        try {
-          const res = await fetch(API.versions, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) });
-          if (!res.ok) throw new Error();
-          state.serverVersions = state.serverVersions.filter((v) => v.id !== it.id);
-        } catch (ex) { showToast('Could not delete that version'); return; }
-      }
-      renderHistory();
-    });
-    head.append(label, count, preview, restore, del);
-    li.append(head, detail);
-    list.appendChild(li);
-  });
-}
-
-async function loadVersions() {
-  try {
-    const res = await fetch(API.versions, { cache: 'no-store' });
-    const out = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(out.error || 'Could not load versions');
-    state.serverVersions = out.versions;
-  } catch (ex) { showToast(ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message); }
-  renderHistory();
-}
-
-$('#btn-history').addEventListener('click', () => {
-  renderHistory();
-  dom.historyOverlay._returnFocus = document.activeElement;
-  dom.historyOverlay.classList.remove('is-closing');
-  dom.historyOverlay.hidden = false;
-  $('#history-close').focus();
-  loadVersions();
-});
-
-$('#history-clear').addEventListener('click', async (e) => {
-  const btn = e.currentTarget;
-  if (!btn.dataset.armed) {
-    btn.dataset.armed = '1';
-    btn.textContent = 'Click again to confirm';
-    state.clearTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Clear all history'; }, 4000);
-    return;
-  }
-  clearTimeout(state.clearTimer);
-  delete btn.dataset.armed;
-  btn.textContent = 'Clear all history';
-  btn.disabled = true;
-  writeJSON(KEYS.checkpoints, []);
-  try {
-    const res = await fetch(API.versions, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true }) });
-    if (!res.ok) throw new Error();
-    state.serverVersions = [];
-    showToast('History cleared');
-  } catch (ex) { showToast('Checkpoints cleared. Server versions could not be.'); }
-  btn.disabled = false;
-  renderHistory();
-});
-
-// Wiring
-[[dom.publishOverlay, '#publish-close, #publish-cancel'], [dom.historyOverlay, '#history-close']].forEach(([ov, sel]) => {
-  ov.querySelectorAll(sel).forEach((b) => b.addEventListener('click', () => hideAnimated(ov)));
-  ov.addEventListener('click', (e) => { if (e.target === ov) hideAnimated(ov); });
-});
-$('#btn-save').addEventListener('click', saveCheckpoint);
-$('#btn-apply').addEventListener('click', openPublishDialog);
-$('#btn-preview').addEventListener('click', () => setPreview(true));
-$('#preview-exit').addEventListener('click', () => setPreview(false));
-$('#btn-discard').addEventListener('click', () => {
-  const before = snapshot();
-  restoreDraft({ tasks: state.publishedTasks.map((t) => t.toJSON()), announcements: state.publishedAnnouncements });
-  showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
+publish.init({
+  $, myTasks, showToast, hideAnimated, saveTasks, renderAllTasks,
+  renderAnnouncements: announcements.renderAnnouncements, applyProgress,
+  normalizeBoard, setPublished, Task, setPage: nav.setPage,
 });
 
 // Duplicate (task dialog)
@@ -2011,19 +1774,6 @@ dom.dialogDuplicate.addEventListener('click', () => {
   saveTasks();
   renderAllTasks();
   openTaskDialog(copy);
-});
-
-// Shortcuts: Ctrl/Cmd+S = checkpoint, Ctrl/Cmd+Enter = apply
-document.addEventListener('keydown', (e) => {
-  if (!state.isAdmin || !(e.metaKey || e.ctrlKey)) return;
-  const typing = e.target instanceof Element && e.target.closest('input, textarea, [contenteditable]');
-  if (e.key.toLowerCase() === 's') { e.preventDefault(); saveCheckpoint(); }
-  if (e.key === 'Enter' && !typing && dom.dialogOverlay.hidden && dom.quickOverlay.hidden && dom.tourOverlay.hidden) { e.preventDefault(); openPublishDialog(); }
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  if (!dom.publishOverlay.hidden) hideAnimated(dom.publishOverlay);
-  else if (!dom.historyOverlay.hidden) hideAnimated(dom.historyOverlay);
 });
 
 // --- Settings and theme: js/settings.js (slice 2.4) ---------------------------------------------
@@ -2045,7 +1795,7 @@ settings.init({
 // the hub functions the module still calls.
 tour.init({
   $, STATUS_LABELS, STATUS_ORDER, createSubjectTag,
-  setPreview, setPage: nav.setPage, setSidebarOpen: nav.setSidebarOpen, hideAnimated, closeSettings: settings.closeSettings,
+  setPreview: publish.setPreview, setPage: nav.setPage, setSidebarOpen: nav.setSidebarOpen, hideAnimated, closeSettings: settings.closeSettings,
 });
 
 // --- Transfer and import: js/transfer.js (slice 2.4) --------------------------------------------
@@ -2060,7 +1810,7 @@ const INCOMING_TRANSFER = transfer.takeTransferToken();
 transfer.init({
   $, hideAnimated, showToast, closeSettings: settings.closeSettings,
   myTasks, applyProgress, saveTasks, renderAllTasks, renderAnnouncements: announcements.renderAnnouncements,
-  snapshot, restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER,
+  snapshot: publish.snapshot, restoreDraft: publish.restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER,
 });
 
 // --- Focus trap: Tab stays inside the open dialog ---
@@ -2085,9 +1835,9 @@ document.addEventListener('keydown', (e) => {
 // --- Initialization ---
 function renderAllTasks() {
   if (state.isAdmin) {
-    const diff = diffDraft();
+    const diff = publish.diffDraft();
     state.changedIds = diff.changed;
-    updateAdminBar(diff);
+    publish.updateAdminBar(diff);
   }
   document.querySelectorAll('#page-my-tasks .column-content').forEach((content) => {
     content.querySelectorAll('.task-card, .skeleton, .drop-placeholder').forEach((c) => c.remove());
