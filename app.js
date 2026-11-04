@@ -12,6 +12,7 @@ import * as tour from './js/tour.js';
 import * as settings from './js/settings.js';
 import * as nav from './js/nav.js';
 import * as transfer from './js/transfer.js';
+import * as announcements from './js/announcements.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -325,7 +326,7 @@ async function loadPublished() {
   checkUpdateNotice(state.liveBoard);
   pruneProgress(state.liveBoard);
   renderAllTasks();
-  renderAnnouncements();
+  announcements.renderAnnouncements();
 }
 
 function updateDialogDue(task) {
@@ -1549,206 +1550,16 @@ quickAdd.init({
   setStatus, saveTasks, setPage: nav.setPage, renderAllTasks, openTaskDialog, showToast,
   subjects: () => SUBJECTS, statusCodes: () => STATUS_CODES,
 });
-function renderPublicAnnouncements() {
-  const list = document.querySelector('#announce-list-public');
-  if (!list) return;
-  const items = (state.previewing || state.isAdmin) ? state.announcements : state.publishedAnnouncements;
-  list.replaceChildren();
-  if (!items.length) {
-    const empty = document.createElement('li');
-    empty.className = 'announce-empty';
-    empty.textContent = 'No pinned announcements.';
-    list.appendChild(empty);
-    return;
-  }
-  items.forEach((a) => {
-    const li = document.createElement('li');
-    li.className = 'announce-item';
-    const text = document.createElement('p');
-    text.className = 'announce-text';
-    text.textContent = a.text;
-    const date = document.createElement('span');
-    date.className = 'announce-date';
-    date.textContent = new Date(a.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    fillAnnounce(text, a);
-    li.append(text, date);
-    list.appendChild(li);
-  });
-}
 
-// --- Pinned announcements ---
-const ANNOUNCE_MAX = 280;
-
-function updateAnnounceCount() {
-  const left = ANNOUNCE_MAX - cleanAnnounce(dom.announceInput).text.length;
-  dom.announceCount.textContent = (left < 0 ? `${-left} over` : `${left} left`) + ' · Ctrl+Enter to pin';
-  dom.announceCount.classList.toggle('is-low', left <= 20);
-}
-// Rich announcements: a separate whitelist from sanitizeDoc. Stored as b, i, ul, li, br only.
-const ANN_INLINE = { b: 'b', strong: 'b', i: 'i', em: 'i' };
-function cleanAnnounce(root) {
-  const out = document.createElement('div');
-  const isBlock = (n) => n && (n.nodeName === 'BR' || n.nodeName === 'UL');
-  const walk = (src, dst) => {
-    src.childNodes.forEach((n) => {
-      if (n.nodeType === 3) { dst.appendChild(document.createTextNode(n.textContent.replace(/\u00a0/g, ' '))); return; }
-      if (n.nodeType !== 1) return;
-      const tag = n.tagName.toLowerCase();
-      const inline = lookup(ANN_INLINE, tag);
-      if (tag === 'br') {
-        dst.appendChild(document.createElement('br'));
-      } else if (inline) {
-        const el = document.createElement(inline);
-        walk(n, el);
-        if (el.childNodes.length) dst.appendChild(el);
-      } else if (tag === 'ul' || tag === 'ol') {
-        const ul = document.createElement('ul');
-        let loose = null;
-        n.childNodes.forEach((c) => {
-          if (c.nodeType === 1 && c.tagName.toLowerCase() === 'li') {
-            loose = null;
-            const li = document.createElement('li');
-            walk(c, li);
-            ul.appendChild(li);
-          } else if (!(c.nodeType === 3 && !c.textContent.trim())) {
-            if (!loose) { loose = document.createElement('li'); ul.appendChild(loose); }
-            walk({ childNodes: [c] }, loose);
-          }
-        });
-        if (ul.childNodes.length) dst.appendChild(ul);
-      } else if (tag === 'div' || tag === 'p' || tag === 'li') {
-        if (dst.lastChild && !isBlock(dst.lastChild)) dst.appendChild(document.createElement('br'));
-        walk(n, dst);
-      } else if (tag !== 'script' && tag !== 'style') {
-        walk(n, dst);
-      }
-    });
-  };
-  walk(root, out);
-  while (out.firstChild && out.firstChild.nodeName === 'BR') out.firstChild.remove();
-  while (out.lastChild && out.lastChild.nodeName === 'BR') out.lastChild.remove();
-  const parts = [];
-  const gather = (n) => n.childNodes.forEach((c) => {
-    if (c.nodeType === 3) parts.push(c.textContent);
-    else if (c.nodeName === 'BR') parts.push('\n');
-    else if (c.nodeName === 'LI') { if (c.textContent.trim()) { parts.push('\n- '); gather(c); } }
-    else gather(c);
-  });
-  gather(out);
-  const text = parts.join('').trim();
-  return { node: out, html: text ? out.innerHTML : '', text };
-}
-
-// Builds an announcement body with DOM calls only. Old plain announcements fall back to text.
-function fillAnnounce(el, a) {
-  el.replaceChildren();
-  const rich = typeof a.html === 'string' && a.html !== '';
-  el.classList.toggle('is-rich', rich);
-  if (rich) {
-    const tpl = document.createElement('template'); // inert: nothing runs or loads
-    tpl.innerHTML = a.html;
-    el.append(...cleanAnnounce(tpl.content).node.childNodes);
-  } else {
-    el.textContent = a.text;
-  }
-  linkify(el);
-}
-
-dom.announceInput.addEventListener('input', () => {
-  if (/^(<div>)?<br>(<\/div>)?$/.test(dom.announceInput.innerHTML)) dom.announceInput.innerHTML = '';
-  updateAnnounceCount();
-});
-dom.announceInput.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
-dom.announceInput.addEventListener('paste', (e) => {
-  e.preventDefault();
-  document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
-});
-dom.announceInput.addEventListener('drop', (e) => { if (dropHasFiles(e)) e.preventDefault(); });
-
-function syncAnnounceTools() {
-  dom.announceTools.forEach((b) => {
-    let on = false;
-    try { on = document.activeElement === dom.announceInput && document.queryCommandState(b.dataset.cmd); } catch (e) {}
-    b.setAttribute('aria-pressed', String(on));
-  });
-}
-dom.announceTools.forEach((b) => {
-  b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the editor
-  b.addEventListener('click', () => {
-    dom.announceInput.focus();
-    document.execCommand(b.dataset.cmd);
-    updateAnnounceCount();
-    syncAnnounceTools();
-  });
-});
-document.addEventListener('selectionchange', () => { if (document.activeElement === dom.announceInput) syncAnnounceTools(); });
-
-function saveAnnouncements() { saveTasks(); updateAdminBar(diffDraft()); }
-
-function renderAnnouncements() {
-  renderPublicAnnouncements();
-  dom.announceList.replaceChildren();
-  if (!state.announcements.length) {
-    const empty = document.createElement('li');
-    empty.className = 'announce-empty';
-    empty.textContent = 'No pinned announcements.';
-    dom.announceList.appendChild(empty);
-    return;
-  }
-  state.announcements.forEach((a) => {
-    const li = document.createElement('li');
-    li.className = 'announce-item';
-    const text = document.createElement('p');
-    text.className = 'announce-text';
-    text.textContent = a.text;
-    const date = document.createElement('span');
-    date.className = 'announce-date';
-    date.textContent = new Date(a.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'task-delete-btn';
-    del.setAttribute('aria-label', 'Remove announcement');
-    del.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
-    del.addEventListener('click', () => {
-      const index = state.announcements.indexOf(a);
-      state.announcements.splice(index, 1);
-      saveAnnouncements();
-      renderAnnouncements();
-      showToast('Announcement removed', 'Undo', () => {
-        state.announcements.splice(Math.min(index, state.announcements.length), 0, a);
-        saveAnnouncements();
-        renderAnnouncements();
-      });
-    });
-    fillAnnounce(text, a);
-    li.append(text, date, del);
-    dom.announceList.appendChild(li);
-  });
-  
-}
-
-function toggleAnnounceForm(show) {
-  dom.announceForm.hidden = !show;
-  if (show) dom.announceInput.focus();
-  else dom.announceInput.innerHTML = '';
-  updateAnnounceCount();
-}
-document.querySelector('#announce-add-btn').addEventListener('click', () => toggleAnnounceForm(dom.announceForm.hidden));
-document.querySelector('#announce-cancel').addEventListener('click', () => toggleAnnounceForm(false));
-dom.announceForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const { html, text } = cleanAnnounce(dom.announceInput);
-  if (!text) return;
-  if (text.length > ANNOUNCE_MAX) { showToast(`Announcement is ${text.length - ANNOUNCE_MAX} characters over the limit`); return; }
-  if (html.length > 8000) { showToast('Too much formatting in this announcement'); return; }
-  state.announcements.unshift({ id: Math.random().toString(36).slice(2, 10), text, html, createdAt: Date.now() });
-  saveAnnouncements();
-  renderAnnouncements();
-  toggleAnnounceForm(false);
-});
-dom.announceInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); dom.announceForm.requestSubmit(); }
-  if (e.key === 'Escape') { e.preventDefault(); toggleAnnounceForm(false); }
+// --- Announcements: js/announcements.js (slice 2.5) ---------------------------------------------
+// The moved listeners register here, exactly where the announcement region's first listener used to,
+// so the page's listener order is unchanged: the note-tool selectionchange above, then the announce
+// editor, toolbar and form listeners, then the keyboard shortcuts, the publish/history Escape
+// handler, settings, tour and the transfer/import and focus-trap listeners. renderAnnouncements is
+// exported because loadPublished, the bootstrap init and js/transfer.js's replaced-draft path call
+// it. updateAdminBar and diffDraft stay in app.js - the publish block below still owns them.
+announcements.init({
+  lookup, linkify, dropHasFiles, showToast, saveTasks, updateAdminBar, diffDraft,
 });
 
 // --- Keyboard shortcuts: N = new task, / = search ---
@@ -1973,7 +1784,7 @@ function restoreDraft(snap) {
   applyProgress(myTasks);
   saveTasks();
   renderAllTasks();
-  renderAnnouncements();
+  announcements.renderAnnouncements();
 }
 
 function saveCheckpoint() {
@@ -1990,7 +1801,7 @@ function setPreview(on) {
   $('#preview-banner').hidden = !on;
   if (on) nav.setPage('class-tasks');
   renderAllTasks();
-  renderAnnouncements();
+  announcements.renderAnnouncements();
 }
 
 // Clear-board mode: the draft has no tasks but the live board does. Publishing then needs the typed phrase, and the request carries an explicit clearBoard intent (the server refuses a bare empty publish).
@@ -2050,7 +1861,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
     setPublished(board);
     hideAnimated(dom.publishOverlay);
     renderAllTasks();
-    renderAnnouncements();
+    announcements.renderAnnouncements();
     showToast('Published');
   } catch (ex) {
     err.textContent = ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message;
@@ -2248,7 +2059,7 @@ tour.init({
 const INCOMING_TRANSFER = transfer.takeTransferToken();
 transfer.init({
   $, hideAnimated, showToast, closeSettings: settings.closeSettings,
-  myTasks, applyProgress, saveTasks, renderAllTasks, renderAnnouncements,
+  myTasks, applyProgress, saveTasks, renderAllTasks, renderAnnouncements: announcements.renderAnnouncements,
   snapshot, restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER,
 });
 
@@ -2305,7 +2116,7 @@ function renderAllTasks() {
 
 function init() {
   loadTasks();
-  renderAnnouncements();
+  announcements.renderAnnouncements();
   ['class', 'admin'].forEach((scope) => {
     let v = null;
     try { v = localStorage.getItem(VIEW_KEYS[scope]); } catch (e) {}
