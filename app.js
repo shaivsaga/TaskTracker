@@ -7,6 +7,7 @@ import { state } from './js/state.js';
 import { dom, cacheDom } from './js/dom.js';
 import { readJSON, writeJSON, plural, fmtWhen, formatTime, COLUMN_TO_STATUS, STATUS_TO_COLUMN, KEYS, API } from './js/util.js';
 import * as calendar from './js/calendar.js';
+import * as quickAdd from './js/quick-add.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -1217,7 +1218,7 @@ document.querySelector('#class-task-search').addEventListener('input', (e) => {
 
 // --- New task, theme, and view switch ---
 function startNewTask() {
-  openQuickAdd();
+  quickAdd.openQuickAdd();
 }
 document.querySelector('#new-task-btn')?.addEventListener('click', startNewTask);
 document.querySelector('#empty-add-btn')?.addEventListener('click', startNewTask);
@@ -1508,38 +1509,6 @@ function quickWords(text) {
   return out;
 }
 
-function isDateWord(w) {
-  const l = w.toLowerCase();
-  return /^(\d{1,2})[\/-](\d{1,2})$/.test(w) || ['today', 'tmr', 'tomorrow'].includes(l) || lookup(WEEKDAYS, l) !== undefined;
-}
-
-
-function openQuickPicker(kind) {
-  const p = parseQuickAdd(dom.quickInput.value);
-  const chip = state.quickChipEls.find((c) => c.dataset.type === (kind === 'time' ? 'time' : 'pick'));
-  openDuePicker({
-    anchor: chip || dom.quickInput,
-    focus: kind,
-    date: p.dueDate || null,
-    time: p.dueTime || null,
-    onChange: ({ date, time }) => {
-      if (!date) { clearQuickDue(false); return; }
-      state.quickPicked = { date, time };
-      renderQuickPreview();
-    },
-    onDone: () => dom.quickInput.focus(),
-  });
-}
-
-function clearQuickDue(refocus = true) {
-  state.quickPicked = { date: null, time: null };
-  const kept = quickWords(dom.quickInput.value).filter((w) => !isDateWord(w) && !parseTimeWord(w));
-  dom.quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
-  closeDuePicker();
-  if (refocus) dom.quickInput.focus();
-  renderQuickPreview();
-}
-
 function parseQuickAdd(text) {
   const out = { subject: '', status: null, typedStatus: false, dueDate: undefined, dueTime: undefined, title: '' };
   const rest = [];
@@ -1575,192 +1544,18 @@ function parseQuickAdd(text) {
   return out;
 }
 
-
-function quickText(text, cls) {
-  const s = document.createElement('span');
-  if (cls) s.className = cls;
-  s.textContent = text;
-  return s;
-}
-
-function quickField(label, content, changed) {
-  const row = document.createElement('div');
-  row.className = 'quick-field';
-  const value = quickText('', 'quick-field-value');
-  if (content) value.appendChild(content);
-  else { value.textContent = '—'; value.classList.add('is-empty'); }
-  if (changed) value.classList.add('is-changed');
-  row.append(quickText(label, 'quick-field-label'), value);
-  return row;
-}
-
-function renderQuickPreview() {
-  dom.quickPreview.replaceChildren();
-  const p = (dom.quickInput.value.trim() || state.quickPicked.date) ? parseQuickAdd(dom.quickInput.value) : null;
-  const next = {
-    subject: p ? p.subject : '',
-    status: p && p.typedStatus ? p.status : '',
-    due: p && p.dueDate ? toInputValue(p.dueDate) + (p.dueTime || '') : '',
-  };
-  const changed = (k) => next[k] !== '' && next[k] !== state.quickPrev[k];
-  let dueNode = null;
-  if (p && p.dueDate) {
-    dueNode = document.createElement('span');
-    dueNode.className = 'quick-due';
-    dueNode.appendChild(quickText(
-      p.dueDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
-      'quick-chip is-mono'
-    ));
-    if (p.dueTime) dueNode.appendChild(quickText(formatTime(p.dueTime), 'quick-chip is-mono'));
-  }
-  dom.quickPreview.append(
-    quickField('Task', p && quickText(p.title, 'quick-title')),
-    quickField('Subject', p && p.subject ? createSubjectTag(p.subject) : null, changed('subject')),
-    quickField('Status', p ? quickText(STATUS_LABELS[p.status], 'quick-chip') : null, changed('status')),
-    quickField('Due', dueNode, changed('due'))
-  );
-  state.quickPrev = next;
-  syncQuickChips(p);
-  const hasText = !!dom.quickInput.value.trim();
-  document.querySelector('#quick-add-btn').disabled = !hasText;
-  document.querySelector('#quick-open-btn').disabled = !hasText;
-}
-
-function renderQuickChips() {
-  const host = document.querySelector('#quick-chips');
-  host.replaceChildren();
-  state.quickChipEls = [];
-  const groups = [
-    ['Subject', Object.keys(SUBJECTS).map((code) => ({ type: 'subject', code }))],
-    ['Status', [['ns', 'Not started', 'ns'], ['ip', 'In progress', 'ip'], ['dn', 'Done', 'dn']].map(([code, label, shown]) => ({ type: 'status', code, label, shown }))],
-    ['Due', [
-      { type: 'date', code: 'today', label: 'Today', shown: 'today' },
-      { type: 'date', code: 'tmr', label: 'Tomorrow', shown: 'tmr' },
-      { type: 'pick', code: 'pick', label: 'Date & time', shown: 'cal' },
-      { type: 'clear', code: 'clear', label: 'Clear' },
-    ]],
-  ];
-  groups.forEach(([name, items]) => {
-    const group = document.createElement('div');
-    group.className = 'quick-group';
-    group.setAttribute('role', 'group');
-    group.setAttribute('aria-label', name);
-    group.appendChild(quickText(name, 'quick-group-label'));
-    items.forEach(({ type, code, label, shown }) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'quick-chip-btn';
-      btn.dataset.type = type;
-      btn.dataset.code = code;
-      btn.title = type === 'subject' ? code : shown ? `Shortcut: ${shown}` : label;
-      btn.setAttribute('aria-pressed', 'false');
-      if (type === 'subject') {
-        btn.classList.add('is-subject');
-        btn.appendChild(createSubjectTag(code));
-      } else {
-        btn.appendChild(quickText(label));
-        if (shown) btn.appendChild(quickText(shown, 'quick-code'));
-      }
-      btn.addEventListener('click', () => applyQuickToken(type, code));
-      group.appendChild(btn);
-      state.quickChipEls.push(btn);
-    });
-    host.appendChild(group);
-  });
-}
-
-function syncQuickChips(p) {
-  state.quickChipEls.forEach((el) => {
-    const { type, code } = el.dataset;
-    let on = false;
-    if (p) {
-      if (type === 'subject') on = p.subject === code;
-      else if (type === 'status') on = p.typedStatus && p.status === STATUS_CODES[code];
-      else if (type === 'date') on = !!p.dueDate && !state.quickPicked.date && dayDiff(p.dueDate) === (code === 'today' ? 0 : 1);
-      else if (type === 'pick') on = !!state.quickPicked.date;
-      else if (type === 'time') on = !!p.dueTime;
-    }
-    if (type === 'clear') el.hidden = !(p && p.dueDate);
-    el.classList.toggle('is-selected', on);
-    el.setAttribute('aria-pressed', String(on));
-  });
-}
-
-// Clicking a chip swaps that token in the input; clicking it again removes it.
-function applyQuickToken(type, code) {
-  if (type === 'pick') { openQuickPicker('date'); return; }
-  if (type === 'time') { openQuickPicker('time'); return; }
-  if (type === 'clear') { clearQuickDue(); return; }
-  const isToken = {
-    subject: (w) => !!lookup(SUBJECTS, w.toUpperCase()),
-    status: (w) => !!lookup(STATUS_CODES, w.toLowerCase()),
-    date: isDateWord,
-  }[type];
-  const wasOn = state.quickChipEls.some((c) => c.dataset.type === type && c.dataset.code === code && c.classList.contains('is-selected'));
-  if (type === 'date') state.quickPicked.date = null;
-  const kept = quickWords(dom.quickInput.value).filter((w) => !isToken(w));
-  if (!wasOn) { if (type === 'subject') kept.unshift(code); else kept.push(code); }
-  dom.quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
-  dom.quickInput.focus();
-  renderQuickPreview();
-}
-
-function openQuickAdd() {
-  if (!dom.dialogOverlay.hidden && !dom.dialogOverlay.classList.contains('is-closing')) return;
-  state.quickReturnFocus = document.activeElement;
-  dom.quickInput.value = '';
-  state.quickPicked = { date: null, time: null };
-  closeDuePicker();
-  state.quickPrev = { subject: '', status: '', due: '' };
-  renderQuickChips();
-  renderQuickPreview();
-  dom.quickOverlay.classList.remove('is-closing');
-  dom.quickOverlay.hidden = false;
-  dom.quickInput.focus();
-}
-
-function closeQuickAdd() {
-  closeDuePicker();
-  hideAnimated(dom.quickOverlay, 120);
-  if (state.quickReturnFocus && state.quickReturnFocus.focus) state.quickReturnFocus.focus();
-}
-
-document.querySelector('#quick-add-btn').addEventListener('click', () => submitQuickAdd(false));
-document.querySelector('#quick-open-btn').addEventListener('click', () => submitQuickAdd(true));
-document.querySelector('#quick-cancel-btn').addEventListener('click', closeQuickAdd);
-
-function submitQuickAdd(openDetails) {
-  if (!dom.quickInput.value.trim()) return;
-  const p = parseQuickAdd(dom.quickInput.value);
-  const task = new Task({ title: p.title, subject: p.subject, dueDate: p.dueDate, dueTime: p.dueTime });
-  myTasks.push(task);
-  if (p.status !== 'not_started') setStatus(task, p.status);
-  else { state.justChangedId = task.id; saveTasks(); }
-  closeDuePicker();
-  hideAnimated(dom.quickOverlay, 120);
-  if (state.searchQuery) { state.searchQuery = ''; document.querySelector('#task-search').value = ''; }
-  setPage('my-tasks');
-  renderAllTasks();
-  if (openDetails) openTaskDialog(task, null, false);
-  else showToast('Task added');
-}
-
-dom.quickInput.addEventListener('input', () => {
-  const m = /(^|\s)(cal|date)\s$/i.exec(dom.quickInput.value);
-  if (m) {
-    dom.quickInput.value = dom.quickInput.value.slice(0, m.index + m[1].length);
-    renderQuickPreview();
-    openQuickPicker('date');
-    return;
-  }
-  renderQuickPreview();
+// --- Quick-add overlay: js/quick-add.js (slice 2.3) ---------------------------------------------
+// The moved listeners register here, exactly where they used to, so their order against the other
+// element listeners on this page is unchanged. quickWords/parseQuickAdd stay above - the brief's
+// natural-language parser has no logic.js home at this tip, so it arrives through init(deps) with the
+// logic.js material. The two maps are thunks: the module reads them while it renders.
+quickAdd.init({
+  quickWords, parseQuickAdd,
+  lookup, parseTimeWord, WEEKDAYS, dayDiff, toInputValue, STATUS_LABELS, Task,
+  createSubjectTag, openDuePicker, closeDuePicker, hideAnimated, myTasks,
+  setStatus, saveTasks, setPage, renderAllTasks, openTaskDialog, showToast,
+  subjects: () => SUBJECTS, statusCodes: () => STATUS_CODES,
 });
-dom.quickInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); submitQuickAdd(e.shiftKey); }
-  if (e.key === 'Escape') { e.preventDefault(); closeQuickAdd(); }
-});
-dom.quickOverlay.addEventListener('click', (e) => { if (e.target === dom.quickOverlay) closeQuickAdd(); });
-
 function renderPublicAnnouncements() {
   const list = document.querySelector('#announce-list-public');
   if (!list) return;
@@ -1969,7 +1764,7 @@ document.addEventListener('keydown', (e) => {
   const t = e.target;
   if (t instanceof Element && t.closest('input, textarea, select, [contenteditable]')) return;
   if (!state.isAdmin || !dom.dialogOverlay.hidden || !dom.quickOverlay.hidden || !dom.tourOverlay.hidden) return;
-  if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openQuickAdd(); }
+  if (e.key === 'n' || e.key === 'N') { e.preventDefault(); quickAdd.openQuickAdd(); }
   if (e.key === '/') { e.preventDefault(); setPage('my-tasks'); document.querySelector('#task-search').focus(); }
 });
 
