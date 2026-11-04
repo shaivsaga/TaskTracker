@@ -8,6 +8,7 @@ import { dom, cacheDom } from './js/dom.js';
 import { readJSON, writeJSON, plural, fmtWhen, formatTime, COLUMN_TO_STATUS, STATUS_TO_COLUMN, KEYS, API } from './js/util.js';
 import * as calendar from './js/calendar.js';
 import * as quickAdd from './js/quick-add.js';
+import * as tour from './js/tour.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -2390,177 +2391,14 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !dom.settingsOverlay.hidden && !dom.settingsOverlay.classList.contains('is-closing')) closeSettings();
 });
 
-// --- Phase 5: first-time tutorial. Sample content lives only inside the overlay: never in progress, the draft or the board. ---
-const TOUR_KEY = 'class_tasks_tour_seen';
-const tourVisible = (el) => (el && el.getClientRects().length ? el : null);
-const TOUR_STEPS = [
-  { title: 'Welcome to TaskTracker', body: 'A quick tour of how the class board works. It takes under a minute and you can skip it at any time.' },
-  { title: 'Assignments from your class', body: 'Tasks posted for the class appear here, as a list or a board. Tap a task to open its notes and links.',
-    target: () => tourVisible($('#class-board:not([hidden])')) || tourVisible($('#class-task-list:not([hidden])')) },
-  { title: 'Track your own progress', body: 'Tap the box on a task and pick not started, in progress or done. Try it on this sample. Nothing here is saved.', sample: true },
-  { title: 'Search', body: 'Search by title, subject code or words inside the notes.',
-    target: () => tourVisible($('#page-class-tasks .search')) },
-  { title: 'List or board', body: 'Switch between a simple list and a three-column board. The app remembers your choice.',
-    target: () => tourVisible($('#page-class-tasks .view-tabs')) },
-  { title: 'You are set', body: 'Your progress is saved in this browser only. Completed tasks and Calendar are in the sidebar menu. You can replay this tour from Settings.' },
-];
-
-function tourSeen() { try { return localStorage.getItem(TOUR_KEY) === '1'; } catch (e) { return true; } }
-const tourTarget = () => { const s = TOUR_STEPS[state.tourIndex]; return s && s.target ? s.target() : null; };
-
-function renderTourSample() {
-  const s = state.tourSampleStatus;
-  const card = document.createElement('article');
-  card.className = 'task-card tour-sample-card';
-  card.dataset.status = s;
-  const head = document.createElement('div');
-  head.className = 'task-card-header';
-  const check = document.createElement('button');
-  check.type = 'button';
-  check.className = `status-check is-${s.replace(/_/g, '-')}`;
-  check.setAttribute('aria-label', `Sample task status: ${STATUS_LABELS[s]}. Press to change.`);
-  check.innerHTML = s === 'done' ? '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>'
-    : s === 'in_progress' ? '<svg class="i" aria-hidden="true"><use href="#i-minus"/></svg>' : '';
-  let menu = null;
-  const onOutside = (e) => {
-    if (menu && !menu.contains(e.target) && !check.contains(e.target)) closeMenu(false);
-  };
-  const closeMenu = (refocus) => {
-    if (!menu) return;
-    menu.remove();
-    menu = null;
-    check.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('click', onOutside, true);
-    if (refocus) check.focus();
-  };
-  check.setAttribute('aria-haspopup', 'listbox');
-  check.setAttribute('aria-expanded', 'false');
-  check.addEventListener('click', () => {
-    if (menu) { closeMenu(true); return; }
-    menu = document.createElement('div');
-    menu.className = 'status-dropdown';
-    menu.setAttribute('role', 'listbox');
-    menu.setAttribute('aria-label', 'Status');
-    STATUS_ORDER.forEach((st) => {
-      const opt = document.createElement('button');
-      opt.type = 'button';
-      opt.className = 'status-option' + (st === s ? ' is-active' : '');
-      opt.setAttribute('role', 'option');
-      opt.setAttribute('aria-selected', String(st === s));
-      opt.innerHTML = `<span class="status-dot dot-${st.replace(/_/g, '-')}"></span> ${STATUS_LABELS[st]}`;
-      opt.addEventListener('click', () => {
-        closeMenu(false);
-        state.tourSampleStatus = st;
-        renderTourSample();
-        dom.tourSample.querySelector('.status-check').focus();
-      });
-      menu.appendChild(opt);
-    });
-    menu.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { e.stopPropagation(); closeMenu(true); return; }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        const opts = [...menu.children];
-        const i = opts.indexOf(document.activeElement);
-        opts[(i + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length].focus();
-      }
-    });
-    head.appendChild(menu);
-    check.setAttribute('aria-expanded', 'true');
-    document.addEventListener('click', onOutside, true);
-    (menu.querySelector('.is-active') || menu.firstChild).focus();
-  });
-  const title = document.createElement('h3');
-  title.className = 'task-card-title';
-  title.textContent = 'Sample: GENMATH worksheet';
-  head.append(check, title);
-  const foot = document.createElement('div');
-  foot.className = 'task-card-footer';
-  const dueBadge = document.createElement('span');
-  dueBadge.className = 'due-badge';
-  dueBadge.textContent = STATUS_LABELS[s];
-  foot.append(createSubjectTag('GENMATH'), dueBadge);
-  card.append(head, foot);
-  dom.tourSample.replaceChildren(card);
-}
-
-function placeTour(el) {
-  dom.tourOverlay.classList.toggle('is-centered', !el);
-  const vw = window.innerWidth, vh = window.innerHeight, gap = 16;
-  const cw = dom.tourCard.offsetWidth, ch = dom.tourCard.offsetHeight;
-  let x, y;
-  if (!el) {
-    x = (vw - cw) / 2;
-    y = (vh - ch) / 2;
-  } else {
-    const r = el.getBoundingClientRect();
-    const top = Math.max(8, r.top - 8), bottom = Math.min(vh - 8, r.bottom + 8);
-    const left = Math.max(8, r.left - 8), right = Math.min(vw - 8, r.right + 8);
-    dom.tourSpot.style.top = `${top}px`;
-    dom.tourSpot.style.left = `${left}px`;
-    dom.tourSpot.style.width = `${Math.max(0, right - left)}px`;
-    dom.tourSpot.style.height = `${Math.max(0, bottom - top)}px`;
-    if (vh - bottom >= ch + gap) y = bottom + gap;
-    else if (top >= ch + gap) y = top - ch - gap;
-    else y = vh - ch - gap;
-    x = Math.max(gap, Math.min(left, vw - cw - gap));
-  }
-  dom.tourCard.style.left = `${Math.max(gap, x)}px`;
-  dom.tourCard.style.top = `${Math.max(gap, y)}px`;
-}
-
-function showTourStep(i) {
-  state.tourIndex = i;
-  const step = TOUR_STEPS[i];
-  const last = i === TOUR_STEPS.length - 1;
-  $('#tour-step').textContent = `Step ${i + 1} of ${TOUR_STEPS.length}`;
-  $('#tour-title').textContent = step.title;
-  $('#tour-body').textContent = step.body;
-  dom.tourSample.hidden = !step.sample;
-  if (step.sample) { state.tourSampleStatus = 'not_started'; renderTourSample(); }
-  $('#tour-back').hidden = i === 0;
-  $('#tour-skip').hidden = last;
-  $('#tour-next').textContent = last ? 'Done' : 'Next';
-  const el = tourTarget();
-  if (el) el.scrollIntoView({ block: 'center', inline: 'nearest' });
-  placeTour(el);
-  $('#tour-next').focus();
-}
-
-function startTour() {
-  if (!dom.tourOverlay.hidden) return;
-  if (state.previewing) setPreview(false);
-  setPage('class-tasks');
-  setSidebarOpen(false, false);
-  dom.tourOverlay._returnFocus = document.activeElement;
-  dom.tourOverlay.classList.remove('is-closing');
-  dom.tourOverlay.hidden = false;
-  document.body.style.overflow = 'hidden';
-  showTourStep(0);
-  // Layout can shift while the board loads, so keep the spotlight on its target.
-  clearInterval(state.tourTimer);
-  state.tourTimer = setInterval(() => { if (state.tourIndex >= 0) placeTour(tourTarget()); }, 400);
-}
-
-function endTour() {
-  if (dom.tourOverlay.hidden || dom.tourOverlay.classList.contains('is-closing')) return;
-  try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) {}
-  clearInterval(state.tourTimer);
-  state.tourTimer = null;
-  state.tourIndex = -1;
-  document.body.style.overflow = '';
-  hideAnimated(dom.tourOverlay);
-}
-
-$('#tour-next').addEventListener('click', () => {
-  if (state.tourIndex >= TOUR_STEPS.length - 1) endTour(); else showTourStep(state.tourIndex + 1);
-});
-$('#tour-back').addEventListener('click', () => { if (state.tourIndex > 0) showTourStep(state.tourIndex - 1); });
-$('#tour-skip').addEventListener('click', endTour);
-$('#settings-replay').addEventListener('click', () => { closeSettings(); startTour(); });
-window.addEventListener('resize', () => { if (state.tourIndex >= 0) placeTour(tourTarget()); });
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !dom.tourOverlay.hidden && !dom.tourOverlay.classList.contains('is-closing')) endTour();
+// --- Tutorial: js/tour.js (slice 2.3) -----------------------------------------------------------
+// The moved listeners register here, exactly where they used to, so the tour's document keydown
+// handler keeps its place in the Escape chain and its resize handler keeps its order against the
+// other window listeners. `$` is app.js's querySelector shorthand (declared above); the rest are
+// the hub functions the module still calls.
+tour.init({
+  $, STATUS_LABELS, STATUS_ORDER, createSubjectTag,
+  setPreview, setPage, setSidebarOpen, hideAnimated, closeSettings,
 });
 
 // --- Phase 7: transfer by QR code and link ---
@@ -2908,7 +2746,7 @@ function init() {
 
   setPage(pageFromHash(window.location.hash, NAV_PAGES, state.isAdmin), false);
   if (INCOMING_TRANSFER) checkIncomingTransfer(INCOMING_TRANSFER);
-  else if (!tourSeen()) setTimeout(startTour, 800);
+  else if (!tour.tourSeen()) setTimeout(tour.startTour, 800);
 
   // Time-based overdue: re-render each minute unless something is open
   setInterval(() => {
