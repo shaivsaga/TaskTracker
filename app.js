@@ -10,6 +10,7 @@ import * as calendar from './js/calendar.js';
 import * as quickAdd from './js/quick-add.js';
 import * as tour from './js/tour.js';
 import * as settings from './js/settings.js';
+import * as nav from './js/nav.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -1544,7 +1545,7 @@ quickAdd.init({
   quickWords, parseQuickAdd,
   lookup, parseTimeWord, WEEKDAYS, dayDiff, toInputValue, STATUS_LABELS, Task,
   createSubjectTag, openDuePicker, closeDuePicker, hideAnimated, myTasks,
-  setStatus, saveTasks, setPage, renderAllTasks, openTaskDialog, showToast,
+  setStatus, saveTasks, setPage: nav.setPage, renderAllTasks, openTaskDialog, showToast,
   subjects: () => SUBJECTS, statusCodes: () => STATUS_CODES,
 });
 function renderPublicAnnouncements() {
@@ -1756,7 +1757,7 @@ document.addEventListener('keydown', (e) => {
   if (t instanceof Element && t.closest('input, textarea, select, [contenteditable]')) return;
   if (!state.isAdmin || !dom.dialogOverlay.hidden || !dom.quickOverlay.hidden || !dom.tourOverlay.hidden) return;
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); quickAdd.openQuickAdd(); }
-  if (e.key === '/') { e.preventDefault(); setPage('my-tasks'); document.querySelector('#task-search').focus(); }
+  if (e.key === '/') { e.preventDefault(); nav.setPage('my-tasks'); document.querySelector('#task-search').focus(); }
 });
 
 // --- Due date picker (shared by task dialog and quick add) ---
@@ -1921,89 +1922,17 @@ document.addEventListener('click', (e) => {
   if (state.dpEl && !state.dpEl.contains(e.target) && !state.dpState.anchor.contains(e.target)) closeDuePicker();
 });
 
-// --- Sidebar collapse ---
-const SIDEBAR_KEY = 'class_tasks_sidebar';
-function setSidebarCollapsed(collapsed, save = true) {
-  document.documentElement.dataset.sidebar = collapsed ? 'collapsed' : 'open';
-  dom.sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
-  dom.sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
-  dom.navItems.forEach((item) => {
-    if (collapsed) item.title = item.querySelector('span:not(.nav-badge)').textContent;
-    else item.removeAttribute('title');
-  });
-  if (save) { try { localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0'); } catch (e) {} }
-}
-dom.sidebarToggle.addEventListener('click', () => {
-  setSidebarCollapsed(document.documentElement.dataset.sidebar !== 'collapsed');
+// --- Navigation and routing: js/nav.js (slice 2.4) ----------------------------------------------
+// The moved listeners register here, exactly where they used to, so their order against the other
+// element and document listeners on this page is unchanged (the Escape chain depends on it), and
+// the phone-sidebar media query is built at the same point. setPage and setSidebarOpen moved with
+// them: the nav-item listeners, the deep-link handler, app.js's own call sites and the quick-add,
+// settings and tour init deps now reach them as nav.setPage / nav.setSidebarOpen. `pageFromHash`
+// is the logic.js import above; `setPreview` is a hoisted function declaration below, so passing
+// it by value is safe (quickAdd.init already passes renderAllTasks the same way).
+nav.init({
+  pageFromHash, setPreview,
 });
-setSidebarCollapsed(document.documentElement.dataset.sidebar === 'collapsed', false);
-
-// --- Navigation ---
-function setPage(pageName, updateHash = true) {
-  const activeItem = dom.navItems.find((item) => item.dataset.page === (pageName === 'my-tasks' && !state.isAdmin ? 'class-tasks' : pageName)) || dom.navItems[0];
-  const activePageName = activeItem.dataset.page;
-  const activePage = dom.pages.find((page) => page.dataset.pageView === activePageName);
-
-  dom.navItems.forEach((item) => {
-    const isActive = item === activeItem;
-    item.classList.toggle('is-active', isActive);
-    item.setAttribute('aria-current', isActive ? 'page' : 'false');
-  });
-
-  dom.pages.forEach((page) => {
-    page.hidden = page !== activePage;
-  });
-
-  dom.breadcrumbCurrent.textContent = activeItem.querySelector('span:not(.nav-badge)').textContent;
-  document.title = `${activeItem.querySelector('span:not(.nav-badge)').textContent} — TaskTracker`;
-
-  if (updateHash && window.location.hash !== `#${activePageName}`) {
-    if (updateHash === 'push') history.pushState(null, '', `#${activePageName}`);
-    else history.replaceState(null, '', `#${activePageName}`);
-  }
-
-  setSidebarOpen(false, false);
-}
-
-dom.navItems.forEach((item) => {
-  item.addEventListener('click', (event) => {
-    event.preventDefault();
-    if (state.previewing) setPreview(false);
-    setPage(item.dataset.page, 'push');
-  });
-});
-
-// Deep links: follow hash edits, pasted links, and Back/Forward navigation.
-const NAV_PAGES = dom.navItems.map((item) => item.dataset.page);
-window.addEventListener('hashchange', () => {
-  if (state.previewing) setPreview(false);
-  setPage(pageFromHash(window.location.hash, NAV_PAGES, state.isAdmin), false);
-});
-
-   // --- Phone sidebar: scrim, Escape, focus ---
-   const phoneQuery = matchMedia('(max-width: 720px)');
-
-   function setSidebarOpen(open, restoreFocus = true) {
-     const phone = phoneQuery.matches;
-     const on = open && phone;
-     dom.sidebar.classList.toggle('is-open', on);
-     dom.sidebarScrim.hidden = !on;
-     dom.sidebar.inert = phone && !on;
-     dom.mainContent.inert = on;
-     dom.mobileMenu.setAttribute('aria-expanded', String(on));
-     document.body.style.overflow = on ? 'hidden' : '';
-     if (on) (dom.sidebar.querySelector('.nav-item.is-active') || dom.sidebar.querySelector('.nav-item')).focus();
-     else if (restoreFocus && phone) dom.mobileMenu.focus();
-   }
-
-   dom.mobileMenu.addEventListener('click', () => setSidebarOpen(!dom.sidebar.classList.contains('is-open')));
-     dom.sidebarScrim.addEventListener('click', () => setSidebarOpen(false));
-  document.querySelector('#sidebar-close').addEventListener('click', () => setSidebarOpen(false));
-   document.addEventListener('keydown', (e) => {
-     if (e.key === 'Escape' && dom.sidebar.classList.contains('is-open')) setSidebarOpen(false);
-   });
-   phoneQuery.addEventListener('change', () => setSidebarOpen(false, false));
-   setSidebarOpen(false, false);
 
 // --- Admin: diff, checkpoints, publish, history, import/export, preview ---
 const $ = (sel) => document.querySelector(sel);
@@ -2058,7 +1987,7 @@ function saveCheckpoint() {
 function setPreview(on) {
   state.previewing = on;
   $('#preview-banner').hidden = !on;
-  if (on) setPage('class-tasks');
+  if (on) nav.setPage('class-tasks');
   renderAllTasks();
   renderAnnouncements();
 }
@@ -2293,8 +2222,8 @@ document.addEventListener('keydown', (e) => {
 // above this point, so it can be passed by value - phoneQuery is a MediaQueryList and the module only
 // reads .matches when closeSettings runs.
 settings.init({
-  $, setSidebarOpen, hideAnimated, phoneQuery, adminHint, signIn, showToast,
-  JSON_POST, SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY,
+  $, setSidebarOpen: nav.setSidebarOpen, hideAnimated, phoneQuery: nav.phoneQuery, adminHint, signIn, showToast,
+  JSON_POST, SIDEBAR_KEY: nav.SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY,
 });
 
 // --- Tutorial: js/tour.js (slice 2.3) -----------------------------------------------------------
@@ -2304,7 +2233,7 @@ settings.init({
 // the hub functions the module still calls.
 tour.init({
   $, STATUS_LABELS, STATUS_ORDER, createSubjectTag,
-  setPreview, setPage, setSidebarOpen, hideAnimated, closeSettings: settings.closeSettings,
+  setPreview, setPage: nav.setPage, setSidebarOpen: nav.setSidebarOpen, hideAnimated, closeSettings: settings.closeSettings,
 });
 
 // --- Phase 7: transfer by QR code and link ---
@@ -2650,7 +2579,7 @@ function init() {
 
   
 
-  setPage(pageFromHash(window.location.hash, NAV_PAGES, state.isAdmin), false);
+  nav.setPage(pageFromHash(window.location.hash, nav.NAV_PAGES, state.isAdmin), false);
   if (INCOMING_TRANSFER) checkIncomingTransfer(INCOMING_TRANSFER);
   else if (!tour.tourSeen()) setTimeout(tour.startTour, 800);
 
