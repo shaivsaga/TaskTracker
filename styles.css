@@ -188,35 +188,40 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .announce-empty { margin: 0; padding-top: 12px; border-top: 1px solid var(--ln); color: var(--mu); font-size: 14px; line-height: 20px; }
 
 /* ---------- Board ---------- */
-.kanban-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; align-items: stretch; }
-.kanban-column { display: flex; min-width: 0; min-height: 320px; flex-direction: column; padding: 12px; border: 1px solid var(--ln); background: var(--sf2); }
-.column-header { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--ln); }
-.column-header > div { display: flex; flex: 1; min-width: 0; align-items: baseline; gap: 8px; }
-.column-header h2 { font-size: 14px; line-height: 24px; }
-.column-count { color: var(--mu); font-size: 12px; font-variant-numeric: tabular-nums; line-height: 24px; }
-.column-marker { order: -1; width: 8px; height: 8px; flex-shrink: 0; }
+/* Columns are the mockup's paper panels (.panel/.card): 2px var(--ln) on var(--sf) with the mockup's own
+   2px offset shadow, at its 12px / 24px column gap (.cols). The header is the mockup's .sec strip -
+   status square, heading, the .n count chip, then the .sec rule that fills the rest of the row. */
+.kanban-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; align-items: flex-start; }
+@media (min-width: 720px) { .kanban-board { gap: 24px; } }
+.kanban-column { display: flex; min-width: 0; min-height: 320px; flex-direction: column; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
+.column-header { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.column-header > div { display: flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 8px; }
+.column-header h2 { color: var(--tx); font-size: 14px; font-weight: 700; line-height: 20px; }
+.column-header::after { content: ''; flex: 1; height: 2px; background: var(--ln); }
+.column-count { padding: 0 6px; min-width: 20px; color: var(--mu); background: var(--sf2); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
+.column-marker { order: -1; width: 8px; height: 8px; flex-shrink: 0; outline: 1px solid var(--ln); }
 .marker-todo { background: var(--mu); }
 .marker-progress { background: var(--ac); }
 .marker-done { background: var(--ok); }
-.column-content { display: grid; flex: 1; align-content: start; gap: 8px; padding: 12px 0 0; }
+.column-content { display: grid; flex: 1; align-content: start; gap: 12px; padding: 12px 0 0; }
 .column-content.is-empty { place-items: center; align-content: center; }
-.column-empty { margin: 8px 0; color: var(--mu); font-size: 14px; line-height: 24px; text-align: center; }
-.kanban-column.drag-over { background: var(--acs); border-color: var(--ac); }
-.drop-placeholder { display: grid; place-content: center; height: 56px; border: 1px dashed var(--ac); background: var(--acs); color: var(--ac); font-size: 12px; font-weight: 500; }
+.column-empty { margin: 0; padding: 24px 16px; border: 2px dashed var(--ln); background: var(--sf2); color: var(--mu); font-size: 12px; line-height: 16px; text-align: center; }
+.kanban-column.drag-over { border-color: var(--ac); }
+.kanban-column.drag-over .column-content { outline: 2px dashed var(--ac); outline-offset: 4px; background: var(--acs); }
+.drop-placeholder { display: grid; place-content: center; height: 56px; border: 2px dashed var(--ac); background: var(--acs); color: var(--ac); font-size: 12px; font-weight: 600; }
 
 /* ---------- Task card ---------- */
-.task-card { position: relative; display: grid; gap: 4px; padding: 12px 12px 12px 14px; border: 1px solid var(--ln); background: var(--sf); cursor: pointer; }
-.task-card::before { content: ''; position: absolute; top: -1px; bottom: -1px; left: -1px; width: 3px; background: var(--edge, var(--mu)); }
-.task-card[data-status="in_progress"] { --edge: var(--ac); }
-.task-card[data-status="done"] { --edge: var(--ok); }
-.task-card:hover { border-color: var(--mu); }
+/* The mockup's .card: 2px var(--ln) on var(--sf) with the same 2px offset shadow, 12px padding, and the
+   title over its .mt meta row at the mockup's 8px. The status square, subject chip and due badge are
+   3.1d's components, composed here, not restyled. */
+.task-card { display: grid; gap: 8px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
+.task-card:hover { border-color: var(--ac); }
 .task-card:active { background: var(--sf2); }
-.task-card.is-dragging { opacity: 0.45; }
-.task-card-header, .task-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.task-card.is-dragging { opacity: 0.35; }
+.task-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.task-card-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .task-card-header .status-check { flex-shrink: 0; }
-.task-card-footer { flex-wrap: wrap; row-gap: 4px; margin-top: 4px; }
-.task-card-footer .due-badge { margin-left: auto; }
-.task-card-title { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; word-break: break-word; }
+.task-card-title { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; word-break: break-word; }
 .task-card[data-status="done"] .task-card-title { color: var(--mu); text-decoration: line-through; }
 .is-changed .task-card-title::after, .is-changed .task-row-title::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; background: var(--ac); vertical-align: middle; }
 
@@ -271,17 +276,19 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .status-check.is-done, .status-check.is-in-progress { color: var(--onac); }
 
 /* ---------- List ---------- */
-.task-list { margin-top: 16px; border: 1px solid var(--ln); background: var(--sf); }
-.task-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto auto 32px; align-items: center; gap: 12px; min-height: 48px; padding: 8px; border-bottom: 1px solid var(--ln); cursor: pointer; }
+/* The mockup's list view (.ls panel of .lr rows): one paper panel, rows divided by a hairline, each row
+   at the mockup's 12px padding with its title over a muted meta line. */
+.task-list { margin-top: 16px; border: 2px solid var(--ln); background: var(--sf); }
+.task-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto auto 32px; align-items: center; gap: 12px; min-height: 48px; padding: 12px; border-bottom: 1px solid var(--ln); cursor: pointer; }
 .task-row:last-child { border-bottom: 0; }
 .task-row:hover { background: var(--sf2); }
 .task-row:active { background: var(--sf2); }
 .task-row:focus-visible { outline-offset: -2px; }
 .task-row .status-check { justify-self: center; }
-.task-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-size: 15px; font-weight: 600; line-height: 24px; }
+.task-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-size: 15px; font-weight: 600; line-height: 22px; }
 .task-row-title.is-ghost { color: var(--mu); }
 .task-row-title.is-done { color: var(--mu); text-decoration: line-through; }
-.task-row-due { color: var(--mu); font-size: 12px; white-space: nowrap; }
+.task-row-due { color: var(--mu); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 16px; white-space: nowrap; }
 .task-row-due.is-overdue { color: var(--er); font-weight: 600; }
 .task-list-add { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 8px; border-top: 1px solid var(--ln); background: transparent; color: var(--mu); font-size: 14px; text-align: left; cursor: pointer; }
 .task-list-add:hover { color: var(--tx); background: var(--sf2); }
@@ -455,7 +462,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* ---------- Loading + motion (short, answers an action) ---------- */
 .skeleton { background: var(--sf2); animation: skeleton-pulse 1.2s ease-in-out infinite; }
-.skeleton-card { height: 76px; border: 1px solid var(--ln); }
+.skeleton-card { height: 76px; border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); }
 .skeleton-row { height: 48px; margin-bottom: 1px; }
 
 @keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
@@ -525,6 +532,13 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .search input { width: 100%; }
   .kanban-board { grid-template-columns: 1fr; }
   .kanban-column { min-height: 240px; }
+  /* v5.9 phones: Tasks is List-only under the tab bar and its rows are the mockup's cards (mockup
+     268-269). A phone can be left on Board view - that preference is shared with the desktop - so the
+     list has to win, and [hidden] is !important, which is why display carries it too. */
+  #page-class-tasks .view-tabs, #class-board { display: none; }
+  #page-class-tasks #class-task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
+  #class-task-list .task-row { padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
+  #class-task-list .task-row-title { font-size: 16px; line-height: 24px; }
   .cal-day { min-height: 80px; padding: 4px; }
   .cal[data-mode="month"] .cal-dow { padding: 8px 0; text-align: center; }
   .cal .cal-time { display: none; }
