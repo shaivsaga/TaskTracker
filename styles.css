@@ -494,11 +494,15 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (max-width: 960px) {
   .page-container { width: calc(100% - 48px); }
 }
-/* The mockup phone chrome: the nav becomes the fixed bottom tab bar; the theme button stays in the
-   sticky top strip (D19.5) and the settings tile stays in the tab bar (D19.4). */
+/* The mockup phone chrome (mockup styles.css:239-249): the header itself becomes the fixed bottom bar, so
+   nothing sits at the top of a phone screen. Deliberate deviation from that block: it hides .ib, but
+   #theme-toggle is the app's only theme control and the boot script defaults to dark without reading the
+   OS preference, so hiding it would strand phone users in dark mode - it stays visible as the last
+   control in the bar (D19.5). */
 @media (max-width: 719px) {
-  .nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 30; align-items: flex-end; justify-content: space-around; gap: 4px; padding: 8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: var(--sf); border-top: 2px solid var(--ln); }
+  .tb { position: fixed; top: auto; right: 0; bottom: 0; left: 0; height: auto; align-items: flex-end; padding: 8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-bottom: 0; border-top: 2px solid var(--ln); }
   .tb .brand { display: none; }
+  .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }
   .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; font: 600 11px/12px Inter; white-space: nowrap; }
   .tn.adm { max-width: 64px; height: 56px; transform: translateY(-12px); }
