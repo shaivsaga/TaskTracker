@@ -14,6 +14,7 @@ import * as nav from './js/nav.js';
 import * as transfer from './js/transfer.js';
 import * as announcements from './js/announcements.js';
 import * as publish from './js/publish.js';
+import * as tasks from './js/tasks.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -64,89 +65,8 @@ const myTasks = [];              // admin draft (definitions only)
 const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.includes(task);
 const findTask = (id) => [...myTasks, ...state.publishedTasks].find((t) => t.id === id);
 
-function applyProgress(list) {
-  list.forEach((t) => { const p = state.progress[t.id]; t.status = p ? p.status : 'not_started'; t.movedAt = p ? p.movedAt : 0; });
-}
-function setStatus(task, status) {
-  state.progress[task.id] = { status, movedAt: Date.now() };
-  if (status === 'done') navigator.vibrate?.(12);
-  applyProgress(myTasks);
-  applyProgress(state.publishedTasks);
-  state.justChangedId = task.id;
-  saveTasks();
-}
-
 // Leaving Done needs an explicit yes. Returns true when the change may proceed.
 const isReopen = (task, status) => task.status === 'done' && status !== 'done';
-
-
-function ensureConfirmDialog() {
-  if (state.confirmOverlayEl) return state.confirmOverlayEl;
-  const overlay = document.createElement('div');
-  overlay.className = 'task-dialog-overlay confirm-overlay';
-  overlay.hidden = true;
-  overlay.innerHTML = `
-    <div class="task-dialog confirm-dialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
-      <div class="dialog-header"><h2 class="dialog-heading" id="confirm-title"></h2></div>
-      <div class="dialog-body"><p class="confirm-message" id="confirm-message"></p></div>
-      <div class="dialog-footer">
-        <button type="button" class="secondary-button" data-confirm="cancel">Cancel</button>
-        <button type="button" class="primary-button" data-confirm="ok"></button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  state.confirmOverlayEl = overlay;
-  return overlay;
-}
-
-// Asks before a Done task is reopened. Runs onConfirm only on an explicit yes.
-function confirmReopen(task, newStatus, onConfirm) {
-  const overlay = ensureConfirmDialog();
-  if (!overlay.hidden) return;
-  const okBtn = overlay.querySelector('[data-confirm="ok"]');
-  const cancelBtn = overlay.querySelector('[data-confirm="cancel"]');
-  const opener = document.activeElement;
-
-  overlay.querySelector('#confirm-title').textContent = 'Reopen this task?';
-  overlay.querySelector('#confirm-message').textContent =
-    `\u201C${task.title}\u201D will move from Done to ${STATUS_LABELS[newStatus]}.`;
-  okBtn.textContent = 'Reopen';
-
-  const close = (accept) => {
-    overlay.removeEventListener('keydown', onKey, true);
-    overlay.removeEventListener('click', onBackdrop);
-    okBtn.onclick = null;
-    cancelBtn.onclick = null;
-    hideAnimated(overlay);
-    if (opener && opener.isConnected) opener.focus();
-    if (accept) onConfirm();
-  };
-  const onKey = (e) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopImmediatePropagation(); // keep the task dialog behind from closing too
-      close(false);
-      return;
-    }
-    if (e.key !== 'Tab') return;
-    e.stopImmediatePropagation();
-    const active = document.activeElement;
-    if (active !== cancelBtn && active !== okBtn) { e.preventDefault(); cancelBtn.focus(); }
-    else if (e.shiftKey && active === cancelBtn) { e.preventDefault(); okBtn.focus(); }
-    else if (!e.shiftKey && active === okBtn) { e.preventDefault(); cancelBtn.focus(); }
-    else if (!e.shiftKey && active === cancelBtn) { e.preventDefault(); okBtn.focus(); }
-    else if (e.shiftKey && active === okBtn) { e.preventDefault(); cancelBtn.focus(); }
-  };
-  const onBackdrop = (e) => { if (e.target === overlay) close(false); };
-
-  okBtn.onclick = () => close(true);
-  cancelBtn.onclick = () => close(false);
-  overlay.addEventListener('click', onBackdrop);
-  overlay.addEventListener('keydown', onKey, true);
-  overlay.classList.remove('is-closing');
-  overlay.hidden = false;
-  cancelBtn.focus();
-}
 
 dom.dialogFileInput.accept = TTFiles.ACCEPT;
 dom.dialogAttachBtn.addEventListener('click', () => dom.dialogFileInput.click());
@@ -155,7 +75,6 @@ dom.dialogFileInput.addEventListener('change', () => {
   dom.dialogFileInput.value = '';
   if (picked.length) attachFiles(picked);
 });
-
 
 // Title is a one-line-looking textarea that grows with its content
 function fitDialogTitle() {
@@ -171,39 +90,6 @@ dom.dialogTitleInput.addEventListener('input', () => {
   fitDialogTitle();
 });
 window.addEventListener('resize', () => { if (state.currentTask) fitDialogTitle(); });
-
-// --- Persistence: progress (everyone) + draft (admin) ---
-function saveTasks() {
-  const ok = writeJSON(KEYS.progress, state.progress)
-    && (!state.isAdmin || writeJSON(KEYS.draft, { tasks: myTasks.map((t) => t.toJSON()), announcements: state.announcements }));
-  if (!ok) showToast('Storage is full. Remove large images.');
-}
-
-function migrateLegacy() {
-  try {
-    const raw = localStorage.getItem(KEYS.legacy);
-    if (!raw || localStorage.getItem(KEYS.draft)) return;
-    localStorage.setItem(KEYS.legacy + '_backup', raw);
-    const old = JSON.parse(raw);
-    old.forEach((o) => { if (o.status && o.status !== 'not_started') state.progress[o.id] = { status: o.status, movedAt: 0 }; });
-    writeJSON(KEYS.progress, state.progress);
-    writeJSON(KEYS.draft, {
-      tasks: old.map((o) => Task.fromJSON(o).toJSON()),
-      announcements: readJSON('class_tasks_announcements', []),
-    });
-  } catch (e) { console.warn('Migration skipped:', e); }
-}
-
-function loadTasks() {
-  state.progress = readJSON(KEYS.progress, {});
-  if (!state.isAdmin) return;
-  migrateLegacy();
-  const draft = readJSON(KEYS.draft, { tasks: [], announcements: [] });
-  myTasks.length = 0;
-  (draft.tasks || []).forEach((o) => myTasks.push(Task.fromJSON(o)));
-  state.announcements = Array.isArray(draft.announcements) ? draft.announcements : [];
-  applyProgress(myTasks);
-}
 
 // Returns a clean { tasks, announcements } or null when the data is not a usable board.
 function normalizeBoard(data) {
@@ -221,7 +107,7 @@ function setPublished(data) {
   const board = normalizeBoard(data) || { tasks: [], announcements: [] };
   state.publishedTasks = board.tasks.map((o) => Task.fromJSON(o));
   state.publishedAnnouncements = board.announcements;
-  applyProgress(state.publishedTasks);
+  tasks.applyProgress(state.publishedTasks);
 }
 
 // --- Update notice: one popup per visit listing tasks that are new or changed since this device last saw the Board ---
@@ -286,19 +172,6 @@ function showUpdateNotice(items, onDismiss) {
   ok.focus();
 }
 
-// Drops progress for tasks that are gone from the Board and from this browser's Draft. Runs only after a live, non-empty Board load, so a failed or empty load never wipes anything.
-function pruneProgress(board) {
-  if (!board || !board.tasks.length) return;
-  const keep = new Set(board.tasks.map((t) => String(t.id)));
-  myTasks.forEach((t) => keep.add(t.id));
-  const draft = readJSON(KEYS.draft, null);
-  (draft && Array.isArray(draft.tasks) ? draft.tasks : []).forEach((t) => { if (t && t.id !== undefined) keep.add(String(t.id)); });
-  const gone = Object.keys(state.progress).filter((id) => !keep.has(id));
-  if (!gone.length) return;
-  gone.forEach((id) => { delete state.progress[id]; });
-  writeJSON(KEYS.progress, state.progress);
-}
-
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
@@ -325,8 +198,8 @@ async function loadPublished() {
   if (state.currentTask) return;
   setPublished(board);
   checkUpdateNotice(state.liveBoard);
-  pruneProgress(state.liveBoard);
-  renderAllTasks();
+  tasks.pruneProgress(state.liveBoard);
+  tasks.renderAllTasks();
   announcements.renderAnnouncements();
 }
 
@@ -398,10 +271,10 @@ function getCloseBtn() {
     const task = state.currentTask;
     if (!task || !isEditable(task)) return;
     task.closedAt = Date.now();
-    saveTasks();
+    tasks.saveTasks();
     closeTaskDialog();
-    renderAllTasks();
-    showToast('Moved to Past tasks', 'Undo', () => { task.closedAt = 0; saveTasks(); renderAllTasks(); });
+    tasks.renderAllTasks();
+    tasks.showToast('Moved to Past tasks', 'Undo', () => { task.closedAt = 0; tasks.saveTasks(); tasks.renderAllTasks(); });
   });
   dom.dialogDelete.insertAdjacentElement('beforebegin', state.dialogCloseBtn);
   return state.dialogCloseBtn;
@@ -440,7 +313,7 @@ function closeTaskDialog() {
   if (isEditable(state.currentTask)) {
     state.currentTask.title = dom.dialogTitleInput.value.trim() || 'New Task';
     state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
-    saveTasks();
+    tasks.saveTasks();
   }
   state.currentTask = null;
   closeStatusPopover();
@@ -449,90 +322,13 @@ function closeTaskDialog() {
   dom.dialogSubjectDropdown.hidden = true;
   dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
   document.body.style.overflow = '';
-  renderAllTasks();
+  tasks.renderAllTasks();
   const back = state.dialogReturn;
   state.dialogReturn = null;
   if (back) {
     const target = back.el && back.el.isConnected ? back.el : document.querySelector(`[data-task-id="${CSS.escape(String(back.id))}"]`);
     if (target) target.focus();
   }
-}
-
-// --- Task Card Creation ---
-function createTaskCard(task) {
-  const article = document.createElement('article');
-  article.className = 'task-card';
-  article.dataset.taskId = task.id;
-  article.draggable = true;
-
-  const header = document.createElement('div');
-  header.className = 'task-card-header';
-
-  const titleEl = document.createElement('h3');
-  titleEl.className = 'task-card-title';
-  titleEl.textContent = task.title;
-
-  article.dataset.status = task.status;
-  article.tabIndex = 0;
-  article.addEventListener('click', (e) => {
-    if (e.target.closest('.task-delete-btn')) return;
-    openTaskDialog(task, article.closest('.kanban-column'), false);
-  });
-  article.addEventListener('keydown', (e) => {
-    if (e.target === article && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      openTaskDialog(task, article.closest('.kanban-column'), false);
-    }
-  });
-
-  if (task.id === state.justChangedId) article.classList.add('is-entering');
-  if (isEditable(task) && state.changedIds.has(task.id)) article.classList.add('is-changed');
-  header.append(createStatusCheck(task), titleEl);
-
-  // Delete button
-  const deleteBtn = document.createElement('button');
-  deleteBtn.className = 'task-delete-btn';
-  deleteBtn.type = 'button';
-  deleteBtn.setAttribute('aria-label', 'Delete task');
-  deleteBtn.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
-  deleteBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    deleteTask(task);
-  });
-  if (isEditable(task)) header.appendChild(deleteBtn);
-
-  article.appendChild(header);
-
-  if (task.subject || task.dueDate) {
-    const footer = document.createElement('div');
-    footer.className = 'task-card-footer';
-    if (task.subject) footer.appendChild(createSubjectTag(task.subject));
-    if (task.dueDate) {
-      const diff = dayDiff(task.dueDate);
-      const isDone = task.status === 'done';
-      const overdueNow = task.isOverdue();
-      const due = document.createElement('span');
-      due.className = 'due-badge' + (overdueNow && !isDone ? ' overdue' : diff <= 3 && !isDone ? ' due-soon' : '');
-      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      icon.setAttribute('class', 'i');
-      icon.setAttribute('aria-hidden', 'true');
-      const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-      use.setAttribute('href', '#i-' + (diff < 0 && !isDone ? 'alarm-clock' : 'calendar'));
-      icon.appendChild(use);
-      const label = document.createElement('span');
-      label.textContent = isDone ? task.getDueDateDisplay() : task.getDueLabel();
-      if (!isDone) due.title = task.getDueShort();
-      due.append(icon, label);
-      footer.appendChild(due);
-    }
-    article.appendChild(footer);
-  }
-
-  // Drag events
-  article.addEventListener('dragstart', handleDragStart);
-  article.addEventListener('dragend', handleDragEnd);
-
-  return article;
 }
 
 function updateColumn(columnEl) {
@@ -549,20 +345,6 @@ function updateColumn(columnEl) {
     emptyMsg.textContent = searching ? 'No tasks match your search.' : emptyMsg.dataset.default;
     emptyMsg.hidden = !isEmpty;
   }
-}
-
-// --- Delete Task ---
-function deleteTask(task) {
-  const index = myTasks.indexOf(task);
-  if (index === -1) return;
-  myTasks.splice(index, 1);
-  saveTasks();
-  renderAllTasks();
-  showToast('Task deleted', 'Undo', () => {
-    myTasks.splice(Math.min(index, myTasks.length), 0, task);
-    saveTasks();
-    renderAllTasks();
-  });
 }
 
 // --- Drag & Drop ---
@@ -620,18 +402,18 @@ function handleDrop(e) {
   const newStatus = COLUMN_TO_STATUS[columnEl.dataset.status];
   if (newStatus && newStatus !== task.status) {
     if (isReopen(task, newStatus)) {
-      confirmReopen(task, newStatus, () => {
+      tasks.confirmReopen(task, newStatus, () => {
         const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-        setStatus(task, newStatus);
-        renderAllTasks();
-        showToast(statusChangeMessage(newStatus), 'Undo', () => restoreProgress(task.id, prev));
+        tasks.setStatus(task, newStatus);
+        tasks.renderAllTasks();
+        tasks.showToast(statusChangeMessage(newStatus), 'Undo', () => tasks.restoreProgress(task.id, prev));
       });
     } else {
       const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-      setStatus(task, newStatus);
-      renderAllTasks();
+      tasks.setStatus(task, newStatus);
+      tasks.renderAllTasks();
       if (newStatus === 'done') {
-        showToast(statusChangeMessage('done'), 'Undo', () => restoreProgress(task.id, prev));
+        tasks.showToast(statusChangeMessage('done'), 'Undo', () => tasks.restoreProgress(task.id, prev));
       }
     }
   }
@@ -731,7 +513,7 @@ async function insertDocImages(files) {
       src = TTFiles.urlFor(out.id);
     } catch (e) {
       src = await fileToDataUrl(file);   // not signed in or offline: keep it inline instead of losing it
-      if (!src) { showToast(e.message || 'Could not add that image'); continue; }
+      if (!src) { tasks.showToast(e.message || 'Could not add that image'); continue; }
     }
     insertDocImage(src);
   }
@@ -743,21 +525,21 @@ async function attachFiles(files) {
   if (!task || !isEditable(task)) return;
   let added = 0;
   for (const file of files) {
-    if (task.files.length >= 10) { showToast('A task can have up to 10 files.'); break; }
+    if (task.files.length >= 10) { tasks.showToast('A task can have up to 10 files.'); break; }
     try {
-      showToast(`Uploading ${file.name || 'file'}…`);
+      tasks.showToast(`Uploading ${file.name || 'file'}…`);
       const { blob, name } = await TTFiles.prepare(file);
       const out = await TTFiles.upload(blob, name);
       task.files.push({ id: out.id, name: out.name, size: out.size });
       added++;
-      saveTasks();
+      tasks.saveTasks();
       if (state.currentTask === task) renderDialogFiles(task);
     } catch (e) {
-      showToast(e.message === 'Failed to fetch' ? 'Cannot reach the server.' : e.message);
+      tasks.showToast(e.message === 'Failed to fetch' ? 'Cannot reach the server.' : e.message);
       return;
     }
   }
-  if (added) { flashSaved(); showToast(added === 1 ? 'File attached' : `${added} files attached`); }
+  if (added) { tasks.flashSaved(); tasks.showToast(added === 1 ? 'File attached' : `${added} files attached`); }
 }
 
 function renderDialogFiles(task) {
@@ -787,11 +569,11 @@ function renderDialogFiles(task) {
         const index = task.files.indexOf(f);
         if (index === -1) return;
         task.files.splice(index, 1);
-        saveTasks();
+        tasks.saveTasks();
         renderDialogFiles(task);
-        showToast('File removed', 'Undo', () => {
+        tasks.showToast('File removed', 'Undo', () => {
           task.files.splice(Math.min(index, task.files.length), 0, f);
-          saveTasks();
+          tasks.saveTasks();
           if (state.currentTask === task) renderDialogFiles(task);
         });
       });
@@ -897,7 +679,7 @@ dom.dialogDelete.addEventListener('click', () => {
   hideAnimated(dom.dialogOverlay);
   document.body.style.overflow = '';
   const idx = myTasks.indexOf(task);
-  if (idx !== -1) deleteTask(task); else closeTaskDialog();
+  if (idx !== -1) tasks.deleteTask(task); else closeTaskDialog();
   state.currentTask = null;
 });
 
@@ -926,238 +708,27 @@ function hideAnimated(el, ms = 180) {
   }, ms);
 }
 
-function hideToast() {
-  clearTimeout(state.toastTimer);
-  dom.toastEl.hidden = true;
-}
 
-function showToast(message, actionLabel, onAction) {
-  dom.toastMessage.textContent = message;
-  dom.toastAction.textContent = actionLabel || '';
-  dom.toastAction.hidden = !actionLabel;
-  dom.toastAction.onclick = () => { hideToast(); if (onAction) onAction(); };
-  dom.toastEl.hidden = false;
-  clearTimeout(state.toastTimer);
-  state.toastTimer = setTimeout(hideToast, actionLabel ? 8000 : 5000);
-  dom.actionFeedback.textContent = '';
-  setTimeout(() => { dom.actionFeedback.textContent = message + (actionLabel ? `. ${actionLabel} available.` : ''); }, 60);
-}
-// Don't dismiss the toast while someone is tabbing to its Undo button
-dom.toastEl.addEventListener('focusin', () => clearTimeout(state.toastTimer));
-dom.toastEl.addEventListener('focusout', () => { clearTimeout(state.toastTimer); state.toastTimer = setTimeout(hideToast, 3000); });
-
-function flashSaved() {
-  dom.saveState.textContent = 'Saved';
-  clearTimeout(state.saveTimer);
-  state.saveTimer = setTimeout(() => { dom.saveState.textContent = ''; }, 1600);
-}
+// --- Tasks: js/tasks.js (slice 2.6) -------------------------------------------------------------
+// The hub and the renderers moved here. init() runs at the spot where the toast listeners used to
+// register, so the order of the page listeners is unchanged: the dialog, drop-zone, search and view
+// listeners above, then these two, then the keyboard shortcuts, the due picker, publish, settings,
+// tour, transfer and the focus trap. showToast, saveTasks, setStatus, applyProgress and
+// renderAllTasks are passed on to the other modules as tasks.<name>; the values js/tasks.js needs
+// from app.js arrive as its init deps. Until commit 2 moves the dialog into the module, the dialog
+// code still in this file calls those functions as tasks.<name>.
+tasks.init({
+  Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, myTasks, isEditable, hideAnimated, createSubjectTag,
+  startNewTask, updateColumn, createStatusCheck, handleDragStart, handleDragEnd, openStatusPopover, closeStatusPopover,
+  updateDialogStatus, updateDialogDue, openTaskDialog, calendar, publish,
+});
 
 // Saves the task being edited in the panel and confirms it.
 function autosave() {
   if (!state.currentTask || !isEditable(state.currentTask)) return;
   state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
-  saveTasks();
-  flashSaved();
-}
-
-function showSkeletons() {
-  document.querySelectorAll('.column-content').forEach((content) => {
-    content.classList.remove('is-empty');
-    const msg = content.querySelector('.column-empty');
-    if (msg) msg.hidden = true;
-    for (let i = 0; i < 2; i++) {
-      const s = document.createElement('div');
-      s.className = 'skeleton skeleton-card';
-      s.setAttribute('aria-hidden', 'true');
-      content.appendChild(s);
-    }
-  });
-  [dom.taskListEl, dom.classListEl].forEach((list) => {
-    list.innerHTML = '';
-    for (let i = 0; i < 4; i++) {
-      const s = document.createElement('div');
-      s.className = 'skeleton skeleton-row';
-      s.setAttribute('aria-hidden', 'true');
-      list.appendChild(s);
-    }
-  });
-}
-
-// --- Class tasks: published list, same builders as admin, student-safe ---
-function renderClassTasks() {
-  const board = document.querySelector('#class-board');
-  board.querySelectorAll('.column-content').forEach((c) => {
-    c.querySelectorAll('.task-card, .skeleton').forEach((n) => n.remove());
-  });
-  const all = (state.previewing ? myTasks : state.publishedTasks).filter((t) => !t.isPast());
-  const q = state.classSearchQuery.trim().toLowerCase();
-  const source = sortTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
-  source.forEach((task) => {
-    const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
-    if (col) col.appendChild(createTaskCard(task));
-  });
-  board.querySelectorAll('.kanban-column').forEach(updateColumn);
-
-  dom.classListEl.replaceChildren(...source.map(createTaskRow));
-  if (!source.length) {
-    const none = document.createElement('p');
-    none.className = 'list-empty';
-    none.textContent = q && all.length ? 'No tasks match your search.' : 'No class assignments yet.';
-    dom.classListEl.appendChild(none);
-  }
-}
-
-// --- Completed tasks page ---
-const recordSource = () => ((state.isAdmin || state.previewing) ? myTasks : state.publishedTasks);
-
-function renderPastPage() {
-  const host = document.querySelector('#past-list');
-  if (!host) return;
-  host.replaceChildren();
-  // Finished tasks first, so the tab opens on wins before leftovers.
-  const past = sortTasks(recordSource().filter((t) => t.isPast()))
-    .sort((a, b) => (b.status === 'done') - (a.status === 'done'));
-  if (!past.length) {
-    const none = document.createElement('p');
-    none.className = 'list-empty';
-    none.textContent = 'Nothing here yet. Tasks land here once they are closed or a week past their due date.';
-    host.appendChild(none);
-    return;
-  }
-  const canEdit = state.isAdmin && !state.previewing;
-  const mkBtn = (label, fn) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'text-button';
-    b.textContent = label;
-    b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
-    return b;
-  };
-  past.forEach((task) => {
-    const isDone = task.status === 'done';
-    const row = document.createElement('div');
-    row.className = 'task-row done-row';
-    row.tabIndex = 0;
-    const dot = createStatusCheck(task);
-    const title = document.createElement('span');
-    title.className = 'task-row-title' + (isDone ? ' is-done' : '');
-    title.textContent = task.title;
-    const tag = document.createElement('span');
-    tag.className = 'task-row-due';
-    tag.textContent = isDone ? 'Done' : task.getPastLabel();
-    const actions = document.createElement('span');
-    actions.style.cssText = 'display:flex;gap:12px;justify-content:flex-end';
-    if (isDone) {
-      const reopen = mkBtn('Mark not done', () => {});
-      reopenWithConfirm(reopen, task);
-      actions.appendChild(reopen);
-    } else {
-      actions.appendChild(mkBtn('Mark done', () => { setStatus(task, 'done'); renderAllTasks(); }));
-    }
-    if (canEdit) {
-      actions.appendChild(mkBtn('Restore', () => {
-        task.closedAt = 0;
-        saveTasks();
-        renderAllTasks();
-        if (task.isExpired()) {
-          openTaskDialog(task);
-          showToast('Pick a new due date to bring this task back.');
-        } else {
-          showToast('Task restored');
-        }
-      }));
-      actions.appendChild(mkBtn('Delete', () => deleteTask(task)));
-    }
-    row.addEventListener('click', () => openTaskDialog(task));
-    row.addEventListener('keydown', (e) => {
-      if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTaskDialog(task); }
-    });
-    row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
-    host.appendChild(row);
-  });
-}
-
-// Restore a task's progress entry to what it was before the last status change.
-// Shared by every Undo action so all of them persist and re-render the same way.
-function restoreProgress(taskId, prev) {
-  if (prev) state.progress[taskId] = prev; else delete state.progress[taskId];
-  applyProgress(myTasks);
-  applyProgress(state.publishedTasks);
-  saveTasks();
-  // A dialog may still be open on this task: refresh it so it shows the restored status.
-  // Write the restored values onto currentTask itself so the refresh does not depend on
-  // currentTask being the same instance applyProgress just updated.
-  if (state.currentTask && state.currentTask.id === taskId) {
-    const p = state.progress[taskId];
-    state.currentTask.status = p ? p.status : 'not_started';
-    state.currentTask.movedAt = p ? p.movedAt : 0;
-    updateDialogStatus(state.currentTask);
-    updateDialogDue(state.currentTask);
-  }
-  renderAllTasks();
-}
-
-// Reopening a done task replaces its completed time, so ask first and offer Undo.
-function reopenWithConfirm(btn, task) {
-  const label = btn.textContent;
-  let timer = null;
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (!btn.dataset.armed) {
-      btn.dataset.armed = '1';
-      btn.textContent = 'Confirm?';
-      btn.setAttribute('aria-label', 'Confirm marking this task not done');
-      timer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; btn.removeAttribute('aria-label'); }, 4000);
-      return;
-    }
-    clearTimeout(timer);
-    const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-    setStatus(task, 'not_started');
-    renderAllTasks();
-    showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
-  });
-}
-
-function renderDonePage() {
-  const host = document.querySelector('#done-list');
-  const done = sortTasks(recordSource().filter((t) => t.status === 'done'));
-  host.replaceChildren();
-  if (!done.length) {
-    const none = document.createElement('p');
-    none.className = 'list-empty';
-    none.textContent = 'No completed tasks yet. Mark a task done and it appears here.';
-    host.appendChild(none);
-    return;
-  }
-  const stamp = (ms) => {
-    const d = new Date(ms);
-    const diff = dayDiff(d);
-    const day = diff === 0 ? 'Today' : diff === -1 ? 'Yesterday' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    return `${day}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
-  };
-  done.forEach((task) => {
-    const row = document.createElement('div');
-    row.className = 'task-row done-row' + (task.id === state.justChangedId ? ' is-entering' : '');
-    row.tabIndex = 0;
-    const dot = createStatusCheck(task);
-    const title = document.createElement('span');
-    title.className = 'task-row-title is-done';
-    title.textContent = task.title;
-    const when = document.createElement('span');
-    when.className = 'task-row-due';
-    when.textContent = task.movedAt ? stamp(task.movedAt) : '';
-    const undo = document.createElement('button');
-    undo.type = 'button';
-    undo.className = 'text-button';
-    undo.textContent = 'Mark not done';
-    reopenWithConfirm(undo, task);
-    row.addEventListener('click', () => openTaskDialog(task));
-    row.addEventListener('keydown', (e) => {
-      if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTaskDialog(task); }
-    });
-    row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), when, undo);
-    host.appendChild(row);
-  });
+  tasks.saveTasks();
+  tasks.flashSaved();
 }
 
 // --- Calendar: js/calendar.js (slice 2.3) -------------------------------------------------------
@@ -1165,60 +736,20 @@ function renderDonePage() {
 // element listeners on this page is unchanged. `subjects` is a thunk: SUBJECTS is declared below
 // this point, and the module reads the map when it renders, not while this call runs.
 calendar.init({
-  recordSource, openTaskDialog, todayDate, toInputValue, dayDiff, subjects: () => SUBJECTS,
+  recordSource: tasks.recordSource, openTaskDialog, todayDate, toInputValue, dayDiff, subjects: () => SUBJECTS,
 });
 
 // --- Search, overview stats, nav badge ---
 
-function getVisibleTasks() {
-  const q = state.searchQuery.trim().toLowerCase();
-  const active = myTasks.filter((t) => !t.isPast());
-  return sortTasks(q
-    ? active.filter((t) => t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
-    : active);
-}
-
-function updateOverview() {
-  const open = myTasks.filter((t) => t.status !== 'done' && !t.isPast());
-  const dueToday = open.filter((t) => t.dueDate && dayDiff(t.dueDate) === 0).length;
-  const overdue = open.filter((t) => t.dueDate && t.isOverdue()).length;
-  const inProgress = myTasks.filter((t) => t.status === 'in_progress' && !t.isPast()).length;
-  document.querySelector('#sum-open').textContent = `${open.length} open`;
-  document.querySelector('#sum-progress').textContent = `${inProgress} in progress`;
-  const sumToday = document.querySelector('#sum-today');
-  sumToday.textContent = `${dueToday} due today`;
-  sumToday.hidden = dueToday === 0;
-  const sumOverdue = document.querySelector('#sum-overdue');
-  sumOverdue.textContent = `${overdue} overdue`;
-  sumOverdue.hidden = overdue === 0;
-  const badge = document.querySelector('#nav-badge');
-  badge.textContent = open.length;
-  badge.hidden = open.length === 0;
-  document.querySelector('#page-my-tasks').classList.toggle('is-blank', myTasks.length === 0);
-}
-
 document.querySelector('#task-search').addEventListener('input', (e) => {
   state.searchQuery = e.target.value;
-  renderAllTasks();
+  tasks.renderAllTasks();
 });
 
 // Class tasks search: title, subject code, notes text. Separate from the admin search.
-const notesTextCache = new WeakMap();
-function plainNotes(task) {
-  const hit = notesTextCache.get(task);
-  if (hit && hit.html === task.notes) return hit.text;
-  const tpl = document.createElement('template'); // inert: embedded images are not loaded
-  tpl.innerHTML = (task.notes || '').replace(/<(?:br|\/div|\/p|\/li)\b[^>]*>/gi, ' ');
-  const text = (tpl.content.textContent || '').toLowerCase();
-  notesTextCache.set(task, { html: task.notes, text });
-  return text;
-}
-function matchesClassSearch(task, q) {
-  return task.title.toLowerCase().includes(q) || task.subject.toLowerCase().includes(q) || plainNotes(task).includes(q);
-}
 document.querySelector('#class-task-search').addEventListener('input', (e) => {
   state.classSearchQuery = e.target.value;
-  renderClassTasks();
+  tasks.renderClassTasks();
   
 });
 
@@ -1267,65 +798,6 @@ document.querySelectorAll('.view-tab[data-view]').forEach((b) => {
   b.addEventListener('click', () => setView(b.closest('#page-my-tasks') ? 'admin' : 'class', b.dataset.view));
 });
 
-function createTaskRow(task) {
-  const row = document.createElement('div');
-  row.className = 'task-row';
-  row.tabIndex = 0;
-  row.dataset.taskId = task.id;
-
-  // Checkbox: empty = not started, minus = in progress, check = done
-  const check = createStatusCheck(task);
-  if (task.id === state.justChangedId) row.classList.add('is-entering');
-  if (isEditable(task) && state.changedIds.has(task.id)) row.classList.add('is-changed');
-
-  const title = document.createElement('span');
-  title.className = 'task-row-title'
-    + (task.title === 'New Task' ? ' is-ghost' : '')
-    + (task.status === 'done' ? ' is-done' : '');
-  title.textContent = task.title;
-
-  const due = document.createElement('span');
-  const overdue = task.dueDate && task.status !== 'done' && task.isOverdue();
-  due.className = 'task-row-due' + (overdue ? ' is-overdue' : '');
-  due.textContent = task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel();
-  if (task.status !== 'done') due.title = task.getDueShort();
-
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'task-delete-btn';
-  del.setAttribute('aria-label', 'Delete task');
-  del.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
-  del.addEventListener('click', (e) => { e.stopPropagation(); deleteTask(task); });
-
-  row.append(check, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
-  row.addEventListener('click', () => openTaskDialog(task, null, false));
-  row.addEventListener('keydown', (e) => {
-    if (e.target === row && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      openTaskDialog(task, null, false);
-    }
-  });
-  return row;
-}
-
-function renderTaskList() {
-  dom.taskListEl.innerHTML = '';
-  const visible = getVisibleTasks();
-  visible.forEach((task) => dom.taskListEl.appendChild(createTaskRow(task)));
-  if (visible.length === 0 && state.searchQuery.trim()) {
-    const none = document.createElement('p');
-    none.className = 'list-empty';
-    none.textContent = 'No tasks match your search.';
-    dom.taskListEl.appendChild(none);
-  }
-  const add = document.createElement('button');
-  add.type = 'button';
-  add.className = 'task-list-add';
-  add.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-plus"/></svg><span>New task</span>';
-  add.addEventListener('click', startNewTask);
-  dom.taskListEl.appendChild(add);
-}
-
 // --- Subjects, quick add, announcements, shortcuts ---
 const SUBJECTS = {
   GENSCI: 'bg-cyan', GENMATH: 'bg-pink', PKLP: 'bg-sunglow', EFFCOM: 'bg-green',
@@ -1365,22 +837,22 @@ function ensureStatusPopover() {
       const next = opt.dataset.status;
       if (isReopen(picked, next)) {
         closeStatusPopover();
-        confirmReopen(picked, next, () => {
+        tasks.confirmReopen(picked, next, () => {
           const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
-          setStatus(picked, next);
-          if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
-          renderAllTasks();
-          showToast(statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
+          tasks.setStatus(picked, next);
+          if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); tasks.flashSaved(); }
+          tasks.renderAllTasks();
+          tasks.showToast(statusChangeMessage(next), 'Undo', () => tasks.restoreProgress(picked.id, prev));
         });
         return;
       }
       const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
-      setStatus(picked, opt.dataset.status);
-      if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
+      tasks.setStatus(picked, opt.dataset.status);
+      if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); tasks.flashSaved(); }
       closeStatusPopover();
-      renderAllTasks();
+      tasks.renderAllTasks();
       if (opt.dataset.status === 'done') {
-        showToast(statusChangeMessage('done'), 'Undo', () => restoreProgress(picked.id, prev));
+        tasks.showToast(statusChangeMessage('done'), 'Undo', () => tasks.restoreProgress(picked.id, prev));
       }
     });
     el.appendChild(opt);
@@ -1438,7 +910,6 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Enter') { state.statusPopoverEl.children[state.statusPopoverIndex].click(); }
 });
-
 
 function updateDialogSubject(task) {
   dom.dialogSubjectBtn.innerHTML = '';
@@ -1548,7 +1019,7 @@ quickAdd.init({
   quickWords, parseQuickAdd,
   lookup, parseTimeWord, WEEKDAYS, dayDiff, toInputValue, STATUS_LABELS, Task,
   createSubjectTag, openDuePicker, closeDuePicker, hideAnimated, myTasks,
-  setStatus, saveTasks, setPage: nav.setPage, renderAllTasks, openTaskDialog, showToast,
+  setStatus: tasks.setStatus, saveTasks: tasks.saveTasks, setPage: nav.setPage, renderAllTasks: tasks.renderAllTasks, openTaskDialog, showToast: tasks.showToast,
   subjects: () => SUBJECTS, statusCodes: () => STATUS_CODES,
 });
 
@@ -1560,7 +1031,7 @@ quickAdd.init({
 // exported because loadPublished, the bootstrap init and js/transfer.js's replaced-draft path call
 // it. updateAdminBar and diffDraft come from js/publish.js, which moved them in this slice.
 announcements.init({
-  lookup, linkify, dropHasFiles, showToast, saveTasks, updateAdminBar: publish.updateAdminBar, diffDraft: publish.diffDraft,
+  lookup, linkify, dropHasFiles, showToast: tasks.showToast, saveTasks: tasks.saveTasks, updateAdminBar: publish.updateAdminBar, diffDraft: publish.diffDraft,
 });
 
 // --- Keyboard shortcuts: N = new task, / = search ---
@@ -1578,7 +1049,6 @@ document.addEventListener('keydown', (e) => {
 function formatDateText(d) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
-
 
 function closeDuePicker(reason) {
   if (!state.dpEl) return;
@@ -1710,7 +1180,6 @@ function openDuePicker(opts) {
   syncFields();
   renderGrid();
   
-
   const r = s.anchor.getBoundingClientRect();
   const w = el.offsetWidth;
   const h = el.offsetHeight;
@@ -1758,8 +1227,8 @@ nav.init({
 const $ = (sel) => document.querySelector(sel);
 
 publish.init({
-  $, myTasks, showToast, hideAnimated, saveTasks, renderAllTasks,
-  renderAnnouncements: announcements.renderAnnouncements, applyProgress,
+  $, myTasks, showToast: tasks.showToast, hideAnimated, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks,
+  renderAnnouncements: announcements.renderAnnouncements, applyProgress: tasks.applyProgress,
   normalizeBoard, setPublished, Task, setPage: nav.setPage,
 });
 
@@ -1771,8 +1240,8 @@ dom.dialogDuplicate.addEventListener('click', () => {
   const copy = Task.fromJSON({ ...source.toJSON(), id: undefined, title: `${source.title} (copy)` });
   myTasks.push(copy);
   state.justChangedId = copy.id;
-  saveTasks();
-  renderAllTasks();
+  tasks.saveTasks();
+  tasks.renderAllTasks();
   openTaskDialog(copy);
 });
 
@@ -1784,7 +1253,7 @@ dom.dialogDuplicate.addEventListener('click', () => {
 // above this point, so it can be passed by value - phoneQuery is a MediaQueryList and the module only
 // reads .matches when closeSettings runs.
 settings.init({
-  $, setSidebarOpen: nav.setSidebarOpen, hideAnimated, phoneQuery: nav.phoneQuery, adminHint, signIn, showToast,
+  $, setSidebarOpen: nav.setSidebarOpen, hideAnimated, phoneQuery: nav.phoneQuery, adminHint, signIn, showToast: tasks.showToast,
   JSON_POST, SIDEBAR_KEY: nav.SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY,
 });
 
@@ -1808,8 +1277,8 @@ tour.init({
 // value is safe; myTasks is the same array instance the draft code mutates.
 const INCOMING_TRANSFER = transfer.takeTransferToken();
 transfer.init({
-  $, hideAnimated, showToast, closeSettings: settings.closeSettings,
-  myTasks, applyProgress, saveTasks, renderAllTasks, renderAnnouncements: announcements.renderAnnouncements,
+  $, hideAnimated, showToast: tasks.showToast, closeSettings: settings.closeSettings,
+  myTasks, applyProgress: tasks.applyProgress, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks, renderAnnouncements: announcements.renderAnnouncements,
   snapshot: publish.snapshot, restoreDraft: publish.restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER,
 });
 
@@ -1833,52 +1302,20 @@ document.addEventListener('keydown', (e) => {
 });
 
 // --- Initialization ---
-function renderAllTasks() {
-  if (state.isAdmin) {
-    const diff = publish.diffDraft();
-    state.changedIds = diff.changed;
-    publish.updateAdminBar(diff);
-  }
-  document.querySelectorAll('#page-my-tasks .column-content').forEach((content) => {
-    content.querySelectorAll('.task-card, .skeleton, .drop-placeholder').forEach((c) => c.remove());
-  });
-  getVisibleTasks().forEach((task) => {
-    const content = document.querySelector(`#page-my-tasks .kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
-    if (content) content.appendChild(createTaskCard(task));
-  });
-  document.querySelectorAll('#page-my-tasks .kanban-column').forEach(updateColumn);
-  renderTaskList();
-  renderClassTasks();
-  renderDonePage();
-  renderPastPage();
-  calendar.renderCalendar();
-  updateOverview();
-  if (state.staggerNext) {
-    document.querySelectorAll('.kanban-board .task-card, .task-list .task-row').forEach((el, i) => {
-      el.classList.add('is-entering');
-      el.style.animationDelay = `${Math.min(i, 8) * 40}ms`;
-    });
-    state.staggerNext = false;
-  }
-  state.justChangedId = null;
-  
-}
 
 function init() {
-  loadTasks();
+  tasks.loadTasks();
   announcements.renderAnnouncements();
   ['class', 'admin'].forEach((scope) => {
     let v = null;
     try { v = localStorage.getItem(VIEW_KEYS[scope]); } catch (e) {}
     setView(scope, v === 'list' || v === 'board' ? v : VIEW_DEFAULTS[scope], false);
   });
-  showSkeletons();
+  tasks.showSkeletons();
   state.staggerNext = true;
   loadPublished();
   setInterval(loadPublished, 300000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadPublished(); });
-
-  
 
   nav.setPage(pageFromHash(window.location.hash, nav.NAV_PAGES, state.isAdmin), false);
   if (INCOMING_TRANSFER) transfer.checkIncomingTransfer(INCOMING_TRANSFER);
@@ -1888,7 +1325,7 @@ function init() {
   setInterval(() => {
     const popoverOpen = state.statusPopoverEl && !state.statusPopoverEl.hidden;
     if (document.hidden || popoverOpen || !dom.dialogOverlay.hidden || !dom.quickOverlay.hidden) return;
-    renderAllTasks();
+    tasks.renderAllTasks();
   }, 60000);
 }
 
