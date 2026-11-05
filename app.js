@@ -68,28 +68,19 @@ const findTask = (id) => [...myTasks, ...state.publishedTasks].find((t) => t.id 
 // Leaving Done needs an explicit yes. Returns true when the change may proceed.
 const isReopen = (task, status) => task.status === 'done' && status !== 'done';
 
-dom.dialogFileInput.accept = TTFiles.ACCEPT;
-dom.dialogAttachBtn.addEventListener('click', () => dom.dialogFileInput.click());
-dom.dialogFileInput.addEventListener('change', () => {
-  const picked = [...dom.dialogFileInput.files];
-  dom.dialogFileInput.value = '';
-  if (picked.length) attachFiles(picked);
-});
 
-// Title is a one-line-looking textarea that grows with its content
-function fitDialogTitle() {
-  dom.dialogTitleInput.style.height = 'auto';
-  dom.dialogTitleInput.style.height = dom.dialogTitleInput.scrollHeight + 'px';
-}
-dom.dialogTitleInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.isComposing) e.preventDefault();
+// --- Tasks: js/tasks.js (slice 2.6) -------------------------------------------------------------
+// init() runs at the spot where the first dialog listener used to be registered, so the order of
+// the page listeners is unchanged: the dialog file, title, dialog, note-tool and file-drop
+// listeners, then the toast listeners, the status popover, the subject dropdown, the shortcuts, the
+// due picker, publish, settings, tour, transfer and the focus trap. The hub functions the other
+// modules receive are passed on from here as tasks.<name>; the popover and drag & drop code still
+// in this file calls those functions as tasks.<name> until commit 3 moves it.
+tasks.init({
+  Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, sanitizeDoc, myTasks, isEditable, hideAnimated,
+  createSubjectTag, startNewTask, updateColumn, createStatusCheck, handleDragStart, handleDragEnd, openStatusPopover,
+  closeStatusPopover, updateDialogSubject, TTFiles, openDuePicker, calendar, publish,
 });
-dom.dialogTitleInput.addEventListener('input', () => {
-  const clean = dom.dialogTitleInput.value.replace(/[\r\n]+/g, ' ');
-  if (clean !== dom.dialogTitleInput.value) dom.dialogTitleInput.value = clean;
-  fitDialogTitle();
-});
-window.addEventListener('resize', () => { if (state.currentTask) fitDialogTitle(); });
 
 // Returns a clean { tasks, announcements } or null when the data is not a usable board.
 function normalizeBoard(data) {
@@ -203,134 +194,6 @@ async function loadPublished() {
   announcements.renderAnnouncements();
 }
 
-function updateDialogDue(task) {
-  dom.dialogDateBtn.textContent = task.getDueShort();
-  dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
-  dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
-  dom.dialogDateBtn.classList.toggle('empty-value', !task.dueDate);
-  dom.dialogDueClear.hidden = !task.dueDate || !isEditable(task);
-}
-
-function updateDialogStatus(task) {
-  const map = {
-    not_started: { label: 'Not started', dot: 'dot-not-started', cls: 'is-not-started' },
-    in_progress: { label: 'In progress', dot: 'dot-in-progress', cls: 'is-in-progress' },
-    done: { label: 'Done', dot: 'dot-done', cls: 'is-done' },
-  };
-  const s = map[task.status] || map.not_started;
-  dom.dialogStatusLabel.textContent = s.label;
-  dom.dialogStatusDot.className = `status-dot ${s.dot}`;
-  dom.dialogStatusBtn.className = `prop-value status-value ${s.cls}`;
-}
-
-// --- Links in notes: made at render time, never stored. sanitizeDoc flattens <a> back to its text on save. ---
-const URL_RE = /https?:\/\/[^\s<>"']+/gi;
-function unlinkify(root) {
-  root.querySelectorAll('a').forEach((a) => a.replaceWith(document.createTextNode(a.textContent)));
-  root.normalize();
-}
-function linkify(root) {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const nodes = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-  nodes.forEach((node) => {
-    const text = node.nodeValue;
-    URL_RE.lastIndex = 0;
-    let last = 0, m, frag = null;
-    while ((m = URL_RE.exec(text))) {
-      let url = m[0], prev;
-      do {
-        prev = url;
-        url = url.replace(/[.,;:!?\]}]+$/, '');
-        if (url.endsWith(')') && (url.match(/\)/g).length > (url.match(/\(/g) || []).length)) url = url.slice(0, -1);
-      } while (url !== prev);
-      try { const u = new URL(url); if (u.protocol !== 'http:' && u.protocol !== 'https:') continue; } catch (e) { continue; }
-      if (!frag) frag = document.createDocumentFragment();
-      frag.append(text.slice(last, m.index));
-      const a = document.createElement('a');
-      a.href = url;
-      a.textContent = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      if (root.isContentEditable) a.title = 'Ctrl+click to open';
-      frag.append(a);
-      last = m.index + url.length;
-    }
-    if (frag) { frag.append(text.slice(last)); node.replaceWith(frag); }
-  });
-}
-function refreshLinks(root) { unlinkify(root); linkify(root); }
-
-function getCloseBtn() {
-  if (state.dialogCloseBtn) return state.dialogCloseBtn;
-  state.dialogCloseBtn = document.createElement('button');
-  state.dialogCloseBtn.type = 'button';
-  state.dialogCloseBtn.className = dom.dialogDelete.className;
-  state.dialogCloseBtn.textContent = 'Close for class';
-  state.dialogCloseBtn.addEventListener('click', () => {
-    const task = state.currentTask;
-    if (!task || !isEditable(task)) return;
-    task.closedAt = Date.now();
-    tasks.saveTasks();
-    closeTaskDialog();
-    tasks.renderAllTasks();
-    tasks.showToast('Moved to Past tasks', 'Undo', () => { task.closedAt = 0; tasks.saveTasks(); tasks.renderAllTasks(); });
-  });
-  dom.dialogDelete.insertAdjacentElement('beforebegin', state.dialogCloseBtn);
-  return state.dialogCloseBtn;
-}
-
-function openTaskDialog(task) {
-  state.dialogReturn = { el: document.activeElement, id: task.id };
-  state.currentTask = task;
-  const ro = !isEditable(task);
-  dom.dialog.classList.toggle('is-readonly', ro);
-  dom.dialogTitleInput.readOnly = ro;
-  dom.dialogDoc.contentEditable = ro ? 'false' : 'true';
-  dom.dialogDoc.dataset.placeholder = ro ? 'No notes for this task.' : 'Write notes, or drop images here';
-  dom.dialogSubjectBtn.disabled = ro;
-  dom.dialogDateBtn.disabled = ro;
-  dom.dialogDelete.hidden = ro;
-  dom.dialogDuplicate.hidden = ro;
-  getCloseBtn().hidden = ro || task.closedAt > 0;
-  dom.dialogTitleInput.value = task.title === 'New Task' ? '' : task.title;
-  updateDialogDue(task);
-  updateDialogStatus(task);
-  dom.dialogDoc.innerHTML = sanitizeDoc(task.notes || '');
-  refreshLinks(dom.dialogDoc);
-  updateDialogSubject(task);
-  renderDialogFiles(task);
-  dom.dialogOverlay.classList.remove('is-closing');
-  dom.dialogOverlay.hidden = false;
-  dom.dialogOverlay.setAttribute('aria-hidden', 'false');
-  document.body.style.overflow = 'hidden';
-  fitDialogTitle();
-  (ro ? dom.dialogStatusBtn : dom.dialogTitleInput).focus();
-}
-
-function closeTaskDialog() {
-  if (!state.currentTask) return;
-  if (isEditable(state.currentTask)) {
-    state.currentTask.title = dom.dialogTitleInput.value.trim() || 'New Task';
-    state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
-    tasks.saveTasks();
-  }
-  state.currentTask = null;
-  closeStatusPopover();
-  hideAnimated(dom.dialogOverlay);
-  dom.dialogOverlay.setAttribute('aria-hidden', 'true');
-  dom.dialogSubjectDropdown.hidden = true;
-  dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
-  document.body.style.overflow = '';
-  tasks.renderAllTasks();
-  const back = state.dialogReturn;
-  state.dialogReturn = null;
-  if (back) {
-    const target = back.el && back.el.isConnected ? back.el : document.querySelector(`[data-task-id="${CSS.escape(String(back.id))}"]`);
-    if (target) target.focus();
-  }
-}
-
 function updateColumn(columnEl) {
   const n = columnEl.querySelectorAll('.task-card').length;
   columnEl.querySelector('.column-count').textContent = `(${n})`;
@@ -421,267 +284,9 @@ function handleDrop(e) {
   document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
 }
 
-// --- Event Listeners ---
-
-dom.dialogClose.addEventListener('click', closeTaskDialog);
-dom.dialogOverlay.addEventListener('click', (e) => { if (e.target === dom.dialogOverlay) closeTaskDialog(); });
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !dom.dialogOverlay.hidden && !(state.statusPopoverEl && !state.statusPopoverEl.hidden)) closeTaskDialog();
-});
-
 dom.dialogStatusBtn.addEventListener('click', () => { if (state.currentTask) openStatusPopover(state.currentTask, dom.dialogStatusBtn); });
 
-function openDialogDuePicker(anchor, focus) {
-  if (!state.currentTask) return;
-  openDuePicker({
-    anchor,
-    focus,
-    date: state.currentTask.dueDate || null,
-    time: state.currentTask.dueTime || null,
-    onChange: ({ date, time }) => {
-      if (!state.currentTask) return;
-      state.currentTask.dueDate = date || undefined;
-      state.currentTask.dueTime = date ? (time || undefined) : undefined;
-      updateDialogDue(state.currentTask);
-      autosave();
-    },
-  });
-}
-dom.dialogDateBtn.addEventListener('click', () => openDialogDuePicker(dom.dialogDateBtn, 'date'));
-dom.dialogDueClear.addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (state.currentTask) {
-    state.currentTask.dueDate = undefined;
-    state.currentTask.dueTime = undefined;
-    updateDialogDue(state.currentTask);
-    autosave();
-  }
-});
-
 // --- Doc editor: typing, pasting and dropping images inline ---
-function fileToDataUrl(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, 800 / img.width);
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      };
-      img.onerror = () => resolve(null);
-      img.src = reader.result;
-    };
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(file);
-  });
-}
-
-function insertDocImage(src) {
-  const img = document.createElement('img');
-  img.src = src;
-  img.alt = '';
-  dom.dialogDoc.focus();
-  const sel = getSelection();
-  let range = sel.rangeCount && dom.dialogDoc.contains(sel.getRangeAt(0).startContainer) ? sel.getRangeAt(0) : null;
-  if (!range) {
-    range = document.createRange();
-    range.selectNodeContents(dom.dialogDoc);
-    range.collapse(false);
-  }
-  range.deleteContents();
-  range.insertNode(img);
-  if (!img.nextSibling) img.after(document.createElement('br'));
-  range.setStartAfter(img);
-  range.collapse(true);
-  sel.removeAllRanges();
-  sel.addRange(range);
-}
-
-async function insertDocImages(files) {
-  for (const file of files) {
-    let src = null;
-    try {
-      const { blob, name } = await TTFiles.prepare(file);
-      const out = await TTFiles.upload(blob, name);
-      src = TTFiles.urlFor(out.id);
-    } catch (e) {
-      src = await fileToDataUrl(file);   // not signed in or offline: keep it inline instead of losing it
-      if (!src) { tasks.showToast(e.message || 'Could not add that image'); continue; }
-    }
-    insertDocImage(src);
-  }
-  autosave();
-}
-
-async function attachFiles(files) {
-  const task = state.currentTask;
-  if (!task || !isEditable(task)) return;
-  let added = 0;
-  for (const file of files) {
-    if (task.files.length >= 10) { tasks.showToast('A task can have up to 10 files.'); break; }
-    try {
-      tasks.showToast(`Uploading ${file.name || 'file'}…`);
-      const { blob, name } = await TTFiles.prepare(file);
-      const out = await TTFiles.upload(blob, name);
-      task.files.push({ id: out.id, name: out.name, size: out.size });
-      added++;
-      tasks.saveTasks();
-      if (state.currentTask === task) renderDialogFiles(task);
-    } catch (e) {
-      tasks.showToast(e.message === 'Failed to fetch' ? 'Cannot reach the server.' : e.message);
-      return;
-    }
-  }
-  if (added) { tasks.flashSaved(); tasks.showToast(added === 1 ? 'File attached' : `${added} files attached`); }
-}
-
-function renderDialogFiles(task) {
-  const editable = isEditable(task);
-  dom.dialogFilesField.hidden = !editable && !task.files.length;
-  dom.dialogAttachBtn.hidden = !editable;
-  dom.dialogFiles.replaceChildren();
-  task.files.forEach((f) => {
-    const li = document.createElement('li');
-    li.className = 'file-item';
-    const a = document.createElement('a');
-    a.href = TTFiles.urlFor(f.id);
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.textContent = f.name;
-    if (/\.(pptx|docx)$/.test(f.id)) a.download = f.name;
-    const size = document.createElement('span');
-    size.className = 'file-size';
-    size.textContent = TTFiles.formatSize(f.size);
-    li.append(a, size);
-    if (editable) {
-      const rm = document.createElement('button');
-      rm.type = 'button';
-      rm.className = 'text-button';
-      rm.textContent = 'Remove';
-      rm.addEventListener('click', () => {
-        const index = task.files.indexOf(f);
-        if (index === -1) return;
-        task.files.splice(index, 1);
-        tasks.saveTasks();
-        renderDialogFiles(task);
-        tasks.showToast('File removed', 'Undo', () => {
-          task.files.splice(Math.min(index, task.files.length), 0, f);
-          tasks.saveTasks();
-          if (state.currentTask === task) renderDialogFiles(task);
-        });
-      });
-      li.append(rm);
-    }
-    dom.dialogFiles.append(li);
-  });
-}
-
-function rangeFromPoint(x, y) {
-  if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
-  const pos = document.caretPositionFromPoint?.(x, y);
-  if (!pos) return null;
-  const r = document.createRange();
-  r.setStart(pos.offsetNode, pos.offset);
-  r.collapse(true);
-  return r;
-}
-
-dom.dialogDoc.addEventListener('input', () => {
-  if (/^(<div>)?<br>(<\/div>)?$/.test(dom.dialogDoc.innerHTML)) dom.dialogDoc.innerHTML = '';
-  clearTimeout(state.docTimer);
-  state.docTimer = setTimeout(autosave, 500);
-});
-
-dom.dialogDoc.addEventListener('paste', (e) => {
-  e.preventDefault();
-  const files = [...(e.clipboardData?.files || [])];
-  if (files.length) {
-    const imgs = files.filter((f) => f.type.startsWith('image/'));
-    const docs = files.filter((f) => !f.type.startsWith('image/'));
-    if (imgs.length) insertDocImages(imgs);
-    if (docs.length) attachFiles(docs);
-    return;
-  }
-  document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
-});
-
-// Read-only (students): the browser opens the link itself (new tab). Admin editing: plain click places the caret, Ctrl/Cmd+click opens.
-dom.dialogDoc.addEventListener('click', (e) => {
-  const a = e.target instanceof Element ? e.target.closest('a') : null;
-  if (!a || !dom.dialogDoc.contains(a) || !dom.dialogDoc.isContentEditable) return;
-  e.preventDefault();
-  if (e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener,noreferrer');
-});
-// Rebuild links when leaving the box, so URLs typed or pasted while editing become links.
-dom.dialogDoc.addEventListener('focusout', () => { if (state.currentTask) refreshLinks(dom.dialogDoc); });
-
-// Note formatting toolbar. sanitizeDoc keeps only b, i, ul and li, so nothing else can be stored.
-dom.dialogDoc.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
-function syncNoteTools() {
-  dom.noteTools.forEach((b) => {
-    let on = false;
-    try { on = document.activeElement === dom.dialogDoc && document.queryCommandState(b.dataset.cmd); } catch (e) {}
-    b.setAttribute('aria-pressed', String(on));
-  });
-}
-dom.noteTools.forEach((b) => {
-  b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the note
-  b.addEventListener('click', () => {
-    if (!state.currentTask || !isEditable(state.currentTask)) return;
-    dom.dialogDoc.focus();
-    document.execCommand(b.dataset.cmd);
-    autosave();
-    syncNoteTools();
-  });
-});
-document.addEventListener('selectionchange', () => { if (document.activeElement === dom.dialogDoc) syncNoteTools(); });
-
-const dropHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
-dom.dialog.addEventListener('dragover', (e) => {
-  if (!dropHasFiles(e) || dom.dialog.classList.contains('is-readonly')) return;
-  e.preventDefault();
-  dom.dialog.classList.add('is-dropping');
-});
-dom.dialog.addEventListener('dragleave', (e) => {
-  if (!dom.dialog.contains(e.relatedTarget)) dom.dialog.classList.remove('is-dropping');
-});
-dom.dialog.addEventListener('drop', (e) => {
-  dom.dialog.classList.remove('is-dropping');
-  const all = [...(e.dataTransfer?.files || [])];
-  if (!all.length) return;
-  e.preventDefault();
-  if (dom.dialog.classList.contains('is-readonly')) return;
-  const imgs = all.filter((f) => f.type.startsWith('image/'));
-  const docs = all.filter((f) => !f.type.startsWith('image/'));
-  if (imgs.length) {
-    const range = rangeFromPoint(e.clientX, e.clientY);
-    if (range && dom.dialogDoc.contains(range.startContainer)) {
-      const sel = getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-    insertDocImages(imgs);
-  }
-  if (docs.length) attachFiles(docs);
-});
-
-dom.dialogDelete.addEventListener('click', () => {
-  if (!state.currentTask) return;
-  const task = state.currentTask;
-  closeStatusPopover();
-  hideAnimated(dom.dialogOverlay);
-  document.body.style.overflow = '';
-  const idx = myTasks.indexOf(task);
-  if (idx !== -1) tasks.deleteTask(task); else closeTaskDialog();
-  state.currentTask = null;
-});
 
 // Column drop zones (My Tasks page)
 document.querySelectorAll('.kanban-column').forEach(columnEl => {
@@ -708,35 +313,12 @@ function hideAnimated(el, ms = 180) {
   }, ms);
 }
 
-
-// --- Tasks: js/tasks.js (slice 2.6) -------------------------------------------------------------
-// The hub and the renderers moved here. init() runs at the spot where the toast listeners used to
-// register, so the order of the page listeners is unchanged: the dialog, drop-zone, search and view
-// listeners above, then these two, then the keyboard shortcuts, the due picker, publish, settings,
-// tour, transfer and the focus trap. showToast, saveTasks, setStatus, applyProgress and
-// renderAllTasks are passed on to the other modules as tasks.<name>; the values js/tasks.js needs
-// from app.js arrive as its init deps. Until commit 2 moves the dialog into the module, the dialog
-// code still in this file calls those functions as tasks.<name>.
-tasks.init({
-  Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, myTasks, isEditable, hideAnimated, createSubjectTag,
-  startNewTask, updateColumn, createStatusCheck, handleDragStart, handleDragEnd, openStatusPopover, closeStatusPopover,
-  updateDialogStatus, updateDialogDue, openTaskDialog, calendar, publish,
-});
-
-// Saves the task being edited in the panel and confirms it.
-function autosave() {
-  if (!state.currentTask || !isEditable(state.currentTask)) return;
-  state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
-  tasks.saveTasks();
-  tasks.flashSaved();
-}
-
 // --- Calendar: js/calendar.js (slice 2.3) -------------------------------------------------------
 // The moved listeners register here, exactly where they used to, so their order against the other
 // element listeners on this page is unchanged. `subjects` is a thunk: SUBJECTS is declared below
 // this point, and the module reads the map when it renders, not while this call runs.
 calendar.init({
-  recordSource: tasks.recordSource, openTaskDialog, todayDate, toInputValue, dayDiff, subjects: () => SUBJECTS,
+  recordSource: tasks.recordSource, openTaskDialog: tasks.openTaskDialog, todayDate, toInputValue, dayDiff, subjects: () => SUBJECTS,
 });
 
 // --- Search, overview stats, nav badge ---
@@ -840,7 +422,7 @@ function ensureStatusPopover() {
         tasks.confirmReopen(picked, next, () => {
           const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
           tasks.setStatus(picked, next);
-          if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); tasks.flashSaved(); }
+          if (picked.id === state.currentTask?.id) { tasks.updateDialogStatus(picked); tasks.updateDialogDue(picked); tasks.flashSaved(); }
           tasks.renderAllTasks();
           tasks.showToast(statusChangeMessage(next), 'Undo', () => tasks.restoreProgress(picked.id, prev));
         });
@@ -848,7 +430,7 @@ function ensureStatusPopover() {
       }
       const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
       tasks.setStatus(picked, opt.dataset.status);
-      if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); tasks.flashSaved(); }
+      if (picked.id === state.currentTask?.id) { tasks.updateDialogStatus(picked); tasks.updateDialogDue(picked); tasks.flashSaved(); }
       closeStatusPopover();
       tasks.renderAllTasks();
       if (opt.dataset.status === 'done') {
@@ -922,7 +504,7 @@ function selectSubject(code) {
   if (!state.currentTask) return;
   state.currentTask.subject = code;
   updateDialogSubject(state.currentTask);
-  autosave();
+  tasks.autosave();
 }
 [''].concat(Object.keys(SUBJECTS)).forEach((code) => {
   const opt = document.createElement('button');
@@ -1019,7 +601,7 @@ quickAdd.init({
   quickWords, parseQuickAdd,
   lookup, parseTimeWord, WEEKDAYS, dayDiff, toInputValue, STATUS_LABELS, Task,
   createSubjectTag, openDuePicker, closeDuePicker, hideAnimated, myTasks,
-  setStatus: tasks.setStatus, saveTasks: tasks.saveTasks, setPage: nav.setPage, renderAllTasks: tasks.renderAllTasks, openTaskDialog, showToast: tasks.showToast,
+  setStatus: tasks.setStatus, saveTasks: tasks.saveTasks, setPage: nav.setPage, renderAllTasks: tasks.renderAllTasks, openTaskDialog: tasks.openTaskDialog, showToast: tasks.showToast,
   subjects: () => SUBJECTS, statusCodes: () => STATUS_CODES,
 });
 
@@ -1031,7 +613,7 @@ quickAdd.init({
 // exported because loadPublished, the bootstrap init and js/transfer.js's replaced-draft path call
 // it. updateAdminBar and diffDraft come from js/publish.js, which moved them in this slice.
 announcements.init({
-  lookup, linkify, dropHasFiles, showToast: tasks.showToast, saveTasks: tasks.saveTasks, updateAdminBar: publish.updateAdminBar, diffDraft: publish.diffDraft,
+  lookup, linkify: tasks.linkify, dropHasFiles: tasks.dropHasFiles, showToast: tasks.showToast, saveTasks: tasks.saveTasks, updateAdminBar: publish.updateAdminBar, diffDraft: publish.diffDraft,
 });
 
 // --- Keyboard shortcuts: N = new task, / = search ---
@@ -1236,13 +818,13 @@ publish.init({
 dom.dialogDuplicate.addEventListener('click', () => {
   if (!state.currentTask || !isEditable(state.currentTask)) return;
   const source = state.currentTask;
-  closeTaskDialog();
+  tasks.closeTaskDialog();
   const copy = Task.fromJSON({ ...source.toJSON(), id: undefined, title: `${source.title} (copy)` });
   myTasks.push(copy);
   state.justChangedId = copy.id;
   tasks.saveTasks();
   tasks.renderAllTasks();
-  openTaskDialog(copy);
+  tasks.openTaskDialog(copy);
 });
 
 // --- Settings and theme: js/settings.js (slice 2.4) ---------------------------------------------

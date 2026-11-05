@@ -1,12 +1,13 @@
 // js/tasks.js - the task hub: renderers, dialog, status popover and drag & drop (app.js split, slice 2.6).
 //
-// Moved verbatim out of app.js, in three commits. This file is commit 1 of that slice; the
+// Moved verbatim out of app.js, in three commits. This file is commit 2 of that slice; the
 // values below arrive through init(deps) because app.js still owns them:
 //   Task - logic.js: rebuilds each stored task through Task.fromJSON
 //   dayDiff - logic.js: day counts for due badges and the overview
 //   sortTasks - logic.js: the renderers sort through it
 //   STATUS_LABELS - logic.js: the confirm dialog and the popover wording
 //   statusChangeMessage - logic.js: the undo toast text on every status change
+//   sanitizeDoc - logic.js: the note editor stores only its allow-list
 //   myTasks - app.js: the live draft array, mutated in place
 //   isEditable - app.js: admin, not previewing, in the draft
 //   hideAnimated - app.js: overlays close with their exit animation
@@ -18,9 +19,9 @@
 //   handleDragEnd - app.js: the card drag handlers (move in commit 3)
 //   openStatusPopover - app.js: the popover (moves in commit 3)
 //   closeStatusPopover - app.js: the popover (moves in commit 3)
-//   updateDialogStatus - app.js: the dialog status line (moves in commit 2)
-//   updateDialogDue - app.js: the dialog due line (moves in commit 2)
-//   openTaskDialog - app.js: the dialog (moves in commit 2)
+//   updateDialogSubject - app.js: the dialog subject line (moves in commit 3)
+//   TTFiles - attachments.js: the classic-script file helper (ACCEPT, MAX_*)
+//   openDuePicker - app.js: the due date picker stays in app.js (quick add uses it too)
 //   calendar - app.js: its namespace, renderAllTasks repaints the calendar
 //   publish - app.js: its namespace, renderAllTasks and diffDraft update the admin bar
 //
@@ -49,6 +50,7 @@ let dayDiff = null;
 let sortTasks = null;
 let STATUS_LABELS = null;
 let statusChangeMessage = null;
+let sanitizeDoc = null;
 let myTasks = null;
 let isEditable = null;
 let hideAnimated = null;
@@ -60,9 +62,9 @@ let handleDragStart = null;
 let handleDragEnd = null;
 let openStatusPopover = null;
 let closeStatusPopover = null;
-let updateDialogStatus = null;
-let updateDialogDue = null;
-let openTaskDialog = null;
+let updateDialogSubject = null;
+let TTFiles = null;
+let openDuePicker = null;
 let calendar = null;
 let publish = null;
 
@@ -613,6 +615,292 @@ export function renderAllTasks() {
   state.justChangedId = null;
   
 }
+// Title is a one-line-looking textarea that grows with its content
+export function fitDialogTitle() {
+  dom.dialogTitleInput.style.height = 'auto';
+  dom.dialogTitleInput.style.height = dom.dialogTitleInput.scrollHeight + 'px';
+}
+export function updateDialogDue(task) {
+  dom.dialogDateBtn.textContent = task.getDueShort();
+  dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
+  dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
+  dom.dialogDateBtn.classList.toggle('empty-value', !task.dueDate);
+  dom.dialogDueClear.hidden = !task.dueDate || !isEditable(task);
+}
+export function updateDialogStatus(task) {
+  const map = {
+    not_started: { label: 'Not started', dot: 'dot-not-started', cls: 'is-not-started' },
+    in_progress: { label: 'In progress', dot: 'dot-in-progress', cls: 'is-in-progress' },
+    done: { label: 'Done', dot: 'dot-done', cls: 'is-done' },
+  };
+  const s = map[task.status] || map.not_started;
+  dom.dialogStatusLabel.textContent = s.label;
+  dom.dialogStatusDot.className = `status-dot ${s.dot}`;
+  dom.dialogStatusBtn.className = `prop-value status-value ${s.cls}`;
+}
+// --- Links in notes: made at render time, never stored. sanitizeDoc flattens <a> back to its text on save. ---
+const URL_RE = /https?:\/\/[^\s<>"']+/gi;
+export function unlinkify(root) {
+  root.querySelectorAll('a').forEach((a) => a.replaceWith(document.createTextNode(a.textContent)));
+  root.normalize();
+}
+export function linkify(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach((node) => {
+    const text = node.nodeValue;
+    URL_RE.lastIndex = 0;
+    let last = 0, m, frag = null;
+    while ((m = URL_RE.exec(text))) {
+      let url = m[0], prev;
+      do {
+        prev = url;
+        url = url.replace(/[.,;:!?\]}]+$/, '');
+        if (url.endsWith(')') && (url.match(/\)/g).length > (url.match(/\(/g) || []).length)) url = url.slice(0, -1);
+      } while (url !== prev);
+      try { const u = new URL(url); if (u.protocol !== 'http:' && u.protocol !== 'https:') continue; } catch (e) { continue; }
+      if (!frag) frag = document.createDocumentFragment();
+      frag.append(text.slice(last, m.index));
+      const a = document.createElement('a');
+      a.href = url;
+      a.textContent = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      if (root.isContentEditable) a.title = 'Ctrl+click to open';
+      frag.append(a);
+      last = m.index + url.length;
+    }
+    if (frag) { frag.append(text.slice(last)); node.replaceWith(frag); }
+  });
+}
+export function refreshLinks(root) { unlinkify(root); linkify(root); }
+export function getCloseBtn() {
+  if (state.dialogCloseBtn) return state.dialogCloseBtn;
+  state.dialogCloseBtn = document.createElement('button');
+  state.dialogCloseBtn.type = 'button';
+  state.dialogCloseBtn.className = dom.dialogDelete.className;
+  state.dialogCloseBtn.textContent = 'Close for class';
+  state.dialogCloseBtn.addEventListener('click', () => {
+    const task = state.currentTask;
+    if (!task || !isEditable(task)) return;
+    task.closedAt = Date.now();
+    saveTasks();
+    closeTaskDialog();
+    renderAllTasks();
+    showToast('Moved to Past tasks', 'Undo', () => { task.closedAt = 0; saveTasks(); renderAllTasks(); });
+  });
+  dom.dialogDelete.insertAdjacentElement('beforebegin', state.dialogCloseBtn);
+  return state.dialogCloseBtn;
+}
+export function openTaskDialog(task) {
+  state.dialogReturn = { el: document.activeElement, id: task.id };
+  state.currentTask = task;
+  const ro = !isEditable(task);
+  dom.dialog.classList.toggle('is-readonly', ro);
+  dom.dialogTitleInput.readOnly = ro;
+  dom.dialogDoc.contentEditable = ro ? 'false' : 'true';
+  dom.dialogDoc.dataset.placeholder = ro ? 'No notes for this task.' : 'Write notes, or drop images here';
+  dom.dialogSubjectBtn.disabled = ro;
+  dom.dialogDateBtn.disabled = ro;
+  dom.dialogDelete.hidden = ro;
+  dom.dialogDuplicate.hidden = ro;
+  getCloseBtn().hidden = ro || task.closedAt > 0;
+  dom.dialogTitleInput.value = task.title === 'New Task' ? '' : task.title;
+  updateDialogDue(task);
+  updateDialogStatus(task);
+  dom.dialogDoc.innerHTML = sanitizeDoc(task.notes || '');
+  refreshLinks(dom.dialogDoc);
+  updateDialogSubject(task);
+  renderDialogFiles(task);
+  dom.dialogOverlay.classList.remove('is-closing');
+  dom.dialogOverlay.hidden = false;
+  dom.dialogOverlay.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  fitDialogTitle();
+  (ro ? dom.dialogStatusBtn : dom.dialogTitleInput).focus();
+}
+export function closeTaskDialog() {
+  if (!state.currentTask) return;
+  if (isEditable(state.currentTask)) {
+    state.currentTask.title = dom.dialogTitleInput.value.trim() || 'New Task';
+    state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
+    saveTasks();
+  }
+  state.currentTask = null;
+  closeStatusPopover();
+  hideAnimated(dom.dialogOverlay);
+  dom.dialogOverlay.setAttribute('aria-hidden', 'true');
+  dom.dialogSubjectDropdown.hidden = true;
+  dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
+  document.body.style.overflow = '';
+  renderAllTasks();
+  const back = state.dialogReturn;
+  state.dialogReturn = null;
+  if (back) {
+    const target = back.el && back.el.isConnected ? back.el : document.querySelector(`[data-task-id="${CSS.escape(String(back.id))}"]`);
+    if (target) target.focus();
+  }
+}
+export function openDialogDuePicker(anchor, focus) {
+  if (!state.currentTask) return;
+  openDuePicker({
+    anchor,
+    focus,
+    date: state.currentTask.dueDate || null,
+    time: state.currentTask.dueTime || null,
+    onChange: ({ date, time }) => {
+      if (!state.currentTask) return;
+      state.currentTask.dueDate = date || undefined;
+      state.currentTask.dueTime = date ? (time || undefined) : undefined;
+      updateDialogDue(state.currentTask);
+      autosave();
+    },
+  });
+}
+export function fileToDataUrl(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 800 / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => resolve(null);
+      img.src = reader.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+export function insertDocImage(src) {
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = '';
+  dom.dialogDoc.focus();
+  const sel = getSelection();
+  let range = sel.rangeCount && dom.dialogDoc.contains(sel.getRangeAt(0).startContainer) ? sel.getRangeAt(0) : null;
+  if (!range) {
+    range = document.createRange();
+    range.selectNodeContents(dom.dialogDoc);
+    range.collapse(false);
+  }
+  range.deleteContents();
+  range.insertNode(img);
+  if (!img.nextSibling) img.after(document.createElement('br'));
+  range.setStartAfter(img);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+export async function insertDocImages(files) {
+  for (const file of files) {
+    let src = null;
+    try {
+      const { blob, name } = await TTFiles.prepare(file);
+      const out = await TTFiles.upload(blob, name);
+      src = TTFiles.urlFor(out.id);
+    } catch (e) {
+      src = await fileToDataUrl(file);   // not signed in or offline: keep it inline instead of losing it
+      if (!src) { showToast(e.message || 'Could not add that image'); continue; }
+    }
+    insertDocImage(src);
+  }
+  autosave();
+}
+export async function attachFiles(files) {
+  const task = state.currentTask;
+  if (!task || !isEditable(task)) return;
+  let added = 0;
+  for (const file of files) {
+    if (task.files.length >= 10) { showToast('A task can have up to 10 files.'); break; }
+    try {
+      showToast(`Uploading ${file.name || 'file'}…`);
+      const { blob, name } = await TTFiles.prepare(file);
+      const out = await TTFiles.upload(blob, name);
+      task.files.push({ id: out.id, name: out.name, size: out.size });
+      added++;
+      saveTasks();
+      if (state.currentTask === task) renderDialogFiles(task);
+    } catch (e) {
+      showToast(e.message === 'Failed to fetch' ? 'Cannot reach the server.' : e.message);
+      return;
+    }
+  }
+  if (added) { flashSaved(); showToast(added === 1 ? 'File attached' : `${added} files attached`); }
+}
+export function renderDialogFiles(task) {
+  const editable = isEditable(task);
+  dom.dialogFilesField.hidden = !editable && !task.files.length;
+  dom.dialogAttachBtn.hidden = !editable;
+  dom.dialogFiles.replaceChildren();
+  task.files.forEach((f) => {
+    const li = document.createElement('li');
+    li.className = 'file-item';
+    const a = document.createElement('a');
+    a.href = TTFiles.urlFor(f.id);
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = f.name;
+    if (/\.(pptx|docx)$/.test(f.id)) a.download = f.name;
+    const size = document.createElement('span');
+    size.className = 'file-size';
+    size.textContent = TTFiles.formatSize(f.size);
+    li.append(a, size);
+    if (editable) {
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'text-button';
+      rm.textContent = 'Remove';
+      rm.addEventListener('click', () => {
+        const index = task.files.indexOf(f);
+        if (index === -1) return;
+        task.files.splice(index, 1);
+        saveTasks();
+        renderDialogFiles(task);
+        showToast('File removed', 'Undo', () => {
+          task.files.splice(Math.min(index, task.files.length), 0, f);
+          saveTasks();
+          if (state.currentTask === task) renderDialogFiles(task);
+        });
+      });
+      li.append(rm);
+    }
+    dom.dialogFiles.append(li);
+  });
+}
+export function rangeFromPoint(x, y) {
+  if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
+  const pos = document.caretPositionFromPoint?.(x, y);
+  if (!pos) return null;
+  const r = document.createRange();
+  r.setStart(pos.offsetNode, pos.offset);
+  r.collapse(true);
+  return r;
+}
+export function syncNoteTools() {
+  dom.noteTools.forEach((b) => {
+    let on = false;
+    try { on = document.activeElement === dom.dialogDoc && document.queryCommandState(b.dataset.cmd); } catch (e) {}
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+export const dropHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+// Saves the task being edited in the panel and confirms it.
+export function autosave() {
+  if (!state.currentTask || !isEditable(state.currentTask)) return;
+  state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
+  saveTasks();
+  flashSaved();
+}
 
 // Called once by app.js, at the spot the moved listeners used to occupy.
 export function init(deps) {
@@ -621,6 +909,7 @@ export function init(deps) {
   sortTasks = deps.sortTasks;
   STATUS_LABELS = deps.STATUS_LABELS;
   statusChangeMessage = deps.statusChangeMessage;
+  sanitizeDoc = deps.sanitizeDoc;
   myTasks = deps.myTasks;
   isEditable = deps.isEditable;
   hideAnimated = deps.hideAnimated;
@@ -632,12 +921,124 @@ export function init(deps) {
   handleDragEnd = deps.handleDragEnd;
   openStatusPopover = deps.openStatusPopover;
   closeStatusPopover = deps.closeStatusPopover;
-  updateDialogStatus = deps.updateDialogStatus;
-  updateDialogDue = deps.updateDialogDue;
-  openTaskDialog = deps.openTaskDialog;
+  updateDialogSubject = deps.updateDialogSubject;
+  TTFiles = deps.TTFiles;
+  openDuePicker = deps.openDuePicker;
   calendar = deps.calendar;
   publish = deps.publish;
 // Don't dismiss the toast while someone is tabbing to its Undo button
 dom.toastEl.addEventListener('focusin', () => clearTimeout(state.toastTimer));
 dom.toastEl.addEventListener('focusout', () => { clearTimeout(state.toastTimer); state.toastTimer = setTimeout(hideToast, 3000); });
+dom.dialogFileInput.accept = TTFiles.ACCEPT;
+dom.dialogAttachBtn.addEventListener('click', () => dom.dialogFileInput.click());
+dom.dialogFileInput.addEventListener('change', () => {
+  const picked = [...dom.dialogFileInput.files];
+  dom.dialogFileInput.value = '';
+  if (picked.length) attachFiles(picked);
+});
+dom.dialogTitleInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing) e.preventDefault();
+});
+dom.dialogTitleInput.addEventListener('input', () => {
+  const clean = dom.dialogTitleInput.value.replace(/[\r\n]+/g, ' ');
+  if (clean !== dom.dialogTitleInput.value) dom.dialogTitleInput.value = clean;
+  fitDialogTitle();
+});
+window.addEventListener('resize', () => { if (state.currentTask) fitDialogTitle(); });
+// --- Event Listeners ---
+
+dom.dialogClose.addEventListener('click', closeTaskDialog);
+dom.dialogOverlay.addEventListener('click', (e) => { if (e.target === dom.dialogOverlay) closeTaskDialog(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !dom.dialogOverlay.hidden && !(state.statusPopoverEl && !state.statusPopoverEl.hidden)) closeTaskDialog();
+});
+dom.dialogDateBtn.addEventListener('click', () => openDialogDuePicker(dom.dialogDateBtn, 'date'));
+dom.dialogDueClear.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (state.currentTask) {
+    state.currentTask.dueDate = undefined;
+    state.currentTask.dueTime = undefined;
+    updateDialogDue(state.currentTask);
+    autosave();
+  }
+});
+dom.dialogDoc.addEventListener('input', () => {
+  if (/^(<div>)?<br>(<\/div>)?$/.test(dom.dialogDoc.innerHTML)) dom.dialogDoc.innerHTML = '';
+  clearTimeout(state.docTimer);
+  state.docTimer = setTimeout(autosave, 500);
+});
+
+dom.dialogDoc.addEventListener('paste', (e) => {
+  e.preventDefault();
+  const files = [...(e.clipboardData?.files || [])];
+  if (files.length) {
+    const imgs = files.filter((f) => f.type.startsWith('image/'));
+    const docs = files.filter((f) => !f.type.startsWith('image/'));
+    if (imgs.length) insertDocImages(imgs);
+    if (docs.length) attachFiles(docs);
+    return;
+  }
+  document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
+});
+
+// Read-only (students): the browser opens the link itself (new tab). Admin editing: plain click places the caret, Ctrl/Cmd+click opens.
+dom.dialogDoc.addEventListener('click', (e) => {
+  const a = e.target instanceof Element ? e.target.closest('a') : null;
+  if (!a || !dom.dialogDoc.contains(a) || !dom.dialogDoc.isContentEditable) return;
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener,noreferrer');
+});
+// Rebuild links when leaving the box, so URLs typed or pasted while editing become links.
+dom.dialogDoc.addEventListener('focusout', () => { if (state.currentTask) refreshLinks(dom.dialogDoc); });
+
+// Note formatting toolbar. sanitizeDoc keeps only b, i, ul and li, so nothing else can be stored.
+dom.dialogDoc.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
+dom.noteTools.forEach((b) => {
+  b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the note
+  b.addEventListener('click', () => {
+    if (!state.currentTask || !isEditable(state.currentTask)) return;
+    dom.dialogDoc.focus();
+    document.execCommand(b.dataset.cmd);
+    autosave();
+    syncNoteTools();
+  });
+});
+document.addEventListener('selectionchange', () => { if (document.activeElement === dom.dialogDoc) syncNoteTools(); });
+dom.dialog.addEventListener('dragover', (e) => {
+  if (!dropHasFiles(e) || dom.dialog.classList.contains('is-readonly')) return;
+  e.preventDefault();
+  dom.dialog.classList.add('is-dropping');
+});
+dom.dialog.addEventListener('dragleave', (e) => {
+  if (!dom.dialog.contains(e.relatedTarget)) dom.dialog.classList.remove('is-dropping');
+});
+dom.dialog.addEventListener('drop', (e) => {
+  dom.dialog.classList.remove('is-dropping');
+  const all = [...(e.dataTransfer?.files || [])];
+  if (!all.length) return;
+  e.preventDefault();
+  if (dom.dialog.classList.contains('is-readonly')) return;
+  const imgs = all.filter((f) => f.type.startsWith('image/'));
+  const docs = all.filter((f) => !f.type.startsWith('image/'));
+  if (imgs.length) {
+    const range = rangeFromPoint(e.clientX, e.clientY);
+    if (range && dom.dialogDoc.contains(range.startContainer)) {
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    insertDocImages(imgs);
+  }
+  if (docs.length) attachFiles(docs);
+});
+dom.dialogDelete.addEventListener('click', () => {
+  if (!state.currentTask) return;
+  const task = state.currentTask;
+  closeStatusPopover();
+  hideAnimated(dom.dialogOverlay);
+  document.body.style.overflow = '';
+  const idx = myTasks.indexOf(task);
+  if (idx !== -1) deleteTask(task); else closeTaskDialog();
+  state.currentTask = null;
+});
 }
