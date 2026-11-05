@@ -58,68 +58,39 @@
   <symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 6H20M8.5 12H20M8.5 18H20M4 6h.01M4 12h.01M4 18h.01"/></symbol>
   <symbol id="i-archive" viewBox="0 0 24 24"><path d="M3.5 4.5h17v4h-17z"/><path d="M5 8.5v11h14v-11"/><path d="M10 12.5h4"/></symbol>
 </svg>
-    <div class="app-shell">
-         <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
-         <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
-        <div class="brand">
-          <span class="brand-name">
-  <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square" stroke-linejoin="miter">
-    <path d="M12 3H4v18h16v-8"/>
-    <path d="M8 11.5l4 4L21 5.5"/>
-  </svg>
-  <span class="brand-text">TaskTracker</span>
-</span>
-          <button class="sidebar-toggle" type="button" id="sidebar-toggle" aria-label="Collapse sidebar" aria-expanded="true">
-            <svg class="i" aria-hidden="true"><use href="#i-panel-left"/></svg>
-          </button>
-        </div>
-          <button class="sidebar-close" type="button" id="sidebar-close" aria-label="Close navigation">
-            <svg class="i" aria-hidden="true"><use href="#i-x"/></svg>
-          </button>
-          <nav class="nav-group" aria-label="Workspace">
-          <a class="nav-item is-active" href="#class-tasks" data-page="class-tasks">
-            <svg class="i nav-icon" aria-hidden="true"><use href="#i-clipboard-list"/></svg>
-            <span>Class tasks</span>
-          </a>
-          <a class="nav-item" href="#my-tasks" data-page="my-tasks" id="nav-admin" hidden>
-            <svg class="i nav-icon" aria-hidden="true"><use href="#i-shield-check"/></svg>
-            <span>Admin</span>
-            <span class="nav-badge" id="nav-badge" hidden>0</span>
-          </a>
-          <a class="nav-item" href="#done" data-page="done">
-            <svg class="i nav-icon" aria-hidden="true"><use href="#i-check-circle"/></svg>
-            <span>Completed tasks</span>
-          </a>
-          <a class="nav-item" href="#past" data-page="past">
-            <svg class="i nav-icon" aria-hidden="true"><use href="#i-archive"/></svg>
-            <span>Past tasks</span>
-          </a>
-          <a class="nav-item" href="#calendar" data-page="calendar">
-            <svg class="i nav-icon" aria-hidden="true"><use href="#i-calendar-days"/></svg>
-            <span>Calendar</span>
-          </a>
-        </nav>
-        <div class="sidebar-footer">
-          <button class="nav-item nav-item-button" type="button" id="settings-open" title="Settings">
-            <svg class="i nav-icon" aria-hidden="true"><use href="#i-sliders"/></svg>
-            <span>Settings</span>
-          </button>
-        </div>
-      </aside>
+    <header class="tb">
+      <a class="brand" href="#class-tasks" aria-label="TaskTracker home">
+        <span class="sp x2" style="--i:18" aria-hidden="true"></span><b>TaskTracker</b>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a class="tn nav-item is-active" href="#class-tasks" data-page="class-tasks" title="Class tasks" aria-label="Class tasks">
+          <span class="sp x2" style="--i:0" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Tasks</span>
+        </a>
+        <a class="tn nav-item" href="#calendar" data-page="calendar" title="Calendar" aria-label="Calendar">
+          <span class="sp x2" style="--i:1" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Calendar</span>
+        </a>
+        <a class="tn nav-item" href="#done" data-page="done" title="Completed tasks" aria-label="Completed tasks">
+          <span class="sp x2" style="--i:2" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Done</span>
+        </a>
+        <a class="tn nav-item" href="#past" data-page="past" title="Past tasks" aria-label="Past tasks">
+          <span class="sp x2" style="--i:3" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Past</span>
+        </a>
+        <a class="tn nav-item adm" href="#my-tasks" data-page="my-tasks" id="nav-admin" title="Admin" aria-label="Admin" hidden>
+          <span class="sp x2" style="--i:4" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Admin</span>
+          <span class="bd" id="nav-badge" hidden>0</span>
+        </a>
+        <button class="tn nav-item" type="button" id="settings-open" title="Settings" aria-label="Settings">
+          <span class="sp x2" style="--i:5" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Settings</span>
+        </button>
+      </nav>
+      <h1 class="px ttl" id="breadcrumb-current">Class tasks</h1>
+      <button class="ib" type="button" id="theme-toggle" aria-label="Switch to dark mode">
+        <span class="sp x2 icon-light" style="--i:11" aria-hidden="true"></span>
+        <span class="sp x2 icon-dark" style="--i:10" aria-hidden="true"></span>
+      </button>
+    </header>
 
-      <main class="main-content">
-        <header class="topbar">
-          <button class="mobile-menu" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">
-            <span></span><span></span><span></span>
-          </button>
-          <h1 class="header-title" id="breadcrumb-current">Class tasks</h1>
-          <button class="icon-button" type="button" id="theme-toggle" aria-label="Switch to dark mode">
-            <svg class="i icon-moon" aria-hidden="true"><use href="#i-moon"/></svg>
-            <svg class="i icon-sun" aria-hidden="true"><use href="#i-sun"/></svg>
-          </button>
-        </header>
-
-        <div class="page-container">
+    <main class="page-container">
           <section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Class tasks">
             <div class="page-heading">
               <div>
@@ -296,7 +267,6 @@
             </section>
             <p class="list-empty" id="cal-empty" hidden>No tasks have a due date yet. Add one and it shows up here.</p>
           </section>
-        </div>
         <p class="sr-only" id="action-feedback" role="status" aria-live="polite"></p>
         <div class="toast" id="toast" hidden>
           <span id="toast-message"></span>
