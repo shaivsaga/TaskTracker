@@ -63,23 +63,16 @@ if (dom.adminAnnounce && dom.adminEmpty) dom.adminEmpty.before(dom.adminAnnounce
 const myTasks = [];              // admin draft (definitions only)
 
 const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.includes(task);
-const findTask = (id) => [...myTasks, ...state.publishedTasks].find((t) => t.id === id);
-
-// Leaving Done needs an explicit yes. Returns true when the change may proceed.
-const isReopen = (task, status) => task.status === 'done' && status !== 'done';
 
 
 // --- Tasks: js/tasks.js (slice 2.6) -------------------------------------------------------------
-// init() runs at the spot where the first dialog listener used to be registered, so the order of
-// the page listeners is unchanged: the dialog file, title, dialog, note-tool and file-drop
-// listeners, then the toast listeners, the status popover, the subject dropdown, the shortcuts, the
-// due picker, publish, settings, tour, transfer and the focus trap. The hub functions the other
-// modules receive are passed on from here as tasks.<name>; the popover and drag & drop code still
-// in this file calls those functions as tasks.<name> until commit 3 moves it.
+// init() runs at the spot where the first dialog listener used to be registered, and every moved
+// listener is registered inside it in source order, so the order of the page listeners - including
+// the dialog/popover Escape chain and the due-picker capture handler - is unchanged. The hub
+// functions the other modules receive are passed on from here as tasks.<name>.
 tasks.init({
-  Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, sanitizeDoc, myTasks, isEditable, hideAnimated,
-  createSubjectTag, startNewTask, updateColumn, createStatusCheck, handleDragStart, handleDragEnd, openStatusPopover,
-  closeStatusPopover, updateDialogSubject, TTFiles, openDuePicker, calendar, publish,
+  Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, sanitizeDoc, clampPopoverPosition, myTasks,
+  isEditable, hideAnimated, createSubjectTag, startNewTask, TTFiles, openDuePicker, calendar, publish,
 });
 
 // Returns a clean { tasks, announcements } or null when the data is not a usable board.
@@ -194,111 +187,7 @@ async function loadPublished() {
   announcements.renderAnnouncements();
 }
 
-function updateColumn(columnEl) {
-  const n = columnEl.querySelectorAll('.task-card').length;
-  columnEl.querySelector('.column-count').textContent = `(${n})`;
-  const contentEl = columnEl.querySelector('.column-content');
-  const isEmpty = n === 0;
-  contentEl.classList.toggle('is-empty', isEmpty);
-  const emptyMsg = contentEl.querySelector('.column-empty');
-  if (emptyMsg) {
-    if (!emptyMsg.dataset.default) emptyMsg.dataset.default = emptyMsg.textContent;
-    const searching = columnEl.closest('#page-class-tasks') ? state.classSearchQuery.trim()
-      : columnEl.closest('#page-my-tasks') ? state.searchQuery.trim() : '';
-    emptyMsg.textContent = searching ? 'No tasks match your search.' : emptyMsg.dataset.default;
-    emptyMsg.hidden = !isEmpty;
-  }
-}
-
-// --- Drag & Drop ---
-
-function handleDragStart(e) {
-  state.draggedCard = e.target.closest('.task-card');
-  if (!state.draggedCard) return;
-  state.draggedCard.classList.add('is-dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', state.draggedCard.dataset.taskId);
-}
-
-function clearDropPlaceholder() {
-  document.querySelectorAll('.drop-placeholder').forEach((p) => p.remove());
-}
-
-function handleDragEnd(e) {
-  clearDropPlaceholder();
-  if (state.draggedCard) {
-    state.draggedCard.classList.remove('is-dragging');
-    state.draggedCard = null;
-  }
-  document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
-}
-
-function handleDragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  const columnEl = e.target.closest('.kanban-column');
-  if (columnEl) {
-    document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
-    columnEl.classList.add('drag-over');
-    const content = columnEl.querySelector('.column-content');
-    const sameColumn = state.draggedCard && state.draggedCard.dataset.status === COLUMN_TO_STATUS[columnEl.dataset.status];
-    if (!sameColumn && !content.querySelector('.drop-placeholder')) {
-      clearDropPlaceholder();
-      const ph = document.createElement('div');
-      ph.className = 'drop-placeholder';
-      ph.textContent = 'Move here';
-      ph.setAttribute('aria-hidden', 'true');
-      content.prepend(ph);
-    }
-  }
-}
-
-function handleDrop(e) {
-  e.preventDefault();
-  const columnEl = e.target.closest('.kanban-column');
-  if (!columnEl || !state.draggedCard) return;
-
-  const taskId = state.draggedCard.dataset.taskId;
-  const task = findTask(taskId);
-  if (!task) return;
-
-  const newStatus = COLUMN_TO_STATUS[columnEl.dataset.status];
-  if (newStatus && newStatus !== task.status) {
-    if (isReopen(task, newStatus)) {
-      tasks.confirmReopen(task, newStatus, () => {
-        const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-        tasks.setStatus(task, newStatus);
-        tasks.renderAllTasks();
-        tasks.showToast(statusChangeMessage(newStatus), 'Undo', () => tasks.restoreProgress(task.id, prev));
-      });
-    } else {
-      const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-      tasks.setStatus(task, newStatus);
-      tasks.renderAllTasks();
-      if (newStatus === 'done') {
-        tasks.showToast(statusChangeMessage('done'), 'Undo', () => tasks.restoreProgress(task.id, prev));
-      }
-    }
-  }
-
-  document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
-}
-
-dom.dialogStatusBtn.addEventListener('click', () => { if (state.currentTask) openStatusPopover(state.currentTask, dom.dialogStatusBtn); });
-
 // --- Doc editor: typing, pasting and dropping images inline ---
-
-// Column drop zones (My Tasks page)
-document.querySelectorAll('.kanban-column').forEach(columnEl => {
-  columnEl.addEventListener('dragover', handleDragOver);
-  columnEl.addEventListener('drop', handleDrop);
-  columnEl.addEventListener('dragleave', (e) => {
-    if (!columnEl.contains(e.relatedTarget)) {
-      columnEl.classList.remove('drag-over');
-      clearDropPlaceholder();
-    }
-  });
-});
 
 // --- Toast, autosave feedback, skeletons ---
 
@@ -318,7 +207,7 @@ function hideAnimated(el, ms = 180) {
 // element listeners on this page is unchanged. `subjects` is a thunk: SUBJECTS is declared below
 // this point, and the module reads the map when it renders, not while this call runs.
 calendar.init({
-  recordSource: tasks.recordSource, openTaskDialog: tasks.openTaskDialog, todayDate, toInputValue, dayDiff, subjects: () => SUBJECTS,
+  recordSource: tasks.recordSource, openTaskDialog: tasks.openTaskDialog, todayDate, toInputValue, dayDiff, subjects: () => tasks.SUBJECTS,
 });
 
 // --- Search, overview stats, nav badge ---
@@ -381,10 +270,6 @@ document.querySelectorAll('.view-tab[data-view]').forEach((b) => {
 });
 
 // --- Subjects, quick add, announcements, shortcuts ---
-const SUBJECTS = {
-  GENSCI: 'bg-cyan', GENMATH: 'bg-pink', PKLP: 'bg-sunglow', EFFCOM: 'bg-green',
-  MABKOM: 'bg-sand', PERDEV: 'bg-yellow', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
-};
 const STATUS_CODES = {
   ns: 'not_started', todo: 'not_started', 'not started': 'not_started',
   ip: 'in_progress', started: 'in_progress', doing: 'in_progress', 'in progress': 'in_progress',
@@ -393,155 +278,10 @@ const STATUS_CODES = {
 
 function createSubjectTag(code) {
   const tag = document.createElement('span');
-  tag.className = `subject-tag ${SUBJECTS[code] || ''}`;
+  tag.className = `subject-tag ${tasks.SUBJECTS[code] || ''}`;
   tag.textContent = code;
   return tag;
 }
-
-const STATUS_ORDER = ['not_started', 'in_progress', 'done'];
-
-function ensureStatusPopover() {
-  if (state.statusPopoverEl) return state.statusPopoverEl;
-  const el = document.createElement('div');
-  el.className = 'status-dropdown status-popover';
-  el.setAttribute('role', 'listbox');
-  el.hidden = true;
-  STATUS_ORDER.forEach((status) => {
-    const opt = document.createElement('button');
-    opt.type = 'button';
-    opt.className = 'status-option';
-    opt.setAttribute('role', 'option');
-    opt.dataset.status = status;
-    opt.innerHTML = `<span class="status-dot dot-${status.replace(/_/g, '-')}"></span> ${STATUS_LABELS[status]}`;
-    opt.addEventListener('click', () => {
-      if (!state.statusPopoverTask) return;
-      const picked = state.statusPopoverTask;
-      const next = opt.dataset.status;
-      if (isReopen(picked, next)) {
-        closeStatusPopover();
-        tasks.confirmReopen(picked, next, () => {
-          const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
-          tasks.setStatus(picked, next);
-          if (picked.id === state.currentTask?.id) { tasks.updateDialogStatus(picked); tasks.updateDialogDue(picked); tasks.flashSaved(); }
-          tasks.renderAllTasks();
-          tasks.showToast(statusChangeMessage(next), 'Undo', () => tasks.restoreProgress(picked.id, prev));
-        });
-        return;
-      }
-      const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
-      tasks.setStatus(picked, opt.dataset.status);
-      if (picked.id === state.currentTask?.id) { tasks.updateDialogStatus(picked); tasks.updateDialogDue(picked); tasks.flashSaved(); }
-      closeStatusPopover();
-      tasks.renderAllTasks();
-      if (opt.dataset.status === 'done') {
-        tasks.showToast(statusChangeMessage('done'), 'Undo', () => tasks.restoreProgress(picked.id, prev));
-      }
-    });
-    el.appendChild(opt);
-  });
-  document.body.appendChild(el);
-  state.statusPopoverEl = el;
-  return el;
-}
-
-function closeStatusPopover() {
-  if (!state.statusPopoverEl) return;
-  state.statusPopoverEl.hidden = true;
-  state.statusPopoverTask = null;
-}
-
-function openStatusPopover(task, anchorEl) {
-  const el = ensureStatusPopover();
-  state.statusPopoverTask = task;
-  state.statusPopoverIndex = STATUS_ORDER.indexOf(task.status);
-  [...el.children].forEach((opt, i) => opt.classList.toggle('is-active', i === state.statusPopoverIndex));
-  const rect = anchorEl.getBoundingClientRect();
-  el.hidden = false;
-  const { top, left } = clampPopoverPosition(rect, el.offsetWidth, el.offsetHeight, window.innerWidth, window.innerHeight);
-  el.style.top = `${top}px`;
-  el.style.left = `${left}px`;
-}
-
-function createStatusCheck(task) {
-  const check = document.createElement('button');
-  check.type = 'button';
-  check.className = `status-check is-${task.status.replace(/_/g, '-')}` + (task.id === state.justChangedId ? ' is-popping' : '');
-  check.setAttribute('aria-label', 'Change status');
-  check.innerHTML = task.status === 'done' ? '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>'
-    : task.status === 'in_progress' ? '<svg class="i" aria-hidden="true"><use href="#i-minus"/></svg>' : '';
-  check.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (state.statusPopoverTask === task && state.statusPopoverEl && !state.statusPopoverEl.hidden) { closeStatusPopover(); return; }
-    openStatusPopover(task, check);
-  });
-  return check;
-}
-
-document.addEventListener('click', (e) => {
-  if (state.statusPopoverEl && !state.statusPopoverEl.hidden && !state.statusPopoverEl.contains(e.target) && !e.target.closest('.status-check, .status-value')) {
-    closeStatusPopover();
-  }
-});
-document.addEventListener('keydown', (e) => {
-  if (!state.statusPopoverEl || state.statusPopoverEl.hidden) return;
-  if (e.key === 'Escape') { closeStatusPopover(); return; }
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    e.preventDefault();
-    state.statusPopoverIndex = (state.statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
-    [...state.statusPopoverEl.children].forEach((opt, i) => opt.classList.toggle('is-active', i === state.statusPopoverIndex));
-  }
-  if (e.key === 'Enter') { state.statusPopoverEl.children[state.statusPopoverIndex].click(); }
-});
-
-function updateDialogSubject(task) {
-  dom.dialogSubjectBtn.innerHTML = '';
-  dom.dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
-  if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
-  else dom.dialogSubjectBtn.textContent = 'Empty';
-  dom.dialogSubjectDropdown.hidden = true;
-}
-function selectSubject(code) {
-  if (!state.currentTask) return;
-  state.currentTask.subject = code;
-  updateDialogSubject(state.currentTask);
-  tasks.autosave();
-}
-[''].concat(Object.keys(SUBJECTS)).forEach((code) => {
-  const opt = document.createElement('button');
-  opt.type = 'button';
-  opt.className = 'status-option';
-  opt.setAttribute('role', 'option');
-  if (code) opt.appendChild(createSubjectTag(code)); else opt.textContent = 'None';
-  opt.addEventListener('click', () => selectSubject(code));
-  dom.dialogSubjectDropdown.appendChild(opt);
-});
-// Lives on <body> (same as the status menu) so the dialog's scroll area can't clip it
-dom.dialogSubjectDropdown.classList.add('status-popover');
-document.body.appendChild(dom.dialogSubjectDropdown);
-
-dom.dialogSubjectBtn.addEventListener('click', () => {
-  const open = dom.dialogSubjectBtn.getAttribute('aria-expanded') === 'true';
-  dom.dialogSubjectBtn.setAttribute('aria-expanded', String(!open));
-  dom.dialogSubjectDropdown.hidden = open;
-  if (open) return;
-  const r = dom.dialogSubjectBtn.getBoundingClientRect();
-  const h = dom.dialogSubjectDropdown.offsetHeight;
-  const w = dom.dialogSubjectDropdown.offsetWidth;
-  const below = window.innerHeight - r.bottom - 8;
-  const top = h > below && r.top > below ? Math.max(8, r.top - h - 4) : r.bottom + 4;
-  dom.dialogSubjectDropdown.style.top = `${top}px`;
-  dom.dialogSubjectDropdown.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
-});
-window.addEventListener('resize', () => {
-  dom.dialogSubjectDropdown.hidden = true;
-  dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
-});
-document.addEventListener('click', (e) => {
-  if (!dom.dialogSubjectBtn.contains(e.target) && !dom.dialogSubjectDropdown.contains(e.target)) {
-    dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
-    dom.dialogSubjectDropdown.hidden = true;
-  }
-});
 
 // --- Quick add: "GENMATH worksheet ip 10/5" ---
 
@@ -566,7 +306,7 @@ function parseQuickAdd(text) {
     const md = /^(\d{1,2})[\/-](\d{1,2})$/.exec(word);
     const time = parseTimeWord(word);
     const weekday = lookup(WEEKDAYS, lower);
-    if (!out.subject && lookup(SUBJECTS, word.toUpperCase())) {
+    if (!out.subject && lookup(tasks.SUBJECTS, word.toUpperCase())) {
       out.subject = word.toUpperCase();
     } else if (!out.status && lookup(STATUS_CODES, lower)) {
       out.status = lookup(STATUS_CODES, lower);
@@ -602,7 +342,7 @@ quickAdd.init({
   lookup, parseTimeWord, WEEKDAYS, dayDiff, toInputValue, STATUS_LABELS, Task,
   createSubjectTag, openDuePicker, closeDuePicker, hideAnimated, myTasks,
   setStatus: tasks.setStatus, saveTasks: tasks.saveTasks, setPage: nav.setPage, renderAllTasks: tasks.renderAllTasks, openTaskDialog: tasks.openTaskDialog, showToast: tasks.showToast,
-  subjects: () => SUBJECTS, statusCodes: () => STATUS_CODES,
+  subjects: () => tasks.SUBJECTS, statusCodes: () => STATUS_CODES,
 });
 
 // --- Announcements: js/announcements.js (slice 2.5) ---------------------------------------------
@@ -845,7 +585,7 @@ settings.init({
 // other window listeners. `$` is app.js's querySelector shorthand (declared above); the rest are
 // the hub functions the module still calls.
 tour.init({
-  $, STATUS_LABELS, STATUS_ORDER, createSubjectTag,
+  $, STATUS_LABELS, STATUS_ORDER: tasks.STATUS_ORDER, createSubjectTag,
   setPreview: publish.setPreview, setPage: nav.setPage, setSidebarOpen: nav.setSidebarOpen, hideAnimated, closeSettings: settings.closeSettings,
 });
 
@@ -861,7 +601,7 @@ const INCOMING_TRANSFER = transfer.takeTransferToken();
 transfer.init({
   $, hideAnimated, showToast: tasks.showToast, closeSettings: settings.closeSettings,
   myTasks, applyProgress: tasks.applyProgress, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks, renderAnnouncements: announcements.renderAnnouncements,
-  snapshot: publish.snapshot, restoreDraft: publish.restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER,
+  snapshot: publish.snapshot, restoreDraft: publish.restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER: tasks.STATUS_ORDER,
 });
 
 // --- Focus trap: Tab stays inside the open dialog ---
