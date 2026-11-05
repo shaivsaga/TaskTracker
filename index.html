@@ -13,9 +13,6 @@
     <meta name="apple-mobile-web-app-title" content="TaskTracker" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="theme-color" content="#0D0F14" id="meta-theme-color" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
 <script>
   try {
     var t = localStorage.getItem('class_tasks_theme') || 'dark';
@@ -83,7 +80,6 @@
           <span class="sp x2" style="--i:5" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Settings</span>
         </button>
       </nav>
-      <h1 class="px ttl" id="breadcrumb-current">Class tasks</h1>
       <button class="ib" type="button" id="theme-toggle" aria-label="Switch to dark mode">
         <span class="sp x2 icon-light" style="--i:11" aria-hidden="true"></span>
         <span class="sp x2 icon-dark" style="--i:10" aria-hidden="true"></span>
@@ -91,6 +87,7 @@
     </header>
 
     <main class="page-container">
+          <h1 class="px ttl" id="breadcrumb-current">Class tasks</h1>
           <section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Class tasks">
             <div class="page-heading">
               <div>

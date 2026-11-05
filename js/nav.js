@@ -11,10 +11,10 @@
 // setPage is a hub function: app.js and the publish, quick-add, settings and tour init deps already
 // received it as a bare name, so it stays exported and every one of those call sites reads
 // nav.setPage. NAV_PAGES is exported because app.js's bootstrap deep-link call reads the page list.
-// SIDEBAR_KEY and phoneQuery stay exported because the module's public shape is frozen: the inline
-// boot script in index.html and js/settings.js's reset keep-set still name class_tasks_sidebar, and
-// phoneQuery is the app's single phone breakpoint (max-width: 719px, paired with the same number in
-// styles.css, D19).
+// SIDEBAR_KEY stays exported because the pinned inline boot script in index.html and js/settings.js's
+// reset keep-set still name the localStorage key class_tasks_sidebar; the data-sidebar attribute that
+// script sets is now read by nothing. (An inline classic script cannot import a module, so it never
+// read this export either.)
 //
 // The page name comes from the tile's own title/aria-label, not from a text node: the mockup tiles
 // carry a clipped .lbl (the short phone label) and no desktop text label, and the router has to keep
@@ -33,8 +33,8 @@
 // history.replaceState/pushState with #<page>.
 //
 // init() runs at the exact spot the moved statements used to occupy, so the registration order the
-// Escape chain depends on does not change (nav items, then hashchange). NAV_PAGES and phoneQuery are
-// built in init(), never at module-evaluation time.
+// Escape chain depends on does not change (nav items, then hashchange). NAV_PAGES is built in init(),
+// never at module-evaluation time.
 //
 // Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
 // evaluation time, so
@@ -82,10 +82,6 @@ export function setPage(pageName, updateHash = true) {
 // of app.js, inside its init()). It is built in init() from dom.navItems.
 export let NAV_PAGES = null;
 
-// The app's phone breakpoint, paired with `max-width: 719px` in styles.css (D19.3). Built in
-// init(), never at module-evaluation time.
-export let phoneQuery = null;
-
 // Called once by app.js, at the spot the moved statements used to occupy, after cacheDom(). Both
 // deps are available when it runs: pageFromHash is the logic.js import, setPreview is hoisted.
 export function init(deps) {
@@ -104,5 +100,4 @@ export function init(deps) {
     if (state.previewing) setPreview(false);
     setPage(pageFromHash(window.location.hash, NAV_PAGES, state.isAdmin), false);
   });
-  phoneQuery = matchMedia('(max-width: 719px)');
 }

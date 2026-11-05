@@ -527,8 +527,8 @@ document.addEventListener('click', (e) => {
 
 // --- Navigation and routing: js/nav.js (slice 2.4) ----------------------------------------------
 // The moved listeners register here, exactly where they used to, so their order against the other
-// element and document listeners on this page is unchanged (the Escape chain depends on it), and
-// the phone breakpoint (nav.phoneQuery, 719px) is built at the same point. setPage moved with them: the
+// element and document listeners on this page is unchanged (the Escape chain depends on it). The
+// phone breakpoint now lives in styles.css alone (max-width: 719px). setPage moved with them: the
 // nav-item listeners, the deep-link handler, app.js's own call sites and the quick-add, settings
 // and tour init deps now reach it as nav.setPage. `pageFromHash`
 // is the logic.js import above; `setPreview` is js/publish.js's export below, so passing it by value

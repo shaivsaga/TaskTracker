@@ -58,9 +58,6 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
 .bd { position: absolute; top: 0; right: -2px; min-width: 16px; height: 16px; padding: 0 3px; display: grid; place-items: center; font: 400 8px/8px 'Press Start 2P', monospace; background: var(--ac); color: var(--onac); }
 .bd.er { background: var(--er); color: var(--oa); }
-/* The single page title (the pinned #breadcrumb-current): the mockup pixel-title treatment,
-   right-aligned against the theme button. */
-.tb h1 { flex: 1; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .px { font-family: 'Press Start 2P', monospace; font-weight: 400; text-transform: uppercase; }
 .ttl { font-size: 16px; line-height: 24px; }
 
@@ -78,6 +75,10 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
   .tn { padding: 0 12px; }
   .bd { top: 2px; right: 2px; }
   h1.ttl { font-size: 24px; line-height: 32px; }
+}
+@media (min-width: 900px) {
+  .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
+  .tn:has(.lbl) .bd { position: static; margin-left: 2px; }
 }
 @media (min-width: 1100px) {
   .brand b { display: block; }
@@ -228,18 +229,21 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 
 /* Subject tags */
 .subject-tag { display: inline-flex; align-items: center; width: fit-content; height: 24px; padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; white-space: nowrap; }
-/* Subject palette (D8/D11): the --tag values are one of the two documented places raw hex lives.
-   --tag-ink is the mockup's constant chip ink, used verbatim by its .tg/.ev/.chip/.wd .wc rules. */
-.bg-blue, .bg-sunglow, .bg-cyan, .bg-green, .bg-sand, .bg-stone, .bg-mauve, .bg-yellow, .bg-pink { --tag-ink: #14183A; }
-.bg-blue { --tag: #58affc; }
-.bg-sunglow { --tag: #fed430; }
-.bg-cyan { --tag: #70d1fe; }
-.bg-green { --tag: #e0fcde; }
-.bg-sand { --tag: #e3d8c6; }
-.bg-stone { --tag: #bebfba; }
-.bg-mauve { --tag: #d2c1cb; }
-.bg-yellow { --tag: #fcf603; }
-.bg-pink { --tag: #fba6f7; }
+/* Subject palette (D8/D11): the mockup's ten subject colours from its own table (mockup/app.js line 1),
+   one class per course code, in lowercase. This is one of the two documented places raw hex lives (the
+   other is the token blocks above); --tag-ink is the mockup's constant chip ink, used verbatim by its
+   .tg/.ev/.chip/.wd .wc rules. */
+.bg-blue, .bg-sunglow, .bg-cyan, .bg-green, .bg-sand, .bg-stone, .bg-mauve, .bg-yellow, .bg-pink, .bg-teal { --tag-ink: #14183A; }
+.bg-blue { --tag: #58affc; }      /* CP104 */
+.bg-sunglow { --tag: #ff9f6b; }   /* PKLP */
+.bg-cyan { --tag: #70d1fe; }      /* GENSCI */
+.bg-green { --tag: #8fe3a8; }     /* EFFCOM */
+.bg-sand { --tag: #d8c7a0; }      /* MABKOM */
+.bg-stone { --tag: #c3c7d6; }     /* THEOLOGY */
+.bg-mauve { --tag: #c9a6e0; }     /* FINMATH101 */
+.bg-yellow { --tag: #f7cd54; }    /* PE */
+.bg-pink { --tag: #fba6f7; }      /* GENMATH */
+.bg-teal { --tag: #7ff0e0; }      /* PERDEV */
 
 /* Due badges: urgency you can scan */
 .due-badge { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; width: fit-content; color: var(--mu); font-size: 12px; font-weight: 500; line-height: 16px; }
@@ -503,7 +507,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 719px) {
   .panel-close, .prop-clear, .icon-button { width: 44px; height: 44px; }
   .task-row .task-delete-btn, .announce-item .task-delete-btn { width: 44px; height: 44px; }
   .task-card .task-delete-btn { width: 44px; height: 44px; margin: -12px -8px -12px 0; }
@@ -596,6 +600,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .tour-actions #tour-skip { margin-right: auto; }
 
 /* ---------- Transfer ---------- */
+/* lint-allow:hex #FFFFFF -- QR codes need a white quiet zone in both themes */
 .transfer-qr-frame { display: grid; justify-self: center; width: fit-content; max-width: 100%; border: 1px solid var(--mu); border-radius: 4px; overflow: hidden; background: #FFFFFF; }
 .transfer-qr-frame canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; }
 .transfer-link-row { display: flex; gap: 8px; }

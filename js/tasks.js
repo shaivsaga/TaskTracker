@@ -978,7 +978,7 @@ export function handleDrop(e) {
 }
 export const SUBJECTS = {
   GENSCI: 'bg-cyan', GENMATH: 'bg-pink', PKLP: 'bg-sunglow', EFFCOM: 'bg-green',
-  MABKOM: 'bg-sand', PERDEV: 'bg-yellow', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
+  MABKOM: 'bg-sand', PERDEV: 'bg-teal', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
 };
 export const STATUS_ORDER = ['not_started', 'in_progress', 'done'];
 export function ensureStatusPopover() {
