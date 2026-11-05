@@ -187,9 +187,8 @@ async function loadPublished() {
   announcements.renderAnnouncements();
 }
 
-// --- Doc editor: typing, pasting and dropping images inline ---
 
-// --- Toast, autosave feedback, skeletons ---
+// --- Toast and autosave feedback (hideAnimated); skeletons moved to js/tasks.js (slice 2.6) ---
 
 // Plays the CSS exit animation, then hides. Skips the wait for reduced motion.
 function hideAnimated(el, ms = 180) {
@@ -210,7 +209,7 @@ calendar.init({
   recordSource: tasks.recordSource, openTaskDialog: tasks.openTaskDialog, todayDate, toInputValue, dayDiff, subjects: () => tasks.SUBJECTS,
 });
 
-// --- Search, overview stats, nav badge ---
+// --- Search (overview stats and the nav badge moved to js/tasks.js, slice 2.6) ---
 
 document.querySelector('#task-search').addEventListener('input', (e) => {
   state.searchQuery = e.target.value;

@@ -1,6 +1,8 @@
-/* Pure logic for TaskTracker: dates, the Task model, sorting, progress merging and
-   the quick-add parsers. Moved out of app.js unchanged so tests can load it without a browser.
-   Loaded as a module before app.js. Nothing here touches the page at load time. */
+/* Pure logic for TaskTracker: dates, the Task model, sorting, progress merging.
+   Moved out of app.js unchanged so tests can load it without a browser.
+   Loaded as a module before app.js. Nothing here touches the page at load time.
+   The natural-language quick-add parsers are NOT here: parseQuickAdd and quickWords have always
+   lived in app.js, and since the app.js split in js/quick-add.js. */
 
 // --- Status vocabulary ---
 // The canonical labels for the three statuses. Shared with app.js so the board,

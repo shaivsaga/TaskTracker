@@ -19,9 +19,9 @@
 // and SIDEBAR_KEY are exported because js/settings.js takes them through its own init deps
 // (closeSettings restores focus on the phone; the reset keep-set holds the sidebar key).
 //
-// Deliberately not moved: the #nav-badge write. It lives in app.js's updateOverview(), which is the
-// overview-stats renderer (#sum-open, #sum-progress, #sum-today, #sum-overdue, the blank-page flag)
-// called by renderAllTasks, not part of this region - updateOverview stays in app.js, so the badge
+// Deliberately not moved: the #nav-badge write. It lives in updateOverview(), the overview-stats
+// renderer (#sum-open, #sum-progress, #sum-today, #sum-overdue, the blank-page flag) called by
+// renderAllTasks - since slice 2.6 it is in js/tasks.js, not part of this region, so the badge
 // keeps exactly one writer.
 //
 // D6: this module never imports logic.js and never reads a bare global. `state` and `dom` are module
