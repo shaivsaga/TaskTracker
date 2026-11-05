@@ -194,7 +194,7 @@ const blankMock = mockCss === null ? "" : mock.src;
 const mockPx = new Set(pxAt(blankMock).map((p) => String(p.num)));
 const mockHex = new Set(hexAt(blankMock).map((h) => h.hex));
 const mockColors = new Set(colorAt(blankMock).map((c) => c.norm));
-const tenCode = new Set((String(mockJs || "").split("\n")[0] || "").match(/#[0-9a-fA-F]{3,8}\b/g)?.map((h) => h.toLowerCase()) || []);
+const tenCode = new Set((String(mockJs || "").split("\n")[0] || "").match(/#[0-9a-fA-F]{3,8}\b/g)?.map((h) => h.replace(/^#/, "").toLowerCase()) || []);
 
 const needApp = appCss === null ? "styles.css not found: " + cssPath : null;
 const needMock = mockCss === null || mockJs === null
