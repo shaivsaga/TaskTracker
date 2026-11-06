@@ -418,27 +418,40 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .history-detail { margin-top: 8px; color: var(--mu); font-size: 14px; line-height: 20px; }
 
 /* ---------- Calendar ---------- */
-.cal-title { color: var(--tx); font-size: 20px; line-height: 28px; }
-.cal-nav { display: inline-flex; gap: 4px; }
+/* The mockup's calendar language (mockup styles.css 126-142, 256-266, 311-331): the month title in
+   the pixel face (.mhd .px, 12/20 then 16/24 from 720), the weekday row as its centred 600 12/16
+   .wk span, the day number in the pixel face of its phone tile (.wd b), today on the accent box
+   (.cd.today .dn), the picked tile with the inset ring plus the mockup's 2px offset shadow (.cd.sel),
+   weekends a shade back on --sf2 (.cd.we), and the 8px dot carrying its --pl outline ring
+   (.cd .pp i). The grid keeps the app's own paper sheet: 1px --ln gaps, cells rather than boxes. */
+.cal-title { color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 20px; letter-spacing: .02em; text-transform: uppercase; }
+@media (min-width: 720px) { .cal-title { font-size: 16px; line-height: 24px; } }
+.cal-nav { display: inline-flex; gap: 8px; }
+#page-calendar .cal-nav .icon-button { width: 44px; height: 44px; }
 .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--ln); background: var(--ln); overflow: hidden; }
 .cal-dow, .cal-day { background: var(--sf); }
-.cal-dow { padding: 8px 12px; color: var(--mu); font-size: 12px; line-height: 16px; }
-.cal-day { display: grid; align-content: start; gap: 4px; min-width: 0; min-height: 112px; padding: 8px; }
+.cal-dow { padding: 8px 0; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; text-align: center; }
+/* mockup .cd.we (265): the weekend sits a shade back. calRange() always starts on a Sunday and the
+   seven .cal-dow cells are children 1-7, so Sunday is child 7n+8 and Saturday 7n+14. */
+.cal > .cal-day:nth-child(7n+8), .cal > .cal-day:nth-child(7n+14) { background: var(--sf2); }
+.cal-day { display: grid; align-content: start; gap: 4px; min-width: 0; min-height: 112px; padding: 6px; }
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
-.cal-day.is-outside .cal-num { opacity: 0.5; }
-.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 24px; padding: 0 4px; color: var(--tx); font-size: 12px; }
+.cal-day.is-outside .cal-num { color: var(--mu); }
+.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 16px; }
 .cal-day.is-today .cal-num { background: var(--ac); color: var(--onac); }
-.cal-chip { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 4px 8px; border: 0; border-left: 3px solid var(--edge, var(--mu)); color: var(--tx); background: var(--sf2); font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
-.cal-chip:hover, .cal-chip:active { background: var(--sf2); }
+/* the mockup's .stub box (2px --ln on --sf2) with the status spine on the left border */
+.cal-chip { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 4px 8px; border: 2px solid var(--ln); border-left: 3px solid var(--edge, var(--mu)); color: var(--tx); background: var(--sf2); font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
+.cal-chip:hover, .cal-chip:active { border-color: var(--ac); border-left-color: var(--edge, var(--mu)); }
 .cal-chip[data-status="in_progress"] { --edge: var(--ac); }
 .cal-chip[data-status="done"] { --edge: var(--ok); color: var(--mu); }
 .cal-chip[data-status="done"] .cal-chip-title { text-decoration: line-through; }
-.cal-chip.is-overdue .cal-time { color: var(--er); }
-.cal-time { flex: none; color: var(--mu); }
+.cal-chip.is-overdue .cal-time { padding: 0 4px; color: var(--er); background: var(--erb); font-weight: 600; }
+.cal-time { flex: none; color: var(--mu); font-weight: 500; font-variant-numeric: tabular-nums; }
 .cal-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.cal-dot { flex: none; width: 8px; height: 8px; background: var(--tag, var(--mu)); }
-.cal-more { padding: 0 8px; background: transparent; color: var(--mu); font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
+/* the mockup's dot ring: outline 1px var(--pl) (mockup 135/316), which its dark --pl makes invisible */
+.cal-dot { flex: none; width: 8px; height: 8px; background: var(--tag, var(--mu)); outline: 1px solid var(--pl); }
+.cal-more { padding: 0 2px; background: transparent; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; text-align: left; cursor: pointer; }
 .cal-more:hover { color: var(--tx); }
 
 /* Phone month view: day cells are tap targets that show dots; the picked day's tasks list below the grid. */
@@ -448,15 +461,16 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .cal-day.is-tappable:hover { background: var(--sf2); }
   .cal-day.is-tappable.is-outside:hover { background: var(--sf2); }
 }
-.cal-day.is-tappable.is-selected, .cal-day.is-tappable.is-selected:hover { background: var(--acs); box-shadow: inset 0 0 0 2px var(--ac); }
+.cal-day.is-tappable.is-selected, .cal-day.is-tappable.is-selected:hover { background: var(--acs); box-shadow: inset 0 0 0 2px var(--ac), 0 2px 0 var(--ac); }
 .cal-day.is-tappable:focus-visible { outline-offset: -2px; }
-.cal-dots { display: flex; justify-content: center; gap: 2px; }
-.cal-dots .cal-dot { width: 8px; height: 8px; border: 1px solid var(--mu); }
+.cal-dots { display: flex; justify-content: center; gap: 2px; height: 8px; }
 .cal-dots .cal-dot[data-status="done"] { background: transparent; }
-.cal-dots .cal-dot.is-overdue { background: var(--er); border-color: var(--er); }
+.cal-dots .cal-dot.is-overdue { background: var(--er); outline-color: var(--er); }
 .cal-agenda { margin-top: 16px; }
-.cal-agenda-title { margin-bottom: 8px; color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; }
-.cal-agenda-list { display: grid; gap: 4px; }
+/* the mockup's .sec strip: heading, then the rule that fills the row */
+.cal-agenda-title { display: flex; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 8px; color: var(--mu); font-size: 14px; font-weight: 700; line-height: 20px; }
+.cal-agenda-title::after { content: ''; flex: 1; height: 2px; background: var(--ln); }
+.cal-agenda-list { display: grid; gap: 8px; }
 .cal-agenda .cal-chip { min-height: 44px; padding: 8px 12px; font-size: 14px; line-height: 20px; }
 .cal-agenda-empty { color: var(--mu); font-size: 14px; line-height: 20px; }
 
@@ -546,7 +560,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .cal[data-mode="week"] { grid-template-columns: minmax(0, 1fr); }
   .cal[data-mode="week"] .cal-dow { display: none; }
   .cal[data-mode="week"] .cal-day { grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; min-height: 0; padding: 8px 12px; }
-  .cal[data-mode="week"] .cal-day::before { content: attr(data-dow); grid-column: 1; grid-row: 1; color: var(--mu); font-size: 12px; line-height: 16px; }
+  .cal[data-mode="week"] .cal-day::before { content: attr(data-dow); grid-column: 1; grid-row: 1; color: var(--mu); font-size: 11px; font-weight: 700; line-height: 16px; letter-spacing: .04em; text-transform: uppercase; }
   .cal[data-mode="week"] .cal-num { grid-column: 1; grid-row: 2; justify-self: start; }
   .cal[data-mode="week"] .cal-chip, .cal[data-mode="week"] .cal-more { grid-column: 2; }
   .cal[data-mode="week"] .cal-chip { min-height: 44px; padding: 8px 12px; font-size: 14px; line-height: 20px; }
