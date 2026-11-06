@@ -295,6 +295,22 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .task-list-add svg { width: 16px; height: 16px; margin: 0 4px; stroke-width: 2; }
 .done-row { grid-template-columns: 24px minmax(0, 1fr) auto auto auto; }
 .done-row .status-dot { justify-self: center; }
+/* Done and Past rows in the mockup's row language (mockup 169, 171, 233-234): every row keeps
+   the same fixed columns - the app's own 24px status column, the title, a 120px subject and a
+   140px date column right-aligned the way the mockup aligns its .ld - so the dates line up down
+   the page. The trailing action is the mockup's sm button (mockup 86) and its confirm state is
+   that same button in the mockup's pri form (mockup 105), because the app arms the one button
+   it already renders instead of swapping in a second one. */
+@media (min-width: 720px) {
+  .done-row { grid-template-columns: 24px minmax(0, 1fr) 120px 140px auto; padding: 10px 16px; }
+  .done-row .task-row-due { text-align: right; }
+}
+/* The mockup's done title is muted, not struck through (mockup 169): the app's line-through and
+   its 600 weight go, and the secondary line stays the app's own --mu. */
+.done-row .task-row-title.is-done { font-weight: 500; text-decoration: none; }
+.done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--ln); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.done-row .text-button:hover { border-color: var(--ac); background: var(--sf2); }
+.done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
 
 /* ---------- Popovers, toast ---------- */
 .status-dropdown { position: absolute; left: 0; top: calc(100% + 4px); z-index: 5; min-width: 224px; padding: 4px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
@@ -574,6 +590,18 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .task-row > :nth-child(3), .done-row > :nth-child(3) { grid-column: 2; grid-row: 2; align-self: start; }
   .task-row > :nth-child(4), .done-row > :nth-child(4) { grid-column: 3; grid-row: 2; min-width: 0; white-space: normal; line-height: 16px; }
   .task-row:has(> :nth-child(3):empty) > :nth-child(4), .done-row:has(> :nth-child(3):empty) > :nth-child(4) { grid-column: 2 / 4; }
+  /* Done and Past on phones: the mockup's compact cards - one card per row, the date inline
+     beside the subject and the action as the mockup's 44px ghost button (mockup 268-269,
+     413-427). The bottom tab bar owns the bottom of the screen, so no padding is added here. */
+  #done-list, #past-list { display: flex; flex-direction: column; gap: 8px; border: 0; background: none; }
+  #done-list .done-row, #past-list .done-row { padding: 12px; background: var(--sf); border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); row-gap: 8px; }
+  #done-list .done-row .task-row-title, #past-list .done-row .task-row-title { font-size: 16px; line-height: 24px; }
+  #done-list .done-row .text-button, #past-list .done-row .text-button { min-height: 44px; padding: 0 10px; border-color: transparent; background: none; box-shadow: none; color: var(--ac); }
+  #done-list .done-row .text-button[data-armed], #past-list .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
+  #done-list .done-row > .text-button, #past-list .done-row > :nth-child(5) > .text-button:last-child { margin: 0 -10px 0 0; }
+  /* The armed row reflows to the mockup's confirm layout (mockup 425-426): the action gets its
+     own full-width row, right-aligned, instead of sharing the title's row. */
+  #done-list .done-row:has([data-armed]) > :nth-child(5), #past-list .done-row:has([data-armed]) > :nth-child(5) { grid-column: 1 / -1; grid-row: 3; justify-self: end; }
 }
 @media (max-width: 480px) { .quick-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
