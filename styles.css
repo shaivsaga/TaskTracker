@@ -623,21 +623,44 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 :where(svg.i) { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: square; stroke-linejoin: miter; }
 
 /* ---------- Settings ---------- */
-.settings-body { gap: 0; padding-block: 0; }
-.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; border-top: 1px solid var(--ln); }
-.settings-row:first-child { border-top: 0; }
-.settings-row > .secondary-button, .settings-row > .danger-button { flex: none; }
+/* The row is the mockup's .srow (mockup 182-184): a full-width sheet row on --sf with a 2px --ln
+   edge, a 64px minimum touch height, 8px 12px padding and the mockup's 12px gap. Adjacent rows
+   collapse that shared edge into one rule, exactly as .srow+.srow does. The label block takes
+   .cb's role; the trailing control is the mockup's .btn.sm (mockup 86-89: 36px, 12px padding,
+   12/16) - the app's 44px phone floor for reachable buttons still applies below 720px. */
+.settings-body { gap: 0; }
+.settings-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf); }
+.settings-row + .settings-row { margin-top: -2px; }
+.settings-row > div { flex: 1 1 auto; min-width: 0; }
+.settings-row > .secondary-button, .settings-row > .danger-button { flex: none; height: 36px; padding: 0 12px; font-size: 12px; line-height: 16px; }
 .settings-title { margin: 0; color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; }
-.settings-desc { margin: 4px 0 0; color: var(--mu); font-size: 14px; line-height: 20px; }
-.settings-confirm { display: grid; gap: 12px; padding: 0 0 16px; }
-.settings-confirm-actions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
-.danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 16px; border: 2px solid var(--er); color: var(--er); background: var(--sf); font-size: 14px; font-weight: 600; line-height: 20px; white-space: nowrap; box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
+/* The mockup's .sub (mockup 54), the second line of a settings row. */
+.settings-desc { margin: 4px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }
+/* An opened row expands in place as the mockup's .subp (mockup 223-225): the panel butts against
+   its row with the same 2px --ln edge, sits on --sf2 and keeps the row's 12px padding and gap. */
+.settings-confirm { display: flex; flex-direction: column; gap: 12px; margin-top: -2px; padding: 12px; border: 2px solid var(--ln); background: var(--sf2); }
+/* The mockup's .acts with the .subp variant (mockup 198/225): the panel's actions wrap and sit right. */
+.settings-confirm-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+/* Cancel is the mockup's plain .btn.sm (mockup 86-89), not the app's underlined text link. */
+.settings-confirm .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--ln); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.settings-confirm .text-button:hover { color: var(--tx); border-color: var(--ac); background: var(--sf2); }
+/* The mockup's danger button is .btn.dng (mockup 195): --er text and edge on --sf, never a filled
+   red button. Only the armed confirm step fills it, the way .btn.dng.pri does (mockup 196). */
+.danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 12px; border: 2px solid var(--er); color: var(--er); background: var(--sf); font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
 .danger-button:hover { background: var(--erb); }
 .danger-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .danger-button:disabled:hover { background: var(--sf); }
 .danger-button.is-solid:not(:disabled), .danger-button.is-solid:not(:disabled):hover { color: var(--oa); background: var(--er); border-color: var(--er); }
-@media (max-width: 720px) {
-  .settings-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+/* Phones: the app's reachable-touch floor (line 558) names the button utilities but not
+   .text-button, so the panel's Cancel - now a real button - takes the same 44px as the armed
+   danger button beside it instead of the mockup's 36px secondary. */
+@media (max-width: 719px) {
+  .settings-confirm .text-button { min-height: 44px; }
+}
+/* The mockup's own narrow-width row (mockup 194): under 360px the control wraps below the label. */
+@media (max-width: 359px) {
+  .settings-row { flex-wrap: wrap; }
+  .settings-row > div { flex: 1 1 100%; }
 }
 
 /* Visible focus for fields that removed the default outline */
