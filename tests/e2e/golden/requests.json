@@ -1,0 +1,122 @@
+[
+  {
+    "snapshot": "01-board.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "02-board-dark.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "03-calendar.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "04-done.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "05-settings.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "06-admin.html",
+    "method": "GET",
+    "url": "api/versions.php",
+    "cache": "no-store",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "06-admin.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "07-dialog.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "08-popover.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "09-search.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "10-quickadd.html",
+    "method": "GET",
+    "url": "api/versions.php",
+    "cache": "no-store",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "10-quickadd.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "11-transfer.html",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "11-transfer.html",
+    "method": "GET",
+    "url": "transfer.php?t=0123456789abcdef0123456789abcdef",
+    "cache": "no-store",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "12-progress.json",
+    "method": "GET",
+    "url": "data/current.json",
+    "cache": "no-cache",
+    "body": null,
+    "credentials": "same-origin"
+  }
+]

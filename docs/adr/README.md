@@ -7,3 +7,4 @@ Short records of choices that are hard to reverse. Each says what was decided, w
 3. [Data lives in flat files under data/](0003-data-in-files.md)
 4. [Plain JavaScript, no build step](0004-plain-javascript.md)
 5. [Multi-section design (deferred, not built)](0005-multi-section-deferred.md)
+6. [app.js split into ES modules](0006-app-js-module-split.md)

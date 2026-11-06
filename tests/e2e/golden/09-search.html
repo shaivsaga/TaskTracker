@@ -1,0 +1,130 @@
+<!-- #page-class-tasks with "statistical" in #class-task-search (21 -> 1 cards) -->
+<section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Class tasks" data-view="list">
+  <div class="page-heading">
+    <div>
+      <p class="page-supporting-copy">Assignments posted for the class. Your progress is saved on this device only.</p>
+    </div>
+    <div class="page-actions">
+      <label class="search">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-search"></use>
+        </svg>
+        <input type="search" id="class-task-search" placeholder="Search tasks" aria-label="Search class tasks" autocomplete="off" value="statistical">
+      </label>
+      <div class="view-tabs" role="group" aria-label="View">
+        <button type="button" class="view-tab" data-view="board" aria-pressed="false">Board</button>
+        <button type="button" class="view-tab is-active" data-view="list" aria-pressed="true">List</button>
+      </div>
+    </div>
+  </div>
+  <p class="sync-note" id="sync-note" hidden="">Offline. Showing the last synced version.</p>
+  <div class="preview-banner" id="preview-banner" hidden="">
+    <span>Previewing as a student. Showing your unpublished draft.</span>
+    <button class="text-button" type="button" id="preview-exit">Exit preview</button>
+  </div>
+  <section class="announcements" aria-label="Pinned announcements">
+    <div class="announce-header">
+      <h2>
+        <svg class="i" aria-hidden="true">
+          <use href="#i-pin"></use>
+        </svg>
+        Pinned
+      </h2>
+    </div>
+    <ul class="announce-list" id="announce-list-public">
+      <li class="announce-item">
+        <p class="announce-text is-rich">
+          Submission of the
+          <b>term paper</b>
+          moved to
+          <i>Friday</i>
+          . Bring your draft.
+          <ul>
+            <li>Print two copies</li>
+            <li>Staple the rubric on top</li>
+          </ul>
+        </p>
+        <span class="announce-date">Nov 2</span>
+      </li>
+      <li class="announce-item">
+        <p class="announce-text">No classes on Monday; use the time for the capstone prototype.</p>
+        <span class="announce-date">Oct 30</span>
+      </li>
+      <li class="announce-item">
+        <p class="announce-text is-rich">
+          Reminder:
+          <ul>
+            <li>
+              Wash and return the
+              <b>beakers</b>
+            </li>
+            <li>Wipe the bench</li>
+          </ul>
+        </p>
+        <span class="announce-date">Oct 25</span>
+      </li>
+    </ul>
+  </section>
+  <div class="task-list" id="class-task-list" aria-label="Class task list">
+    <div class="task-row" tabindex="0" data-task-id="fx006">
+      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+      <span class="task-row-title">Submit the statistical survey draft</span>
+      <span class="subject-tag bg-sand">MABKOM</span>
+      <span class="task-row-due" title="Tue, Nov 3">Due today</span>
+      <span></span>
+    </div>
+  </div>
+  <div class="kanban-board" id="class-board" aria-label="Class task board" hidden="">
+    <div class="kanban-column" data-status="todo">
+      <div class="column-header">
+        <div>
+          <h2>To Do</h2>
+          <span class="column-count">(1)</span>
+        </div>
+        <span class="column-marker marker-todo" aria-hidden="true"></span>
+      </div>
+      <div class="column-content">
+        <p class="column-empty" hidden="" data-default="No class assignments yet.">No tasks match your search.</p>
+        <article class="task-card" data-task-id="fx006" draggable="true" data-status="not_started" tabindex="0">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <h3 class="task-card-title">Submit the statistical survey draft</h3>
+          </div>
+          <div class="task-card-footer">
+            <span class="subject-tag bg-sand">MABKOM</span>
+            <span class="due-badge due-soon" title="Tue, Nov 3">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>Due today</span>
+            </span>
+          </div>
+        </article>
+      </div>
+    </div>
+    <div class="kanban-column" data-status="progress">
+      <div class="column-header">
+        <div>
+          <h2>In Progress</h2>
+          <span class="column-count">(0)</span>
+        </div>
+        <span class="column-marker marker-progress" aria-hidden="true"></span>
+      </div>
+      <div class="column-content is-empty">
+        <p class="column-empty" data-default="Nothing in progress.">No tasks match your search.</p>
+      </div>
+    </div>
+    <div class="kanban-column" data-status="done">
+      <div class="column-header">
+        <div>
+          <h2>Submitted / Done</h2>
+          <span class="column-count">(0)</span>
+        </div>
+        <span class="column-marker marker-done" aria-hidden="true"></span>
+      </div>
+      <div class="column-content is-empty">
+        <p class="column-empty" data-default="No submitted work yet.">No tasks match your search.</p>
+      </div>
+    </div>
+  </div>
+</section>
