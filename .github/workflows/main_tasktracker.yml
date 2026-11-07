@@ -7,10 +7,25 @@ on:
   push:
     branches:
       - 'main'
+  pull_request:
   workflow_dispatch:
 
 jobs:
+  # The JavaScript suite on every pull request. Deliberately a separate job from
+  # build: build ends in a production deploy, and a pull request must never reach it.
+  # tests/ci-workflows.test.js pins both halves of that.
+  js-tests:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run JavaScript tests
+        run: node --test tests/*.test.js
+
   build:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read #This is required for actions/checkout
