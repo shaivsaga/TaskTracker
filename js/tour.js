@@ -7,7 +7,7 @@
 //
 // D6: this module never imports logic.js and never reads a bare global. `$` (app.js's
 // document.querySelector shorthand), the STATUS_LABELS map from logic.js, STATUS_ORDER,
-// createSubjectTag, setPreview, setPage, setSidebarOpen, hideAnimated and closeSettings arrive
+// createSubjectTag, setPreview, setPage, hideAnimated and closeSettings arrive
 // through init(deps), which app.js calls at the spot the moved listeners used to occupy.
 //
 // tourIndex/tourTimer/tourSampleStatus stay in js/state.js (slice 2.1) and are read and written
@@ -28,7 +28,6 @@ let STATUS_ORDER = null;      // app.js: the three statuses the sample picker of
 let createSubjectTag = null;  // app.js: the sample card's subject chip
 let setPreview = null;        // app.js: startTour leaves admin preview
 let setPage = null;           // app.js: startTour switches to the class tasks page
-let setSidebarOpen = null;    // app.js: startTour closes the phone sidebar
 let hideAnimated = null;      // app.js: endTour hides the overlay
 let closeSettings = null;     // app.js: the Settings replay button closes Settings first
 // --- Phase 5: first-time tutorial. Sample content lives only inside the overlay: never in progress, the draft or the board. ---
@@ -43,7 +42,7 @@ const TOUR_STEPS = [
     target: () => tourVisible($('#page-class-tasks .search')) },
   { title: 'List or board', body: 'Switch between a simple list and a three-column board. The app remembers your choice.',
     target: () => tourVisible($('#page-class-tasks .view-tabs')) },
-  { title: 'You are set', body: 'Your progress is saved in this browser only. Completed tasks and Calendar are in the sidebar menu. You can replay this tour from Settings.' },
+  { title: 'You are set', body: 'Your progress is saved in this browser only. Completed tasks and Calendar are in the navigation bar. You can replay this tour from Settings.' },
 ];
 
 export function tourSeen() { try { return localStorage.getItem(TOUR_KEY) === '1'; } catch (e) { return true; } }
@@ -172,7 +171,6 @@ export function startTour() {
   if (!dom.tourOverlay.hidden) return;
   if (state.previewing) setPreview(false);
   setPage('class-tasks');
-  setSidebarOpen(false, false);
   dom.tourOverlay._returnFocus = document.activeElement;
   dom.tourOverlay.classList.remove('is-closing');
   dom.tourOverlay.hidden = false;
@@ -203,7 +201,6 @@ export function init(deps) {
   createSubjectTag = deps.createSubjectTag;
   setPreview = deps.setPreview;
   setPage = deps.setPage;
-  setSidebarOpen = deps.setSidebarOpen;
   hideAnimated = deps.hideAnimated;
   closeSettings = deps.closeSettings;
 $('#tour-next').addEventListener('click', () => {

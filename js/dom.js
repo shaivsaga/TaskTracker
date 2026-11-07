@@ -19,8 +19,6 @@ export function cacheDom() {
   dom.navItems = [...document.querySelectorAll('[data-page]')];
   dom.pages = [...document.querySelectorAll('[data-page-view]')];
   dom.breadcrumbCurrent = document.querySelector('#breadcrumb-current');
-  dom.sidebar = document.querySelector('.sidebar');
-  dom.mobileMenu = document.querySelector('.mobile-menu');
   dom.actionFeedback = document.querySelector('#action-feedback');
   dom.adminAnnounce = document.querySelector('#announce-admin');
   dom.adminEmpty = document.querySelector('#page-my-tasks .empty-state');
@@ -59,9 +57,6 @@ export function cacheDom() {
   dom.announceInput = document.querySelector('#announce-input');
   dom.announceCount = document.querySelector('#announce-count');
   dom.announceTools = [...document.querySelectorAll('.announce-tool')];
-  dom.sidebarToggle = document.querySelector('#sidebar-toggle');
-  dom.sidebarScrim = document.querySelector('#sidebar-scrim');
-  dom.mainContent = document.querySelector('.main-content');
   dom.publishOverlay = document.querySelector('#publish-overlay');
   dom.historyOverlay = document.querySelector('#history-overlay');
   dom.settingsOverlay = document.querySelector('#settings-overlay');

@@ -16,11 +16,11 @@
 // overlay, reset start/cancel/input/submit, then the document-level Escape), which is the order
 // the Escape chain relies on (docs/p6-architecture-findings.md 5).
 //
-// D6: this module never imports logic.js and never reads a bare global. `$`, setSidebarOpen,
-// hideAnimated, phoneQuery, adminHint, signIn, showToast, JSON_POST, SIDEBAR_KEY, ADMIN_KEY and
-// SIGNED_OUT_KEY arrive through init(deps) - all of them are declared above the call site in
-// app.js, so they can be passed by value; phoneQuery is a MediaQueryList and the module only reads
-// .matches when closeSettings runs. `state`, `dom` and `KEYS` are module imports, not globals. The
+// D6: this module never imports logic.js and never reads a bare global. `$`, hideAnimated,
+// adminHint, signIn, showToast, JSON_POST, SIDEBAR_KEY, ADMIN_KEY and SIGNED_OUT_KEY arrive
+// through init(deps) - all of them are declared above the call site in app.js, so they can be
+// passed by value. `state`, `dom` and `KEYS` are module imports, not globals. The
+// localStorage keys and value shapes are untouched: class_tasks_theme stays 'light'/'dark', the
 // localStorage keys and value shapes are untouched: class_tasks_theme stays 'light'/'dark', the
 // reset keeps exactly class_tasks_theme, SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY and KEYS.cache,
 // and the login/logout handlers still write ADMIN_KEY and SIGNED_OUT_KEY.
@@ -35,9 +35,7 @@ import { dom } from './dom.js';
 import { KEYS } from './util.js';
 
 let $ = null;                 // app.js's querySelector shorthand, used by the panel's rows
-let setSidebarOpen = null;    // app.js: openSettings closes the phone sidebar first
 let hideAnimated = null;      // app.js: closeSettings and the reset flow hide the overlay animated
-let phoneQuery = null;        // app.js: matchMedia('(max-width: 720px)'); closeSettings reads .matches
 let adminHint = null;         // app.js: openSettings offers the sign-in row only when a hint is stored
 let signIn = null;            // app.js: the sign-in row's Basic Auth login
 let showToast = null;         // app.js: the logout, login and reset failure messages
@@ -68,7 +66,6 @@ function showResetConfirm(show, focus = true) {
 }
 
 function openSettings() {
-  setSidebarOpen(false, false);
   showResetConfirm(false, false);
   $('#settings-logout-row').hidden = !state.isAdmin;
   $('#settings-login-row').hidden = state.isAdmin || !adminHint();
@@ -80,7 +77,7 @@ function openSettings() {
 
 export function closeSettings() {
   hideAnimated(dom.settingsOverlay);
-  (phoneQuery.matches ? dom.mobileMenu : dom.settingsOpen).focus();
+  dom.settingsOpen.focus();
 }
 
 function resetLocalData() {
@@ -121,9 +118,7 @@ async function logoutAdmin() {
 // register in their original source order: the theme toggle first, then the settings panel.
 export function init(deps) {
   $ = deps.$;                                 // the panel's rows
-  setSidebarOpen = deps.setSidebarOpen;       // openSettings closes the phone sidebar first
   hideAnimated = deps.hideAnimated;           // closeSettings and the reset flow hide the overlay
-  phoneQuery = deps.phoneQuery;               // closeSettings restores focus on the phone
   adminHint = deps.adminHint;                 // openSettings decides whether to offer sign-in
   signIn = deps.signIn;                       // the sign-in row
   showToast = deps.showToast;                 // logout, login and reset failure messages

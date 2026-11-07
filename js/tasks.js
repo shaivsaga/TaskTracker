@@ -502,6 +502,9 @@ export function updateOverview() {
   const badge = document.querySelector('#nav-badge');
   badge.textContent = open.length;
   badge.hidden = open.length === 0;
+  // The badge is the tile's visible text too, so the accessible name has to follow the count
+  // (WCAG 2.5.3 label in name); it is written here because this is the badge's only writer.
+  document.querySelector('#nav-admin').setAttribute('aria-label', open.length === 0 ? 'Admin' : 'Admin ' + open.length);
   document.querySelector('#page-my-tasks').classList.toggle('is-blank', myTasks.length === 0);
 }
 const notesTextCache = new WeakMap();
@@ -978,7 +981,7 @@ export function handleDrop(e) {
 }
 export const SUBJECTS = {
   GENSCI: 'bg-cyan', GENMATH: 'bg-pink', PKLP: 'bg-sunglow', EFFCOM: 'bg-green',
-  MABKOM: 'bg-sand', PERDEV: 'bg-yellow', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
+  MABKOM: 'bg-sand', PERDEV: 'bg-teal', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
 };
 export const STATUS_ORDER = ['not_started', 'in_progress', 'done'];
 export function ensureStatusPopover() {

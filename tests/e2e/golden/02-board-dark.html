@@ -12,22 +12,15 @@
   <meta name="apple-mobile-web-app-title" content="TaskTracker">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="theme-color" content="#0D0F14" id="meta-theme-color">
-  <link rel="preconnect" href="http&lt;path>">
-  <link rel="preconnect" href="http&lt;path>" crossorigin="">
-  <link rel="stylesheet" href="http&lt;path>">
   <script>try { var t = localStorage.getItem('class_tasks_theme') || 'dark'; document.documentElement.dataset.theme = t; document.getElementById('meta-theme-color').content = t === 'light' ? '#EBEEF2' : '#0D0F14'; } catch (e) { document.documentElement.dataset.theme = 'dark'; }</script>
   <script>try { document.documentElement.dataset.sidebar = localStorage.getItem('class_tasks_sidebar') === '1' ? 'collapsed' : 'open'; } catch (e) { document.documentElement.dataset.sidebar = 'open'; }</script>
   <link rel="stylesheet" href="styles.css">
 </head>
 
 <!-- #theme-toggle -->
-<button class="icon-button" type="button" id="theme-toggle" aria-label="Switch to light mode">
-  <svg class="i icon-moon" aria-hidden="true">
-    <use href="#i-moon"></use>
-  </svg>
-  <svg class="i icon-sun" aria-hidden="true">
-    <use href="#i-sun"></use>
-  </svg>
+<button class="ib" type="button" id="theme-toggle" aria-label="Switch to light mode">
+  <span class="sp x2 icon-light" style="--i:11" aria-hidden="true"></span>
+  <span class="sp x2 icon-dark" style="--i:10" aria-hidden="true"></span>
 </button>
 
 <!-- #page-class-tasks -->
@@ -108,7 +101,7 @@
     <div class="task-row is-entering" tabindex="0" data-task-id="fx004" style="animation-delay: 40ms;">
       <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
       <span class="task-row-title">Journal entry: community immersion prep</span>
-      <span class="subject-tag bg-yellow">PERDEV</span>
+      <span class="subject-tag bg-teal">PERDEV</span>
       <span class="task-row-due is-overdue" title="Nov 2 · 5:00 PM">1 day overdue · 5:00 PM</span>
       <span></span>
     </div>
@@ -157,7 +150,7 @@
     <div class="task-row is-entering" tabindex="0" data-task-id="fx021" style="animation-delay: 320ms;">
       <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
       <span class="task-row-title">Upload the signed consent form</span>
-      <span class="subject-tag bg-yellow">PERDEV</span>
+      <span class="subject-tag bg-teal">PERDEV</span>
       <span class="task-row-due" title="Thu, Nov 5">In 2 days</span>
       <span></span>
     </div>
@@ -278,7 +271,7 @@
             <h3 class="task-card-title">Journal entry: community immersion prep</h3>
           </div>
           <div class="task-card-footer">
-            <span class="subject-tag bg-yellow">PERDEV</span>
+            <span class="subject-tag bg-teal">PERDEV</span>
             <span class="due-badge overdue" title="Nov 2 · 5:00 PM">
               <svg class="i" aria-hidden="true">
                 <use href="#i-alarm-clock"></use>
@@ -383,7 +376,7 @@
             <h3 class="task-card-title">Upload the signed consent form</h3>
           </div>
           <div class="task-card-footer">
-            <span class="subject-tag bg-yellow">PERDEV</span>
+            <span class="subject-tag bg-teal">PERDEV</span>
             <span class="due-badge due-soon" title="Thu, Nov 5">
               <svg class="i" aria-hidden="true">
                 <use href="#i-calendar"></use>
