@@ -26,7 +26,7 @@ let todayDate = null;       // logic.js helpers, kept in app.js's one ./logic.js
 let toInputValue = null;
 let dayDiff = null;
 let subjects = null;        // () => app.js's SUBJECTS map, read at call time (see the header)
-let calPhone = null;        // window.matchMedia('(max-width: 720px)'), created in init()
+let calPhone = null;        // window.matchMedia('(max-width: 719px)'), created in init()
 
 // --- Calendar ---
 const calSort = (a, b) => (a.dueTime || '').localeCompare(b.dueTime || '');
@@ -219,7 +219,7 @@ export function init(deps) {
   toInputValue = deps.toInputValue;
   dayDiff = deps.dayDiff;
   subjects = deps.subjects;
-  calPhone = window.matchMedia('(max-width: 720px)');
+  calPhone = window.matchMedia('(max-width: 719px)');
   document.querySelector('#cal-prev').addEventListener('click', () => calStep(-1));
   document.querySelector('#cal-next').addEventListener('click', () => calStep(1));
   document.querySelector('#cal-today').addEventListener('click', () => { state.calAnchor = todayDate(); state.calSelected = state.calAnchor; renderCalendar(); });

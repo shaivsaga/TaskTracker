@@ -1,3 +1,4 @@
+/* [[section:tokens]] */
 /* Design tokens: the frozen mockup's light and dark blocks, value for value (D10).
    These twenty names are the whole token vocabulary of Phase 3 - no app-only token survives (D9/D10). */
 @font-face { font-family: 'Inter'; font-weight: 100 900; font-display: swap; src: url(assets/fonts/inter.woff2) format('woff2'); }
@@ -19,8 +20,10 @@
   --wnb: rgba(247,205,84,.14); --erb: rgba(255,143,133,.14); --okb: rgba(91,208,138,.14);
   --pl: rgba(15,18,38,0);
   color-scheme: dark;
+/* [[/section:tokens]] */
 }
 
+/* [[section:base]] */
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--bg); }
@@ -33,7 +36,9 @@ button { border: 0; border-radius: 0; background: none; cursor: pointer; }
 h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 :focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+/* [[/section:base]] */
 
+/* [[section:shell]] */
 /* ---------- Shell: the mockup top bar (slice 3.1e) ---------- */
 /* Sprite icons (mockup styles.css 17-43): 20 icons per sheet row, --i picks one, --s the scale. */
 .sp { display: inline-block; flex: none; width: calc(16px * var(--s)); height: calc(16px * var(--s)); background: var(--sheet) no-repeat; background-size: calc(16px * var(--s) * 20) calc(16px * var(--s)); background-position: calc(-16px * var(--i) * var(--s)) 0; image-rendering: pixelated; }
@@ -91,8 +96,6 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 @media (min-width: 720px) { main.page-container { padding: 32px 40px 56px; gap: 24px; } }
 @media (min-width: 1280px) { main.page-container { max-width: 1200px; } }
 
-
-.page-container { width: min(95%, 1400px); margin: 0 auto; padding: 24px 0 48px; }
 .page-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px 24px; }
 .page-supporting-copy { margin: 0; color: var(--mu); font-size: 14px; line-height: 24px; }
 .page-actions { display: flex; align-items: center; gap: 12px; }
@@ -100,7 +103,9 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 #page-my-tasks, #page-class-tasks, #page-calendar { max-width: 1120px; margin-inline: auto; }
 #page-done { max-width: 720px; margin-inline: auto; }
 #page-my-tasks[data-view="list"], #page-class-tasks[data-view="list"] { max-width: 720px; }
+/* [[/section:shell]] */
 
+/* [[section:controls]] */
 /* ---------- Controls ---------- */
 .primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 16px; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; white-space: nowrap; cursor: pointer; }
 .primary-button { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
@@ -131,11 +136,13 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .search:focus-within { border-color: var(--ac); }
 .search svg { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 2; }
 .search input { width: 200px; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 14px; line-height: 20px; }
-.search input::placeholder { color: var(--mu); }
+.search input::placeholder { color: var(--mu); opacity: 1; }
 
 .text-input { width: 100%; height: 44px; padding: 0 12px; border: 2px solid var(--ln); outline: 0; color: var(--tx); background: var(--oa); font-size: 14px; line-height: 20px; }
 .text-input:focus { border-color: var(--ac); }
+/* [[/section:controls]] */
 
+/* [[section:banners]] */
 /* ---------- Banners, summary, admin ---------- */
 .sync-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 0; padding: 8px 12px; border: 1px solid var(--wn); color: var(--wn); background: var(--wnb); font-size: 12px; line-height: 20px; }
 /* Preview mode is the mockup's quiet .pin sheet - 2px var(--ln) on var(--sf2), 12px of padding - not a
@@ -160,7 +167,9 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 #page-my-tasks.is-blank .empty-state { display: flex; }
 #page-my-tasks.is-blank .summary, #page-my-tasks.is-blank .kanban-board, #page-my-tasks.is-blank .task-list { display: none; }
 .list-empty { margin: 0; padding: 24px 12px; color: var(--mu); font-size: 14px; }
+/* [[/section:banners]] */
 
+/* [[section:announcements]] */
 /* ---------- Announcements ---------- */
 /* Panel, header strip, editor sheet and chip row are the mockup's .panel/.sec/.in/.seg; the editor form
    is its .subp sheet, so the composer reads as one bordered block instead of a floating toolbar. */
@@ -187,14 +196,16 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .announce-text b, .announce-editor b { font-weight: 600; }
 .announce-text a { color: var(--ac); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
 .announce-text a:hover { color: var(--acd); }
-@media (max-width: 720px) { .announce-tool { min-width: 44px; height: 44px; } }
+@media (max-width: 719px) { .announce-tool { min-width: 44px; height: 44px; } }
 .announce-list { margin: 12px 0 0; padding: 0; list-style: none; }
 .announce-item { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; align-items: start; gap: 2px 12px; padding: 12px 0; border-top: 1px solid var(--ln); }
 .announce-item:hover .task-delete-btn, .announce-item:focus-within .task-delete-btn { opacity: 1; }
 .announce-text { margin: 0; font-size: 14px; line-height: 20px; white-space: pre-wrap; word-break: break-word; }
 .announce-date { color: var(--mu); font-size: 13px; font-weight: 500; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .announce-empty { margin: 0; padding-top: 12px; border-top: 1px solid var(--ln); color: var(--mu); font-size: 14px; line-height: 20px; }
+/* [[/section:announcements]] */
 
+/* [[section:board]] */
 /* ---------- Board ---------- */
 /* Columns are the mockup's paper panels (.panel/.card): 2px var(--ln) on var(--sf) with the mockup's own
    2px offset shadow, at its 12px / 24px column gap (.cols). The header is the mockup's .sec strip -
@@ -217,7 +228,9 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .kanban-column.drag-over { border-color: var(--ac); }
 .kanban-column.drag-over .column-content { outline: 2px dashed var(--ac); outline-offset: 4px; background: var(--acs); }
 .drop-placeholder { display: grid; place-content: center; height: 56px; border: 2px dashed var(--ac); background: var(--acs); color: var(--ac); font-size: 12px; font-weight: 600; }
+/* [[/section:board]] */
 
+/* [[section:card]] */
 /* ---------- Task card ---------- */
 /* The mockup's .card: 2px var(--ln) on var(--sf) with the same 2px offset shadow, 12px padding, and the
    title over its .mt meta row at the mockup's 8px. The status square, subject chip and due badge are
@@ -239,7 +252,9 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .task-delete-btn:focus-visible { opacity: 1; }
 .task-delete-btn i, .task-delete-btn svg { width: 16px; height: 16px; stroke-width: 2; }
 @media (hover: none) { .task-delete-btn { opacity: 1; } }
+/* [[/section:card]] */
 
+/* [[section:palette]] */
 /* Subject tags */
 .subject-tag { display: inline-flex; align-items: center; width: fit-content; height: 24px; padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; white-space: nowrap; }
 /* Subject palette (D8/D11): the mockup's ten subject colours from its own table (mockup/app.js line 1),
@@ -257,13 +272,17 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .bg-yellow { --tag: #f7cd54; }    /* PE */
 .bg-pink { --tag: #fba6f7; }      /* GENMATH */
 .bg-teal { --tag: #7ff0e0; }      /* PERDEV */
+/* [[/section:palette]] */
 
+/* [[section:due]] */
 /* Due badges: urgency you can scan */
 .due-badge { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; width: fit-content; color: var(--mu); font-size: 12px; font-weight: 500; line-height: 16px; }
 .due-badge svg { width: 12px; height: 12px; stroke-width: 2; }
 .due-badge.due-soon { padding: 0 8px; color: var(--wn); background: var(--wnb); font-weight: 600; }
 .due-badge.overdue { padding: 0 8px; color: var(--er); background: var(--erb); font-weight: 600; }
+/* [[/section:due]] */
 
+/* [[section:status]] */
 /* ---------- Status ---------- */
 .status-dot { width: 8px; height: 8px; flex: none; background: var(--mu); outline: 1px solid var(--ln); }
 .status-dot.dot-not-started { background: var(--mu); }
@@ -282,7 +301,9 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .status-check.is-in-progress { background: var(--ac); border-color: var(--ac); }
 .status-check.is-done { background: var(--ok); border-color: var(--ok); }
 .status-check.is-done, .status-check.is-in-progress { color: var(--onac); }
+/* [[/section:status]] */
 
+/* [[section:list]] */
 /* ---------- List ---------- */
 /* The mockup's list view (.ls panel of .lr rows): one paper panel, rows divided by a hairline, each row
    at the mockup's 12px padding with its title over a muted meta line. */
@@ -319,19 +340,25 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--ln); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .done-row .text-button:hover { border-color: var(--ac); background: var(--sf2); }
 .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
+/* [[/section:list]] */
 
+/* [[section:popovers]] */
 /* ---------- Popovers, toast ---------- */
 .status-dropdown { position: absolute; left: 0; top: calc(100% + 4px); z-index: 5; min-width: 224px; padding: 4px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
 .status-dropdown:not([hidden]) { display: block; }
 .status-popover { position: fixed; z-index: 120; transform-origin: top left; }
+/* lint-allow:px 280px -- the scrollable subject list's own max-height; the mockup has no dropdown */
 .subject-dropdown { max-height: 280px; overflow-y: auto; }
 .status-option { display: flex; align-items: center; gap: 12px; width: 100%; height: 44px; padding: 0 12px; background: transparent; color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; text-align: left; cursor: pointer; }
 .status-option:hover, .status-option.is-active { background: var(--sf2); }
 .status-option:focus-visible { outline: 2px solid var(--ac); outline-offset: -2px; }
 
+/* lint-allow:px 0px -- env() safe-area fallback: a calc with no fallback is dropped entirely */
 .toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; z-index: 200; display: flex; align-items: center; gap: 16px; max-width: calc(100% - 24px); padding: 10px 12px 10px 16px; color: var(--bg); background: var(--tx); border: 2px solid var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 14px; font-weight: 600; line-height: 20px; transform: translateX(-50%); }
 .toast-action { padding: 8px; border: 0; background: transparent; color: var(--bg); font-size: 14px; font-weight: 700; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+/* [[/section:popovers]] */
 
+/* [[section:dialogs]] */
 /* ---------- Dialogs ---------- */
 /* Overlay scrim: rgba(20, 24, 58, 0.5) is the mockup's own scrim value (.tut), copied verbatim. The mockup
    has no scrim token, and its --pl ring colour is fully transparent in dark, so --pl cannot serve here. */
@@ -340,7 +367,7 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .task-dialog.is-dropping { border-color: var(--ac); box-shadow: 0 4px 0 var(--sh), 0 0 0 2px var(--ac); }
 .dialog-header { display: flex; align-items: flex-start; gap: 8px; padding: 12px 12px 12px 16px; border-bottom: 2px solid var(--ln); }
 .dialog-title-input { display: block; flex: 1; min-width: 0; max-height: 120px; padding: 2px 0; border: 0; outline: 0; background: transparent; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; overflow-wrap: anywhere; overflow-y: auto; resize: none; }
-.dialog-title-input::placeholder { color: var(--mu); }
+.dialog-title-input::placeholder { color: var(--mu); opacity: 1; }
 .dialog-heading { flex: 1; padding: 2px 0; font-size: 16px; font-weight: 600; line-height: 24px; }
 .panel-close { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--ln); background: var(--oa); color: var(--mu); cursor: pointer; }
 .panel-close:hover { border-color: var(--ac); color: var(--tx); }
@@ -363,6 +390,7 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .prop-clear { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--ln); background: var(--oa); color: var(--mu); cursor: pointer; }
 .prop-clear:hover { border-color: var(--ac); color: var(--tx); }
 .prop-clear-icon { width: 16px; height: 16px; stroke-width: 2.5; }
+/* lint-allow:px 160px -- the task dialog's notes area has no mockup counterpart; the mockup's own note input is textarea.in at min-height 80px (mockup 104), and this is a contenteditable block, not an input */
 .dialog-doc { min-height: 160px; padding: 12px; border: 1px solid var(--ln); outline: 0; color: var(--tx); font-size: 16px; line-height: 24px; word-break: break-word; overflow-wrap: anywhere; }
 .dialog-doc:focus { border-color: var(--ac); }
 .dialog-doc:empty::before { content: attr(data-placeholder); color: var(--mu); pointer-events: none; }
@@ -378,17 +406,19 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .dialog-doc ul { margin: 4px 0; padding-left: 24px; list-style: square; }
 .dialog-doc b { font-weight: 600; }
 .task-dialog.is-readonly .note-toolbar { display: none; }
-@media (max-width: 720px) { .note-tool { width: 44px; height: 44px; } }
+@media (max-width: 719px) { .note-tool { width: 44px; height: 44px; } }
 .dialog-footer { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 12px 16px; border-top: 2px solid var(--ln); }
 .save-state { margin-right: auto; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; }
 .task-dialog.is-readonly .dialog-title-input { cursor: default; }
 .task-dialog.is-readonly .dialog-doc { min-height: 48px; }
+/* [[/section:dialogs]] */
 
+/* [[section:quick-add]] */
 /* ---------- Quick add ---------- */
 .quick-overlay { position: fixed; inset: 0; z-index: 150; display: flex; align-items: flex-start; justify-content: center; padding: 10vh 16px 16px; background: rgba(20, 24, 58, 0.5); }
 .quick-add { position: relative; width: min(720px, 100%); padding: 16px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
 .quick-input { width: 100%; padding: 12px 0; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 16px; line-height: 24px; }
-.quick-input::placeholder { color: var(--mu); }
+.quick-input::placeholder { color: var(--mu); opacity: 1; }
 .quick-preview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; margin-top: 8px; padding-top: 12px; border-top: 2px solid var(--ln); color: var(--mu); font-size: 14px; line-height: 20px; }
 .quick-field { display: grid; gap: 4px; min-width: 0; }
 .quick-field:first-child { grid-column: 1 / -1; }
@@ -411,12 +441,14 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .quick-code { color: var(--mu); font-size: 12px; }
 .quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; }
 kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; background: var(--sf); font-size: 11px; }
+/* [[/section:quick-add]] */
 
+/* [[section:due-picker]] */
 /* ---------- Due picker ---------- */
 .due-picker { position: fixed; z-index: 210; width: 300px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); transform-origin: top left; }
 .dp-fields { display: grid; grid-template-columns: 1fr 120px; gap: 8px; }
 .dp-input { min-width: 0; height: 36px; padding: 0 8px; border: 2px solid var(--ln); outline: 0; color: var(--tx); background: var(--oa); font-size: 12px; }
-.dp-input::placeholder { color: var(--mu); }
+.dp-input::placeholder { color: var(--mu); opacity: 1; }
 .dp-input:focus { border-color: var(--ac); }
 .dp-head { display: flex; align-items: center; gap: 4px; margin: 12px 0 8px; }
 .dp-month { flex: 1; font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; text-transform: uppercase; }
@@ -432,7 +464,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .dp-day.is-selected { background: var(--ac); color: var(--onac); opacity: 1; }
 .dp-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 8px; border-top: 2px solid var(--ln); }
 .dp-hint { color: var(--mu); font-size: 12px; }
+/* [[/section:due-picker]] */
 
+/* [[section:history]] */
 /* ---------- History ---------- */
 .history-bar { display: flex; justify-content: flex-end; }
 .history-list, .history-detail { margin: 0; padding: 0; list-style: none; }
@@ -440,7 +474,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .history-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .history-label { flex: 1 1 100%; font-size: 14px; font-weight: 600; line-height: 20px; }
 .history-detail { margin-top: 8px; color: var(--mu); font-size: 14px; line-height: 20px; }
+/* [[/section:history]] */
 
+/* [[section:calendar]] */
 /* ---------- Calendar ---------- */
 /* The mockup's calendar language (mockup styles.css 126-142, 256-266, 311-331): the month title in
    the pixel face (.mhd .px, 12/20 then 16/24 from 720), the weekday row as its centred 600 12/16
@@ -458,7 +494,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* mockup .cd.we (265): the weekend sits a shade back. calRange() always starts on a Sunday and the
    seven .cal-dow cells are children 1-7, so Sunday is child 7n+8 and Saturday 7n+14. */
 .cal > .cal-day:nth-child(7n+8), .cal > .cal-day:nth-child(7n+14) { background: var(--sf2); }
-.cal-day { display: grid; align-content: start; gap: 4px; min-width: 0; min-height: 112px; padding: 6px; }
+.cal-day { display: grid; align-content: start; gap: 4px; min-width: 0; min-height: 104px; padding: 6px; }
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
 .cal-day.is-outside .cal-num { color: var(--mu); }
@@ -497,9 +533,12 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-agenda-list { display: grid; gap: 8px; }
 .cal-agenda .cal-chip { min-height: 44px; padding: 8px 12px; font-size: 14px; line-height: 20px; }
 .cal-agenda-empty { color: var(--mu); font-size: 14px; line-height: 20px; }
+/* [[/section:calendar]] */
 
+/* [[section:loading]] */
 /* ---------- Loading + motion (short, answers an action) ---------- */
 .skeleton { background: var(--sf2); animation: skeleton-pulse 1.2s ease-in-out infinite; }
+/* lint-allow:px 76px -- the skeleton placeholder has no mockup counterpart; the mockup .card is content-sized */
 .skeleton-card { height: 76px; border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); }
 .skeleton-row { height: 48px; margin-bottom: 1px; }
 
@@ -534,11 +573,10 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .is-swapping .kanban-board, .is-swapping .task-list { animation: page-in 120ms ease-out; }
 ::view-transition-old(root) { animation: fade-out 140ms steps(3) both; }
 ::view-transition-new(root) { animation: page-in 140ms steps(3) both; }
+/* [[/section:loading]] */
 
+/* [[section:responsive]] */
 /* ---------- Responsive ---------- */
-@media (max-width: 960px) {
-  .page-container { width: calc(100% - 48px); }
-}
 /* The mockup phone chrome (mockup styles.css:239-249): the header itself becomes the fixed bottom bar, so
    nothing sits at the top of a phone screen. Deliberate deviation from that block: it hides .ib, but
    #theme-toggle is the app's only theme control and the boot script defaults to dark without reading the
@@ -553,6 +591,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .tn.adm { max-width: 64px; height: 56px; transform: translateY(-12px); }
   .bd { top: -6px; right: 4px; }
   main.page-container { padding: 24px 16px calc(104px + env(safe-area-inset-bottom)); }
+/* lint-allow:px 0px -- env() safe-area fallback: a calc with no fallback is dropped entirely */
   .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 }
 
@@ -561,10 +600,10 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .task-row .task-delete-btn, .announce-item .task-delete-btn { width: 44px; height: 44px; }
   .task-card .task-delete-btn { width: 44px; height: 44px; margin: -12px -8px -12px 0; }
   .announce-item { grid-template-columns: minmax(0, 1fr) auto 44px; }
+/* lint-allow:px -14px -- the .status-check 44px touch target, not a visual dimension */
   .status-check::after { inset: -14px; }
   .dp-day { height: 40px; }
   .view-tab, .primary-button, .secondary-button, .danger-button { min-height: 44px; }
-  .page-container { width: calc(100% - 32px); padding: 24px 0 48px; }
   .page-actions { width: 100%; flex-wrap: wrap; }
   .search { flex: 1 1 100%; }
   .search input { width: 100%; }
@@ -611,8 +650,11 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
      own full-width row, right-aligned, instead of sharing the title's row. */
   #done-list .done-row:has([data-armed]) > :nth-child(5), #past-list .done-row:has([data-armed]) > :nth-child(5) { grid-column: 1 / -1; grid-row: 3; justify-self: end; }
 }
+/* lint-allow:px 480px -- the app's own narrow-phone breakpoint for the two-column quick preview; the mockup has no 480 boundary */
 @media (max-width: 480px) { .quick-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* [[/section:responsive]] */
 
+/* [[section:a11y]] */
 /* ---------- Accessibility ---------- */
 [data-motion=reduce] * { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
@@ -621,15 +663,19 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 }
 @media (prefers-contrast: more) {
   body { --ln: var(--mu); }
+/* [[/section:a11y]] */
 }
 
+/* [[section:utilities]] */
 ::selection { background: var(--acs); color: var(--tx); }
 
 
 /* Cards read as paper resting on the column: one hairline edge, no blur */
 
 :where(svg.i) { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: square; stroke-linejoin: miter; }
+/* [[/section:utilities]] */
 
+/* [[section:settings]] */
 /* ---------- Settings ---------- */
 /* The row is the mockup's .srow (mockup 182-184): a full-width sheet row on --sf with a 2px --ln
    edge, a 64px minimum touch height, 8px 12px padding and the mockup's 12px gap. Adjacent rows
@@ -674,7 +720,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* Visible focus for fields that removed the default outline */
 .dialog-doc:focus-visible, .dialog-title-input:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
 .quick-input:focus-visible { outline: 0; box-shadow: 0 2px 0 0 var(--ac); }
+/* [[/section:settings]] */
 
+/* [[section:tutorial]] */
 /* ---------- First-time tutorial ---------- */
 .tour-overlay { position: fixed; inset: 0; z-index: 300; }
 .tour-overlay.is-centered { background: rgba(20, 24, 58, 0.5); }
@@ -689,7 +737,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .tour-sample-card .task-card-header { position: relative; }
 .tour-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .tour-actions #tour-skip { margin-right: auto; }
+/* [[/section:tutorial]] */
 
+/* [[section:transfer]] */
 /* ---------- Transfer ---------- */
 /* lint-allow:hex #FFFFFF -- QR codes need a white quiet zone in both themes */
 .transfer-qr-frame { display: grid; justify-self: center; width: fit-content; max-width: 100%; padding: 8px; border: 2px solid var(--ln); background: #FFFFFF; }
@@ -702,8 +752,10 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .import-check { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 4px 12px; border: 2px solid var(--ln); background: var(--sf); font-size: 14px; line-height: 20px; cursor: pointer; }
 .import-check input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--ac); }
 .import-note { margin: 0; color: var(--mu); font-size: 14px; line-height: 20px; }
-@media (max-width: 720px) { .transfer-link-row { flex-direction: column; } }
+@media (max-width: 719px) { .transfer-link-row { flex-direction: column; } }
+/* [[/section:transfer]] */
 
+/* [[section:tweaks]] */
 #reset-admin-note[hidden] { display: none; }
 
 /* Picker: single combined field */
@@ -717,11 +769,14 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* Touch devices: no Shift+Enter, and no iOS zoom on focus */
 @media (hover: none) { .quick-keys { display: none; } }
+/* lint-allow:px 600px -- the app's own narrow-phone breakpoint for 16px inputs (no iOS zoom) and the full-width primary button */
 @media (max-width: 600px) {
   .quick-input, .due-picker .dp-input { font-size: 16px; }
   .quick-actions .primary-button { flex: 1; }
+/* [[/section:tweaks]] */
 }
 
+/* [[section:files]] */
 /* ---------- File attachments ---------- */
 .files-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
 .files-head .field-label { margin-bottom: 0; }
@@ -732,8 +787,10 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .file-size { flex: none; color: var(--mu); font-family: Inter, system-ui, sans-serif; font-size: 13px; font-weight: 500; line-height: 16px; }
 .file-hint { margin: 8px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }
 .task-dialog.is-readonly .file-hint { display: none; }
-@media (max-width: 720px) { .file-item { padding: 8px 0; } }
+@media (max-width: 719px) { .file-item { padding: 8px 0; } }
+/* [[/section:files]] */
 
+/* [[section:confirm]] */
 /* ---------- Confirm dialog ---------- */
 .confirm-overlay { z-index: 160; }
 .confirm-dialog { max-width: 440px; }
@@ -742,7 +799,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .confirm-dialog .dialog-body { gap: 8px; padding-top: 0; }
 .confirm-dialog .dialog-footer { padding: 12px 16px 16px; border-top: 0; }
 .confirm-message { margin: 0; color: var(--tx); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
-@media (max-width: 720px) {
+@media (max-width: 719px) {
   .confirm-dialog .dialog-footer { flex-direction: column; align-items: stretch; gap: 8px; }
   .confirm-dialog .dialog-footer button { width: 100%; min-height: 44px; }
+/* [[/section:confirm]] */
 }
