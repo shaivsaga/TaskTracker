@@ -334,7 +334,11 @@ async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
   try {
-    const res = await fetch(`${API.current}?t=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    // S2: a unique ?t= URL can never match a cache entry, and no-store forbids the
+    // conditional request as well, so every visit downloaded the whole 1.70 MB board.
+    // A stable URL plus no-cache lets nginx answer 304 from its ETag; the timeout
+    // still bounds a slow board fetch.
+    const res = await fetch(API.current, { cache: 'no-cache', signal: AbortSignal.timeout(8000) });
     let data;
     if (res.status === 404) data = { tasks: [], announcements: [] };
     else if (res.ok) data = await res.json();
