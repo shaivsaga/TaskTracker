@@ -502,6 +502,9 @@ export function updateOverview() {
   const badge = document.querySelector('#nav-badge');
   badge.textContent = open.length;
   badge.hidden = open.length === 0;
+  // The badge is the tile's visible text too, so the accessible name has to follow the count
+  // (WCAG 2.5.3 label in name); it is written here because this is the badge's only writer.
+  document.querySelector('#nav-admin').setAttribute('aria-label', open.length === 0 ? 'Admin' : 'Admin ' + open.length);
   document.querySelector('#page-my-tasks').classList.toggle('is-blank', myTasks.length === 0);
 }
 const notesTextCache = new WeakMap();
