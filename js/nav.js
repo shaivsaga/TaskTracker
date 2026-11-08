@@ -11,10 +11,9 @@
 // setPage is a hub function: app.js and the publish, quick-add, settings and tour init deps already
 // received it as a bare name, so it stays exported and every one of those call sites reads
 // nav.setPage. NAV_PAGES is exported because app.js's bootstrap deep-link call reads the page list.
-// SIDEBAR_KEY stays exported because the pinned inline boot script in index.html and js/settings.js's
-// reset keep-set still name the localStorage key class_tasks_sidebar; the data-sidebar attribute that
-// script sets is now read by nothing. (An inline classic script cannot import a module, so it never
-// read this export either.)
+// The sidebar key ('class_tasks_sidebar') is not exported any more: the inline classic boot script
+// that once ran before app.js is gone, so neither it nor anything else read the export. js/settings.js
+// keeps the literal key in its reset keep-set, so any value already stored under it survives a reset.
 //
 // The page name comes from the tile's own title/aria-label, not from a text node: the mockup tiles
 // carry a clipped .lbl (the short phone label) and no desktop text label, and the router has to keep
@@ -28,9 +27,8 @@
 //
 // D6: this module never imports logic.js and never reads a bare global. `state` and `dom` are module
 // imports; pageFromHash (logic.js) and setPreview (a hoisted function declaration in app.js) arrive
-// through init(deps) - app.js keeps the single ./logic.js?v=5 import. The localStorage key and value
-// shape are untouched: class_tasks_sidebar still stores '1'/'0', and the router still writes
-// history.replaceState/pushState with #<page>.
+// through init(deps) - app.js keeps the single ./logic.js?v=5 import. This module reads and writes no
+// localStorage key; the router still writes history.replaceState/pushState with #<page>.
 //
 // init() runs at the exact spot the moved statements used to occupy, so the registration order the
 // Escape chain depends on does not change (nav items, then hashchange). NAV_PAGES is built in init(),
@@ -48,7 +46,6 @@ let pageFromHash = null;     // app.js: logic.js's pageFromHash, used by the has
 let setPreview = null;       // app.js: the nav click and hashchange handlers leave the admin preview
 
 // --- Navigation ---
-export const SIDEBAR_KEY = 'class_tasks_sidebar';   // frozen: the inline boot script and RESET_KEEP read it
 
 // The tile's page name. It has to come from title/aria-label: the .lbl span is the clipped phone
 // label (aria-hidden), so it is not the app's page name on desktop.
@@ -68,6 +65,11 @@ export function setPage(pageName, updateHash = true) {
   dom.pages.forEach((page) => {
     page.hidden = page !== activePage;
   });
+
+  // pushState emits no hashchange, so anything that measures laid-out content (the pinned
+  // announcement collapse) would keep its hidden-page estimate until the next resize. Announce the
+  // reveal explicitly; listeners measure on the next frame, when the page has layout.
+  document.dispatchEvent(new CustomEvent('app:page-shown', { detail: { page: activePageName } }));
 
   dom.breadcrumbCurrent.textContent = navName(activeItem);
   document.title = `${navName(activeItem)} — TaskTracker`;
