@@ -72,13 +72,19 @@ function createCalDots(list) {
   const wrap = document.createElement('span');
   wrap.className = 'cal-dots';
   wrap.setAttribute('aria-hidden', 'true');
-  // Only three dots fit, so the urgent ones go first (a stable sort keeps the time order within a rank).
-  list.slice().sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
+  // Completion never reserves a marker slot; rank the remaining tasks before limiting them.
+  const open = list.filter((t) => t.status !== 'done');
+  open.sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
     const dot = document.createElement('span');
     dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '');
-    dot.dataset.status = t.status;
     wrap.appendChild(dot);
   });
+  if (open.length > 3) {
+    const more = document.createElement('span');
+    more.className = 'cal-plus';
+    more.textContent = '+';
+    wrap.appendChild(more);
+  }
   return wrap;
 }
 
