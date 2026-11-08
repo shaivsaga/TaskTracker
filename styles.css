@@ -614,8 +614,6 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-day.is-tappable:focus-visible { outline-offset: -2px; }
 .cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; min-height: 8px; }
 .cal-dots .cal-dot[data-status="done"] { background: transparent; }
-.cal-dots .cal-dot.is-overdue { background: var(--er); outline-color: var(--er); }
-.cal-dots .cal-dot.is-due-soon { background: var(--wn); outline-color: var(--wn); }
 .cal-agenda { margin-top: 16px; }
 /* the mockup's .sec strip: heading, then the rule that fills the row */
 .cal-agenda-title { display: flex; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 8px; color: var(--mu); font-size: 14px; font-weight: 700; line-height: 20px; }
