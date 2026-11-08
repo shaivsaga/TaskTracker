@@ -167,7 +167,7 @@ index.html        Markup for every page and dialog, plus the icon sprite
 styles.css        Design tokens, layout and both themes
 app.js            Application behavior: pages, dialogs, rendering, publishing
 js/               Feature modules: state, dom, util, tasks, calendar, nav, settings, tour,
-                  announcements, publish, quick-add, transfer, motion
+                  announcements, publish, quick-add, transfer, motion, note-images
 logic.js          Pure logic (dates, Task model, sorting, progress merge, sanitizers)
 attachments.js    File picker, image compression and upload
 qr-draw.js        Draws the transfer QR code

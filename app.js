@@ -16,6 +16,7 @@ import * as announcements from './js/announcements.js';
 import * as publish from './js/publish.js';
 import * as tasks from './js/tasks.js';
 import * as motion from './js/motion.js';
+import * as noteImages from './js/note-images.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -554,6 +555,7 @@ publish.init({
   $, myTasks, showToast: tasks.showToast, hideAnimated, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks,
   renderAnnouncements: announcements.renderAnnouncements, applyProgress: tasks.applyProgress,
   normalizeBoard, setPublished, Task, setPage: nav.setPage,
+  adoptInlineImages: noteImages.adoptInlineImages, rewriteNotes: noteImages.rewriteNotes, files: window.TTFiles,
 });
 
 // Duplicate (task dialog)

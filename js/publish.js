@@ -59,6 +59,9 @@ let normalizeBoard = null;      // app.js: the publish response is normalised be
 let setPublished = null;        // app.js: the live board is replaced after a publish
 let Task = null;                // logic.js: restoreDraft rebuilds each task through Task.fromJSON
 let setPage = null;             // nav.setPage: setPreview(true) switches to the Class tasks page
+let adoptInlineImages = null;   // js/note-images.js: publish moves inline note images to uploads/
+let rewriteNotes = null;        // js/note-images.js: the same rewrite for the in-memory draft
+let files = null;               // app.js: window.TTFiles, the upload client
 // --- Admin: diff, checkpoints, publish, history, import/export, preview ---
 
 export const snapshot = () => ({ tasks: myTasks.map((t) => t.toJSON()), announcements: JSON.parse(JSON.stringify(state.announcements)) });
@@ -240,6 +243,9 @@ export function init(deps) {
   setPublished = deps.setPublished;
   Task = deps.Task;
   setPage = deps.setPage;
+  adoptInlineImages = deps.adoptInlineImages;
+  rewriteNotes = deps.rewriteNotes;
+  files = deps.files;
 $('#publish-clear-input').addEventListener('input', syncPublishClear);
 
 $('#publish-form').addEventListener('submit', async (e) => {
@@ -253,9 +259,23 @@ $('#publish-form').addEventListener('submit', async (e) => {
   err.hidden = true;
   try {
     const note = $('#publish-note').value.trim();
-    const body = clearing
-      ? { tasks: [], announcements: [], note, clearBoard: { confirm: CLEAR_PHRASE, expectedCount: state.publishedTasks.length } }
-      : { ...snapshot(), note };
+    let body;
+    if (clearing) {
+      body = { tasks: [], announcements: [], note, clearBoard: { confirm: CLEAR_PHRASE, expectedCount: state.publishedTasks.length } };
+    } else {
+      const snap = snapshot();
+      // Inline note images are board weight: move each one to uploads/ before the board is sent, so
+      // the shared JSON stays kilobytes instead of megabytes. Throws (and the dialog shows why)
+      // rather than publishing a board that carries the image bytes.
+      const adopted = await adoptInlineImages(snap.tasks, files);
+      if (adopted.count) {
+        snap.tasks = adopted.tasks;
+        // The draft must drop the bytes too, or the next publish uploads the same images again.
+        myTasks.forEach((t) => { if (t.notes) t.notes = rewriteNotes(t.notes, adopted.map); });
+        saveTasks();
+      }
+      body = { ...snap, note };
+    }
     const res = await fetch(API.publish, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

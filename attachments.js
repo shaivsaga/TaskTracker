@@ -10,7 +10,7 @@
     jpg: 'image/jpeg',
     png: 'image/png'
   };
-  var MAX_BYTES = 10 * 1024 * 1024;     // documents, per file (the server enforces this too)
+  var MAX_BYTES = 11 * 1024 * 1024;     // documents, per file (the server allows 12 MB: nginx 12m, upload_max_filesize 12M)
   var MAX_INPUT = 40 * 1024 * 1024;     // images are shrunk, so allow a big camera original in
   var MAX_SIDE = 1600, MIN_SIDE = 640;  // longest side in pixels
   var TARGET = 250 * 1024;              // aim for 250 KB or less per image
