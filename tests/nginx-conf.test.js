@@ -181,3 +181,79 @@ test('every location with its own add_header repeats the whole security set', ()
     }
   }
 });
+
+test('bare js/*.js module URLs reuse the root-asset cache policy and security headers', () => {
+  // ADR 6: modules under js/ are imported without ?v=. If they are cached hard across a
+  // deploy, a fresh app.js can load stale modules. They must be handled by the SAME static
+  // asset location as the root scripts, so a bare URL hits $asset_cache's default
+  // "no-cache" and still gets the full header set (add_header does not inherit).
+  const moduleUrls = fs
+    .readdirSync(path.join(ROOT, 'js'))
+    .filter((f) => f.endsWith('.js'))
+    .map((f) => `/js/${f}`);
+  assert.ok(moduleUrls.length > 0, 'no js/*.js modules found to guard');
+
+  const locations = [];
+  for (let i = 0; i < LINES.length; i += 1) {
+    if (LINES[i].depth !== 1 || !/^location\b/.test(LINES[i].text)) continue;
+    const body = [];
+    for (let j = i + 1; j < LINES.length && LINES[j].depth > 1; j += 1) body.push(LINES[j].text);
+    locations.push({ at: LINES[i].text, body });
+  }
+
+  // There is exactly one location serving the root JS/CSS assets; extend it, do not add one.
+  const assets = locations.filter((l) => /\bapp\\\.js\b/.test(l.at) && /\blogic\\\.js\b/.test(l.at));
+  assert.equal(assets.length, 1, `expected exactly one root-asset location, found ${assets.length}`);
+  const asset = assets[0];
+  const parsed = /^location\s+~\*\s+(\S+)\s*\{$/.exec(asset.at);
+  assert.ok(parsed, `cannot parse the root-asset location regex from: ${asset.at}`);
+  const re = new RegExp(parsed[1], 'i');
+
+  // Every bare module URL the app imports must hit that existing location...
+  for (const url of moduleUrls) {
+    assert.ok(re.test(url), `${url} is not covered by the static-asset location (${asset.at})`);
+  }
+  // ...including the ones named in the split ADR.
+  for (const url of ['/js/state.js', '/js/dom.js', '/js/util.js', '/js/quick-add.js', '/js/tasks.js']) {
+    assert.ok(re.test(url), `${url} must revalidate through the static-asset location`);
+  }
+  // ...and no second location may claim module paths.
+  const claiming = locations.filter((l) => {
+    const m = /^location\s+~\*?\s+(\S+)\s*\{$/.exec(l.at);
+    return m && new RegExp(m[1], 'i').test('/js/state.js');
+  });
+  assert.deepEqual(
+    claiming.map((l) => l.at),
+    [asset.at],
+    'module paths must be handled by the existing asset location, not a new one',
+  );
+
+  // Existing root-asset behaviour is unchanged, and the match stays narrow.
+  for (const url of ['/styles.css', '/app.js', '/qr-draw.js', '/qrcode.js', '/attachments.js', '/logic.js']) {
+    assert.ok(re.test(url), `${url} must still be served by this location`);
+  }
+  assert.equal(re.test('/not-an-asset.js'), false, 'the asset location must stay narrow');
+  assert.equal(re.test('/js/not-a-module.txt'), false, 'only js/*.js modules are added');
+
+  // It reuses $asset_cache, whose empty-v default makes a bare URL revalidate...
+  assert.ok(
+    asset.body.includes('add_header Cache-Control $asset_cache;'),
+    'the asset location must keep using $asset_cache, not its own policy',
+  );
+  const map = /\bmap\s+\$arg_v\s+\$asset_cache\s*\{([\s\S]*?)\}/.exec(CONF);
+  assert.ok(map, 'the $arg_v -> $asset_cache map is gone');
+  assert.match(map[1], /default\s+"no-cache";/, 'a bare URL (no ?v=) must map to no-cache');
+  assert.match(
+    map[1],
+    /"~\.\"\s*"public, max-age=31536000, immutable";/,
+    'a stamped ?v= URL must keep the immutable policy',
+  );
+
+  // ...and the full security header set, because add_header does not inherit.
+  for (const header of SECURITY_HEADERS) {
+    assert.ok(
+      asset.body.some((t) => new RegExp(`^add_header\\s+${header}\\b`, 'i').test(t)),
+      `${asset.at} declares add_header but does not repeat ${header}`,
+    );
+  }
+});
