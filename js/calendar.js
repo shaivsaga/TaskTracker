@@ -75,7 +75,7 @@ function createCalDots(list) {
   // Only three dots fit, so the urgent ones go first (a stable sort keeps the time order within a rank).
   list.slice().sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
     const dot = document.createElement('span');
-    dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '') + (t.status !== 'done' && t.isOverdue() ? ' is-overdue' : isDueSoon(t) ? ' is-due-soon' : '');
+    dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '');
     dot.dataset.status = t.status;
     wrap.appendChild(dot);
   });
