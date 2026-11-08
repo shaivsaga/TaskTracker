@@ -1,0 +1,218 @@
+{
+  "tasks": [
+    {
+      "id": "fx001",
+      "title": "Physics lab report on projectile motion",
+      "dueDate": "2026-10-25",
+      "notes": "<div>Submit the full write-up.</div>",
+      "subject": "GENSCI"
+    },
+    {
+      "id": "fx002",
+      "title": "Problem set 4: limits and continuity",
+      "dueDate": "2026-10-31",
+      "dueTime": "23:59",
+      "notes": "",
+      "subject": "GENMATH"
+    },
+    {
+      "id": "fx003",
+      "title": "Read chapter 7 of Noli Me Tangere",
+      "dueDate": "2026-11-02",
+      "notes": "",
+      "subject": "PKLP"
+    },
+    {
+      "id": "fx004",
+      "title": "Journal entry: community immersion prep",
+      "dueDate": "2026-11-02",
+      "dueTime": "17:00",
+      "notes": "<div>Two pages, handwritten.</div>",
+      "subject": "PERDEV"
+    },
+    {
+      "id": "fx005",
+      "title": "Oral recitation: Newton's laws",
+      "dueDate": "2026-11-03",
+      "dueTime": "09:30",
+      "notes": "",
+      "subject": "GENSCI"
+    },
+    {
+      "id": "fx006",
+      "title": "Submit the statistical survey draft",
+      "dueDate": "2026-11-03",
+      "notes": "",
+      "subject": "MABKOM"
+    },
+    {
+      "id": "fx007",
+      "title": "Warm-up routine chart",
+      "dueDate": "2026-11-03",
+      "dueTime": "23:00",
+      "notes": "",
+      "subject": "PE"
+    },
+    {
+      "id": "fx008",
+      "title": "Essay: the role of youth in civic duty",
+      "dueDate": "2026-11-04",
+      "notes": "<div>Rubric:</div><ul><li>thesis <b>5 pts</b></li><li>evidence <i>10 pts</i></li><li>mechanics 5 pts</li></ul>",
+      "subject": "EFFCOM"
+    },
+    {
+      "id": "fx009",
+      "title": "Group presentation slides",
+      "dueDate": "2026-11-05",
+      "dueTime": "13:00",
+      "notes": "",
+      "subject": "MABKOM"
+    },
+    {
+      "id": "fx010",
+      "title": "Reflection paper on servant leadership",
+      "dueDate": "2026-11-06",
+      "notes": "",
+      "subject": "THEOLOGY"
+    },
+    {
+      "id": "fx011",
+      "title": "Draft the database schema for the capstone",
+      "dueDate": "2026-11-07",
+      "notes": "<div>Normalise to 3NF.</div>",
+      "subject": "CP104"
+    },
+    {
+      "id": "fx012",
+      "title": "Financial ratios worksheet",
+      "dueDate": "2026-11-08",
+      "dueTime": "08:00",
+      "notes": "",
+      "subject": "FINMATH101"
+    },
+    {
+      "id": "fx013",
+      "title": "Lab safety quiz review",
+      "dueDate": "2026-11-09",
+      "notes": "",
+      "subject": "GENSCI"
+    },
+    {
+      "id": "fx014",
+      "title": "Term paper outline",
+      "dueDate": "2026-11-15",
+      "notes": "",
+      "subject": "EFFCOM"
+    },
+    {
+      "id": "fx015",
+      "title": "Capstone prototype demo",
+      "dueDate": "2026-11-23",
+      "dueTime": "15:30",
+      "notes": "",
+      "subject": "CP104"
+    },
+    {
+      "id": "fx016",
+      "title": "Final practical exam",
+      "dueDate": "2026-12-08",
+      "notes": "",
+      "subject": "PE"
+    },
+    {
+      "id": "fx017",
+      "title": "Someday: organise the class photo archive",
+      "notes": "",
+      "subject": "MABKOM"
+    },
+    {
+      "id": "fx018",
+      "title": "Someday: ask about the retreat venue",
+      "notes": "",
+      "subject": "THEOLOGY"
+    },
+    {
+      "id": "fx019",
+      "title": "Prepare the annotated bibliography covering every source cited in the literature review, with a one-paragraph summary of each source and a note on how it will be used in the final argument of the paper",
+      "dueDate": "2026-11-11",
+      "notes": "",
+      "subject": "EFFCOM"
+    },
+    {
+      "id": "fx020",
+      "title": "Long-title stress case: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+      "dueDate": "2026-11-12",
+      "notes": "",
+      "subject": "GENMATH"
+    },
+    {
+      "id": "fx021",
+      "title": "Upload the signed consent form",
+      "dueDate": "2026-11-05",
+      "notes": "",
+      "subject": "PERDEV",
+      "files": [
+        {
+          "id": "0123456789abcdef0123456789abcdef.pdf",
+          "name": "consent-form-signed.pdf",
+          "size": 184320
+        },
+        {
+          "id": "0123456789abcdef0123456789abcdef.jpg",
+          "name": "id-photo.jpg",
+          "size": 24010
+        }
+      ]
+    },
+    {
+      "id": "fx022",
+      "title": "Diagram of the water cycle",
+      "dueDate": "2026-11-10",
+      "notes": "<div>Redraw this neatly.</div><div><img src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==\"></div>",
+      "subject": "GENSCI"
+    },
+    {
+      "id": "fx023",
+      "title": "Closed: seatwork on fractions",
+      "dueDate": "2026-10-14",
+      "notes": "",
+      "subject": "GENMATH",
+      "closedAt": 1792382400000
+    },
+    {
+      "id": "fx024",
+      "title": "Closed: group output on recycling",
+      "dueDate": "2026-10-04",
+      "notes": "<div>Graded and returned.</div>",
+      "subject": "GENSCI",
+      "closedAt": 1791259200000
+    },
+    {
+      "id": "fx025",
+      "title": "Expired: old reading assignment",
+      "dueDate": "2026-09-24",
+      "notes": "",
+      "subject": "PKLP"
+    }
+  ],
+  "announcements": [
+    {
+      "id": "an1",
+      "createdAt": 1793592000000,
+      "text": "Submission of the term paper moved to Friday. Bring your draft to class.",
+      "html": "<div>Submission of the <b>term paper</b> moved to <i>Friday</i>. Bring your draft.</div><ul><li>Print two copies</li><li>Staple the rubric on top</li></ul>"
+    },
+    {
+      "id": "an2",
+      "createdAt": 1793332800000,
+      "text": "No classes on Monday; use the time for the capstone prototype.",
+      "html": ""
+    },
+    {
+      "id": "an3",
+      "createdAt": 1792900800000,
+      "text": "Reminder: clear your laboratory glassware before leaving.",
+      "html": "<div>Reminder:</div><ul><li>Wash and return the <b>beakers</b></li><li>Wipe the bench</li></ul>"
+    }
+  ]
+}

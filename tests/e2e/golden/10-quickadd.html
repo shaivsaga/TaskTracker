@@ -1,0 +1,301 @@
+<!-- #quick-overlay after typing "math homework tomorrow 5pm" -->
+<div class="quick-overlay" id="quick-overlay" hidden="">
+  <div class="quick-add" role="dialog" aria-modal="true" aria-labelledby="quick-label">
+    <label class="sr-only" id="quick-label" for="quick-input">Quick add task</label>
+    <input class="quick-input" id="quick-input" type="text" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="Subject, task, status, date" value="math homework tomorrow 5pm">
+    <div class="quick-preview" id="quick-preview" aria-live="polite">
+      <div class="quick-field">
+        <span class="quick-field-label">Task</span>
+        <span class="quick-field-value">
+          <span class="quick-title">math homework</span>
+        </span>
+      </div>
+      <div class="quick-field">
+        <span class="quick-field-label">Subject</span>
+        <span class="quick-field-value is-empty">—</span>
+      </div>
+      <div class="quick-field">
+        <span class="quick-field-label">Status</span>
+        <span class="quick-field-value">
+          <span class="quick-chip">Not started</span>
+        </span>
+      </div>
+      <div class="quick-field">
+        <span class="quick-field-label">Due</span>
+        <span class="quick-field-value is-changed">
+          <span class="quick-due">
+            <span class="quick-chip is-mono">Wed, Nov 4</span>
+            <span class="quick-chip is-mono">5:00 PM</span>
+          </span>
+        </span>
+      </div>
+    </div>
+    <div class="quick-chips" id="quick-chips">
+      <div class="quick-group" role="group" aria-label="Subject">
+        <span class="quick-group-label">Subject</span>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="GENSCI" title="GENSCI" aria-pressed="false">
+          <span class="subject-tag bg-cyan">GENSCI</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="GENMATH" title="GENMATH" aria-pressed="false">
+          <span class="subject-tag bg-pink">GENMATH</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="PKLP" title="PKLP" aria-pressed="false">
+          <span class="subject-tag bg-sunglow">PKLP</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="EFFCOM" title="EFFCOM" aria-pressed="false">
+          <span class="subject-tag bg-green">EFFCOM</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="MABKOM" title="MABKOM" aria-pressed="false">
+          <span class="subject-tag bg-sand">MABKOM</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="PERDEV" title="PERDEV" aria-pressed="false">
+          <span class="subject-tag bg-yellow">PERDEV</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="PE" title="PE" aria-pressed="false">
+          <span class="subject-tag bg-yellow">PE</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="THEOLOGY" title="THEOLOGY" aria-pressed="false">
+          <span class="subject-tag bg-stone">THEOLOGY</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="CP104" title="CP104" aria-pressed="false">
+          <span class="subject-tag bg-blue">CP104</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-subject" data-type="subject" data-code="FINMATH101" title="FINMATH101" aria-pressed="false">
+          <span class="subject-tag bg-mauve">FINMATH101</span>
+        </button>
+      </div>
+      <div class="quick-group" role="group" aria-label="Status">
+        <span class="quick-group-label">Status</span>
+        <button type="button" class="quick-chip-btn" data-type="status" data-code="ns" title="Shortcut: ns" aria-pressed="false">
+          <span>Not started</span>
+          <span class="quick-code">ns</span>
+        </button>
+        <button type="button" class="quick-chip-btn" data-type="status" data-code="ip" title="Shortcut: ip" aria-pressed="false">
+          <span>In progress</span>
+          <span class="quick-code">ip</span>
+        </button>
+        <button type="button" class="quick-chip-btn" data-type="status" data-code="dn" title="Shortcut: dn" aria-pressed="false">
+          <span>Done</span>
+          <span class="quick-code">dn</span>
+        </button>
+      </div>
+      <div class="quick-group" role="group" aria-label="Due">
+        <span class="quick-group-label">Due</span>
+        <button type="button" class="quick-chip-btn" data-type="date" data-code="today" title="Shortcut: today" aria-pressed="false">
+          <span>Today</span>
+          <span class="quick-code">today</span>
+        </button>
+        <button type="button" class="quick-chip-btn is-selected" data-type="date" data-code="tmr" title="Shortcut: tmr" aria-pressed="true">
+          <span>Tomorrow</span>
+          <span class="quick-code">tmr</span>
+        </button>
+        <button type="button" class="quick-chip-btn" data-type="pick" data-code="pick" title="Shortcut: cal" aria-pressed="false">
+          <span>Date &amp; time</span>
+          <span class="quick-code">cal</span>
+        </button>
+        <button type="button" class="quick-chip-btn" data-type="clear" data-code="clear" title="Clear" aria-pressed="false">
+          <span>Clear</span>
+        </button>
+      </div>
+    </div>
+    <div class="quick-actions">
+      <button class="text-button" type="button" id="quick-cancel-btn">Cancel</button>
+      <button class="secondary-button" type="button" id="quick-open-btn">Add &amp; open</button>
+      <button class="primary-button" type="button" id="quick-add-btn">Add</button>
+    </div>
+    <div class="quick-keys">
+      <span>
+        <kbd>Enter</kbd>
+        Add
+      </span>
+      <span>
+        <kbd>Shift</kbd>
+        +
+        <kbd>Enter</kbd>
+        Add and open
+      </span>
+      <span>
+        <kbd>cal</kbd>
+        Pick date, time is optional
+      </span>
+      <span>
+        <kbd>Esc</kbd>
+        Cancel
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- #page-my-tasks after submitting "math homework tomorrow 5pm" -->
+<section class="page" id="page-my-tasks" data-page-view="my-tasks" aria-label="My tasks" data-view="board">
+  <div class="page-heading">
+    <div>
+      <p class="page-supporting-copy">Draft tasks and announcements here. Nothing reaches the class until you apply changes.</p>
+    </div>
+    <div class="page-actions">
+      <label class="search">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-search"></use>
+        </svg>
+        <input type="search" id="task-search" placeholder="Search tasks" aria-label="Search tasks" autocomplete="off" value="">
+      </label>
+      <div class="view-tabs" role="group" aria-label="View">
+        <button type="button" class="view-tab is-active" data-view="board" aria-pressed="true">Board</button>
+        <button type="button" class="view-tab" data-view="list" aria-pressed="false">List</button>
+      </div>
+      <button class="primary-button" type="button" id="new-task-btn">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-plus"></use>
+        </svg>
+        New task
+      </button>
+    </div>
+  </div>
+  <div class="admin-bar" id="admin-bar">
+    <span class="admin-status" id="admin-status" role="status">Unpublished changes: 27</span>
+    <div class="admin-actions">
+      <button class="text-button" type="button" id="btn-preview">Preview as student</button>
+      <button class="text-button" type="button" id="btn-history">History</button>
+      <button class="text-button" type="button" id="btn-discard">Discard changes</button>
+      <button class="secondary-button" type="button" id="btn-save">Save</button>
+      <button class="primary-button" type="button" id="btn-apply">Apply changes</button>
+    </div>
+  </div>
+  <section class="announcements" id="announce-admin" aria-label="Pinned announcements">
+    <div class="announce-header">
+      <h2>
+        <svg class="i" aria-hidden="true">
+          <use href="#i-pin"></use>
+        </svg>
+        Pinned
+      </h2>
+      <button class="text-button" type="button" id="announce-add-btn">Post announcement</button>
+    </div>
+    <form class="announce-form" id="announce-form" hidden="">
+      <div class="announce-toolbar" role="toolbar" aria-label="Formatting">
+        <button class="announce-tool" type="button" data-cmd="bold" aria-label="Bold" aria-pressed="false" title="Bold (Ctrl+B)">
+          <b>B</b>
+        </button>
+        <button class="announce-tool" type="button" data-cmd="italic" aria-label="Italic" aria-pressed="false" title="Italic (Ctrl+I)">
+          <i>I</i>
+        </button>
+        <button class="announce-tool" type="button" data-cmd="insertUnorderedList" aria-label="Bulleted list" aria-pressed="false" title="Bulleted list">
+          <svg class="i" aria-hidden="true">
+            <use href="#i-list"></use>
+          </svg>
+        </button>
+      </div>
+      <div class="announce-editor" id="announce-input" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Announcement text" data-placeholder="Write a note for the class"></div>
+      <div class="announce-actions">
+        <span class="announce-count" id="announce-count"></span>
+        <button class="text-button" type="button" id="announce-cancel">Cancel</button>
+        <button class="primary-button" type="submit">Pin</button>
+      </div>
+    </form>
+    <ul class="announce-list" id="announce-list">
+      <li class="announce-empty">No pinned announcements.</li>
+    </ul>
+  </section>
+  <div class="empty-state">
+    <p>No tasks yet.</p>
+    <button class="text-button" type="button" id="empty-add-btn">Add a task</button>
+  </div>
+  <p class="summary" aria-label="Task summary">
+    <span>All tasks</span>
+    <span id="sum-open">1 open</span>
+    <span id="sum-progress">0 in progress</span>
+    <span id="sum-today" hidden="">0 due today</span>
+    <span id="sum-overdue" class="is-alert" hidden="">0 overdue</span>
+  </p>
+  <div class="task-list" id="task-list" aria-label="Personal task list" hidden="">
+    <div class="task-row is-entering is-changed" tabindex="0" data-task-id="8qk5cytv6e">
+      <button type="button" class="status-check is-not-started is-popping" aria-label="Change status"></button>
+      <span class="task-row-title">math homework</span>
+      <span></span>
+      <span class="task-row-due" title="Nov 4 · 5:00 PM">Due tomorrow · 5:00 PM</span>
+      <button type="button" class="task-delete-btn" aria-label="Delete task">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-trash-2"></use>
+        </svg>
+      </button>
+    </div>
+    <button type="button" class="task-list-add">
+      <svg class="i" aria-hidden="true">
+        <use href="#i-plus"></use>
+      </svg>
+      <span>New task</span>
+    </button>
+  </div>
+  <div class="kanban-board" aria-label="Personal task board">
+    <div class="kanban-column" data-status="todo">
+      <div class="column-header">
+        <div>
+          <h2>To Do</h2>
+          <span class="column-count">(1)</span>
+        </div>
+        <span class="column-marker marker-todo" aria-hidden="true"></span>
+      </div>
+      <div class="column-content">
+        <p class="column-empty" data-default="Hit &quot;New task&quot; to add your first item." hidden="">Hit "New task" to add your first item.</p>
+        <article class="task-card is-entering is-changed" data-task-id="8qk5cytv6e" draggable="true" data-status="not_started" tabindex="0">
+          <div class="task-card-header">
+            <button type="button" class="status-check is-not-started is-popping" aria-label="Change status"></button>
+            <h3 class="task-card-title">math homework</h3>
+            <button class="task-delete-btn" type="button" aria-label="Delete task">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-trash-2"></use>
+              </svg>
+            </button>
+          </div>
+          <div class="task-card-footer">
+            <span class="due-badge due-soon" title="Nov 4 · 5:00 PM">
+              <svg class="i" aria-hidden="true">
+                <use href="#i-calendar"></use>
+              </svg>
+              <span>Due tomorrow · 5:00 PM</span>
+            </span>
+          </div>
+        </article>
+      </div>
+    </div>
+    <div class="kanban-column" data-status="progress">
+      <div class="column-header">
+        <div>
+          <h2>In Progress</h2>
+          <span class="column-count">(0)</span>
+        </div>
+        <span class="column-marker marker-progress" aria-hidden="true"></span>
+      </div>
+      <div class="column-content is-empty">
+        <p class="column-empty" data-default="Move a task here once you've started it.">Move a task here once you've started it.</p>
+      </div>
+    </div>
+    <div class="kanban-column" data-status="done">
+      <div class="column-header">
+        <div>
+          <h2>Submitted / Done</h2>
+          <span class="column-count">(0)</span>
+        </div>
+        <span class="column-marker marker-done" aria-hidden="true"></span>
+      </div>
+      <div class="column-content is-empty">
+        <p class="column-empty" data-default="Finished tasks land here.">Finished tasks land here.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- localStorage class_tasks_draft after submitting -->
+{
+  "tasks": [
+    {
+      "dueDate": "2026-11-04",
+      "dueTime": "17:00",
+      "id": "8qk5cytv6e",
+      "notes": "",
+      "subject": "",
+      "title": "math homework"
+    }
+  ],
+  "announcements": []
+}
