@@ -732,7 +732,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #class-task-list .task-row-title { font-size: 16px; line-height: 24px; }
   .cal-day { min-height: 80px; padding: 4px; border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); }
   /* Each day is its own block with a 2px edge and a gap between, not a cell in one ruled sheet. */
-  .cal { gap: 8px 6px; border: 0; background: none; overflow: visible; }
+  .cal { gap: 12px 8px; border: 0; background: none; overflow: visible; }
   .cal-dow { background: transparent; }
   .cal-day.is-tappable.is-selected, .cal-day.is-tappable.is-selected:hover { border-color: var(--ac); box-shadow: 0 2px 0 var(--ac); }
   .cal[data-mode="week"] { gap: 8px; grid-template-columns: minmax(0, 1fr); }
