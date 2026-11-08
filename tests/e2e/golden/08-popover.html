@@ -1,24 +1,26 @@
 <!-- body > .status-popover (after clicking the first card status control) -->
-<div class="status-dropdown status-popover" role="listbox" style="top: 8px; left: 8px;">
-  <button type="button" class="status-option is-active" role="option" data-status="not_started">
+<div class="status-dropdown status-popover" role="listbox" aria-label="Status" style="top: 8px; left: 8px;">
+  <button type="button" class="status-option is-active" role="option" data-status="not_started" aria-selected="true">
     <span class="status-dot dot-not-started"></span>
     Not started
   </button>
-  <button type="button" class="status-option" role="option" data-status="in_progress">
+  <button type="button" class="status-option" role="option" data-status="in_progress" aria-selected="false">
     <span class="status-dot dot-in-progress"></span>
     In progress
   </button>
-  <button type="button" class="status-option" role="option" data-status="done">
+  <button type="button" class="status-option" role="option" data-status="done" aria-selected="false">
     <span class="status-dot dot-done"></span>
     Done
   </button>
 </div>
 
 <!-- the card it belongs to -->
-<article class="task-card is-entering" data-task-id="fx002" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+<article class="task-card" data-task-id="fx002" draggable="true" data-status="not_started">
   <div class="task-card-header">
-    <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
-    <h3 class="task-card-title">Problem set 4: limits and continuity</h3>
+    <button type="button" class="status-check is-not-started" aria-label="Problem set 4: limits and continuity: Not started. Change status" aria-haspopup="listbox" aria-expanded="true"></button>
+    <h3 class="task-card-title">
+      <button type="button" class="task-title-open">Problem set 4: limits and continuity</button>
+    </h3>
   </div>
   <div class="task-card-footer">
     <span class="subject-tag bg-pink">GENMATH</span>

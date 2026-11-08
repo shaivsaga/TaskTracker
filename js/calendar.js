@@ -26,7 +26,7 @@ let todayDate = null;       // logic.js helpers, kept in app.js's one ./logic.js
 let toInputValue = null;
 let dayDiff = null;
 let subjects = null;        // () => app.js's SUBJECTS map, read at call time (see the header)
-let calPhone = null;        // window.matchMedia('(max-width: 720px)'), created in init()
+let calPhone = null;        // window.matchMedia('(max-width: 719px)'), created in init()
 
 // --- Calendar ---
 const calSort = (a, b) => (a.dueTime || '').localeCompare(b.dueTime || '');
@@ -64,13 +64,18 @@ function createCalChip(task) {
   return chip;
 }
 
+// Same rule as the list rows and the board badge: open, not overdue, due within 3 days.
+const isDueSoon = (t) => t.status !== 'done' && !!t.dueDate && !t.isOverdue() && dayDiff(t.dueDate) <= 3;
+const urgencyRank = (t) => (t.status === 'done' ? 3 : t.isOverdue() ? 0 : isDueSoon(t) ? 1 : 2);
+
 function createCalDots(list) {
   const wrap = document.createElement('span');
   wrap.className = 'cal-dots';
   wrap.setAttribute('aria-hidden', 'true');
-  list.slice(0, 3).forEach((t) => {
+  // Only three dots fit, so the urgent ones go first (a stable sort keeps the time order within a rank).
+  list.slice().sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
     const dot = document.createElement('span');
-    dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '') + (t.status !== 'done' && t.isOverdue() ? ' is-overdue' : '');
+    dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '') + (t.status !== 'done' && t.isOverdue() ? ' is-overdue' : isDueSoon(t) ? ' is-due-soon' : '');
     dot.dataset.status = t.status;
     wrap.appendChild(dot);
   });
@@ -176,11 +181,12 @@ export function renderCalendar() {
       cell.classList.add('is-tappable');
       if (key === picked) cell.classList.add('is-selected');
       const overdue = list.filter((t) => t.status !== 'done' && t.isOverdue()).length;
+      const soon = list.filter(isDueSoon).length;
       cell.dataset.date = key;
       cell.tabIndex = key === picked ? 0 : -1;
       cell.setAttribute('role', 'button');
       if (key === picked) cell.setAttribute('aria-current', 'true');
-      cell.setAttribute('aria-label', `${calLongDate(d)}, ${list.length ? plural(list.length, 'task') : 'no tasks'}${overdue ? `, ${overdue} overdue` : ''}`);
+      cell.setAttribute('aria-label', `${calLongDate(d)}, ${list.length ? plural(list.length, 'task') : 'no tasks'}${overdue ? `, ${overdue} overdue` : ''}${soon ? `, ${soon} due soon` : ''}`);
       if (list.length) cell.appendChild(createCalDots(list));
       cell.addEventListener('click', () => calSelect(d));
       cell.addEventListener('keydown', (e) => calKey(e, d));
@@ -219,7 +225,7 @@ export function init(deps) {
   toInputValue = deps.toInputValue;
   dayDiff = deps.dayDiff;
   subjects = deps.subjects;
-  calPhone = window.matchMedia('(max-width: 720px)');
+  calPhone = window.matchMedia('(max-width: 719px)');
   document.querySelector('#cal-prev').addEventListener('click', () => calStep(-1));
   document.querySelector('#cal-next').addEventListener('click', () => calStep(1));
   document.querySelector('#cal-today').addEventListener('click', () => { state.calAnchor = todayDate(); state.calSelected = state.calAnchor; renderCalendar(); });

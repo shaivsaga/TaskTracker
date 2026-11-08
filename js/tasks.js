@@ -37,6 +37,7 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, STATUS_TO_COLUMN, COLUMN_TO_STATUS } from './util.js';
+import * as motion from './motion.js';   // leaf helper: imports nothing, reads the DOM only
 
 // --- Values app.js passes in through init(deps) ------------------------------------------------
 let Task = null;
@@ -62,11 +63,12 @@ export function applyProgress(list) {
   list.forEach((t) => { const p = state.progress[t.id]; t.status = p ? p.status : 'not_started'; t.movedAt = p ? p.movedAt : 0; });
 }
 export function setStatus(task, status) {
+  // Motion measures the old layout now; renderAllTasks() plays it once the new one exists.
+  motion.begin(task.id, state.progress[task.id]?.status || 'not_started', status);
   state.progress[task.id] = { status, movedAt: Date.now() };
   if (status === 'done') navigator.vibrate?.(12);
   applyProgress(myTasks);
   applyProgress(state.publishedTasks);
-  state.justChangedId = task.id;
   saveTasks();
 }
 function ensureConfirmDialog() {
@@ -189,19 +191,19 @@ export function createTaskCard(task) {
 
   const titleEl = document.createElement('h3');
   titleEl.className = 'task-card-title';
-  titleEl.textContent = task.title;
+  // The title is the card's own control: it names the card and carries the keyboard path, while the
+  // card keeps its click-anywhere gesture (the button's click bubbles to the article). A focusable
+  // <article> with no role had no accessible name, so a screen reader reached a nameless stop.
+  const titleBtn = document.createElement('button');
+  titleBtn.type = 'button';
+  titleBtn.className = 'task-title-open';
+  titleBtn.textContent = task.title;
+  titleEl.appendChild(titleBtn);
 
   article.dataset.status = task.status;
-  article.tabIndex = 0;
   article.addEventListener('click', (e) => {
     if (e.target.closest('.task-delete-btn')) return;
     openTaskDialog(task, article.closest('.kanban-column'), false);
-  });
-  article.addEventListener('keydown', (e) => {
-    if (e.target === article && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      openTaskDialog(task, article.closest('.kanban-column'), false);
-    }
   });
 
   if (task.id === state.justChangedId) article.classList.add('is-entering');
@@ -308,7 +310,7 @@ export function showSkeletons() {
     }
   });
 }
-// --- Class tasks: published list, same builders as admin, student-safe ---
+// --- Tasks: published list, same builders as admin, student-safe ---
 export function renderClassTasks() {
   const board = document.querySelector('#class-board');
   board.querySelectorAll('.column-content').forEach((c) => {
@@ -327,7 +329,7 @@ export function renderClassTasks() {
   if (!source.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
-    none.textContent = q && all.length ? 'No tasks match your search.' : 'No class assignments yet.';
+    none.textContent = q && all.length ? 'No tasks match your search.' : 'No tasks yet.';
     dom.classListEl.appendChild(none);
   }
 }
@@ -348,21 +350,26 @@ export function renderPastPage() {
     return;
   }
   const canEdit = state.isAdmin && !state.previewing;
-  const mkBtn = (label, fn) => {
+  // A destructive action that removes a published task asks first: the button arms for 4s and the
+  // second press runs it, the same inline confirm the Done page's reopen uses.
+  const mkBtn = (label, fn, confirmLabel) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'text-button';
     b.textContent = label;
-    b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+    if (confirmLabel) armInlineConfirm(b, label, confirmLabel, fn);
+    else b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
     return b;
   };
   past.forEach((task) => {
     const isDone = task.status === 'done';
     const row = document.createElement('div');
     row.className = 'task-row done-row';
-    row.tabIndex = 0;
+    row.dataset.taskId = task.id;
+    row.setAttribute('role', 'listitem');
     const dot = createStatusCheck(task);
-    const title = document.createElement('span');
+    const title = document.createElement('button');
+    title.type = 'button';
     title.className = 'task-row-title' + (isDone ? ' is-done' : '');
     title.textContent = task.title;
     const tag = document.createElement('span');
@@ -389,19 +396,24 @@ export function renderPastPage() {
           showToast('Task restored');
         }
       }));
-      actions.appendChild(mkBtn('Delete', () => deleteTask(task)));
+      actions.appendChild(mkBtn('Delete', () => deleteTask(task), 'Confirm deleting this task'));
     }
     row.addEventListener('click', () => openTaskDialog(task));
-    row.addEventListener('keydown', (e) => {
-      if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTaskDialog(task); }
-    });
     row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
     host.appendChild(row);
   });
 }
 // Restore a task's progress entry to what it was before the last status change.
 // Shared by every Undo action so all of them persist and re-render the same way.
+// The last open task gets the same motion as any other; only the words change.
+function doneMessage() {
+  const open = recordSource().filter((x) => !x.isPast());
+  return open.length && open.every((x) => x.status === 'done') ? 'All caught up' : statusChangeMessage('done');
+}
 export function restoreProgress(taskId, prev) {
+  // Undo during the flight: drop the ghost, then let the rows glide back.
+  motion.cancel(taskId);
+  motion.begin(taskId, state.progress[taskId]?.status || 'not_started', prev ? prev.status : 'not_started');
   if (prev) state.progress[taskId] = prev; else delete state.progress[taskId];
   applyProgress(myTasks);
   applyProgress(state.publishedTasks);
@@ -418,20 +430,25 @@ export function restoreProgress(taskId, prev) {
   }
   renderAllTasks();
 }
-// Reopening a done task replaces its completed time, so ask first and offer Undo.
-export function reopenWithConfirm(btn, task) {
-  const label = btn.textContent;
+// The app's inline destructive confirm: the first press arms the button for 4s, the second runs it.
+function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
   let timer = null;
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!btn.dataset.armed) {
       btn.dataset.armed = '1';
       btn.textContent = 'Confirm?';
-      btn.setAttribute('aria-label', 'Confirm marking this task not done');
+      btn.setAttribute('aria-label', confirmLabel);
       timer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; btn.removeAttribute('aria-label'); }, 4000);
       return;
     }
     clearTimeout(timer);
+    onConfirm();
+  });
+}
+// Reopening a done task replaces its completed time, so ask first and offer Undo.
+export function reopenWithConfirm(btn, task) {
+  armInlineConfirm(btn, btn.textContent, 'Confirm marking this task not done', () => {
     const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
     setStatus(task, 'not_started');
     renderAllTasks();
@@ -457,10 +474,12 @@ export function renderDonePage() {
   };
   done.forEach((task) => {
     const row = document.createElement('div');
-    row.className = 'task-row done-row' + (task.id === state.justChangedId ? ' is-entering' : '');
-    row.tabIndex = 0;
+    row.className = 'task-row done-row' + (task.movedAt && Date.now() - task.movedAt < 8000 ? ' is-landed' : '');
+    row.dataset.taskId = task.id;
+    row.setAttribute('role', 'listitem');
     const dot = createStatusCheck(task);
-    const title = document.createElement('span');
+    const title = document.createElement('button');
+    title.type = 'button';
     title.className = 'task-row-title is-done';
     title.textContent = task.title;
     const when = document.createElement('span');
@@ -472,9 +491,6 @@ export function renderDonePage() {
     undo.textContent = 'Mark not done';
     reopenWithConfirm(undo, task);
     row.addEventListener('click', () => openTaskDialog(task));
-    row.addEventListener('keydown', (e) => {
-      if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTaskDialog(task); }
-    });
     row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), when, undo);
     host.appendChild(row);
   });
@@ -500,8 +516,11 @@ export function updateOverview() {
   sumOverdue.textContent = `${overdue} overdue`;
   sumOverdue.hidden = overdue === 0;
   const badge = document.querySelector('#nav-badge');
-  badge.textContent = open.length;
+  badge.textContent = open.length ? String(open.length) : '';
   badge.hidden = open.length === 0;
+  // The badge is the tile's visible text too, so the accessible name has to follow the count
+  // (WCAG 2.5.3 label in name); it is written here because this is the badge's only writer.
+  document.querySelector('#nav-admin').setAttribute('aria-label', open.length === 0 ? 'Admin' : 'Admin ' + open.length);
   document.querySelector('#page-my-tasks').classList.toggle('is-blank', myTasks.length === 0);
 }
 const notesTextCache = new WeakMap();
@@ -520,15 +539,18 @@ function matchesClassSearch(task, q) {
 export function createTaskRow(task) {
   const row = document.createElement('div');
   row.className = 'task-row';
-  row.tabIndex = 0;
   row.dataset.taskId = task.id;
+  row.setAttribute('role', 'listitem');
 
   // Checkbox: empty = not started, minus = in progress, check = done
   const check = createStatusCheck(task);
   if (task.id === state.justChangedId) row.classList.add('is-entering');
   if (isEditable(task) && state.changedIds.has(task.id)) row.classList.add('is-changed');
 
-  const title = document.createElement('span');
+  // The row itself is no longer a tab stop: a focusable div with no role announced nothing. The title
+  // is the row's control and the click still opens from anywhere in the row (the click bubbles).
+  const title = document.createElement('button');
+  title.type = 'button';
   title.className = 'task-row-title'
     + (task.title === 'New Task' ? ' is-ghost' : '')
     + (task.status === 'done' ? ' is-done' : '');
@@ -536,8 +558,21 @@ export function createTaskRow(task) {
 
   const due = document.createElement('span');
   const overdue = task.dueDate && task.status !== 'done' && task.isOverdue();
-  due.className = 'task-row-due' + (overdue ? ' is-overdue' : '');
-  due.textContent = task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel();
+  // Same rule as the board badge (within 3 days): amber, with the words "Due today" / "Due tomorrow" / "In 2 days" doing the work, so colour is never the only cue.
+  const soon = !!task.dueDate && task.status !== 'done' && !overdue && dayDiff(task.dueDate) <= 3;
+  due.className = 'task-row-due' + (overdue ? ' is-overdue' : soon ? ' is-due-soon' : '');
+  const dueLabel = document.createElement('span');
+  dueLabel.textContent = task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel();
+  if (task.dueDate) {
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('class', 'i');
+    icon.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '#i-' + (overdue ? 'alarm-clock' : 'calendar'));
+    icon.appendChild(use);
+    due.append(icon);
+  }
+  due.append(dueLabel);
   if (task.status !== 'done') due.title = task.getDueShort();
 
   const del = document.createElement('button');
@@ -549,12 +584,6 @@ export function createTaskRow(task) {
 
   row.append(check, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
   row.addEventListener('click', () => openTaskDialog(task, null, false));
-  row.addEventListener('keydown', (e) => {
-    if (e.target === row && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      openTaskDialog(task, null, false);
-    }
-  });
   return row;
 }
 export function renderTaskList() {
@@ -594,14 +623,8 @@ export function renderAllTasks() {
   renderPastPage();
   calendar.renderCalendar();
   updateOverview();
-  if (state.staggerNext) {
-    document.querySelectorAll('.kanban-board .task-card, .task-list .task-row').forEach((el, i) => {
-      el.classList.add('is-entering');
-      el.style.animationDelay = `${Math.min(i, 8) * 40}ms`;
-    });
-    state.staggerNext = false;
-  }
   state.justChangedId = null;
+  motion.play();
   
 }
 // Title is a one-line-looking textarea that grows with its content
@@ -610,7 +633,7 @@ export function fitDialogTitle() {
   dom.dialogTitleInput.style.height = dom.dialogTitleInput.scrollHeight + 'px';
 }
 export function updateDialogDue(task) {
-  dom.dialogDateBtn.textContent = task.getDueShort();
+  dom.dialogDateBtn.textContent = task.dueDate ? task.getDueShort() : 'Add due date';
   dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
   dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
   dom.dialogDateBtn.classList.toggle('empty-value', !task.dueDate);
@@ -969,7 +992,7 @@ export function handleDrop(e) {
       setStatus(task, newStatus);
       renderAllTasks();
       if (newStatus === 'done') {
-        showToast(statusChangeMessage('done'), 'Undo', () => restoreProgress(task.id, prev));
+        showToast(doneMessage(), 'Undo', () => restoreProgress(task.id, prev));
       }
     }
   }
@@ -978,7 +1001,7 @@ export function handleDrop(e) {
 }
 export const SUBJECTS = {
   GENSCI: 'bg-cyan', GENMATH: 'bg-pink', PKLP: 'bg-sunglow', EFFCOM: 'bg-green',
-  MABKOM: 'bg-sand', PERDEV: 'bg-yellow', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
+  MABKOM: 'bg-sand', PERDEV: 'bg-teal', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
 };
 export const STATUS_ORDER = ['not_started', 'in_progress', 'done'];
 export function ensureStatusPopover() {
@@ -986,6 +1009,7 @@ export function ensureStatusPopover() {
   const el = document.createElement('div');
   el.className = 'status-dropdown status-popover';
   el.setAttribute('role', 'listbox');
+  el.setAttribute('aria-label', 'Status');
   el.hidden = true;
   STATUS_ORDER.forEach((status) => {
     const opt = document.createElement('button');
@@ -998,6 +1022,7 @@ export function ensureStatusPopover() {
       if (!state.statusPopoverTask) return;
       const picked = state.statusPopoverTask;
       const next = opt.dataset.status;
+      const pickedFrom = statusPopoverAnchor;
       if (isReopen(picked, next)) {
         closeStatusPopover();
         confirmReopen(picked, next, () => {
@@ -1014,8 +1039,9 @@ export function ensureStatusPopover() {
       if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
       closeStatusPopover();
       renderAllTasks();
+      focusStatusTrigger(picked, pickedFrom);
       if (opt.dataset.status === 'done') {
-        showToast(statusChangeMessage('done'), 'Undo', () => restoreProgress(picked.id, prev));
+        showToast(doneMessage(), 'Undo', () => restoreProgress(picked.id, prev));
       }
     });
     el.appendChild(opt);
@@ -1024,27 +1050,54 @@ export function ensureStatusPopover() {
   state.statusPopoverEl = el;
   return el;
 }
-export function closeStatusPopover() {
+// The control that opened the popover. Kept here so closing can reset aria-expanded and hand focus back.
+let statusPopoverAnchor = null;
+function paintStatusPopover() {
+  const task = state.statusPopoverTask;
+  [...state.statusPopoverEl.children].forEach((opt, i) => {
+    opt.classList.toggle('is-active', i === state.statusPopoverIndex);
+    opt.setAttribute('aria-selected', String(!!task && opt.dataset.status === task.status));
+  });
+}
+// A pick re-renders the lists, so the old trigger is gone: find the task's new visible check, or the dialog button.
+function focusStatusTrigger(task, anchor) {
+  if (anchor && anchor.isConnected && anchor.getClientRects().length) { anchor.focus(); return; }
+  const next = [...document.querySelectorAll(`[data-task-id="${task.id}"] .status-check`)].find((el) => el.getClientRects().length);
+  if (next) next.focus();
+}
+export function closeStatusPopover(refocus = false) {
   if (!state.statusPopoverEl) return;
+  const anchor = statusPopoverAnchor;
   state.statusPopoverEl.hidden = true;
   state.statusPopoverTask = null;
+  statusPopoverAnchor = null;
+  if (anchor) anchor.setAttribute('aria-expanded', 'false');
+  if (refocus && anchor && anchor.isConnected) anchor.focus();
 }
 export function openStatusPopover(task, anchorEl) {
   const el = ensureStatusPopover();
   state.statusPopoverTask = task;
   state.statusPopoverIndex = STATUS_ORDER.indexOf(task.status);
-  [...el.children].forEach((opt, i) => opt.classList.toggle('is-active', i === state.statusPopoverIndex));
+  statusPopoverAnchor = anchorEl;
+  anchorEl.setAttribute('aria-haspopup', 'listbox');
+  anchorEl.setAttribute('aria-expanded', 'true');
+  paintStatusPopover();
   const rect = anchorEl.getBoundingClientRect();
   el.hidden = false;
   const { top, left } = clampPopoverPosition(rect, el.offsetWidth, el.offsetHeight, window.innerWidth, window.innerHeight);
   el.style.top = `${top}px`;
   el.style.left = `${left}px`;
+  // Real focus moves into the list, so a screen reader announces the option and its selected state.
+  el.children[state.statusPopoverIndex].focus();
 }
 export function createStatusCheck(task) {
   const check = document.createElement('button');
   check.type = 'button';
-  check.className = `status-check is-${task.status.replace(/_/g, '-')}` + (task.id === state.justChangedId ? ' is-popping' : '');
-  check.setAttribute('aria-label', 'Change status');
+  check.className = `status-check is-${task.status.replace(/_/g, '-')}` + '';
+  // Names the task and its current status: "Read chapter 3: Not started. Change status".
+  check.setAttribute('aria-label', `${task.title}: ${STATUS_LABELS[task.status] || task.status}. Change status`);
+  check.setAttribute('aria-haspopup', 'listbox');
+  check.setAttribute('aria-expanded', 'false');
   check.innerHTML = task.status === 'done' ? '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>'
     : task.status === 'in_progress' ? '<svg class="i" aria-hidden="true"><use href="#i-minus"/></svg>' : '';
   check.addEventListener('click', (e) => {
@@ -1058,7 +1111,7 @@ export function updateDialogSubject(task) {
   dom.dialogSubjectBtn.innerHTML = '';
   dom.dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
   if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
-  else dom.dialogSubjectBtn.textContent = 'Empty';
+  else dom.dialogSubjectBtn.textContent = 'Add subject';
   dom.dialogSubjectDropdown.hidden = true;
 }
 export function selectSubject(code) {
@@ -1220,13 +1273,15 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (!state.statusPopoverEl || state.statusPopoverEl.hidden) return;
-  if (e.key === 'Escape') { closeStatusPopover(); return; }
+  if (e.key === 'Escape') { closeStatusPopover(true); return; }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
     state.statusPopoverIndex = (state.statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
-    [...state.statusPopoverEl.children].forEach((opt, i) => opt.classList.toggle('is-active', i === state.statusPopoverIndex));
+    paintStatusPopover();
+    state.statusPopoverEl.children[state.statusPopoverIndex].focus();
   }
-  if (e.key === 'Enter') { state.statusPopoverEl.children[state.statusPopoverIndex].click(); }
+  // A focused option activates itself on Enter; only click from here when focus is elsewhere.
+  if (e.key === 'Enter' && !state.statusPopoverEl.contains(document.activeElement)) { state.statusPopoverEl.children[state.statusPopoverIndex].click(); }
 });
 [''].concat(Object.keys(SUBJECTS)).forEach((code) => {
   const opt = document.createElement('button');

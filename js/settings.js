@@ -16,11 +16,11 @@
 // overlay, reset start/cancel/input/submit, then the document-level Escape), which is the order
 // the Escape chain relies on (docs/p6-architecture-findings.md 5).
 //
-// D6: this module never imports logic.js and never reads a bare global. `$`, setSidebarOpen,
-// hideAnimated, phoneQuery, adminHint, signIn, showToast, JSON_POST, SIDEBAR_KEY, ADMIN_KEY and
-// SIGNED_OUT_KEY arrive through init(deps) - all of them are declared above the call site in
-// app.js, so they can be passed by value; phoneQuery is a MediaQueryList and the module only reads
-// .matches when closeSettings runs. `state`, `dom` and `KEYS` are module imports, not globals. The
+// D6: this module never imports logic.js and never reads a bare global. `$`, hideAnimated,
+// adminHint, signIn, showToast, JSON_POST, SIDEBAR_KEY, ADMIN_KEY and SIGNED_OUT_KEY arrive
+// through init(deps) - all of them are declared above the call site in app.js, so they can be
+// passed by value. `state`, `dom` and `KEYS` are module imports, not globals. The
+// localStorage keys and value shapes are untouched: class_tasks_theme stays 'light'/'dark', the
 // localStorage keys and value shapes are untouched: class_tasks_theme stays 'light'/'dark', the
 // reset keeps exactly class_tasks_theme, SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY and KEYS.cache,
 // and the login/logout handlers still write ADMIN_KEY and SIGNED_OUT_KEY.
@@ -35,9 +35,7 @@ import { dom } from './dom.js';
 import { KEYS } from './util.js';
 
 let $ = null;                 // app.js's querySelector shorthand, used by the panel's rows
-let setSidebarOpen = null;    // app.js: openSettings closes the phone sidebar first
 let hideAnimated = null;      // app.js: closeSettings and the reset flow hide the overlay animated
-let phoneQuery = null;        // app.js: matchMedia('(max-width: 720px)'); closeSettings reads .matches
 let adminHint = null;         // app.js: openSettings offers the sign-in row only when a hint is stored
 let signIn = null;            // app.js: the sign-in row's Basic Auth login
 let showToast = null;         // app.js: the logout, login and reset failure messages
@@ -46,12 +44,32 @@ let SIDEBAR_KEY = null;       // app.js: the sidebar key the reset keeps
 let ADMIN_KEY = null;         // app.js: the admin flag key the reset keeps and the login row writes
 let SIGNED_OUT_KEY = null;    // app.js: the deliberate-logout key the reset keeps and logout writes
 
-// Theme
-function applyTheme(theme) {
+// Theme. The saved choice is 'light', 'dark' or nothing (= System). The head script in index.html
+// sets the first paint; after that the top-bar toggle and Settings > Appearance both go through here.
+const THEME_COLOR = { light: '#F4EFE2', dark: '#0F1226' };
+const systemQuery = window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
+function savedChoice() {
+  try { const v = localStorage.getItem('class_tasks_theme'); return v === 'light' || v === 'dark' ? v : 'system'; } catch (e) { return 'system'; }
+}
+function applyChoice(choice) {
+  const theme = choice !== 'system' ? choice : (systemQuery && systemQuery.matches ? 'light' : 'dark');
   document.documentElement.dataset.theme = theme;
-  document.getElementById('meta-theme-color')?.setAttribute('content', theme === 'light' ? '#EBEEF2' : '#0D0F14');
+  document.getElementById('meta-theme-color')?.setAttribute('content', THEME_COLOR[theme]);
   dom.themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-  try { localStorage.setItem('class_tasks_theme', theme); } catch (e) {}
+  return theme;
+}
+function paintThemeChoice() {
+  const choice = savedChoice();
+  document.querySelectorAll('#theme-seg [data-theme-choice]').forEach((b) => {
+    const on = b.dataset.themeChoice === choice;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+function setChoice(choice) {
+  try { choice === 'system' ? localStorage.removeItem('class_tasks_theme') : localStorage.setItem('class_tasks_theme', choice); } catch (e) {}
+  applyChoice(choice);
+  paintThemeChoice();
 }
 
 // --- Settings and reset ---
@@ -68,8 +86,8 @@ function showResetConfirm(show, focus = true) {
 }
 
 function openSettings() {
-  setSidebarOpen(false, false);
   showResetConfirm(false, false);
+  paintThemeChoice();
   $('#settings-logout-row').hidden = !state.isAdmin;
   $('#settings-login-row').hidden = state.isAdmin || !adminHint();
   dom.settingsOverlay.classList.remove('is-closing');
@@ -80,7 +98,7 @@ function openSettings() {
 
 export function closeSettings() {
   hideAnimated(dom.settingsOverlay);
-  (phoneQuery.matches ? dom.mobileMenu : dom.settingsOpen).focus();
+  dom.settingsOpen.focus();
 }
 
 function resetLocalData() {
@@ -121,9 +139,7 @@ async function logoutAdmin() {
 // register in their original source order: the theme toggle first, then the settings panel.
 export function init(deps) {
   $ = deps.$;                                 // the panel's rows
-  setSidebarOpen = deps.setSidebarOpen;       // openSettings closes the phone sidebar first
   hideAnimated = deps.hideAnimated;           // closeSettings and the reset flow hide the overlay
-  phoneQuery = deps.phoneQuery;               // closeSettings restores focus on the phone
   adminHint = deps.adminHint;                 // openSettings decides whether to offer sign-in
   signIn = deps.signIn;                       // the sign-in row
   showToast = deps.showToast;                 // logout, login and reset failure messages
@@ -133,11 +149,15 @@ export function init(deps) {
   SIGNED_OUT_KEY = deps.SIGNED_OUT_KEY;       // the reset's keep-set, and logout writes it
   // Built here, not at module-eval time: the keep-set needs app.js's three storage keys.
   RESET_KEEP = new Set(['class_tasks_theme', SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY, KEYS.cache]);
-dom.themeToggle.setAttribute('aria-label',
-  document.documentElement.dataset.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+applyChoice(savedChoice());
 dom.themeToggle.addEventListener('click', () => {
-  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  setChoice(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 });
+$('#theme-seg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-theme-choice]');
+  if (b) setChoice(b.dataset.themeChoice);
+});
+if (systemQuery) systemQuery.addEventListener('change', () => { if (savedChoice() === 'system') applyChoice('system'); });
 dom.settingsOpen.addEventListener('click', openSettings);
 
 $('#settings-logout').addEventListener('click', logoutAdmin);

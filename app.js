@@ -15,6 +15,7 @@ import * as transfer from './js/transfer.js';
 import * as announcements from './js/announcements.js';
 import * as publish from './js/publish.js';
 import * as tasks from './js/tasks.js';
+import * as motion from './js/motion.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -156,6 +157,7 @@ function showUpdateNotice(items, onDismiss) {
   ok.focus();
 }
 
+let firstBoardPaint = false;
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
@@ -183,6 +185,7 @@ async function loadPublished() {
   setPublished(board);
   checkUpdateNotice(state.liveBoard);
   tasks.pruneProgress(state.liveBoard);
+  if (!firstBoardPaint) { firstBoardPaint = true; motion.init(); motion.enter(); }   // the board arrives once
   tasks.renderAllTasks();
   announcements.renderAnnouncements();
 }
@@ -527,10 +530,10 @@ document.addEventListener('click', (e) => {
 
 // --- Navigation and routing: js/nav.js (slice 2.4) ----------------------------------------------
 // The moved listeners register here, exactly where they used to, so their order against the other
-// element and document listeners on this page is unchanged (the Escape chain depends on it), and
-// the phone-sidebar media query is built at the same point. setPage and setSidebarOpen moved with
-// them: the nav-item listeners, the deep-link handler, app.js's own call sites and the quick-add,
-// settings and tour init deps now reach them as nav.setPage / nav.setSidebarOpen. `pageFromHash`
+// element and document listeners on this page is unchanged (the Escape chain depends on it). The
+// phone breakpoint now lives in styles.css alone (max-width: 719px). setPage moved with them: the
+// nav-item listeners, the deep-link handler, app.js's own call sites and the quick-add, settings
+// and tour init deps now reach it as nav.setPage. `pageFromHash`
 // is the logic.js import above; `setPreview` is js/publish.js's export below, so passing it by value
 // is safe (quickAdd.init already passes renderAllTasks the same way).
 nav.init({
@@ -571,10 +574,9 @@ dom.dialogDuplicate.addEventListener('click', () => {
 // order against the publish/history Escape handler above and the tour listeners below is unchanged.
 // The theme toggle moved here too (its block sat next to the new-task button); it is the only
 // listener on #theme-toggle, so its later registration competes with nothing. Every dep is declared
-// above this point, so it can be passed by value - phoneQuery is a MediaQueryList and the module only
-// reads .matches when closeSettings runs.
+// above this point, so it can be passed by value.
 settings.init({
-  $, setSidebarOpen: nav.setSidebarOpen, hideAnimated, phoneQuery: nav.phoneQuery, adminHint, signIn, showToast: tasks.showToast,
+  $, hideAnimated, adminHint, signIn, showToast: tasks.showToast,
   JSON_POST, SIDEBAR_KEY: nav.SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY,
 });
 
@@ -585,7 +587,7 @@ settings.init({
 // the hub functions the module still calls.
 tour.init({
   $, STATUS_LABELS, STATUS_ORDER: tasks.STATUS_ORDER, createSubjectTag,
-  setPreview: publish.setPreview, setPage: nav.setPage, setSidebarOpen: nav.setSidebarOpen, hideAnimated, closeSettings: settings.closeSettings,
+  setPreview: publish.setPreview, setPage: nav.setPage, hideAnimated, closeSettings: settings.closeSettings,
 });
 
 // --- Transfer and import: js/transfer.js (slice 2.4) --------------------------------------------
@@ -624,7 +626,17 @@ document.addEventListener('keydown', (e) => {
 
 // --- Initialization ---
 
+// Skip link: jumps to the page content without touching the location hash (the hash is the router).
+function initSkipLink() {
+  const link = document.querySelector('#skip-link');
+  const main = document.querySelector('main');
+  if (!link || !main) return;
+  main.tabIndex = -1;
+  link.addEventListener('click', (e) => { e.preventDefault(); main.focus({ preventScroll: false }); });
+}
+
 function init() {
+  initSkipLink();
   tasks.loadTasks();
   announcements.renderAnnouncements();
   ['class', 'admin'].forEach((scope) => {
@@ -633,7 +645,6 @@ function init() {
     setView(scope, v === 'list' || v === 'board' ? v : VIEW_DEFAULTS[scope], false);
   });
   tasks.showSkeletons();
-  state.staggerNext = true;
   loadPublished();
   setInterval(loadPublished, 300000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadPublished(); });

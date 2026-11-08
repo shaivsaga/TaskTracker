@@ -36,7 +36,6 @@ export const state = {
   searchQuery: '',
   classSearchQuery: '',
   justChangedId: null,
-  staggerNext: false,
   statusPopoverEl: null,
   statusPopoverTask: null,
   statusPopoverIndex: 0,

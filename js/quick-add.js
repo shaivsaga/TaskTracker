@@ -233,7 +233,8 @@ function submitQuickAdd(openDetails) {
   const task = new Task({ title: p.title, subject: p.subject, dueDate: p.dueDate, dueTime: p.dueTime });
   myTasks.push(task);
   if (p.status !== 'not_started') setStatus(task, p.status);
-  else { state.justChangedId = task.id; saveTasks(); }
+  else saveTasks();
+  state.justChangedId = task.id;   // a new task arrives (is-entering); nothing else enters
   closeDuePicker();
   hideAnimated(dom.quickOverlay, 120);
   if (state.searchQuery) { state.searchQuery = ''; document.querySelector('#task-search').value = ''; }

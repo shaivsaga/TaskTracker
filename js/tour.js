@@ -7,7 +7,7 @@
 //
 // D6: this module never imports logic.js and never reads a bare global. `$` (app.js's
 // document.querySelector shorthand), the STATUS_LABELS map from logic.js, STATUS_ORDER,
-// createSubjectTag, setPreview, setPage, setSidebarOpen, hideAnimated and closeSettings arrive
+// createSubjectTag, setPreview, setPage, hideAnimated and closeSettings arrive
 // through init(deps), which app.js calls at the spot the moved listeners used to occupy.
 //
 // tourIndex/tourTimer/tourSampleStatus stay in js/state.js (slice 2.1) and are read and written
@@ -28,7 +28,6 @@ let STATUS_ORDER = null;      // app.js: the three statuses the sample picker of
 let createSubjectTag = null;  // app.js: the sample card's subject chip
 let setPreview = null;        // app.js: startTour leaves admin preview
 let setPage = null;           // app.js: startTour switches to the class tasks page
-let setSidebarOpen = null;    // app.js: startTour closes the phone sidebar
 let hideAnimated = null;      // app.js: endTour hides the overlay
 let closeSettings = null;     // app.js: the Settings replay button closes Settings first
 // --- Phase 5: first-time tutorial. Sample content lives only inside the overlay: never in progress, the draft or the board. ---
@@ -36,18 +35,23 @@ const TOUR_KEY = 'class_tasks_tour_seen';
 const tourVisible = (el) => (el && el.getClientRects().length ? el : null);
 const TOUR_STEPS = [
   { title: 'Welcome to TaskTracker', body: 'A quick tour of how the class board works. It takes under a minute and you can skip it at any time.' },
-  { title: 'Assignments from your class', body: 'Tasks posted for the class appear here, as a list or a board. Tap a task to open its notes and links.',
+  { title: 'Tasks from your class', body: 'Tasks posted for the class appear here, as a list or a board. Tap a task to open its notes and links.',
+    phoneBody: 'Tasks posted for the class appear here as a list, soonest due first. Tap a task to open its notes and links.',
     target: () => tourVisible($('#class-board:not([hidden])')) || tourVisible($('#class-task-list:not([hidden])')) },
   { title: 'Track your own progress', body: 'Tap the box on a task and pick not started, in progress or done. Try it on this sample. Nothing here is saved.', sample: true },
   { title: 'Search', body: 'Search by title, subject code or words inside the notes.',
     target: () => tourVisible($('#page-class-tasks .search')) },
   { title: 'List or board', body: 'Switch between a simple list and a three-column board. The app remembers your choice.',
+    phoneBody: 'On a phone, tasks stay in one simple list. On a bigger screen you can switch to a three-column board.',
     target: () => tourVisible($('#page-class-tasks .view-tabs')) },
-  { title: 'You are set', body: 'Your progress is saved in this browser only. Completed tasks and Calendar are in the sidebar menu. You can replay this tour from Settings.' },
+  { title: 'You are set', body: 'Your progress is saved in this browser only. Calendar, Done and Past are in the navigation bar. You can replay this tour from Settings.' },
 ];
 
 export function tourSeen() { try { return localStorage.getItem(TOUR_KEY) === '1'; } catch (e) { return true; } }
 const tourTarget = () => { const s = TOUR_STEPS[state.tourIndex]; return s && s.target ? s.target() : null; };
+// A step may carry its own phone copy; phones get a single list and no Board/List switch.
+const tourIsPhone = () => window.matchMedia('(max-width: 719px)').matches;
+const tourBody = (step) => (step.phoneBody && tourIsPhone() ? step.phoneBody : step.body);
 
 function renderTourSample() {
   const s = state.tourSampleStatus;
@@ -156,7 +160,7 @@ function showTourStep(i) {
   const last = i === TOUR_STEPS.length - 1;
   $('#tour-step').textContent = `Step ${i + 1} of ${TOUR_STEPS.length}`;
   $('#tour-title').textContent = step.title;
-  $('#tour-body').textContent = step.body;
+  $('#tour-body').textContent = tourBody(step);
   dom.tourSample.hidden = !step.sample;
   if (step.sample) { state.tourSampleStatus = 'not_started'; renderTourSample(); }
   $('#tour-back').hidden = i === 0;
@@ -172,7 +176,6 @@ export function startTour() {
   if (!dom.tourOverlay.hidden) return;
   if (state.previewing) setPreview(false);
   setPage('class-tasks');
-  setSidebarOpen(false, false);
   dom.tourOverlay._returnFocus = document.activeElement;
   dom.tourOverlay.classList.remove('is-closing');
   dom.tourOverlay.hidden = false;
@@ -203,7 +206,6 @@ export function init(deps) {
   createSubjectTag = deps.createSubjectTag;
   setPreview = deps.setPreview;
   setPage = deps.setPage;
-  setSidebarOpen = deps.setSidebarOpen;
   hideAnimated = deps.hideAnimated;
   closeSettings = deps.closeSettings;
 $('#tour-next').addEventListener('click', () => {
