@@ -201,7 +201,7 @@ Every pinned announcement shows in full on desktop. The collapse is a phone affo
 Icon tabs (top bar on desktop, bottom bar on phones): 48px high, 2px transparent border, Soft Slate icons slightly desaturated (saturate .7). Active tab: Royal Wash fill, Royal border and a 2px blue underline. Admin is a solid blue tab raised 4px on a 4px ledge. Badges are 20px Royal squares in pixel type (red for overdue counts). Labels sit beside the icons from 720px (720 to 819px uses tighter padding and a 16px bar inset); on phones the bar shows labels under the icons. Phone order: Tasks, Calendar, Admin (centre, president only), Done, Past. Settings sits in a fixed top-right 44px button, and the theme toggle is hidden on phones (Settings > Appearance: System, Light, Dark). Admin is not raised on phones.
 
 ### Admin Bar
-Save (secondary) and Publish (primary) lead; Preview as student, History and Discard changes sit in a native `<details>` "More" menu (2px border, 4px ledge). "Publish" is the single verb for releasing to the class. The public list on Tasks is headed "Pinned"; the admin composer is headed "Announcements".
+Save (secondary) and Publish (primary) close the row; Preview as student, History and Discard changes sit directly beside them as text buttons, one press away, wrapping inside the 64px bar on phones (44px targets). "Publish" is the single verb for releasing to the class. The public list on Tasks is headed "Pinned"; the admin composer is headed "Announcements".
 
 ### Icons
 Two icon languages, on purpose: pixel sprites for navigation and theme controls, and 1.75-stroke square-cap line SVGs inside pages (search, pin, trash, chevrons). In forced-colors mode every tab shows its label and the active tab takes a Highlight outline.

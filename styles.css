@@ -814,14 +814,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 }
 /* [[/section:a11y]] */
 
-/* Admin: Preview, History and Discard live in a native <details> menu so Save and Publish lead. */
-.admin-more { position: relative; }
-.admin-more > summary { list-style: none; }
-.admin-more > summary::-webkit-details-marker { display: none; }
-/* Anchored to the button's left edge: right-anchored, the 200px menu opened 112px past the left edge
-   of a 320px screen (the button is the first of the three actions). */
-.admin-more-menu { position: absolute; left: 0; right: auto; top: calc(100% + 4px); z-index: 5; display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 200px; padding: 8px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
-@media (max-width: 719px) { .admin-more > summary, .admin-more-menu .text-button { min-height: 44px; } }
+/* Admin actions are one flat row of buttons: no menu to open, so Preview, History and Discard are one
+   press away. The row wraps inside the bar and the phone gets 44px targets. */
+@media (max-width: 719px) { .admin-actions .text-button { height: 44px; } }
 
 /* Forced colors: sprite colors are not ours to control there, so labels carry every tab and the
    active tab is marked with the system highlight. */
