@@ -17,13 +17,14 @@
 // the Escape chain relies on (docs/p6-architecture-findings.md 5).
 //
 // D6: this module never imports logic.js and never reads a bare global. `$`, hideAnimated,
-// adminHint, signIn, showToast, JSON_POST, SIDEBAR_KEY, ADMIN_KEY and SIGNED_OUT_KEY arrive
+// adminHint, signIn, showToast, JSON_POST, ADMIN_KEY and SIGNED_OUT_KEY arrive
 // through init(deps) - all of them are declared above the call site in app.js, so they can be
 // passed by value. `state`, `dom` and `KEYS` are module imports, not globals. The
 // localStorage keys and value shapes are untouched: class_tasks_theme stays 'light'/'dark', the
-// localStorage keys and value shapes are untouched: class_tasks_theme stays 'light'/'dark', the
-// reset keeps exactly class_tasks_theme, SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY and KEYS.cache,
-// and the login/logout handlers still write ADMIN_KEY and SIGNED_OUT_KEY.
+// reset keeps exactly class_tasks_theme, the literal class_tasks_sidebar key, ADMIN_KEY,
+// SIGNED_OUT_KEY and KEYS.cache, and the login/logout handlers still write ADMIN_KEY and
+// SIGNED_OUT_KEY. The sidebar key is a literal here because its export in js/nav.js was removed
+// with the inline sidebar boot script; keeping it in the keep-set preserves stored values.
 //
 // Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
 // evaluation time, so
@@ -40,7 +41,6 @@ let adminHint = null;         // app.js: openSettings offers the sign-in row onl
 let signIn = null;            // app.js: the sign-in row's Basic Auth login
 let showToast = null;         // app.js: the logout, login and reset failure messages
 let JSON_POST = null;         // app.js: the logout request's POST options
-let SIDEBAR_KEY = null;       // app.js: the sidebar key the reset keeps
 let ADMIN_KEY = null;         // app.js: the admin flag key the reset keeps and the login row writes
 let SIGNED_OUT_KEY = null;    // app.js: the deliberate-logout key the reset keeps and logout writes
 
@@ -75,7 +75,7 @@ function setChoice(choice) {
 // --- Settings and reset ---
 const RESET_PHRASE = 'RESET';
 // Kept on reset: appearance, sign-in state, and the cached copy of the published board.
-let RESET_KEEP = null;   // built in init(): the keep-set needs app.js's three storage keys
+let RESET_KEEP = null;   // built in init(): a literal key plus app.js's three storage keys
 
 function showResetConfirm(show, focus = true) {
   dom.resetForm.hidden = !show;
@@ -144,11 +144,12 @@ export function init(deps) {
   signIn = deps.signIn;                       // the sign-in row
   showToast = deps.showToast;                 // logout, login and reset failure messages
   JSON_POST = deps.JSON_POST;                 // the logout request's POST options
-  SIDEBAR_KEY = deps.SIDEBAR_KEY;             // the reset's keep-set
   ADMIN_KEY = deps.ADMIN_KEY;                 // the reset's keep-set, and the login row writes it
   SIGNED_OUT_KEY = deps.SIGNED_OUT_KEY;       // the reset's keep-set, and logout writes it
-  // Built here, not at module-eval time: the keep-set needs app.js's three storage keys.
-  RESET_KEEP = new Set(['class_tasks_theme', SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY, KEYS.cache]);
+  // Built here, not at module-eval time: the keep-set needs app.js's three storage keys. The sidebar
+  // key is a literal: its nav.js export was removed with the inline sidebar boot script, but any
+  // legacy value stored under it must still survive a reset.
+  RESET_KEEP = new Set(['class_tasks_theme', 'class_tasks_sidebar', ADMIN_KEY, SIGNED_OUT_KEY, KEYS.cache]);
 applyChoice(savedChoice());
 dom.themeToggle.addEventListener('click', () => {
   setChoice(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');

@@ -1,5 +1,6 @@
 /* [[section:tokens]] */
-/* Design tokens: the frozen mockup's light and dark blocks, value for value (D10).
+/* Design tokens: the frozen mockup's light block value for value (D10); the dark block follows it
+   too, with the approved --ln/--sh night values (Rule Tan #434C8F) as the documented dark exceptions.
    These twenty names are the whole token vocabulary of Phase 3 - no app-only token survives (D9/D10). */
 @font-face { font-family: 'Plus Jakarta Sans'; font-weight: 200 800; font-display: swap; src: url(assets/fonts/plus-jakarta-sans.woff2) format('woff2'); }
 @font-face { font-family: 'Press Start 2P'; font-weight: 400; font-display: swap; src: url(assets/fonts/press-start-2p.woff2) format('woff2'); }

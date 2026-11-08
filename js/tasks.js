@@ -59,6 +59,29 @@ let publish = null;
 
 // --- Moved verbatim from app.js ----------------------------------------------------------------
 const findTask = (id) => [...myTasks, ...state.publishedTasks].find((t) => t.id === id);
+// A control the user can actually land on: laid out, not inside a hidden page or a closed popover.
+// Rows themselves are not tab stops, so returning focus to one leaves it on <body>.
+const isLiveControl = (el) => !!(el && el.isConnected && el.getClientRects().length && !el.closest('[hidden]'));
+// Renders rebuild the row or card that opened the dialog/confirm, so its old element is gone. Find
+// the same task's replacement title first (the only row-opening tab stop), then its status control.
+function focusTaskControl(taskId) {
+  const scope = `[data-task-id="${CSS.escape(String(taskId))}"]`;
+  for (const sel of ['button.task-row-title', 'button.task-title-open', 'button.status-check']) {
+    const el = [...document.querySelectorAll(`${scope} ${sel}`)].find(isLiveControl);
+    if (el) { el.focus(); return el; }
+  }
+  return null;
+}
+// Last resort after a task leaves the visible page (e.g. reopened from Done): the active nav tile is
+// a meaningful, visible control, never the hidden page, a closed popover or <body>.
+function focusFallbackControl() {
+  const nav = [...document.querySelectorAll('.nav-item[aria-current="page"], .nav-item.is-active')].find(isLiveControl);
+  if (nav) { nav.focus(); return nav; }
+  const first = [...document.querySelectorAll('button, a[href], input, textarea, select')]
+    .find((el) => isLiveControl(el) && el.tabIndex >= 0 && !el.disabled);
+  if (first) { first.focus(); return first; }
+  return null;
+}
 export function applyProgress(list) {
   list.forEach((t) => { const p = state.progress[t.id]; t.status = p ? p.status : 'not_started'; t.movedAt = p ? p.movedAt : 0; });
 }
@@ -90,7 +113,7 @@ function ensureConfirmDialog() {
   return overlay;
 }
 // Asks before a Done task is reopened. Runs onConfirm only on an explicit yes.
-function confirmReopen(task, newStatus, onConfirm) {
+function confirmReopen(task, newStatus, onConfirm, openerHint) {
   const overlay = ensureConfirmDialog();
   if (!overlay.hidden) return;
   const okBtn = overlay.querySelector('[data-confirm="ok"]');
@@ -108,8 +131,11 @@ function confirmReopen(task, newStatus, onConfirm) {
     okBtn.onclick = null;
     cancelBtn.onclick = null;
     hideAnimated(overlay);
-    if (opener && opener.isConnected) opener.focus();
-    if (accept) onConfirm();
+    if (accept) onConfirm();   // rebuilds the page first: the opener may not survive it
+    // The option that opened this confirm may be a hidden popover item; only a laid-out control counts.
+    if (isLiveControl(opener) && opener.tabIndex >= 0) opener.focus();
+    else if (isLiveControl(openerHint)) openerHint.focus();
+    else if (!focusTaskControl(task.id)) focusFallbackControl();
   };
   const onKey = (e) => {
     if (e.key === 'Escape') {
@@ -452,6 +478,9 @@ export function reopenWithConfirm(btn, task) {
     const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
     setStatus(task, 'not_started');
     renderAllTasks();
+    // The armed button was just replaced. Move to the task's new control, or a visible fallback when
+    // it left this page (Done), instead of dropping focus onto <body>.
+    if (!focusTaskControl(task.id)) focusFallbackControl();
     showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
   });
 }
@@ -750,8 +779,10 @@ export function closeTaskDialog() {
   const back = state.dialogReturn;
   state.dialogReturn = null;
   if (back) {
-    const target = back.el && back.el.isConnected ? back.el : document.querySelector(`[data-task-id="${CSS.escape(String(back.id))}"]`);
-    if (target) target.focus();
+    // The page was just rebuilt: keep the same control if it survived, otherwise focus the task's
+    // replacement title/status control. The old row fallback was not a tab stop, so focus fell to body.
+    if (isLiveControl(back.el) && back.el.tabIndex >= 0) back.el.focus();
+    else if (!focusTaskControl(back.id)) focusFallbackControl();
   }
 }
 export function openDialogDuePicker(anchor, focus) {
@@ -1025,13 +1056,14 @@ export function ensureStatusPopover() {
       const pickedFrom = statusPopoverAnchor;
       if (isReopen(picked, next)) {
         closeStatusPopover();
+        // The focused option is now hidden; hand the confirm the trigger that is still on screen.
         confirmReopen(picked, next, () => {
           const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
           setStatus(picked, next);
           if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
           renderAllTasks();
           showToast(statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
-        });
+        }, pickedFrom);
         return;
       }
       const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;

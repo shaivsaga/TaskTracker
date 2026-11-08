@@ -84,8 +84,13 @@ Node builtins only, the repo's own fixture served as `data/current.json`, and Mi
 DevTools protocol (Node 22+'s global `WebSocket`), so still no dependency and no build step.
 
 ```
-node tests/e2e/audit.mjs [--root <dir>] [--fixture <file>] [--edge <exe>] [--port 8110]
+node tests/e2e/audit.mjs [--root <dir>] [--fixture <file>] [--edge <exe>] [--port 8110] [--require-browser]
 ```
+
+Each scenario clears the app's own `class_tasks_*` keys before seeding, so no scenario inherits the
+previous one's admin flag or progress, and the requested admin/student mode is asserted after boot. The
+browser clock is frozen to the fixture instant (`FIXTURE_INSTANT`), so seeded progress timestamps and
+the calendar's "today" are identical on every machine.
 
 It boots the real app at 320, 375, 640, 768 and 1280 CSS px (640 is 200% zoom of a 1280 window), in
 both themes where the width is a phone, and checks the things a CSS-less judge cannot see:
@@ -97,12 +102,24 @@ both themes where the width is a phone, and checks the things a CSS-less judge c
 - **names** - every focusable element has an accessible name and none is a bare div/span/article;
 - **lists** - each task list is `role="list"`, every row `role="listitem"`, every row title a button;
 - **keys** - Enter on the title control opens the task dialog and Escape closes it, on board and list;
-- **announce** - every pinned announcement shows on desktop; the phone keeps its one-item collapse;
+- **focus** - closing the dialog, and cancelling or accepting the reopen confirm, leaves focus on a
+  live, visible, named control (that task's rebuilt title or status control); never `<body>`, a hidden
+  page or the closed status popover, including when the reopened task leaves the Done page;
+- **announce** - every pinned announcement shows on desktop; the phone keeps its one-item collapse,
+  and a short multi-line item that is clamped is still offered its toggle after a `pushState` reveal,
+  in both directions (expand, collapse, and a later revisit);
+- **done** - a cold `#done` deep link paints the completed rows already in `localStorage`, at the same
+  count the in-app Done page shows;
 - **delete** - archive Delete arms to "Confirm?" first, then deletes, then Undo restores the row;
 - **themes** - light and dark both come from the stored choice, and no console error appears.
 
-No Edge found exits 0 with `SKIP`, the same way the goldens skip without a harness. It is not named
-`*.test.js` for the same reason: it needs a browser and must not fail a checkout that has none.
+A missing browser is an optional local `SKIP` (exit 0), so a checkout without one still passes; the CI
+job runs the audit with `--require-browser` (or `AUDIT_REQUIRE_BROWSER=1`), which turns a missing
+browser into a failure. A browser that exists but cannot launch always fails, so an installed-but-broken
+Chromium can never turn the gate green. `ubuntu-latest` ships Google Chrome, which the search list
+covers. It is not named `*.test.js` for the same reason as the goldens: it needs a browser.
+`tests/audit-harness.test.js` covers the server and launch boundaries (containment, malformed escapes,
+isolation, the frozen clock, missing/required/broken browser) in `node --test`, without a browser.
 
 ## label-in-name (`label-in-name.mjs`)
 Static WCAG 2.5.3 sweep: for every widget carrying `aria-label`, the element's own visible text must be

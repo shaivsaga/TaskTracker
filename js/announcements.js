@@ -65,11 +65,12 @@ function syncPinned() {
   const collapsed = phone && !pinnedOpen;
   box.classList.toggle('is-empty', items.length === 0);
   box.classList.toggle('is-collapsed', collapsed);
-  // Clipped text can only be measured while the page is on screen; off screen, fall back to length.
+  // Clipped text can only be measured while the page has layout. Off screen the answer is unknown,
+  // so stay conservative and offer the toggle: the app:page-shown remeasure hides it again if the
+  // revealed text is not actually clipped.
   const text = items[0] && items[0].querySelector('.announce-text');
-  const clipped = collapsed && !!text && (box.getClientRects().length
-    ? text.scrollHeight > text.clientHeight + 1
-    : text.textContent.length > 70);
+  const measurable = box.getClientRects().length > 0;
+  const clipped = collapsed && !!text && (measurable ? text.scrollHeight > text.clientHeight + 1 : true);
   toggle.hidden = !items.length || !phone || (collapsed && items.length < 2 && !clipped);
   toggle.setAttribute('aria-expanded', String(collapsed ? 'false' : 'true'));
   toggle.textContent = pinnedOpen ? 'Show less' : (items.length > 1 ? `Show all ${items.length}` : 'Show more');
@@ -275,6 +276,7 @@ document.addEventListener('selectionchange', () => { if (document.activeElement 
 document.querySelector('#announce-toggle').addEventListener('click', () => { pinnedOpen = !pinnedOpen; syncPinned(); });
 window.addEventListener('resize', syncPinned);
 window.addEventListener('hashchange', () => requestAnimationFrame(syncPinned)); // the router: the page may just have appeared
+document.addEventListener('app:page-shown', () => requestAnimationFrame(syncPinned)); // pushState reveal: measure with layout
 if (document.fonts) document.fonts.ready.then(syncPinned); // line breaks change once the body font loads
 
 document.querySelector('#announce-add-btn').addEventListener('click', () => toggleAnnounceForm(dom.announceForm.hidden));
