@@ -611,7 +611,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 }
 .cal-day.is-tappable.is-selected, .cal-day.is-tappable.is-selected:hover { background: var(--acs); box-shadow: inset 0 0 0 2px var(--ac), 0 2px 0 var(--ac); }
 .cal-day.is-tappable:focus-visible { outline-offset: -2px; }
-.cal-dots { display: flex; justify-content: center; gap: 2px; height: 8px; }
+.cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; min-height: 8px; }
 .cal-dots .cal-dot[data-status="done"] { background: transparent; }
 .cal-dots .cal-dot.is-overdue { background: var(--er); outline-color: var(--er); }
 .cal-dots .cal-dot.is-due-soon { background: var(--wn); outline-color: var(--wn); }
