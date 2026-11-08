@@ -127,10 +127,10 @@
 </div>
 
 <!-- #page-my-tasks after submitting "math homework tomorrow 5pm" -->
-<section class="page" id="page-my-tasks" data-page-view="my-tasks" aria-label="My tasks" data-view="board">
+<section class="page" id="page-my-tasks" data-page-view="my-tasks" aria-label="Admin" data-view="board">
   <div class="page-heading">
     <div>
-      <p class="page-supporting-copy">Draft tasks and announcements here. Nothing reaches the class until you apply changes.</p>
+      <p class="page-supporting-copy">Draft tasks and announcements here. Nothing reaches the class until you publish.</p>
     </div>
     <div class="page-actions">
       <label class="search">
@@ -154,20 +154,25 @@
   <div class="admin-bar" id="admin-bar">
     <span class="admin-status" id="admin-status" role="status">Unpublished changes: 27</span>
     <div class="admin-actions">
-      <button class="text-button" type="button" id="btn-preview">Preview as student</button>
-      <button class="text-button" type="button" id="btn-history">History</button>
-      <button class="text-button" type="button" id="btn-discard">Discard changes</button>
+      <details class="admin-more">
+        <summary class="text-button">More</summary>
+        <div class="admin-more-menu">
+          <button class="text-button" type="button" id="btn-preview">Preview as student</button>
+          <button class="text-button" type="button" id="btn-history">History</button>
+          <button class="text-button" type="button" id="btn-discard">Discard changes</button>
+        </div>
+      </details>
       <button class="secondary-button" type="button" id="btn-save">Save</button>
-      <button class="primary-button" type="button" id="btn-apply">Apply changes</button>
+      <button class="primary-button" type="button" id="btn-apply">Publish</button>
     </div>
   </div>
-  <section class="announcements" id="announce-admin" aria-label="Pinned announcements">
+  <section class="announcements" id="announce-admin" aria-label="Announcements">
     <div class="announce-header">
       <h2>
         <svg class="i" aria-hidden="true">
           <use href="#i-pin"></use>
         </svg>
-        Pinned
+        Announcements
       </h2>
       <button class="text-button" type="button" id="announce-add-btn">Post announcement</button>
     </div>
@@ -209,10 +214,15 @@
   </p>
   <div class="task-list" id="task-list" aria-label="Personal task list" hidden="">
     <div class="task-row is-entering is-changed" tabindex="0" data-task-id="8qk5cytv6e">
-      <button type="button" class="status-check is-not-started is-popping" aria-label="Change status"></button>
+      <button type="button" class="status-check is-not-started" aria-label="math homework: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">math homework</span>
       <span></span>
-      <span class="task-row-due" title="Nov 4 · 5:00 PM">Due tomorrow · 5:00 PM</span>
+      <span class="task-row-due is-due-soon" title="Nov 4 · 5:00 PM">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>Due tomorrow · 5:00 PM</span>
+      </span>
       <button type="button" class="task-delete-btn" aria-label="Delete task">
         <svg class="i" aria-hidden="true">
           <use href="#i-trash-2"></use>
@@ -236,10 +246,10 @@
         <span class="column-marker marker-todo" aria-hidden="true"></span>
       </div>
       <div class="column-content">
-        <p class="column-empty" data-default="Hit &quot;New task&quot; to add your first item." hidden="">Hit "New task" to add your first item.</p>
+        <p class="column-empty" data-default="Select &quot;New task&quot; to add your first task." hidden="">Select "New task" to add your first task.</p>
         <article class="task-card is-entering is-changed" data-task-id="8qk5cytv6e" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started is-popping" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="math homework: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">math homework</h3>
             <button class="task-delete-btn" type="button" aria-label="Delete task">
               <svg class="i" aria-hidden="true">
@@ -273,13 +283,13 @@
     <div class="kanban-column" data-status="done">
       <div class="column-header">
         <div>
-          <h2>Submitted / Done</h2>
+          <h2>Done</h2>
           <span class="column-count">(0)</span>
         </div>
         <span class="column-marker marker-done" aria-hidden="true"></span>
       </div>
       <div class="column-content is-empty">
-        <p class="column-empty" data-default="Finished tasks land here.">Finished tasks land here.</p>
+        <p class="column-empty" data-default="Done tasks land here.">Done tasks land here.</p>
       </div>
     </div>
   </div>

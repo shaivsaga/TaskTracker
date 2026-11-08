@@ -1,7 +1,7 @@
 /* [[section:tokens]] */
 /* Design tokens: the frozen mockup's light and dark blocks, value for value (D10).
    These twenty names are the whole token vocabulary of Phase 3 - no app-only token survives (D9/D10). */
-@font-face { font-family: 'Inter'; font-weight: 100 900; font-display: swap; src: url(assets/fonts/inter.woff2) format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-weight: 200 800; font-display: swap; src: url(assets/fonts/plus-jakarta-sans.woff2) format('woff2'); }
 @font-face { font-family: 'Press Start 2P'; font-weight: 400; font-display: swap; src: url(assets/fonts/press-start-2p.woff2) format('woff2'); }
 :root {
   --sheet: url(assets/sprites-light.svg);
@@ -14,9 +14,9 @@
 }
 :root[data-theme="dark"] {
   --sheet: url(assets/sprites-dark.svg);
-  --bg: #0F1226; --sf: #181C3A; --sf2: #20254A; --ln: #2E3466; --tx: #EEF0FF; --mu: #A3ABDF;
+  --bg: #0F1226; --sf: #181C3A; --sf2: #20254A; --ln: #434C8F; --tx: #EEF0FF; --mu: #A3ABDF;
   --ac: #7C9BFF; --acd: #4F6FD6; --acs: #262F66; --onac: #0F1226;
-  --ok: #5BD08A; --wn: #F7CD54; --er: #FF8F85; --sh: #070916; --oa: #0F1226;
+  --ok: #5BD08A; --wn: #F7CD54; --er: #FF8F85; --sh: #434C8F; --oa: #0F1226;
   --wnb: rgba(247,205,84,.14); --erb: rgba(255,143,133,.14); --okb: rgba(91,208,138,.14);
   --pl: rgba(15,18,38,0);
   color-scheme: dark;
@@ -27,7 +27,7 @@
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--bg); }
-body, button, a, input, textarea, select { font-family: Inter, system-ui, sans-serif; }
+body, button, a, input, textarea, select { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
 body { margin: 0; min-height: 100vh; color: var(--tx); background: var(--bg); font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 button, a { font: inherit; }
 a { color: inherit; text-decoration: none; }
@@ -35,6 +35,9 @@ button { border: 0; border-radius: 0; background: none; cursor: pointer; }
 [hidden] { display: none !important; }
 h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 :focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+.skip-link { position: fixed; top: 8px; left: 8px; z-index: 400; padding: 0 16px; height: 44px; display: inline-flex; align-items: center; background: var(--ac); color: var(--onac); font-size: 14px; font-weight: 600; text-decoration: none; transform: translateY(-200%); }
+.skip-link:focus { transform: none; }
+main[tabindex="-1"]:focus { outline: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 /* [[/section:base]] */
 
@@ -48,23 +51,27 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 /* Top bar: sticky, 64px, var(--sf) on a 2px var(--ln) edge (mockup .tb), above the page and below
    every overlay (the dialog overlay is 100, the toast 200). */
 .tb { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 4px; height: 64px; padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left)); background: var(--sf); border-bottom: 2px solid var(--ln); }
-.ib { margin-left: auto; width: 40px; height: 44px; flex: none; display: grid; place-items: center; border: 2px solid var(--ln); background: var(--oa); color: var(--mu); }
+.ib { margin-left: auto; width: 40px; height: 44px; flex: none; display: grid; place-items: center; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); }
 .ib:hover { border-color: var(--ac); }
 .brand { display: flex; align-items: center; gap: 10px; flex: none; padding: 0 4px; }
-.brand b { display: none; font: 400 10px/16px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
+.brand b { display: none; font: 400 12px/20px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
+/* Phone-only logo row at the top of the page; the header brand is hidden there because the header is the bottom tab bar. */
+.brand-m { display: none; }
 .nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
-.tn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; min-width: 40px; padding: 0 3px; border: 2px solid transparent; color: var(--mu); font: 600 14px/20px Inter; }
-.tn .sp { filter: saturate(.45) brightness(.96); }
+.tn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; min-width: 40px; padding: 0 3px; border: 2px solid transparent; color: var(--mu); font: 600 14px/20px 'Plus Jakarta Sans', system-ui, sans-serif; }
+.tn .sp { filter: saturate(.7); }
 .tn:hover { color: var(--tx); background: var(--sf2); }
 .tn.is-active { background: var(--acs); border-color: var(--ac); color: var(--tx); box-shadow: 0 2px 0 var(--ac); }
 .tn.is-active .sp, .tn.adm .sp { filter: none; }
 .tn .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 .tn.adm { background: var(--ac); border-color: var(--ac); color: var(--onac); transform: translateY(-4px); box-shadow: inset 0 -3px 0 var(--acd), 0 4px 0 var(--sh); }
 .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
-.bd { position: absolute; top: 0; right: -2px; min-width: 16px; height: 16px; padding: 0 3px; display: grid; place-items: center; font: 400 8px/8px 'Press Start 2P', monospace; background: var(--ac); color: var(--onac); }
+.bd { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 3px; display: grid; place-items: center; font: 400 12px/12px 'Press Start 2P', monospace; background: var(--ac); color: var(--onac); }
 .bd.er { background: var(--er); color: var(--oa); }
 .px { font-family: 'Press Start 2P', monospace; font-weight: 400; text-transform: uppercase; }
 .ttl { font-size: 16px; line-height: 24px; }
+/* The title and the line under it read as one group; the gap the page column adds is pulled in by half. */
+h1.ttl { margin-bottom: -8px; }
 
 @media (max-width: 374px) {
   .tb { gap: 2px; padding: 0 max(6px, env(safe-area-inset-right)) 0 max(6px, env(safe-area-inset-left)); }
@@ -74,20 +81,37 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
   .tn { min-width: 36px; padding: 0; }
 }
 @media (min-width: 720px) {
-  .tb { padding: 0 24px; gap: 8px; }
+  .tb { padding: 0 40px; gap: 8px; }
   .ib { width: 44px; }
   .nav { gap: 4px; }
   .tn { padding: 0 12px; }
   .bd { top: 2px; right: 2px; }
-  h1.ttl { font-size: 24px; line-height: 32px; }
+  h1.ttl { font-size: 24px; line-height: 32px; margin-bottom: -12px; }
 }
-@media (min-width: 900px) {
+@media (min-width: 720px) {
   .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
   .tn:has(.lbl) .bd { position: static; margin-left: 2px; }
 }
+/* lint-allow:px 819px -- 720-819px labels show, so the bar tightens to fit five tabs, Settings and the theme toggle; the band ends one pixel before the roomier 820px bar. */
+@media (min-width: 720px) and (max-width: 819px) {
+  .tb { gap: 4px; padding: 0 16px; }
+  .nav { gap: 2px; }
+  .tn { gap: 6px; padding: 0 8px; }
+  /* Settings keeps its icon only here; its label returns at 820px, where there is room. */
+  .tb #settings-open .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+}
+/* lint-allow:px 820px -- the Settings label returns here, one pixel after the 819 band */
+@media (min-width: 820px) {
+  .tb #settings-open .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
+}
 @media (min-width: 1100px) {
   .brand b { display: block; }
-  .brand { padding: 0 12px 0 8px; }
+  .brand { padding: 0 12px 0 0; }
+  /* Bar content shares the page column's edges: 40px of page padding inside the 1120px column. */
+  .tb { padding-inline: max(40px, calc((100% - 1120px) / 2 + 40px)); }
+}
+@media (min-width: 1280px) {
+  .tb { padding-inline: calc((100% - 1200px) / 2 + 40px); }
 }
 
 /* Page frame: the mockup main rules. Scoped to the element plus the frozen .page-container class so
@@ -96,23 +120,34 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 @media (min-width: 720px) { main.page-container { padding: 32px 40px 56px; gap: 24px; } }
 @media (min-width: 1280px) { main.page-container { max-width: 1200px; } }
 
-.page-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px 24px; }
-.page-supporting-copy { margin: 0; color: var(--mu); font-size: 14px; line-height: 24px; }
+.page-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; }
+.page-supporting-copy { margin: 0; color: var(--mu); font-size: 14px; line-height: 24px; max-width: 60ch; text-wrap: pretty; }
 .page-actions { display: flex; align-items: center; gap: 12px; }
+/* The intro takes the space the controls leave and wraps, so search and Board/List stay on its row, on the right
+   edge, in both views. If the column is too narrow even for that, the controls drop to their own line, still on the right. */
+/* lint-allow:px 280px -- the intro's wrap floor; the mockup has no page-heading baseline */
+#page-my-tasks .page-heading > :first-child, #page-class-tasks .page-heading > :first-child { flex: 1 1 280px; min-width: 0; }
+#page-my-tasks .page-actions, #page-class-tasks .page-actions { flex: none; margin-left: auto; }
 .utility-page .page-heading { margin-bottom: 24px; }
-#page-my-tasks, #page-class-tasks, #page-calendar { max-width: 1120px; margin-inline: auto; }
-#page-done { max-width: 720px; margin-inline: auto; }
-#page-my-tasks[data-view="list"], #page-class-tasks[data-view="list"] { max-width: 720px; }
+/* Wide pages (board, calendar) and reading pages (lists, Done, Past) keep their own widths, all centred. */
+#page-my-tasks, #page-class-tasks, #page-calendar { width: 100%; max-width: 1120px; margin-inline: auto; }
+/* lint-allow:px 880px -- the mockup reading column for Done and Past; no 880px scale value exists */
+#page-done, #page-past { width: 100%; max-width: 880px; margin-inline: auto; }
+/* lint-allow:px 880px -- List views reuse that same reading column */
+#page-my-tasks[data-view="list"], #page-class-tasks[data-view="list"] { max-width: 880px; }
+/* The shared page title sits above the sections, so it takes the narrow column's width whenever a narrow page is showing. */
+/* lint-allow:px 880px -- the title tracks the reading column above so its edge lines up */
+main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: auto; }
 /* [[/section:shell]] */
 
 /* [[section:controls]] */
 /* ---------- Controls ---------- */
-.primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 16px; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; white-space: nowrap; cursor: pointer; }
+.primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 16px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; white-space: nowrap; cursor: pointer; }
 .primary-button { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
 .primary-button:hover { background: var(--acd); border-color: var(--acd); }
 .primary-button:active { background: var(--acd); border-color: var(--acd); box-shadow: inset 0 -3px 0 var(--acd); }
 .primary-button svg { width: 16px; height: 16px; flex-shrink: 0; }
-.secondary-button { color: var(--tx); background: var(--sf); border-color: var(--ln); box-shadow: 0 2px 0 var(--sh); }
+.secondary-button { color: var(--tx); background: var(--sf); border-color: var(--mu); box-shadow: 0 2px 0 var(--sh); }
 .secondary-button:hover, .secondary-button:active { background: var(--sf2); }
 .primary-button:disabled, .secondary-button:disabled, .text-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .primary-button.is-loading::after, .secondary-button.is-loading::after, .danger-button.is-loading::after { content: ''; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; animation: spin 700ms linear infinite; }
@@ -120,25 +155,25 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .text-button { padding: 0; border: 0; background: transparent; color: var(--ac); font-size: 14px; font-weight: 600; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .text-button:hover { color: var(--acd); }
 
-.icon-button { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--ln); color: var(--mu); background: var(--oa); cursor: pointer; }
+.icon-button { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); cursor: pointer; }
 .icon-button:hover, .icon-button:active { border-color: var(--ac); color: var(--tx); }
 .icon-button svg { width: 18px; height: 18px; stroke-width: 2; }
 .icon-dark { display: none; }
 :root[data-theme="dark"] .icon-dark { display: block; }
 :root[data-theme="dark"] .icon-light { display: none; }
-.view-tabs { display: inline-flex; align-items: stretch; border: 2px solid var(--ln); background: var(--sf); }
-.view-tab { display: flex; align-items: center; justify-content: center; height: 40px; min-width: 0; padding: 0 12px; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
-.view-tab + .view-tab { border-left: 2px solid var(--ln); }
+.view-tabs { display: inline-flex; align-items: stretch; border: 2px solid var(--mu); background: var(--sf); }
+.view-tab { display: flex; align-items: center; justify-content: center; height: 40px; min-width: 0; padding: 0 16px; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.view-tab + .view-tab { border-left: 2px solid var(--mu); }
 .view-tab:hover { color: var(--tx); background: var(--sf2); }
 .view-tab.is-active { color: var(--tx); background: var(--acs); box-shadow: inset 0 -3px 0 var(--ac); font-weight: 600; }
 
-.search { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid var(--ln); color: var(--mu); background: var(--oa); }
+.search { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); }
 .search:focus-within { border-color: var(--ac); }
 .search svg { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 2; }
 .search input { width: 200px; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 14px; line-height: 20px; }
 .search input::placeholder { color: var(--mu); opacity: 1; }
 
-.text-input { width: 100%; height: 44px; padding: 0 12px; border: 2px solid var(--ln); outline: 0; color: var(--tx); background: var(--oa); font-size: 14px; line-height: 20px; }
+.text-input { width: 100%; height: 44px; padding: 0 12px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 14px; line-height: 20px; }
 .text-input:focus { border-color: var(--ac); }
 /* [[/section:controls]] */
 
@@ -147,14 +182,14 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .sync-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 0; padding: 8px 12px; border: 1px solid var(--wn); color: var(--wn); background: var(--wnb); font-size: 12px; line-height: 20px; }
 /* Preview mode is the mockup's quiet .pin sheet - 2px var(--ln) on var(--sf2), 12px of padding - not a
    warning banner: nothing is wrong, the admin is only looking at the student's copy of the board. */
-.preview-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 0; padding: 12px; border: 2px solid var(--ln); color: var(--tx); background: var(--sf2); font-family: Inter, system-ui, sans-serif; font-size: 14px; line-height: 20px; }
+.preview-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 0; padding: 12px; border: 2px solid var(--ln); color: var(--tx); background: var(--sf2); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 14px; line-height: 20px; }
 
 /* The admin bar is the mockup's quiet row (.srow: 2px var(--ln) on var(--sf), 64px tall, 8px 12px of
    padding) with .acts' 8px gap, and its link actions wear the same 36px sm button as the Done rows. */
 .admin-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; min-height: 64px; margin-top: 16px; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf); }
 .admin-status { color: var(--mu); font-size: 12px; line-height: 16px; }
 .admin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .admin-actions .text-button:hover, .history-item .text-button:hover, .file-item .text-button:hover { border-color: var(--ac); background: var(--sf2); color: var(--tx); }
 
 .summary { display: flex; flex-wrap: wrap; align-items: center; margin: 16px 0 0; color: var(--mu); font-size: 12px; line-height: 20px; }
@@ -182,13 +217,13 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .announce-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .announce-count { margin-right: auto; padding: 0 6px; min-width: 20px; color: var(--mu); background: var(--sf2); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
 .announce-count.is-low { color: var(--er); }
-.announce-toolbar { display: inline-flex; align-self: flex-start; border: 2px solid var(--ln); background: var(--sf); }
+.announce-toolbar { display: inline-flex; align-self: flex-start; border: 2px solid var(--mu); background: var(--sf); }
 .announce-tool { display: grid; place-content: center; min-width: 40px; height: 40px; padding: 0 12px; border: 0; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
-.announce-tool + .announce-tool { border-left: 2px solid var(--ln); }
+.announce-tool + .announce-tool { border-left: 2px solid var(--mu); }
 .announce-tool:hover { background: var(--sf2); color: var(--tx); }
 .announce-tool[aria-pressed="true"] { background: var(--acs); color: var(--tx); box-shadow: inset 0 -3px 0 var(--ac); }
 .announce-tool svg { width: 16px; height: 16px; stroke-width: 1.75; }
-.announce-editor { min-height: 80px; max-height: 240px; padding: 10px 12px; border: 2px solid var(--ln); overflow-y: auto; outline: 0; color: var(--tx); background: var(--oa); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+.announce-editor { min-height: 80px; max-height: 240px; padding: 10px 12px; border: 2px solid var(--mu); overflow-y: auto; outline: 0; color: var(--tx); background: var(--oa); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
 .announce-editor:focus { border-color: var(--ac); }
 .announce-editor:empty::before { content: attr(data-placeholder); color: var(--mu); pointer-events: none; }
 .announce-editor ul, .announce-text ul { margin: 4px 0; padding-left: 24px; list-style: square; }
@@ -199,10 +234,26 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 @media (max-width: 719px) { .announce-tool { min-width: 44px; height: 44px; } }
 .announce-list { margin: 12px 0 0; padding: 0; list-style: none; }
 .announce-item { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; align-items: start; gap: 2px 12px; padding: 12px 0; border-top: 1px solid var(--ln); }
+/* The public pinned list has no delete button, so it never reserves a track for one: the date sits on the panel's right edge. */
+#announce-public .announce-item { grid-template-columns: minmax(0, 1fr) auto; }
 .announce-item:hover .task-delete-btn, .announce-item:focus-within .task-delete-btn { opacity: 1; }
 .announce-text { margin: 0; font-size: 14px; line-height: 20px; white-space: pre-wrap; word-break: break-word; }
-.announce-date { color: var(--mu); font-size: 13px; font-weight: 500; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.announce-date { color: var(--mu); font-size: 12px; font-weight: 500; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#announce-public.is-collapsed .announce-item:nth-child(n+2) { display: none; }
 .announce-empty { margin: 0; padding-top: 12px; border-top: 1px solid var(--ln); color: var(--mu); font-size: 14px; line-height: 20px; }
+/* Phones: the pinned block shows one announcement, two lines tall, until the reader opens it, so the
+   first task row stays on screen. With nothing pinned the block is gone, not an empty box. */
+@media (max-width: 719px) {
+  #announce-public { padding: 12px; }
+  #announce-public.is-empty { display: none; }
+  #announce-public .announce-list { margin-top: 8px; }
+  /* The public list has no delete button, so it drops the empty 44px track and gives the text that width. */
+  #announce-public .announce-item { grid-template-columns: minmax(0, 1fr) auto; }
+  #announce-public.is-collapsed .announce-item { padding: 8px 0 0; }
+  /* Two lines with an ellipsis, so a cut sentence reads as cut. max-height stays as the fallback for rich bodies. */
+  #announce-public.is-collapsed .announce-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-height: 40px; overflow: hidden; }
+  .announce-toggle { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+}
 /* [[/section:announcements]] */
 
 /* [[section:board]] */
@@ -278,6 +329,11 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 /* Due badges: urgency you can scan */
 .due-badge { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; width: fit-content; color: var(--mu); font-size: 12px; font-weight: 500; line-height: 16px; }
 .due-badge svg { width: 12px; height: 12px; stroke-width: 2; }
+/* Board cards: subject on the left, due on the right, so dues line up down each column's right edge.
+   The footer wraps, so a long subject plus a long due label drops the due to its own line, still on the right. */
+@media (min-width: 720px) {
+  .task-card-footer .due-badge { margin-left: auto; }
+}
 .due-badge.due-soon { padding: 0 8px; color: var(--wn); background: var(--wnb); font-weight: 600; }
 .due-badge.overdue { padding: 0 8px; color: var(--er); background: var(--erb); font-weight: 600; }
 /* [[/section:due]] */
@@ -308,17 +364,20 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 /* The mockup's list view (.ls panel of .lr rows): one paper panel, rows divided by a hairline, each row
    at the mockup's 12px padding with its title over a muted meta line. */
 .task-list { margin-top: 16px; border: 2px solid var(--ln); background: var(--sf); }
-.task-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto auto 32px; align-items: center; gap: 12px; min-height: 48px; padding: 12px; border-bottom: 1px solid var(--ln); cursor: pointer; }
+/* lint-allow:px 168px -- the mockup's date column is 168px wide on the board rows */
+.task-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 104px 168px 32px; align-items: center; gap: 12px; min-height: 48px; padding: 12px; border-bottom: 1px solid var(--ln); cursor: pointer; }
 .task-row:last-child { border-bottom: 0; }
 .task-row:hover { background: var(--sf2); }
 .task-row:active { background: var(--sf2); }
 .task-row:focus-visible { outline-offset: -2px; }
 .task-row .status-check { justify-self: center; }
-.task-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-size: 15px; font-weight: 600; line-height: 22px; }
+.task-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; }
 .task-row-title.is-ghost { color: var(--mu); }
 .task-row-title.is-done { color: var(--mu); text-decoration: line-through; }
-.task-row-due { color: var(--mu); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 16px; white-space: nowrap; }
+.task-row-due { color: var(--mu); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 16px; white-space: nowrap; }
 .task-row-due.is-overdue { color: var(--er); font-weight: 600; }
+.task-row-due svg { display: none; }
+.task-row-due.is-due-soon { color: var(--wn); font-weight: 600; }
 .task-list-add { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 8px; border-top: 1px solid var(--ln); background: transparent; color: var(--mu); font-size: 14px; text-align: left; cursor: pointer; }
 .task-list-add:hover { color: var(--tx); background: var(--sf2); }
 .task-list-add svg { width: 16px; height: 16px; margin: 0 4px; stroke-width: 2; }
@@ -331,13 +390,26 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
    that same button in the mockup's pri form (mockup 105), because the app arms the one button
    it already renders instead of swapping in a second one. */
 @media (min-width: 720px) {
-  .done-row { grid-template-columns: 24px minmax(0, 1fr) 120px 140px auto; padding: 10px 16px; }
+  /* Tasks list: the due text is right-aligned so it sits flush against the row's right edge (or the delete
+     button), and the empty trailing column is dropped when there is no delete button. */
+  /* lint-allow:px 160px -- the due-date column widens for the right-aligned row dates */
+  .task-row { grid-template-columns: 24px minmax(0, 1fr) 104px 160px 32px; }
+  /* lint-allow:px 160px -- the same due-date column when the empty delete slot is dropped */
+  .task-row:has(> :nth-child(5):empty) { grid-template-columns: 24px minmax(0, 1fr) 104px 160px; }
+  .task-row:has(> :nth-child(5):empty) > :nth-child(5) { display: none; }
+  .task-row .task-row-due { text-align: right; }
+  /* Done and Past: every action button is the same width, so 'Mark done' and 'Mark not done' line up, and
+     the action column grows when Restore sits beside it instead of overflowing the row. */
+  /* lint-allow:px 112px -- the action column fits 'Mark done'/'Mark not done' without wrapping */
+  .done-row { grid-template-columns: 24px minmax(0, 1fr) 104px 112px minmax(112px, auto); padding: 10px 16px; }
   .done-row .task-row-due { text-align: right; }
+  /* lint-allow:px 112px -- every Done/Past action button shares that action-column width */
+  .done-row .text-button { min-width: 112px; }
 }
 /* The mockup's done title is muted, not struck through (mockup 169): the app's line-through and
    its 600 weight go, and the secondary line stays the app's own --mu. */
 .done-row .task-row-title.is-done { font-weight: 500; text-decoration: none; }
-.done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--ln); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .done-row .text-button:hover { border-color: var(--ac); background: var(--sf2); }
 .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
 /* [[/section:list]] */
@@ -369,7 +441,7 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .dialog-title-input { display: block; flex: 1; min-width: 0; max-height: 120px; padding: 2px 0; border: 0; outline: 0; background: transparent; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; overflow-wrap: anywhere; overflow-y: auto; resize: none; }
 .dialog-title-input::placeholder { color: var(--mu); opacity: 1; }
 .dialog-heading { flex: 1; padding: 2px 0; font-size: 16px; font-weight: 600; line-height: 24px; }
-.panel-close { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--ln); background: var(--oa); color: var(--mu); cursor: pointer; }
+.panel-close { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
 .panel-close:hover { border-color: var(--ac); color: var(--tx); }
 .panel-close i, .panel-close svg { width: 18px; height: 18px; stroke-width: 2; }
 .dialog-body { display: grid; gap: 16px; padding: 16px; overflow-y: auto; }
@@ -382,16 +454,16 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .due-hint:not(:empty)::before { content: '· '; }
 .due-hint.is-overdue { color: var(--er); }
 .due-controls { display: flex; align-items: center; gap: 4px; }
-.prop-value { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); font-size: 12px; font-weight: 600; line-height: 16px; cursor: pointer; }
+.prop-value { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 12px; font-weight: 600; line-height: 16px; cursor: pointer; }
 .prop-value:hover { border-color: var(--ac); background: var(--sf2); }
 .prop-value.empty-value { color: var(--mu); }
 .prop-value:disabled { cursor: default; }
-.prop-value:disabled:hover { background: var(--sf); border-color: var(--ln); }
-.prop-clear { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--ln); background: var(--oa); color: var(--mu); cursor: pointer; }
+.prop-value:disabled:hover { background: var(--sf); border-color: var(--mu); }
+.prop-clear { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
 .prop-clear:hover { border-color: var(--ac); color: var(--tx); }
 .prop-clear-icon { width: 16px; height: 16px; stroke-width: 2.5; }
 /* lint-allow:px 160px -- the task dialog's notes area has no mockup counterpart; the mockup's own note input is textarea.in at min-height 80px (mockup 104), and this is a contenteditable block, not an input */
-.dialog-doc { min-height: 160px; padding: 12px; border: 1px solid var(--ln); outline: 0; color: var(--tx); font-size: 16px; line-height: 24px; word-break: break-word; overflow-wrap: anywhere; }
+.dialog-doc { min-height: 160px; padding: 12px; border: 2px solid var(--mu); outline: 0; color: var(--tx); font-size: 16px; line-height: 24px; word-break: break-word; overflow-wrap: anywhere; }
 .dialog-doc:focus { border-color: var(--ac); }
 .dialog-doc:empty::before { content: attr(data-placeholder); color: var(--mu); pointer-events: none; }
 .dialog-doc a { color: var(--ac); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; overflow-wrap: anywhere; }
@@ -399,7 +471,7 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .dialog-doc img { display: block; max-width: 100%; height: auto; margin: 8px 0; cursor: default; }
 .dialog-doc img::selection { background: transparent; }
 .note-toolbar { display: flex; gap: 4px; margin-bottom: 8px; }
-.note-tool { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); font-size: 14px; line-height: 20px; cursor: pointer; }
+.note-tool { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 14px; line-height: 20px; cursor: pointer; }
 .note-tool:hover { border-color: var(--ac); }
 .note-tool[aria-pressed="true"] { border-color: var(--ac); background: var(--acs); color: var(--tx); box-shadow: inset 0 -3px 0 var(--ac); }
 .note-tool svg { width: 16px; height: 16px; stroke-width: 2; }
@@ -432,7 +504,7 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .quick-chips { display: grid; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 2px solid var(--ln); }
 .quick-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .quick-group-label { flex: 0 0 56px; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; text-transform: uppercase; }
-.quick-chip-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 12px; border: 2px solid var(--ln); background: var(--sf); color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.quick-chip-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
 .quick-chip-btn.is-subject { padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); }
 .quick-chip-btn.is-subject.is-selected { color: var(--tag-ink, var(--tx)); background: var(--tag, var(--acs)); box-shadow: inset 0 0 0 2px var(--ac), inset 0 -2px 0 rgba(20, 24, 58, 0.28); }
 .quick-chip-btn:hover, .quick-chip-btn:active { border-color: var(--ac); color: var(--tx); background: var(--sf2); }
@@ -440,19 +512,19 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .quick-chip-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .quick-code { color: var(--mu); font-size: 12px; }
 .quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; }
-kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; background: var(--sf); font-size: 11px; }
+kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; background: var(--sf); font-size: 12px; }
 /* [[/section:quick-add]] */
 
 /* [[section:due-picker]] */
 /* ---------- Due picker ---------- */
 .due-picker { position: fixed; z-index: 210; width: 300px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); transform-origin: top left; }
 .dp-fields { display: grid; grid-template-columns: 1fr 120px; gap: 8px; }
-.dp-input { min-width: 0; height: 36px; padding: 0 8px; border: 2px solid var(--ln); outline: 0; color: var(--tx); background: var(--oa); font-size: 12px; }
+.dp-input { min-width: 0; height: 36px; padding: 0 8px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 12px; }
 .dp-input::placeholder { color: var(--mu); opacity: 1; }
 .dp-input:focus { border-color: var(--ac); }
 .dp-head { display: flex; align-items: center; gap: 4px; margin: 12px 0 8px; }
 .dp-month { flex: 1; font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; text-transform: uppercase; }
-.dp-nav { display: grid; place-content: center; min-width: 36px; height: 36px; padding: 0 8px; border: 2px solid var(--ln); background: var(--oa); color: var(--mu); font-size: 12px; font-weight: 600; cursor: pointer; }
+.dp-nav { display: grid; place-content: center; min-width: 36px; height: 36px; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); font-size: 12px; font-weight: 600; cursor: pointer; }
 .dp-nav:hover { border-color: var(--ac); color: var(--tx); }
 .dp-nav svg { width: 16px; height: 16px; stroke-width: 2; }
 .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
@@ -526,6 +598,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-dots { display: flex; justify-content: center; gap: 2px; height: 8px; }
 .cal-dots .cal-dot[data-status="done"] { background: transparent; }
 .cal-dots .cal-dot.is-overdue { background: var(--er); outline-color: var(--er); }
+.cal-dots .cal-dot.is-due-soon { background: var(--wn); outline-color: var(--wn); }
 .cal-agenda { margin-top: 16px; }
 /* the mockup's .sec strip: heading, then the rule that fills the row */
 .cal-agenda-title { display: flex; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 8px; color: var(--mu); font-size: 14px; font-weight: 700; line-height: 20px; }
@@ -547,7 +620,6 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @keyframes fade-in { from { opacity: 0.4; } to { opacity: 1; } }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes quick-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes quick-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-6px); } }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
@@ -556,8 +628,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: no-preference) {
-  .page:not([hidden]) { animation: page-in 140ms steps(3); }
-  .announce-form:not([hidden]) { animation: menu-in 140ms steps(3); }
+  .announce-form:not([hidden]) { animation: pop-in 140ms steps(3); }
   .task-dialog-overlay:not([hidden]), .quick-overlay:not([hidden]), .tour-overlay:not([hidden]) { animation: fade-in 140ms steps(3); }
   .task-dialog-overlay:not([hidden]) .task-dialog, .quick-add { animation: quick-in 140ms steps(3); }
   .task-dialog-overlay.is-closing, .quick-overlay.is-closing, .tour-overlay.is-closing { animation: fade-out 140ms steps(3) forwards; }
@@ -565,11 +636,14 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .toast { animation: toast-in 140ms steps(3); }
   .due-picker, .status-dropdown:not([hidden]) { animation: pop-in 140ms steps(3); }
 }
-.task-card.is-entering, .task-row.is-entering { animation: card-in 160ms backwards; }
+/* Only a newly created task arrives. Status changes are moved by js/motion.js. */
 @media (prefers-reduced-motion: no-preference) {
-  .status-check.is-popping { animation: stamp 400ms steps(4); }
-  @keyframes stamp { 0% { transform: scale(1.6); } 100% { transform: scale(1); } }
+  .task-card.is-entering, .task-row.is-entering { animation: card-in 140ms steps(3) backwards; }
 }
+/* Completion ghost (js/motion.js): a disposable copy of the row that folds into the Done tab. */
+.motion-ghost { position: fixed; z-index: 250; margin: 0; box-sizing: border-box; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); transform-origin: 0 0; pointer-events: none; will-change: transform, opacity; overflow: hidden; }
+/* Reduced motion: the Done tab takes a short static highlight instead of the ghost. */
+.tn.is-received { background: var(--acs); border-color: var(--ac); color: var(--tx); }
 .is-swapping .kanban-board, .is-swapping .task-list { animation: page-in 120ms ease-out; }
 ::view-transition-old(root) { animation: fade-out 140ms steps(3) both; }
 ::view-transition-new(root) { animation: page-in 140ms steps(3) both; }
@@ -578,25 +652,49 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* [[section:responsive]] */
 /* ---------- Responsive ---------- */
 /* The mockup phone chrome (mockup styles.css:239-249): the header itself becomes the fixed bottom bar, so
-   nothing sits at the top of a phone screen. Deliberate deviation from that block: it hides .ib, but
-   #theme-toggle is the app's only theme control and the boot script defaults to dark without reading the
-   OS preference, so hiding it would strand phone users in dark mode - it stays visible as the last
-   control in the bar (D19.5). */
+   nothing sits at the top of a phone screen. The theme toggle is hidden here (Settings > Appearance
+   replaces it) and Settings moves to a fixed top-right button, so the bar holds five 44px+ tabs at 320px. */
 @media (max-width: 719px) {
   .tb { position: fixed; top: auto; right: 0; bottom: 0; left: 0; height: auto; align-items: flex-end; padding: 8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-bottom: 0; border-top: 2px solid var(--ln); }
   .tb .brand { display: none; }
+  .brand-m { display: flex; align-self: flex-start; height: 44px; padding: 0; }
+  .brand-m b { display: block; }
   .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }
-  .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; font: 600 11px/12px Inter; white-space: nowrap; }
-  .tn.adm { max-width: 64px; height: 56px; transform: translateY(-12px); }
-  .bd { top: -6px; right: 4px; }
-  main.page-container { padding: 24px 16px calc(104px + env(safe-area-inset-bottom)); }
+  .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; font: 600 12px/16px 'Plus Jakarta Sans', system-ui, sans-serif; white-space: nowrap; }
+  .tn.adm { max-width: 72px; height: 56px; transform: none; box-shadow: inset 0 -3px 0 var(--acd); }
+  .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
+  .bd { top: -8px; right: 0; }
+  /* Phone tab order: Tasks, Calendar, Admin (centre, president only), Done, Past. */
+  .tn[data-page="class-tasks"] { order: 1; }
+  .tn[data-page="calendar"] { order: 2; }
+  .tn[data-page="my-tasks"] { order: 3; }
+  .tn[data-page="done"] { order: 4; }
+  .tn[data-page="past"] { order: 5; }
+  /* No theme toggle in the phone bar; Appearance lives in Settings. */
+  .tb .ib { display: none; }
+  /* Settings moves to the top right corner. */
+  .tb #settings-open { position: fixed; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); z-index: 31; width: 44px; height: 44px; min-width: 44px; max-width: 44px; flex: none; padding: 0; background: var(--sf); border: 2px solid var(--mu); box-shadow: 0 2px 0 var(--sh); }
+  .tb #settings-open .lbl { display: none; }
+  h1.ttl { padding-right: 56px; }
+  main.page-container { padding: max(8px, env(safe-area-inset-top)) 16px calc(104px + env(safe-area-inset-bottom)); }
 /* lint-allow:px 0px -- env() safe-area fallback: a calc with no fallback is dropped entirely */
   .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (max-width: 719px) {
   .panel-close, .prop-clear, .icon-button { width: 44px; height: 44px; }
+  /* Task dialog on a phone: facts sit in an even grid (Status | Subject, Due across), every value is a 44px
+     target at 14px, and values the student cannot change (disabled) drop to a sunk, quiet surface so only
+     what responds to a tap looks like a button. The grid stacks by itself when two columns do not fit (320px). */
+  .dialog-body { gap: 20px; }
+  /* lint-allow:px 128px -- the phone fact grid's column floor before it stacks to one column */
+  .dialog-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 12px; }
+  .dialog-controls .field-due { grid-column: 1 / -1; }
+  .dialog-controls .prop-value { width: 100%; min-height: 44px; padding: 0 12px; justify-content: flex-start; font-size: 14px; line-height: 20px; }
+  .due-controls .prop-value { flex: 1; min-width: 0; }
+  .dialog-controls .prop-value:disabled { border-color: var(--ln); background: var(--sf2); }
+  .task-dialog.is-readonly .dialog-doc { border-color: var(--ln); background: var(--sf2); }
   .task-row .task-delete-btn, .announce-item .task-delete-btn { width: 44px; height: 44px; }
   .task-card .task-delete-btn { width: 44px; height: 44px; margin: -12px -8px -12px 0; }
   .announce-item { grid-template-columns: minmax(0, 1fr) auto 44px; }
@@ -616,14 +714,27 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #page-class-tasks #class-task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
   #class-task-list .task-row { padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
   #class-task-list .task-row-title { font-size: 16px; line-height: 24px; }
-  .cal-day { min-height: 80px; padding: 4px; }
+  .cal-day { min-height: 80px; padding: 4px; border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); }
+  /* Each day is its own block with a 2px edge and a gap between, not a cell in one ruled sheet. */
+  .cal { gap: 8px 6px; border: 0; background: none; overflow: visible; }
+  .cal-dow { background: transparent; }
+  .cal-day.is-tappable.is-selected, .cal-day.is-tappable.is-selected:hover { border-color: var(--ac); box-shadow: 0 2px 0 var(--ac); }
+  .cal[data-mode="week"] { gap: 8px; grid-template-columns: minmax(0, 1fr); }
+  /* Calendar header on a phone: the month and its prev/next arrows share the first row; the view switch
+     and Today share the second. The arrows now sit beside the month they change, and the right edges line up. */
+  #page-calendar .page-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+  #page-calendar .page-actions { display: contents; }
+  #page-calendar .cal-title { grid-area: 1 / 1; }
+  #page-calendar .cal-nav { grid-area: 1 / 2; justify-self: end; }
+  #page-calendar .view-tabs { grid-area: 2 / 1; justify-self: start; }
+  #page-calendar #cal-today { grid-area: 2 / 2; justify-self: end; align-self: stretch; }
+  .cal[data-mode="month"] .cal-day.is-tappable { min-height: 52px; }
   .cal[data-mode="month"] .cal-dow { padding: 8px 0; text-align: center; }
   .cal .cal-time { display: none; }
   /* Week view on phones: one full-width row per day instead of seven ~45px columns. */
-  .cal[data-mode="week"] { grid-template-columns: minmax(0, 1fr); }
   .cal[data-mode="week"] .cal-dow { display: none; }
   .cal[data-mode="week"] .cal-day { grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; min-height: 0; padding: 8px 12px; }
-  .cal[data-mode="week"] .cal-day::before { content: attr(data-dow); grid-column: 1; grid-row: 1; color: var(--mu); font-size: 11px; font-weight: 700; line-height: 16px; letter-spacing: .04em; text-transform: uppercase; }
+  .cal[data-mode="week"] .cal-day::before { content: attr(data-dow); grid-column: 1; grid-row: 1; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: .04em; text-transform: uppercase; }
   .cal[data-mode="week"] .cal-num { grid-column: 1; grid-row: 2; justify-self: start; }
   .cal[data-mode="week"] .cal-chip, .cal[data-mode="week"] .cal-more { grid-column: 2; }
   .cal[data-mode="week"] .cal-chip { min-height: 44px; padding: 8px 12px; font-size: 14px; line-height: 20px; }
@@ -637,6 +748,14 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .task-row > :nth-child(3), .done-row > :nth-child(3) { grid-column: 2; grid-row: 2; align-self: start; }
   .task-row > :nth-child(4), .done-row > :nth-child(4) { grid-column: 3; grid-row: 2; min-width: 0; white-space: normal; line-height: 16px; }
   .task-row:has(> :nth-child(3):empty) > :nth-child(4), .done-row:has(> :nth-child(3):empty) > :nth-child(4) { grid-column: 2 / 4; }
+  /* Phone rows follow the board card: title up to two lines, subject bottom-left, due pill bottom-right. */
+  .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
+  .task-row:not(.done-row) { row-gap: 8px; }
+  .task-row > :nth-child(4) { justify-self: end; }
+  .task-row .task-row-due { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; text-align: right; }
+  .task-row .task-row-due svg { display: block; width: 12px; height: 12px; flex: none; stroke-width: 2; }
+  .task-row .task-row-due.is-overdue { padding: 0 8px; background: var(--erb); }
+  .task-row .task-row-due.is-due-soon { padding: 0 8px; background: var(--wnb); }
   /* Done and Past on phones: the mockup's compact cards - one card per row, the date inline
      beside the subject and the action as the mockup's 44px ghost button (mockup 268-269,
      413-427). The bottom tab bar owns the bottom of the screen, so no padding is added here. */
@@ -648,7 +767,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #done-list .done-row > .text-button, #past-list .done-row > :nth-child(5) > .text-button:last-child { margin: 0 -10px 0 0; }
   /* The armed row reflows to the mockup's confirm layout (mockup 425-426): the action gets its
      own full-width row, right-aligned, instead of sharing the title's row. */
-  #done-list .done-row:has([data-armed]) > :nth-child(5), #past-list .done-row:has([data-armed]) > :nth-child(5) { grid-column: 1 / -1; grid-row: 3; justify-self: end; }
+  #done-list .done-row:has([data-armed]) > :nth-child(5), #past-list .done-row:has([data-armed]) > :nth-child(5) { grid-column: 1 / -1; grid-row: 3; justify-self: end; }  /* Time and Expired/Closed sit bottom-right under the action, on one line, like the due pill on Tasks. */
+  #done-list .done-row > :nth-child(4), #past-list .done-row > :nth-child(4) { grid-column: 3 / 5; grid-row: 2; justify-self: end; align-self: center; text-align: right; white-space: nowrap; }
 }
 /* lint-allow:px 480px -- the app's own narrow-phone breakpoint for the two-column quick preview; the mockup has no 480 boundary */
 @media (max-width: 480px) { .quick-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -664,6 +784,22 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (prefers-contrast: more) {
   body { --ln: var(--mu); }
 /* [[/section:a11y]] */
+}
+
+/* Admin: Preview, History and Discard live in a native <details> menu so Save and Publish lead. */
+.admin-more { position: relative; }
+.admin-more > summary { list-style: none; }
+.admin-more > summary::-webkit-details-marker { display: none; }
+.admin-more-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 200px; padding: 8px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
+@media (max-width: 719px) { .admin-more > summary, .admin-more-menu .text-button { min-height: 44px; } }
+
+/* Forced colors: sprite colors are not ours to control there, so labels carry every tab and the
+   active tab is marked with the system highlight. */
+@media (forced-colors: active) {
+  .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
+  .tn, .ib, .secondary-button, .primary-button, .text-button { border-color: ButtonText; }
+  .tn.is-active { border-color: Highlight; outline: 2px solid Highlight; }
+  .tn .sp { filter: none; }
 }
 
 /* [[section:utilities]] */
@@ -682,11 +818,12 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
    collapse that shared edge into one rule, exactly as .srow+.srow does. The label block takes
    .cb's role; the trailing control is the mockup's .btn.sm (mockup 86-89: 36px, 12px padding,
    12/16) - the app's 44px phone floor for reachable buttons still applies below 720px. */
-.settings-body { gap: 0; }
+.settings-body { gap: 0; grid-template-columns: minmax(0, 1fr); }
 .settings-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf); }
 .settings-row + .settings-row { margin-top: -2px; }
-.settings-row > div { flex: 1 1 auto; min-width: 0; }
-.settings-row > .secondary-button, .settings-row > .danger-button { flex: none; height: 36px; padding: 0 12px; font-size: 12px; line-height: 16px; }
+.settings-row > div:not(.view-tabs) { flex: 1 1 auto; min-width: 0; }
+.settings-row > .view-tabs { flex: none; }
+.settings-row > .secondary-button, .settings-row > .danger-button { flex: none; min-width: 88px; height: 36px; padding: 0 12px; font-size: 12px; line-height: 16px; }
 .settings-title { margin: 0; color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; }
 /* The mockup's .sub (mockup 54), the second line of a settings row. */
 .settings-desc { margin: 4px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }
@@ -696,7 +833,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* The mockup's .acts with the .subp variant (mockup 198/225): the panel's actions wrap and sit right. */
 .settings-confirm-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 /* Cancel is the mockup's plain .btn.sm (mockup 86-89), not the app's underlined text link. */
-.settings-confirm .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--ln); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.settings-confirm .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .settings-confirm .text-button:hover { color: var(--tx); border-color: var(--ac); background: var(--sf2); }
 /* The mockup's danger button is .btn.dng (mockup 195): --er text and edge on --sf, never a filled
    red button. Only the armed confirm step fills it, the way .btn.dng.pri does (mockup 196). */
@@ -711,10 +848,18 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (max-width: 719px) {
   .settings-confirm .text-button { min-height: 44px; }
 }
+/* lint-allow:px 480px -- a phone viewport boundary where the settings row wraps; a breakpoint, not a design-scale value. */
+@media (max-width: 480px) {
+  .settings-row:has(> .view-tabs) { flex-wrap: wrap; }
+  .settings-row:has(> .view-tabs) > div:not(.view-tabs) { flex: 1 1 100%; }
+  /* Phones: the segmented control spans the row in equal thirds. */
+  .settings-row > .view-tabs { flex: 1 1 100%; }
+  .settings-row > .view-tabs .view-tab { flex: 1 1 0; }
+}
 /* The mockup's own narrow-width row (mockup 194): under 360px the control wraps below the label. */
 @media (max-width: 359px) {
   .settings-row { flex-wrap: wrap; }
-  .settings-row > div { flex: 1 1 100%; }
+  .settings-row > div:not(.view-tabs) { flex: 1 1 100%; }
 }
 
 /* Visible focus for fields that removed the default outline */
@@ -745,8 +890,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .transfer-qr-frame { display: grid; justify-self: center; width: fit-content; max-width: 100%; padding: 8px; border: 2px solid var(--ln); background: #FFFFFF; }
 .transfer-qr-frame canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; }
 .transfer-link-row { display: flex; gap: 8px; }
-.transfer-link-row .text-input { flex: 1; min-width: 0; font-family: Inter, system-ui, sans-serif; font-size: 12px; }
-.transfer-countdown { margin: 0; color: var(--mu); font-family: Inter, system-ui, sans-serif; font-size: 12px; font-variant-numeric: tabular-nums; line-height: 16px; text-align: center; }
+.transfer-link-row .text-input { flex: 1; min-width: 0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 12px; }
+.dialog-footer .text-button#transfer-cancel-link, .dialog-footer .text-button#transfer-done { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; }
+.transfer-countdown { margin: 0; color: var(--mu); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 12px; font-variant-numeric: tabular-nums; line-height: 16px; text-align: center; }
 .import-summary { margin: 0; padding-left: 24px; list-style: square; font-size: 14px; line-height: 20px; }
 .import-summary li + li { margin-top: 8px; }
 .import-check { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 4px 12px; border: 2px solid var(--ln); background: var(--sf); font-size: 14px; line-height: 20px; cursor: pointer; }
@@ -784,7 +930,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .file-item { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 0; border-top: 1px solid var(--ln); font-size: 14px; white-space: nowrap; }
 .file-item a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ac); text-decoration: underline; text-underline-offset: 3px; }
 .file-item a:hover { color: var(--acd); }
-.file-size { flex: none; color: var(--mu); font-family: Inter, system-ui, sans-serif; font-size: 13px; font-weight: 500; line-height: 16px; }
+.file-size { flex: none; color: var(--mu); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 12px; font-weight: 500; line-height: 16px; }
 .file-hint { margin: 8px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }
 .task-dialog.is-readonly .file-hint { display: none; }
 @media (max-width: 719px) { .file-item { padding: 8px 0; } }
@@ -803,4 +949,33 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .confirm-dialog .dialog-footer { flex-direction: column; align-items: stretch; gap: 8px; }
   .confirm-dialog .dialog-footer button { width: 100%; min-height: 44px; }
 /* [[/section:confirm]] */
+}
+/* ---------- Motion: arrivals, press, landed (all transform/opacity; reduced motion gets none of it) ---------- */
+@keyframes enter-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes landed { 0% { opacity: 0; transform: translateY(-12px); } 35% { opacity: 1; transform: translateY(0); } }
+@keyframes landed-edge { from { box-shadow: inset 4px 0 0 var(--ac), 0 2px 0 var(--sh); } to { box-shadow: inset 0 0 0 var(--ac), 0 2px 0 var(--sh); } }
+@media (prefers-reduced-motion: no-preference) {
+  /* Page switch: the page steps up into place. */
+  .page:not([hidden]) { animation: enter-up 160ms steps(4); }
+  /* Lists and board cards arrive in a short staggered run, only while body[data-enter] is set (about 0.7s). */
+  body[data-enter] .task-list > .task-row, body[data-enter] .column-content > .task-card, body[data-enter] .announce-item { animation: enter-up 180ms steps(4) backwards; }
+  body[data-enter] .task-list > :nth-child(2), body[data-enter] .column-content > :nth-child(2) { animation-delay: 30ms; }
+  body[data-enter] .task-list > :nth-child(3), body[data-enter] .column-content > :nth-child(3) { animation-delay: 60ms; }
+  body[data-enter] .task-list > :nth-child(4), body[data-enter] .column-content > :nth-child(4) { animation-delay: 90ms; }
+  body[data-enter] .task-list > :nth-child(5), body[data-enter] .column-content > :nth-child(5) { animation-delay: 120ms; }
+  body[data-enter] .task-list > :nth-child(6), body[data-enter] .column-content > :nth-child(6) { animation-delay: 150ms; }
+  body[data-enter] .task-list > :nth-child(7), body[data-enter] .column-content > :nth-child(7) { animation-delay: 180ms; }
+  body[data-enter] .task-list > :nth-child(n+8), body[data-enter] .column-content > :nth-child(n+8) { animation-delay: 210ms; }
+  /* Press: buttons and cards sink 2px into their hard shadow, like a stamped key. */
+  .primary-button, .secondary-button, .icon-button, .tn, .view-tab, .quick-chip-btn { transition: transform 60ms steps(2); }
+  .primary-button:active, .secondary-button:active, .icon-button:active, .tn:active, .view-tab:active, .quick-chip-btn:active { transform: translateY(2px); }
+  .task-card, #class-task-list .task-row { transition: transform 80ms steps(2); }
+  .task-card:active, #class-task-list .task-row:active { transform: translateY(2px); }
+  .status-check { transition: transform 60ms steps(2); }
+  .status-check:active { transform: scale(0.82); }
+  @media (hover: hover) {
+    .task-card:hover { transform: translateY(-2px); }
+  }
+  /* A task you just finished lands on the Done page and keeps a blue edge for a moment. */
+  #done-list .done-row.is-landed { animation: landed 420ms steps(5), landed-edge 1600ms steps(8) 200ms backwards; }
 }

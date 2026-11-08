@@ -1,14 +1,16 @@
 // tests/e2e/design-lint.mjs - Phase 3 design lint (tokens, subsumption, CSP hashes).
 //
 // S1 one :root and one :root[data-theme="dark"] block, no light override layer. S2 the
-// mockup's 20 token names, identical values, in both app blocks (light vs light). S3 no
+// mockup's 20 token names, identical values, in both app blocks (light vs light), except the
+// two named dark tokens the app raises on purpose (--ln/--sh, each with its mockup value and
+// reason). S3 no
 // selector declared twice in one cascade context (top level / the same media query). S4
 // every px value is one the mockup has, or carries lint-allow:px. S5 hex lives only in the
 // two :root blocks or a .bg-* palette rule and is a mockup (or ten-code) colour, or carries
 // lint-allow:hex. S6 rgba()/rgb()/hsl() is a :root token, a mockup literal, or allowed the
 // same way. S7 every url() resolves under --root (data: ignored). S8 the index.html inline
-// <script> bodies, CRLF->LF and sha256-base64, match the pins in deploy/nginx-default.conf.
-// S9 exactly two inline <script> elements and no on*= handler. S10 a [hidden] rule still
+// <script> body, CRLF->LF and sha256-base64, matches the pin in deploy/nginx-default.conf.
+// S9 exactly one inline <script> element (the theme bootstrap) and no on*= handler. S10 a [hidden] rule still
 // declares display:none !important. S11 [[section:name]] markers balance (zero passes). S12
 // no @import and no external http(s) URL. A1 markers are well formed, carry a reason of at
 // least 8 characters, and name a value that really occurs in the file: a stale allowlist
@@ -234,23 +236,43 @@ check("S2", needApp || needMock, () => {
   const dark = tokensFor(mock, "dark");
   const appLight = tokensFor(app, "light");
   const appDark = tokensFor(app, "dark");
-  const counts = (want, got) => {
+  // Named dark-mode exceptions: the app raises these two tokens because the mockup's own
+  // values are invisible on the dark surface. Each entry records the mockup value, the raised
+  // app value and a one-line reason, so a stale exception fails S2 instead of hiding a drift.
+  const darkExceptions = {
+    "--ln": { mock: "#2e3466", app: "#434c8f", reason: "the mockup's #2e3466 rule disappears on the dark surface, so the app raises it" },
+    "--sh": { mock: "#070916", app: "#434c8f", reason: "the mockup's #070916 ledge disappears on the dark surface, so the app raises it" },
+  };
+  const counts = (want, got, exceptions) => {
     const names = Object.keys(want);
+    const skip = new Set(Object.keys(exceptions || {}));
     const missing = names.filter((n) => !(n in got));
     const extra = Object.keys(got).filter((n) => !(n in want));
-    const differing = names.filter((n) => n in got && want[n] !== got[n]);
+    const differing = names.filter((n) => n in got && want[n] !== got[n] && !skip.has(n));
     return {
       missing: missing.length, extra: extra.length, differing: differing.length,
       sample: missing.concat(differing).slice(0, 3).map((n) => n + "(mock " + want[n] + " vs app " + got[n] + ")"),
     };
   };
   const l = counts(light, appLight);
-  const d = counts(dark, appDark);
+  const d = counts(dark, appDark, darkExceptions);
+  // An exception may only excuse the two named tokens, at exactly these values.
+  const exceptionProblems = [];
+  for (const [name, ex] of Object.entries(darkExceptions)) {
+    if (!(name in dark)) exceptionProblems.push(name + " is not a mockup dark token");
+    else if (dark[name] !== normValue(ex.mock)) exceptionProblems.push(name + " mockup is " + dark[name] + ", exception records " + ex.mock);
+    if (!(name in appDark)) exceptionProblems.push(name + " is missing from the app dark block");
+    else if (appDark[name] !== normValue(ex.app)) exceptionProblems.push(name + " is " + appDark[name] + ", exception records " + ex.app);
+    if (String(ex.reason || "").trim().length < 8) exceptionProblems.push(name + " exception needs a one-line reason");
+  }
   const total = Object.keys(light).length;
   return {
-    ok: total > 0 && l.missing + l.extra + l.differing + d.missing + d.extra + d.differing === 0,
+    ok: total > 0 && l.missing + l.extra + l.differing + d.missing + d.extra + d.differing === 0 && exceptionProblems.length === 0,
     detail: total + " mockup tokens; missing " + l.missing + "/" + d.missing + ", extra " + l.extra + "/" + d.extra
-      + ", differing " + l.differing + "/" + d.differing + " (light/dark)" + (l.sample.length || d.sample.length ? "; " + l.sample.concat(d.sample).join(", ") : ""),
+      + ", differing " + l.differing + "/" + d.differing + " (light/dark), "
+      + Object.keys(darkExceptions).length + " named dark exception(s) (" + Object.entries(darkExceptions).map(([n, e]) => n + " " + e.mock + "->" + e.app).join(", ") + ")"
+      + (l.sample.length || d.sample.length ? "; " + l.sample.concat(d.sample).join(", ") : "")
+      + (exceptionProblems.length ? "; " + exceptionProblems.join("; ") : ""),
   };
 });
 
@@ -347,7 +369,7 @@ check("S9", readText(indexHtmlPath) === null ? "index.html not found: " + indexH
   const html = readText(indexHtmlPath) || "";
   const inline = [...html.matchAll(/<script\b([^>]*)>/gi)].filter((m) => !/\bsrc\s*=/i.test(m[1])).length;
   const handlers = [...html.matchAll(/\son[a-z]+\s*=/gi)].map((m) => m[0].trim());
-  return { ok: inline === 2 && handlers.length === 0, detail: inline + " inline <script> element(s), " + handlers.length + " inline on*= handler(s)" + (handlers.length ? ": " + handlers.slice(0, 5).join(", ") : "") };
+  return { ok: inline === 1 && handlers.length === 0, detail: inline + " inline <script> element(s), " + handlers.length + " inline on*= handler(s)" + (handlers.length ? ": " + handlers.slice(0, 5).join(", ") : "") };
 });
 
 check("S10", needApp, () => {

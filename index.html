@@ -3,8 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="A shared classroom workspace for keeping schoolwork on track." />
-    <title>Class tasks — TaskTracker</title>
+    <meta name="description" content="A shared task board for one school class: see what is due and when, and keep your own progress private on your device." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TaskTracker" />
+    <meta property="og:title" content="TaskTracker: what is due, and what is left for you" />
+    <meta property="og:description" content="A shared task board for one school class. Your progress stays on your device." />
+    <meta property="og:image" content="https://dsct.dev/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="TaskTracker: what is due, when, and what is left for you." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="TaskTracker: what is due, and what is left for you" />
+    <meta name="twitter:description" content="A shared task board for one school class. Your progress stays on your device." />
+    <meta name="twitter:image" content="https://dsct.dev/og-image.png" />
+    <title>Tasks — TaskTracker</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -12,23 +24,23 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="TaskTracker" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="theme-color" content="#0D0F14" id="meta-theme-color" />
+    <meta name="theme-color" content="#0F1226" id="meta-theme-color" />
 <script>
   try {
-    var t = localStorage.getItem('class_tasks_theme') || 'dark';
+    var t = localStorage.getItem('class_tasks_theme');
+    if (t !== 'light' && t !== 'dark') {
+      t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
     document.documentElement.dataset.theme = t;
-    document.getElementById('meta-theme-color').content = t === 'light' ? '#EBEEF2' : '#0D0F14';
+    document.getElementById('meta-theme-color').content = t === 'light' ? '#F4EFE2' : '#0F1226';
   } catch (e) { document.documentElement.dataset.theme = 'dark'; }
 </script>
-    <script>
-      try {
-        document.documentElement.dataset.sidebar =
-          localStorage.getItem('class_tasks_sidebar') === '1' ? 'collapsed' : 'open';
-      } catch (e) { document.documentElement.dataset.sidebar = 'open'; }
-    </script>
+    <link rel="preload" href="assets/fonts/press-start-2p.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <a class="skip-link" id="skip-link" href="#">Skip to content</a>
     <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true">
   <!-- Navigation icons -->
   <symbol id="i-clipboard-list" viewBox="0 0 24 24"><path d="M3.5 8L7 4.5h13.5v16h-17z"/><path d="M8 10h8.5M8 13.5h8.5M8 17h5"/></symbol>
@@ -60,21 +72,21 @@
         <span class="sp x2" style="--i:18" aria-hidden="true"></span><b>TaskTracker</b>
       </a>
       <nav class="nav" aria-label="Primary">
-        <a class="tn nav-item is-active" href="#class-tasks" data-page="class-tasks" title="Class tasks" aria-label="Class tasks">
+        <a class="tn nav-item is-active" href="#class-tasks" data-page="class-tasks" title="Tasks" aria-label="Tasks">
           <span class="sp x2" style="--i:0" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Tasks</span>
         </a>
         <a class="tn nav-item" href="#calendar" data-page="calendar" title="Calendar" aria-label="Calendar">
           <span class="sp x2" style="--i:1" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Calendar</span>
         </a>
-        <a class="tn nav-item" href="#done" data-page="done" title="Completed tasks" aria-label="Done">
-          <span class="sp x2" style="--i:2" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Done</span>
-        </a>
-        <a class="tn nav-item" href="#past" data-page="past" title="Past tasks" aria-label="Past tasks">
-          <span class="sp x2" style="--i:3" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Past</span>
-        </a>
         <a class="tn nav-item adm" href="#my-tasks" data-page="my-tasks" id="nav-admin" title="Admin" aria-label="Admin" hidden>
           <span class="sp x2" style="--i:4" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Admin</span>
           <span class="bd" id="nav-badge" hidden></span>
+        </a>
+        <a class="tn nav-item" href="#done" data-page="done" title="Done" aria-label="Done">
+          <span class="sp x2" style="--i:2" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Done</span>
+        </a>
+        <a class="tn nav-item" href="#past" data-page="past" title="Past" aria-label="Past">
+          <span class="sp x2" style="--i:3" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Past</span>
         </a>
         <button class="tn nav-item" type="button" id="settings-open" title="Settings" aria-label="Settings">
           <span class="sp x2" style="--i:5" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Settings</span>
@@ -87,11 +99,14 @@
     </header>
 
     <main class="page-container">
-          <h1 class="px ttl" id="breadcrumb-current">Class tasks</h1>
-          <section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Class tasks">
+      <a class="brand brand-m" href="#class-tasks" aria-label="TaskTracker home">
+        <span class="sp x2" style="--i:18" aria-hidden="true"></span><b>TaskTracker</b>
+      </a>
+          <h1 class="px ttl" id="breadcrumb-current">Tasks</h1>
+          <section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Tasks">
             <div class="page-heading">
               <div>
-                <p class="page-supporting-copy">Assignments posted for the class. Your progress is saved on this device only.</p>
+                <p class="page-supporting-copy">Tasks posted for the class. Your progress is saved on this device only.</p>
               </div>
               <div class="page-actions">
                 <label class="search">
@@ -109,30 +124,10 @@
               <span>Previewing as a student. Showing your unpublished draft.</span>
               <button class="text-button" type="button" id="preview-exit">Exit preview</button>
             </div>
-            <section class="announcements" id="announce-admin" aria-label="Pinned announcements">
+            <section class="announcements" id="announce-public" aria-label="Pinned announcements">
               <div class="announce-header">
                 <h2><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg> Pinned</h2>
-                <button class="text-button" type="button" id="announce-add-btn">Post announcement</button>
-              </div>
-              <form class="announce-form" id="announce-form" hidden>
-                <div class="announce-toolbar" role="toolbar" aria-label="Formatting">
-                  <button class="announce-tool" type="button" data-cmd="bold" aria-label="Bold" aria-pressed="false" title="Bold (Ctrl+B)"><b>B</b></button>
-                  <button class="announce-tool" type="button" data-cmd="italic" aria-label="Italic" aria-pressed="false" title="Italic (Ctrl+I)"><i>I</i></button>
-                  <button class="announce-tool" type="button" data-cmd="insertUnorderedList" aria-label="Bulleted list" aria-pressed="false" title="Bulleted list"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></button>
-                </div>
-                <div class="announce-editor" id="announce-input" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Announcement text" data-placeholder="Write a note for the class"></div>
-                <div class="announce-actions">
-                  <span class="announce-count" id="announce-count"></span>
-                  
-                  <button class="text-button" type="button" id="announce-cancel">Cancel</button>
-                  <button class="primary-button" type="submit">Pin</button>
-                </div>
-              </form>
-              <ul class="announce-list" id="announce-list"></ul>
-            </section>
-            <section class="announcements" aria-label="Pinned announcements">
-              <div class="announce-header">
-                <h2><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg> Pinned</h2>
+                <button class="text-button announce-toggle" type="button" id="announce-toggle" aria-expanded="false" aria-controls="announce-list-public" hidden></button>
               </div>
               <ul class="announce-list" id="announce-list-public"></ul>
             </section>
@@ -143,7 +138,7 @@
                   <div><h2>To Do</h2><span class="column-count">(0)</span></div>
                   <span class="column-marker marker-todo" aria-hidden="true"></span>
                 </div>
-                <div class="column-content is-empty"><p class="column-empty">No class assignments yet.</p></div>
+                <div class="column-content is-empty"><p class="column-empty">No tasks yet.</p></div>
               </div>
               <div class="kanban-column" data-status="progress">
                 <div class="column-header">
@@ -154,18 +149,18 @@
               </div>
               <div class="kanban-column" data-status="done">
                 <div class="column-header">
-                  <div><h2>Submitted / Done</h2><span class="column-count">(0)</span></div>
+                  <div><h2>Done</h2><span class="column-count">(0)</span></div>
                   <span class="column-marker marker-done" aria-hidden="true"></span>
                 </div>
-                <div class="column-content is-empty"><p class="column-empty">No submitted work yet.</p></div>
+                <div class="column-content is-empty"><p class="column-empty">Nothing done yet.</p></div>
               </div>
             </div>
           </section>
 
-          <section class="page" id="page-my-tasks" data-page-view="my-tasks" aria-label="My tasks" hidden>
+          <section class="page" id="page-my-tasks" data-page-view="my-tasks" aria-label="Admin" hidden>
             <div class="page-heading">
               <div>
-                <p class="page-supporting-copy">Draft tasks and announcements here. Nothing reaches the class until you apply changes.</p>
+                <p class="page-supporting-copy">Draft tasks and announcements here. Nothing reaches the class until you publish.</p>
               </div>
               <div class="page-actions">
                 <label class="search">
@@ -184,13 +179,39 @@
             <div class="admin-bar" id="admin-bar">
               <span class="admin-status" id="admin-status" role="status"></span>
               <div class="admin-actions">
-                <button class="text-button" type="button" id="btn-preview">Preview as student</button>
-                <button class="text-button" type="button" id="btn-history">History</button>
-                <button class="text-button" type="button" id="btn-discard">Discard changes</button>
+                <details class="admin-more">
+                  <summary class="text-button">More</summary>
+                  <div class="admin-more-menu">
+                    <button class="text-button" type="button" id="btn-preview">Preview as student</button>
+                    <button class="text-button" type="button" id="btn-history">History</button>
+                    <button class="text-button" type="button" id="btn-discard">Discard changes</button>
+                  </div>
+                </details>
                 <button class="secondary-button" type="button" id="btn-save">Save</button>
-                <button class="primary-button" type="button" id="btn-apply">Apply changes</button>
+                <button class="primary-button" type="button" id="btn-apply">Publish</button>
               </div>
             </div>
+            <section class="announcements" id="announce-admin" aria-label="Announcements">
+              <div class="announce-header">
+                <h2><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg> Announcements</h2>
+                <button class="text-button" type="button" id="announce-add-btn">Post announcement</button>
+              </div>
+              <form class="announce-form" id="announce-form" hidden>
+                <div class="announce-toolbar" role="toolbar" aria-label="Formatting">
+                  <button class="announce-tool" type="button" data-cmd="bold" aria-label="Bold" aria-pressed="false" title="Bold (Ctrl+B)"><b>B</b></button>
+                  <button class="announce-tool" type="button" data-cmd="italic" aria-label="Italic" aria-pressed="false" title="Italic (Ctrl+I)"><i>I</i></button>
+                  <button class="announce-tool" type="button" data-cmd="insertUnorderedList" aria-label="Bulleted list" aria-pressed="false" title="Bulleted list"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></button>
+                </div>
+                <div class="announce-editor" id="announce-input" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Announcement text" data-placeholder="Write a note for the class"></div>
+                <div class="announce-actions">
+                  <span class="announce-count" id="announce-count"></span>
+                  
+                  <button class="text-button" type="button" id="announce-cancel">Cancel</button>
+                  <button class="primary-button" type="submit">Pin</button>
+                </div>
+              </form>
+              <ul class="announce-list" id="announce-list"></ul>
+            </section>
             <div class="empty-state">
               <p>No tasks yet.</p>
               <button class="text-button" type="button" id="empty-add-btn">Add a task</button>
@@ -209,7 +230,7 @@
                   <div><h2>To Do</h2><span class="column-count">(0)</span></div>
                   <span class="column-marker marker-todo" aria-hidden="true"></span>
                 </div>
-                <div class="column-content is-empty"><p class="column-empty">Hit "New task" to add your first item.</p></div>
+                <div class="column-content is-empty"><p class="column-empty">Select "New task" to add your first task.</p></div>
               </div>
               <div class="kanban-column" data-status="progress">
                 <div class="column-header">
@@ -220,26 +241,26 @@
               </div>
               <div class="kanban-column" data-status="done">
                 <div class="column-header">
-                  <div><h2>Submitted / Done</h2><span class="column-count">(0)</span></div>
+                  <div><h2>Done</h2><span class="column-count">(0)</span></div>
                   <span class="column-marker marker-done" aria-hidden="true"></span>
                 </div>
-                <div class="column-content is-empty"><p class="column-empty">Finished tasks land here.</p></div>
+                <div class="column-content is-empty"><p class="column-empty">Done tasks land here.</p></div>
               </div>
             </div>
           </section>
 
-          <section class="page utility-page" id="page-done" data-page-view="done" aria-label="Completed tasks" hidden>
+          <section class="page utility-page" id="page-done" data-page-view="done" aria-label="Done" hidden>
             <div class="page-heading">
               <div><p class="page-supporting-copy">Tasks you've marked done on this device.</p></div>
             </div>
-            <div class="task-list" id="done-list" aria-label="Completed tasks"></div>
+            <div class="task-list" id="done-list" aria-label="Done tasks"></div>
           </section>
 
-          <section class="page utility-page" id="page-past" data-page-view="past" aria-label="Past tasks" hidden>
+          <section class="page utility-page" id="page-past" data-page-view="past" aria-label="Past" hidden>
             <div class="page-heading">
-              <div><p class="page-supporting-copy">Tasks that were closed or have passed their due date. Nothing is lost, and you can still mark things done.</p></div>
+              <div><p class="page-supporting-copy">Tasks that were closed or have passed their due date.</p></div>
             </div>
-            <div class="task-list" id="past-list" aria-label="Past tasks"></div>
+            <div class="task-list" id="past-list" aria-label="Past tasks list"></div>
           </section>
 
           <section class="page utility-page" id="page-calendar" data-page-view="calendar" aria-label="Calendar" hidden>
@@ -290,13 +311,13 @@
               </div>
               <div class="field">
                 <label class="field-label">Subject</label>
-                <button class="prop-value empty-value" type="button" id="dialog-subject-btn" aria-haspopup="listbox" aria-expanded="false">Empty</button>
+                <button class="prop-value empty-value" type="button" id="dialog-subject-btn" aria-haspopup="listbox" aria-expanded="false">Add subject</button>
                 <div class="status-dropdown subject-dropdown" id="dialog-subject-dropdown" role="listbox" aria-label="Subject" hidden></div>
               </div>
               <div class="field field-due">
                 <label class="field-label">Due<span class="due-hint" id="dialog-due-hint"></span></label>
                 <div class="due-controls">
-                  <button class="prop-value empty-value" type="button" id="dialog-date-btn">Empty</button>
+                  <button class="prop-value empty-value" type="button" id="dialog-date-btn">Add due date</button>
                   <button class="prop-clear" type="button" id="dialog-due-clear" hidden aria-label="Clear due date">
                     <svg class="i prop-clear-icon" aria-hidden="true"><use href="#i-x"/></svg>
                   </button>
@@ -333,14 +354,14 @@
     <div class="task-dialog-overlay" id="publish-overlay" hidden>
       <form class="task-dialog" id="publish-form" role="dialog" aria-modal="true" aria-labelledby="publish-title">
         <div class="dialog-header">
-          <h2 class="dialog-heading" id="publish-title">Apply changes</h2>
+          <h2 class="dialog-heading" id="publish-title">Publish</h2>
           <button class="panel-close" type="button" id="publish-close" aria-label="Close">	<svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
         </div>
         <div class="dialog-body">
           <p class="dialog-summary" id="publish-summary"></p>
           <div class="field"><label class="field-label" for="publish-note">Note (optional)</label>
             <input class="text-input" id="publish-note" type="text" maxlength="80"></div>
-          <p class="form-error" id="publish-clear-warning" hidden>Every assignment the class can see will be removed. Announcements are not affected, and earlier versions stay in History.</p>
+          <p class="form-error" id="publish-clear-warning" hidden>Every task the class can see will be removed. Announcements are not affected, and earlier versions stay in History.</p>
           <div class="field" id="publish-clear" hidden>
             <label class="field-label" for="publish-clear-input">Type CLEAR BOARD to confirm</label>
             <input class="text-input" id="publish-clear-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="publish-clear-warning">
@@ -375,6 +396,17 @@
           <button class="panel-close" type="button" id="settings-close" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
         </div>
         <div class="dialog-body settings-body">
+          <div class="settings-row">
+            <div>
+              <p class="settings-title" id="theme-seg-label">Appearance</p>
+              <p class="settings-desc">System follows your device setting.</p>
+            </div>
+            <div class="view-tabs" role="group" aria-labelledby="theme-seg-label" id="theme-seg">
+              <button class="view-tab" type="button" data-theme-choice="system" aria-pressed="false">System</button>
+              <button class="view-tab" type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+              <button class="view-tab" type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+            </div>
+          </div>
           <div class="settings-row">
             <div>
               <p class="settings-title">Replay tutorial</p>
@@ -439,15 +471,15 @@
           </div>
           <div class="transfer-link-row" id="transfer-link-row" hidden>
             <input class="text-input" id="transfer-link" type="text" readonly aria-label="Transfer link" spellcheck="false">
-            <button class="secondary-button" type="button" id="transfer-copy">Copy</button>
+            <button class="primary-button" type="button" id="transfer-copy">Copy</button>
           </div>
           <p class="transfer-countdown" id="transfer-countdown"></p>
           <p class="form-error" id="transfer-error" role="alert" hidden></p>
         </div>
         <div class="dialog-footer">
           <button class="text-button" type="button" id="transfer-cancel-link" hidden>Cancel link</button>
-          <button class="secondary-button" type="button" id="transfer-new" hidden>Create new link</button>
-          <button class="primary-button" type="button" id="transfer-done">Done</button>
+          <button class="primary-button" type="button" id="transfer-new" hidden>Create new link</button>
+          <button class="text-button" type="button" id="transfer-done">Close</button>
         </div>
       </div>
     </div>
@@ -516,6 +548,6 @@
     <script src="qr-draw.js?v=10"></script>
     <script src="attachments.js?v=1"></script>
     <script type="module" src="logic.js?v=5"></script>
-    <script type="module" src="app.js?v=3"></script>
+    <script type="module" src="app.js?v=5"></script>
   </body>
 </html>

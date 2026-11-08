@@ -48,6 +48,29 @@ let showToast = null;        // app.js: the removed / over-limit / too-much-form
 let saveTasks = null;        // app.js: persists progress and the admin draft after every edit
 let updateAdminBar = null;   // app.js -> js/publish.js (slice 2.5): the unpublished-changes bar
 let diffDraft = null;        // app.js -> js/publish.js (slice 2.5): the draft-vs-published diff
+// Pinned block (critique P0, then P2 for desktop): collapsed to the newest announcement so the first
+// task row stays on screen; the toggle opens the rest. On phones that one item is also clamped to two
+// lines (CSS); on larger screens it shows in full.
+let pinnedOpen = false;
+function syncPinned() {
+  const box = document.querySelector('#announce-public');
+  const list = document.querySelector('#announce-list-public');
+  const toggle = document.querySelector('#announce-toggle');
+  if (!box || !list || !toggle) return;
+  const items = list.querySelectorAll('.announce-item');
+  const collapsed = !pinnedOpen;
+  box.classList.toggle('is-empty', items.length === 0);
+  box.classList.toggle('is-collapsed', collapsed);
+  // Clipped text can only be measured while the page is on screen; off screen, fall back to length.
+  const text = items[0] && items[0].querySelector('.announce-text');
+  const clipped = collapsed && !!text && (box.getClientRects().length
+    ? text.scrollHeight > text.clientHeight + 1
+    : text.textContent.length > 70);
+  toggle.hidden = !items.length || (!pinnedOpen && items.length < 2 && !clipped);
+  toggle.setAttribute('aria-expanded', String(pinnedOpen));
+  toggle.textContent = pinnedOpen ? 'Show less' : (items.length > 1 ? `Show all ${items.length}` : 'Show more');
+}
+
 function renderPublicAnnouncements() {
   const list = document.querySelector('#announce-list-public');
   if (!list) return;
@@ -58,6 +81,7 @@ function renderPublicAnnouncements() {
     empty.className = 'announce-empty';
     empty.textContent = 'No pinned announcements.';
     list.appendChild(empty);
+    syncPinned();
     return;
   }
   items.forEach((a) => {
@@ -73,6 +97,7 @@ function renderPublicAnnouncements() {
     li.append(text, date);
     list.appendChild(li);
   });
+  syncPinned();
 }
 
 // --- Pinned announcements ---
@@ -242,6 +267,11 @@ dom.announceTools.forEach((b) => {
   });
 });
 document.addEventListener('selectionchange', () => { if (document.activeElement === dom.announceInput) syncAnnounceTools(); });
+
+document.querySelector('#announce-toggle').addEventListener('click', () => { pinnedOpen = !pinnedOpen; syncPinned(); });
+window.addEventListener('resize', syncPinned);
+window.addEventListener('hashchange', () => requestAnimationFrame(syncPinned)); // the router: the page may just have appeared
+if (document.fonts) document.fonts.ready.then(syncPinned); // line breaks change once the body font loads
 
 document.querySelector('#announce-add-btn').addEventListener('click', () => toggleAnnounceForm(dom.announceForm.hidden));
 document.querySelector('#announce-cancel').addEventListener('click', () => toggleAnnounceForm(false));

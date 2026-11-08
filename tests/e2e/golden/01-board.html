@@ -1,8 +1,8 @@
 <!-- #page-class-tasks (class board + list, default route) -->
-<section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Class tasks" data-view="list">
+<section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Tasks" data-view="list">
   <div class="page-heading">
     <div>
-      <p class="page-supporting-copy">Assignments posted for the class. Your progress is saved on this device only.</p>
+      <p class="page-supporting-copy">Tasks posted for the class. Your progress is saved on this device only.</p>
     </div>
     <div class="page-actions">
       <label class="search">
@@ -22,7 +22,7 @@
     <span>Previewing as a student. Showing your unpublished draft.</span>
     <button class="text-button" type="button" id="preview-exit">Exit preview</button>
   </div>
-  <section class="announcements" aria-label="Pinned announcements">
+  <section class="announcements is-collapsed" id="announce-public" aria-label="Pinned announcements">
     <div class="announce-header">
       <h2>
         <svg class="i" aria-hidden="true">
@@ -30,6 +30,7 @@
         </svg>
         Pinned
       </h2>
+      <button class="text-button announce-toggle" type="button" id="announce-toggle" aria-expanded="false" aria-controls="announce-list-public">Show all 3</button>
     </div>
     <ul class="announce-list" id="announce-list-public">
       <li class="announce-item">
@@ -66,151 +67,250 @@
     </ul>
   </section>
   <div class="task-list" id="class-task-list" aria-label="Class task list">
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx002" style="animation-delay: 0ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx002">
+      <button type="button" class="status-check is-not-started" aria-label="Problem set 4: limits and continuity: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Problem set 4: limits and continuity</span>
       <span class="subject-tag bg-pink">GENMATH</span>
-      <span class="task-row-due is-overdue" title="Oct 31 · 11:59 PM">3 days overdue · 11:59 PM</span>
+      <span class="task-row-due is-overdue" title="Oct 31 · 11:59 PM">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-alarm-clock"></use>
+        </svg>
+        <span>3 days overdue · 11:59 PM</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx004" style="animation-delay: 40ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx004">
+      <button type="button" class="status-check is-not-started" aria-label="Journal entry: community immersion prep: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Journal entry: community immersion prep</span>
       <span class="subject-tag bg-teal">PERDEV</span>
-      <span class="task-row-due is-overdue" title="Nov 2 · 5:00 PM">1 day overdue · 5:00 PM</span>
+      <span class="task-row-due is-overdue" title="Nov 2 · 5:00 PM">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-alarm-clock"></use>
+        </svg>
+        <span>1 day overdue · 5:00 PM</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx003" style="animation-delay: 80ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx003">
+      <button type="button" class="status-check is-not-started" aria-label="Read chapter 7 of Noli Me Tangere: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Read chapter 7 of Noli Me Tangere</span>
       <span class="subject-tag bg-sunglow">PKLP</span>
-      <span class="task-row-due is-overdue" title="Mon, Nov 2">1 day overdue</span>
+      <span class="task-row-due is-overdue" title="Mon, Nov 2">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-alarm-clock"></use>
+        </svg>
+        <span>1 day overdue</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx005" style="animation-delay: 120ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx005">
+      <button type="button" class="status-check is-not-started" aria-label="Oral recitation: Newton's laws: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Oral recitation: Newton's laws</span>
       <span class="subject-tag bg-cyan">GENSCI</span>
-      <span class="task-row-due is-overdue" title="Nov 3 · 9:30 AM">2 hr overdue · 9:30 AM</span>
+      <span class="task-row-due is-overdue" title="Nov 3 · 9:30 AM">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-alarm-clock"></use>
+        </svg>
+        <span>2 hr overdue · 9:30 AM</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx007" style="animation-delay: 160ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx007">
+      <button type="button" class="status-check is-not-started" aria-label="Warm-up routine chart: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Warm-up routine chart</span>
       <span class="subject-tag bg-yellow">PE</span>
-      <span class="task-row-due" title="Nov 3 · 11:00 PM">Due today · 11:00 PM</span>
+      <span class="task-row-due is-due-soon" title="Nov 3 · 11:00 PM">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>Due today · 11:00 PM</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx006" style="animation-delay: 200ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx006">
+      <button type="button" class="status-check is-not-started" aria-label="Submit the statistical survey draft: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Submit the statistical survey draft</span>
       <span class="subject-tag bg-sand">MABKOM</span>
-      <span class="task-row-due" title="Tue, Nov 3">Due today</span>
+      <span class="task-row-due is-due-soon" title="Tue, Nov 3">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>Due today</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx008" style="animation-delay: 240ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx008">
+      <button type="button" class="status-check is-not-started" aria-label="Essay: the role of youth in civic duty: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Essay: the role of youth in civic duty</span>
       <span class="subject-tag bg-green">EFFCOM</span>
-      <span class="task-row-due" title="Wed, Nov 4">Due tomorrow</span>
+      <span class="task-row-due is-due-soon" title="Wed, Nov 4">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>Due tomorrow</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx009" style="animation-delay: 280ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx009">
+      <button type="button" class="status-check is-not-started" aria-label="Group presentation slides: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Group presentation slides</span>
       <span class="subject-tag bg-sand">MABKOM</span>
-      <span class="task-row-due" title="Nov 5 · 1:00 PM">In 2 days · 1:00 PM</span>
+      <span class="task-row-due is-due-soon" title="Nov 5 · 1:00 PM">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 2 days · 1:00 PM</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx021" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx021">
+      <button type="button" class="status-check is-not-started" aria-label="Upload the signed consent form: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Upload the signed consent form</span>
       <span class="subject-tag bg-teal">PERDEV</span>
-      <span class="task-row-due" title="Thu, Nov 5">In 2 days</span>
+      <span class="task-row-due is-due-soon" title="Thu, Nov 5">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 2 days</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx010" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx010">
+      <button type="button" class="status-check is-not-started" aria-label="Reflection paper on servant leadership: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Reflection paper on servant leadership</span>
       <span class="subject-tag bg-stone">THEOLOGY</span>
-      <span class="task-row-due" title="Fri, Nov 6">In 3 days</span>
+      <span class="task-row-due is-due-soon" title="Fri, Nov 6">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 3 days</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx011" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx011">
+      <button type="button" class="status-check is-not-started" aria-label="Draft the database schema for the capstone: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Draft the database schema for the capstone</span>
       <span class="subject-tag bg-blue">CP104</span>
-      <span class="task-row-due" title="Sat, Nov 7">In 4 days</span>
+      <span class="task-row-due" title="Sat, Nov 7">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 4 days</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx012" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx012">
+      <button type="button" class="status-check is-not-started" aria-label="Financial ratios worksheet: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Financial ratios worksheet</span>
       <span class="subject-tag bg-mauve">FINMATH101</span>
-      <span class="task-row-due" title="Nov 8 · 8:00 AM">In 5 days · 8:00 AM</span>
+      <span class="task-row-due" title="Nov 8 · 8:00 AM">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 5 days · 8:00 AM</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx013" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx013">
+      <button type="button" class="status-check is-not-started" aria-label="Lab safety quiz review: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Lab safety quiz review</span>
       <span class="subject-tag bg-cyan">GENSCI</span>
-      <span class="task-row-due" title="Mon, Nov 9">In 6 days</span>
+      <span class="task-row-due" title="Mon, Nov 9">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 6 days</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx022" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx022">
+      <button type="button" class="status-check is-not-started" aria-label="Diagram of the water cycle: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Diagram of the water cycle</span>
       <span class="subject-tag bg-cyan">GENSCI</span>
-      <span class="task-row-due" title="Tue, Nov 10">In 7 days</span>
+      <span class="task-row-due" title="Tue, Nov 10">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 7 days</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx019" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx019">
+      <button type="button" class="status-check is-not-started" aria-label="Prepare the annotated bibliography covering every source cited in the literature review, with a one-paragraph summary of each source and a note on how it will be used in the final argument of the paper: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Prepare the annotated bibliography covering every source cited in the literature review, with a one-paragraph summary of each source and a note on how it will be used in the final argument of the paper</span>
       <span class="subject-tag bg-green">EFFCOM</span>
-      <span class="task-row-due" title="Wed, Nov 11">In 8 days</span>
+      <span class="task-row-due" title="Wed, Nov 11">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 8 days</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx020" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx020">
+      <button type="button" class="status-check is-not-started" aria-label="Long-title stress case: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Long-title stress case: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word</span>
       <span class="subject-tag bg-pink">GENMATH</span>
-      <span class="task-row-due" title="Thu, Nov 12">In 9 days</span>
+      <span class="task-row-due" title="Thu, Nov 12">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 9 days</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx014" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx014">
+      <button type="button" class="status-check is-not-started" aria-label="Term paper outline: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Term paper outline</span>
       <span class="subject-tag bg-green">EFFCOM</span>
-      <span class="task-row-due" title="Sun, Nov 15">In 12 days</span>
+      <span class="task-row-due" title="Sun, Nov 15">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 12 days</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx015" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx015">
+      <button type="button" class="status-check is-not-started" aria-label="Capstone prototype demo: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Capstone prototype demo</span>
       <span class="subject-tag bg-blue">CP104</span>
-      <span class="task-row-due" title="Nov 23 · 3:30 PM">In 2 weeks · 3:30 PM</span>
+      <span class="task-row-due" title="Nov 23 · 3:30 PM">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 2 weeks · 3:30 PM</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx016" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx016">
+      <button type="button" class="status-check is-not-started" aria-label="Final practical exam: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Final practical exam</span>
       <span class="subject-tag bg-yellow">PE</span>
-      <span class="task-row-due" title="Tue, Dec 8">In 5 weeks</span>
+      <span class="task-row-due" title="Tue, Dec 8">
+        <svg class="i" aria-hidden="true">
+          <use href="#i-calendar"></use>
+        </svg>
+        <span>In 5 weeks</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx018" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx018">
+      <button type="button" class="status-check is-not-started" aria-label="Someday: ask about the retreat venue: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Someday: ask about the retreat venue</span>
       <span class="subject-tag bg-stone">THEOLOGY</span>
-      <span class="task-row-due" title="Someday">Someday</span>
+      <span class="task-row-due" title="Someday">
+        <span>Someday</span>
+      </span>
       <span></span>
     </div>
-    <div class="task-row is-entering" tabindex="0" data-task-id="fx017" style="animation-delay: 320ms;">
-      <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+    <div class="task-row" tabindex="0" data-task-id="fx017">
+      <button type="button" class="status-check is-not-started" aria-label="Someday: organise the class photo archive: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
       <span class="task-row-title">Someday: organise the class photo archive</span>
       <span class="subject-tag bg-sand">MABKOM</span>
-      <span class="task-row-due" title="Someday">Someday</span>
+      <span class="task-row-due" title="Someday">
+        <span>Someday</span>
+      </span>
       <span></span>
     </div>
   </div>
@@ -224,10 +324,10 @@
         <span class="column-marker marker-todo" aria-hidden="true"></span>
       </div>
       <div class="column-content">
-        <p class="column-empty" hidden="" data-default="No class assignments yet.">No class assignments yet.</p>
-        <article class="task-card is-entering" data-task-id="fx002" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <p class="column-empty" hidden="" data-default="No tasks yet.">No tasks yet.</p>
+        <article class="task-card" data-task-id="fx002" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Problem set 4: limits and continuity: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Problem set 4: limits and continuity</h3>
           </div>
           <div class="task-card-footer">
@@ -240,9 +340,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx004" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx004" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Journal entry: community immersion prep: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Journal entry: community immersion prep</h3>
           </div>
           <div class="task-card-footer">
@@ -255,9 +355,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx003" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx003" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Read chapter 7 of Noli Me Tangere: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Read chapter 7 of Noli Me Tangere</h3>
           </div>
           <div class="task-card-footer">
@@ -270,9 +370,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx005" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx005" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Oral recitation: Newton's laws: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Oral recitation: Newton's laws</h3>
           </div>
           <div class="task-card-footer">
@@ -285,9 +385,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx007" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx007" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Warm-up routine chart: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Warm-up routine chart</h3>
           </div>
           <div class="task-card-footer">
@@ -300,9 +400,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx006" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx006" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Submit the statistical survey draft: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Submit the statistical survey draft</h3>
           </div>
           <div class="task-card-footer">
@@ -315,9 +415,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx008" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx008" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Essay: the role of youth in civic duty: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Essay: the role of youth in civic duty</h3>
           </div>
           <div class="task-card-footer">
@@ -330,9 +430,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx009" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx009" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Group presentation slides: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Group presentation slides</h3>
           </div>
           <div class="task-card-footer">
@@ -345,9 +445,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx021" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx021" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Upload the signed consent form: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Upload the signed consent form</h3>
           </div>
           <div class="task-card-footer">
@@ -360,9 +460,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx010" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx010" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Reflection paper on servant leadership: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Reflection paper on servant leadership</h3>
           </div>
           <div class="task-card-footer">
@@ -375,9 +475,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx011" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx011" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Draft the database schema for the capstone: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Draft the database schema for the capstone</h3>
           </div>
           <div class="task-card-footer">
@@ -390,9 +490,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx012" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx012" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Financial ratios worksheet: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Financial ratios worksheet</h3>
           </div>
           <div class="task-card-footer">
@@ -405,9 +505,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx013" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx013" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Lab safety quiz review: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Lab safety quiz review</h3>
           </div>
           <div class="task-card-footer">
@@ -420,9 +520,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx022" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx022" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Diagram of the water cycle: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Diagram of the water cycle</h3>
           </div>
           <div class="task-card-footer">
@@ -435,9 +535,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx019" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx019" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Prepare the annotated bibliography covering every source cited in the literature review, with a one-paragraph summary of each source and a note on how it will be used in the final argument of the paper: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Prepare the annotated bibliography covering every source cited in the literature review, with a one-paragraph summary of each source and a note on how it will be used in the final argument of the paper</h3>
           </div>
           <div class="task-card-footer">
@@ -450,9 +550,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx020" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx020" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Long-title stress case: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Long-title stress case: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word</h3>
           </div>
           <div class="task-card-footer">
@@ -465,9 +565,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx014" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx014" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Term paper outline: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Term paper outline</h3>
           </div>
           <div class="task-card-footer">
@@ -480,9 +580,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx015" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx015" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Capstone prototype demo: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Capstone prototype demo</h3>
           </div>
           <div class="task-card-footer">
@@ -495,9 +595,9 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx016" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx016" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Final practical exam: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Final practical exam</h3>
           </div>
           <div class="task-card-footer">
@@ -510,18 +610,18 @@
             </span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx018" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx018" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Someday: ask about the retreat venue: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Someday: ask about the retreat venue</h3>
           </div>
           <div class="task-card-footer">
             <span class="subject-tag bg-stone">THEOLOGY</span>
           </div>
         </article>
-        <article class="task-card is-entering" data-task-id="fx017" draggable="true" data-status="not_started" tabindex="0" style="animation-delay: 320ms;">
+        <article class="task-card" data-task-id="fx017" draggable="true" data-status="not_started" tabindex="0">
           <div class="task-card-header">
-            <button type="button" class="status-check is-not-started" aria-label="Change status"></button>
+            <button type="button" class="status-check is-not-started" aria-label="Someday: organise the class photo archive: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
             <h3 class="task-card-title">Someday: organise the class photo archive</h3>
           </div>
           <div class="task-card-footer">
@@ -545,13 +645,13 @@
     <div class="kanban-column" data-status="done">
       <div class="column-header">
         <div>
-          <h2>Submitted / Done</h2>
+          <h2>Done</h2>
           <span class="column-count">(0)</span>
         </div>
         <span class="column-marker marker-done" aria-hidden="true"></span>
       </div>
       <div class="column-content is-empty">
-        <p class="column-empty" data-default="No submitted work yet.">No submitted work yet.</p>
+        <p class="column-empty" data-default="Nothing done yet.">Nothing done yet.</p>
       </div>
     </div>
   </div>

@@ -64,13 +64,18 @@ function createCalChip(task) {
   return chip;
 }
 
+// Same rule as the list rows and the board badge: open, not overdue, due within 3 days.
+const isDueSoon = (t) => t.status !== 'done' && !!t.dueDate && !t.isOverdue() && dayDiff(t.dueDate) <= 3;
+const urgencyRank = (t) => (t.status === 'done' ? 3 : t.isOverdue() ? 0 : isDueSoon(t) ? 1 : 2);
+
 function createCalDots(list) {
   const wrap = document.createElement('span');
   wrap.className = 'cal-dots';
   wrap.setAttribute('aria-hidden', 'true');
-  list.slice(0, 3).forEach((t) => {
+  // Only three dots fit, so the urgent ones go first (a stable sort keeps the time order within a rank).
+  list.slice().sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
     const dot = document.createElement('span');
-    dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '') + (t.status !== 'done' && t.isOverdue() ? ' is-overdue' : '');
+    dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '') + (t.status !== 'done' && t.isOverdue() ? ' is-overdue' : isDueSoon(t) ? ' is-due-soon' : '');
     dot.dataset.status = t.status;
     wrap.appendChild(dot);
   });
@@ -176,11 +181,12 @@ export function renderCalendar() {
       cell.classList.add('is-tappable');
       if (key === picked) cell.classList.add('is-selected');
       const overdue = list.filter((t) => t.status !== 'done' && t.isOverdue()).length;
+      const soon = list.filter(isDueSoon).length;
       cell.dataset.date = key;
       cell.tabIndex = key === picked ? 0 : -1;
       cell.setAttribute('role', 'button');
       if (key === picked) cell.setAttribute('aria-current', 'true');
-      cell.setAttribute('aria-label', `${calLongDate(d)}, ${list.length ? plural(list.length, 'task') : 'no tasks'}${overdue ? `, ${overdue} overdue` : ''}`);
+      cell.setAttribute('aria-label', `${calLongDate(d)}, ${list.length ? plural(list.length, 'task') : 'no tasks'}${overdue ? `, ${overdue} overdue` : ''}${soon ? `, ${soon} due soon` : ''}`);
       if (list.length) cell.appendChild(createCalDots(list));
       cell.addEventListener('click', () => calSelect(d));
       cell.addEventListener('keydown', (e) => calKey(e, d));

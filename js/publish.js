@@ -133,7 +133,7 @@ function openPublishDialog() {
   const undated = myTasks.filter((t) => !t.dueDate).length;
   const n = state.publishedTasks.length;
   $('#publish-summary').textContent = isClearBoardPublish()
-    ? `This removes all ${n} published assignment${n === 1 ? '' : 's'} from the class board.` + (d.ann ? ' Announcement changes stay unpublished.' : '')
+    ? `This removes all ${n} published task${n === 1 ? '' : 's'} from the class board.` + (d.ann ? ' Announcement changes stay unpublished.' : '')
     : `${describeDiff(d)}.` + (undated ? ` ${undated} task${undated === 1 ? ' has' : 's have'} no due date.` : '');
   $('#publish-note').value = '';
   $('#publish-clear-input').value = '';
@@ -192,7 +192,7 @@ function renderHistory() {
       const before = snapshot();
       restoreDraft(it.snap);
       hideAnimated(dom.historyOverlay);
-      showToast('Restored to draft. Nothing is live until you apply.', 'Undo', () => restoreDraft(before));
+      showToast('Restored to draft. Nothing is live until you publish.', 'Undo', () => restoreDraft(before));
     });
     const del = document.createElement('button');
     del.type = 'button';

@@ -15,6 +15,7 @@ import * as transfer from './js/transfer.js';
 import * as announcements from './js/announcements.js';
 import * as publish from './js/publish.js';
 import * as tasks from './js/tasks.js';
+import * as motion from './js/motion.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -156,6 +157,7 @@ function showUpdateNotice(items, onDismiss) {
   ok.focus();
 }
 
+let firstBoardPaint = false;
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
@@ -183,6 +185,7 @@ async function loadPublished() {
   setPublished(board);
   checkUpdateNotice(state.liveBoard);
   tasks.pruneProgress(state.liveBoard);
+  if (!firstBoardPaint) { firstBoardPaint = true; motion.init(); motion.enter(); }   // the board arrives once
   tasks.renderAllTasks();
   announcements.renderAnnouncements();
 }
@@ -623,7 +626,17 @@ document.addEventListener('keydown', (e) => {
 
 // --- Initialization ---
 
+// Skip link: jumps to the page content without touching the location hash (the hash is the router).
+function initSkipLink() {
+  const link = document.querySelector('#skip-link');
+  const main = document.querySelector('main');
+  if (!link || !main) return;
+  main.tabIndex = -1;
+  link.addEventListener('click', (e) => { e.preventDefault(); main.focus({ preventScroll: false }); });
+}
+
 function init() {
+  initSkipLink();
   tasks.loadTasks();
   announcements.renderAnnouncements();
   ['class', 'admin'].forEach((scope) => {
@@ -632,7 +645,6 @@ function init() {
     setView(scope, v === 'list' || v === 'board' ? v : VIEW_DEFAULTS[scope], false);
   });
   tasks.showSkeletons();
-  state.staggerNext = true;
   loadPublished();
   setInterval(loadPublished, 300000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadPublished(); });

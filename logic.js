@@ -47,7 +47,7 @@ function sanitizeDoc(html) {
         if (tag === 'img') {
           const s = n.getAttribute('src') || '';
           if (/^data:image\/(png|jpeg|gif|webp);base64,/i.test(s) || /^uploads\/[a-f0-9]{32}\.(jpg|png)$/.test(s)) {
-            const i = document.createElement('img'); i.src = s; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async'; dst.appendChild(i);
+            const i = document.createElement('img'); i.src = s; i.alt = (n.getAttribute('alt') || '').slice(0, 200); i.loading = 'lazy'; i.decoding = 'async'; dst.appendChild(i);
           }
         } else if (tag === 'br') dst.appendChild(document.createElement('br'));
         else if (tag === 'b' || tag === 'strong' || tag === 'i' || tag === 'em') {
