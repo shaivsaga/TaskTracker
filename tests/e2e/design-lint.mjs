@@ -8,8 +8,11 @@
 // every px value is one the mockup has, or carries lint-allow:px. S5 hex lives only in the
 // two :root blocks or a .bg-* palette rule and is a mockup (or ten-code) colour, or carries
 // lint-allow:hex. S6 rgba()/rgb()/hsl() is a :root token, a mockup literal, or allowed the
-// same way. S7 every url() resolves under --root (data: ignored). S8 the index.html inline
-// <script> body, CRLF->LF and sha256-base64, matches the pin in deploy/nginx-default.conf.
+// same way. S7 every url() resolves under --root (data: ignored). S8 every real
+// Content-Security-Policy add_header in deploy/nginx-default.conf has a script-src that permits
+// the index.html inline <script> body (CRLF->LF, sha256-base64). Each declaration is checked on
+// its own: a pin in another policy or in a comment cannot excuse a wrong or missing one. S8 also
+// runs an in-memory one-policy corruption and fails if that negative control is accepted.
 // S9 exactly one inline <script> element (the theme bootstrap) and no on*= handler. S10 a [hidden] rule still
 // declares display:none !important. S11 [[section:name]] markers balance (zero passes). S12
 // no @import and no external http(s) URL. A1 markers are well formed, carry a reason of at
@@ -185,6 +188,80 @@ function colorAllowed(markers, normLit, line) {
   return markers.some((m) => (m.type === "color" || m.type === "hex") && near(m, line) && normColor(m.value) === normLit);
 }
 
+// Nginx comments are '#' to end of line outside quotes. Blank them (keep newlines) so a
+// commented-out add_header or a correct hash mentioned in prose cannot satisfy S8.
+function blankNginxComments(src) {
+  return String(src).split("\n").map((line) => {
+    let single = false;
+    let double = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === "'" && !double) single = !single;
+      else if (ch === '"' && !single) double = !double;
+      else if (ch === "#" && !single && !double) return line.slice(0, i) + " ".repeat(line.length - i);
+    }
+    return line;
+  }).join("\n");
+}
+
+// Every effective CSP header declaration, with the sha256 tokens its script-src permits.
+// No inheritance or union is modelled: each add_header is a separate response the browser
+// can receive, so each one must stand on its own.
+function cspPoliciesOf(nginxText) {
+  const text = blankNginxComments(nginxText);
+  const out = [];
+  for (const m of text.matchAll(/\badd_header\s+Content-Security-Policy\s+"([^"]*)"/gi)) {
+    const directives = m[1].split(";").map((d) => d.trim()).filter(Boolean);
+    const script = directives.find((d) => /^script-src(?=\s|$)/i.test(d));
+    const tokens = script ? script.split(/\s+/).slice(1) : [];
+    out.push({
+      line: lineOf(text, m.index),
+      hasScriptSrc: Boolean(script),
+      shas: new Set(tokens.filter((t) => /^'sha256-[A-Za-z0-9+/=]+'$/.test(t)).map((t) => t.slice(1, -1))),
+    });
+  }
+  return out;
+}
+
+function validateCspPolicies(nginxText, hashes) {
+  const policies = cspPoliciesOf(nginxText);
+  const problems = [];
+  if (policies.length === 0) problems.push("no Content-Security-Policy add_header directive found");
+  policies.forEach((policy, i) => {
+    if (!policy.hasScriptSrc) {
+      problems.push("policy #" + (i + 1) + "@" + policy.line + " has no script-src");
+      return;
+    }
+    for (const hash of hashes) {
+      if (!policy.shas.has(hash)) {
+        problems.push("policy #" + (i + 1) + "@" + policy.line + " script-src does not permit " + hash.replace("sha256-", "").slice(0, 12));
+      }
+    }
+  });
+  return { policies, problems, ok: hashes.length > 0 && problems.length === 0 };
+}
+
+// Disposable in-memory negative control: corrupt exactly one policy's pin (the first real
+// occurrence after comments are blanked) and confirm the per-policy validator rejects it
+// while the other policies still permit the hash. No file on disk is touched.
+function cspNegativeControl(nginxText, hashes) {
+  if (hashes.length === 0) return { ok: false, detail: "no inline hash to corrupt" };
+  const text = blankNginxComments(nginxText);
+  const idx = text.indexOf(hashes[0]);
+  if (idx === -1) return { ok: false, detail: "correct pin not found outside comments" };
+  const badHash = "sha256-" + crypto.createHash("sha256").update("design-lint negative control").digest("base64");
+  const corrupted = text.slice(0, idx) + badHash + text.slice(idx + hashes[0].length);
+  const result = validateCspPolicies(corrupted, hashes);
+  const rejectedPolicies = result.policies.filter((p) => !p.shas.has(hashes[0])).length;
+  const ok = !result.ok && rejectedPolicies === 1 && result.policies.length > 1;
+  return {
+    ok,
+    detail: ok
+      ? "one-policy corruption rejected (" + rejectedPolicies + "/" + result.policies.length + " policy missing the hash)"
+      : "negative control not rejected (" + rejectedPolicies + "/" + result.policies.length + " policies missing, ok=" + result.ok + ")",
+  };
+}
+
 const appCss = readText(cssPath);
 const mockCss = readText(mockCssPath);
 const mockJs = readText(mockJsPath);
@@ -354,14 +431,19 @@ check("S7", needApp, () => {
 
 check("S8", readText(indexHtmlPath) === null ? "index.html not found: " + indexHtmlPath : readText(nginxPath) === null ? "nginx config not found: " + nginxPath : null, () => {
   const html = readText(indexHtmlPath) || "";
-  const pins = new Set([...(readText(nginxPath) || "").matchAll(/sha256-[A-Za-z0-9+/=]+/g)].map((m) => m[0]));
+  const nginx = readText(nginxPath) || "";
   const bodies = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].filter((m) => !/\bsrc\s*=/i.test(m[1])).map((m) => m[2]);
   const hashes = bodies.map((body) => "sha256-" + crypto.createHash("sha256").update(Buffer.from(body.replace(/\r\n/g, "\n"), "utf8")).digest("base64"));
-  const unpinned = hashes.filter((h) => !pins.has(h));
+  const result = validateCspPolicies(nginx, hashes);
+  const control = cspNegativeControl(nginx, hashes);
+  const perPolicy = result.policies.map((policy, i) => "#" + (i + 1) + "@" + policy.line + " "
+    + (policy.hasScriptSrc ? (hashes.every((h) => policy.shas.has(h)) ? "permits" : "MISSING") : "no script-src")).join(", ");
   return {
-    ok: hashes.length > 0 && unpinned.length === 0,
-    detail: hashes.length + " inline script hash(es), " + unpinned.length + " unpinned; "
-      + (hashes.map((h) => h.replace("sha256-", "").slice(0, 12) + " " + (pins.has(h) ? "pinned" : "UNPINNED")).join(", ") || "none found"),
+    ok: result.ok && control.ok,
+    detail: hashes.length + " inline script hash(es) (" + (hashes.map((h) => h.replace("sha256-", "").slice(0, 12)).join(", ") || "none") + "), "
+      + result.policies.length + " CSP declaration(s): " + (perPolicy || "none found")
+      + "; " + (control.ok ? "negative control: " + control.detail : "NEGATIVE CONTROL FAILED: " + control.detail)
+      + (result.problems.length ? "; " + result.problems.join("; ") : ""),
   };
 });
 

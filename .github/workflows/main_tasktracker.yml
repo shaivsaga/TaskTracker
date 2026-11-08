@@ -21,8 +21,16 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Use Node 22 for the audit
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Run JavaScript tests
         run: node --test tests/*.test.js
+      # The real-browser gate. ubuntu-latest ships Google Chrome; the audit finds it, and
+      # --require-browser turns a missing browser into a failure instead of a green SKIP.
+      - name: Run browser audit
+        run: node tests/e2e/audit.mjs --port 8255 --require-browser
 
   build:
     if: github.event_name != 'pull_request'
