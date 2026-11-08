@@ -191,19 +191,19 @@ export function createTaskCard(task) {
 
   const titleEl = document.createElement('h3');
   titleEl.className = 'task-card-title';
-  titleEl.textContent = task.title;
+  // The title is the card's own control: it names the card and carries the keyboard path, while the
+  // card keeps its click-anywhere gesture (the button's click bubbles to the article). A focusable
+  // <article> with no role had no accessible name, so a screen reader reached a nameless stop.
+  const titleBtn = document.createElement('button');
+  titleBtn.type = 'button';
+  titleBtn.className = 'task-title-open';
+  titleBtn.textContent = task.title;
+  titleEl.appendChild(titleBtn);
 
   article.dataset.status = task.status;
-  article.tabIndex = 0;
   article.addEventListener('click', (e) => {
     if (e.target.closest('.task-delete-btn')) return;
     openTaskDialog(task, article.closest('.kanban-column'), false);
-  });
-  article.addEventListener('keydown', (e) => {
-    if (e.target === article && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      openTaskDialog(task, article.closest('.kanban-column'), false);
-    }
   });
 
   if (task.id === state.justChangedId) article.classList.add('is-entering');
@@ -350,12 +350,15 @@ export function renderPastPage() {
     return;
   }
   const canEdit = state.isAdmin && !state.previewing;
-  const mkBtn = (label, fn) => {
+  // A destructive action that removes a published task asks first: the button arms for 4s and the
+  // second press runs it, the same inline confirm the Done page's reopen uses.
+  const mkBtn = (label, fn, confirmLabel) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'text-button';
     b.textContent = label;
-    b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+    if (confirmLabel) armInlineConfirm(b, label, confirmLabel, fn);
+    else b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
     return b;
   };
   past.forEach((task) => {
@@ -363,9 +366,10 @@ export function renderPastPage() {
     const row = document.createElement('div');
     row.className = 'task-row done-row';
     row.dataset.taskId = task.id;
-    row.tabIndex = 0;
+    row.setAttribute('role', 'listitem');
     const dot = createStatusCheck(task);
-    const title = document.createElement('span');
+    const title = document.createElement('button');
+    title.type = 'button';
     title.className = 'task-row-title' + (isDone ? ' is-done' : '');
     title.textContent = task.title;
     const tag = document.createElement('span');
@@ -392,12 +396,9 @@ export function renderPastPage() {
           showToast('Task restored');
         }
       }));
-      actions.appendChild(mkBtn('Delete', () => deleteTask(task)));
+      actions.appendChild(mkBtn('Delete', () => deleteTask(task), 'Confirm deleting this task'));
     }
     row.addEventListener('click', () => openTaskDialog(task));
-    row.addEventListener('keydown', (e) => {
-      if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTaskDialog(task); }
-    });
     row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
     host.appendChild(row);
   });
@@ -429,20 +430,25 @@ export function restoreProgress(taskId, prev) {
   }
   renderAllTasks();
 }
-// Reopening a done task replaces its completed time, so ask first and offer Undo.
-export function reopenWithConfirm(btn, task) {
-  const label = btn.textContent;
+// The app's inline destructive confirm: the first press arms the button for 4s, the second runs it.
+function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
   let timer = null;
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!btn.dataset.armed) {
       btn.dataset.armed = '1';
       btn.textContent = 'Confirm?';
-      btn.setAttribute('aria-label', 'Confirm marking this task not done');
+      btn.setAttribute('aria-label', confirmLabel);
       timer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; btn.removeAttribute('aria-label'); }, 4000);
       return;
     }
     clearTimeout(timer);
+    onConfirm();
+  });
+}
+// Reopening a done task replaces its completed time, so ask first and offer Undo.
+export function reopenWithConfirm(btn, task) {
+  armInlineConfirm(btn, btn.textContent, 'Confirm marking this task not done', () => {
     const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
     setStatus(task, 'not_started');
     renderAllTasks();
@@ -470,9 +476,10 @@ export function renderDonePage() {
     const row = document.createElement('div');
     row.className = 'task-row done-row' + (task.movedAt && Date.now() - task.movedAt < 8000 ? ' is-landed' : '');
     row.dataset.taskId = task.id;
-    row.tabIndex = 0;
+    row.setAttribute('role', 'listitem');
     const dot = createStatusCheck(task);
-    const title = document.createElement('span');
+    const title = document.createElement('button');
+    title.type = 'button';
     title.className = 'task-row-title is-done';
     title.textContent = task.title;
     const when = document.createElement('span');
@@ -484,9 +491,6 @@ export function renderDonePage() {
     undo.textContent = 'Mark not done';
     reopenWithConfirm(undo, task);
     row.addEventListener('click', () => openTaskDialog(task));
-    row.addEventListener('keydown', (e) => {
-      if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTaskDialog(task); }
-    });
     row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), when, undo);
     host.appendChild(row);
   });
@@ -535,15 +539,18 @@ function matchesClassSearch(task, q) {
 export function createTaskRow(task) {
   const row = document.createElement('div');
   row.className = 'task-row';
-  row.tabIndex = 0;
   row.dataset.taskId = task.id;
+  row.setAttribute('role', 'listitem');
 
   // Checkbox: empty = not started, minus = in progress, check = done
   const check = createStatusCheck(task);
   if (task.id === state.justChangedId) row.classList.add('is-entering');
   if (isEditable(task) && state.changedIds.has(task.id)) row.classList.add('is-changed');
 
-  const title = document.createElement('span');
+  // The row itself is no longer a tab stop: a focusable div with no role announced nothing. The title
+  // is the row's control and the click still opens from anywhere in the row (the click bubbles).
+  const title = document.createElement('button');
+  title.type = 'button';
   title.className = 'task-row-title'
     + (task.title === 'New Task' ? ' is-ghost' : '')
     + (task.status === 'done' ? ' is-done' : '');
@@ -577,12 +584,6 @@ export function createTaskRow(task) {
 
   row.append(check, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
   row.addEventListener('click', () => openTaskDialog(task, null, false));
-  row.addEventListener('keydown', (e) => {
-    if (e.target === row && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      openTaskDialog(task, null, false);
-    }
-  });
   return row;
 }
 export function renderTaskList() {

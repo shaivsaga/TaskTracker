@@ -131,7 +131,7 @@
               </div>
               <ul class="announce-list" id="announce-list-public"></ul>
             </section>
-            <div class="task-list" id="class-task-list" aria-label="Class task list" hidden></div>
+            <div class="task-list" id="class-task-list" role="list" aria-label="Class task list" hidden></div>
             <div class="kanban-board" id="class-board" aria-label="Class task board">
               <div class="kanban-column" data-status="todo">
                 <div class="column-header">
@@ -223,7 +223,7 @@
               <span id="sum-today" hidden>0 due today</span>
               <span id="sum-overdue" class="is-alert" hidden>0 overdue</span>
             </p>
-            <div class="task-list" id="task-list" aria-label="Personal task list" hidden></div>
+            <div class="task-list" id="task-list" role="list" aria-label="Personal task list" hidden></div>
             <div class="kanban-board" aria-label="Personal task board">
               <div class="kanban-column" data-status="todo">
                 <div class="column-header">
@@ -253,14 +253,14 @@
             <div class="page-heading">
               <div><p class="page-supporting-copy">Tasks you've marked done on this device.</p></div>
             </div>
-            <div class="task-list" id="done-list" aria-label="Done tasks"></div>
+            <div class="task-list" id="done-list" role="list" aria-label="Done tasks"></div>
           </section>
 
           <section class="page utility-page" id="page-past" data-page-view="past" aria-label="Past" hidden>
             <div class="page-heading">
               <div><p class="page-supporting-copy">Tasks that were closed or have passed their due date.</p></div>
             </div>
-            <div class="task-list" id="past-list" aria-label="Past tasks list"></div>
+            <div class="task-list" id="past-list" role="list" aria-label="Past tasks list"></div>
           </section>
 
           <section class="page utility-page" id="page-calendar" data-page-view="calendar" aria-label="Calendar" hidden>

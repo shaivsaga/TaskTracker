@@ -48,9 +48,12 @@ let showToast = null;        // app.js: the removed / over-limit / too-much-form
 let saveTasks = null;        // app.js: persists progress and the admin draft after every edit
 let updateAdminBar = null;   // app.js -> js/publish.js (slice 2.5): the unpublished-changes bar
 let diffDraft = null;        // app.js -> js/publish.js (slice 2.5): the draft-vs-published diff
-// Pinned block (critique P0, then P2 for desktop): collapsed to the newest announcement so the first
-// task row stays on screen; the toggle opens the rest. On phones that one item is also clamped to two
-// lines (CSS); on larger screens it shows in full.
+// Pinned block (critique P0, then P2 for desktop): on phones it collapses to the newest announcement
+// so the first task row stays on screen, and the toggle opens the rest. That collapse is a phone
+// affordance only - on larger screens the brief asks for the full bodies, so the block is always
+// open there and the toggle is not rendered. On phones the one item is also clamped to two lines
+// (CSS).
+const PHONE_PINNED = '(max-width: 719px)';
 let pinnedOpen = false;
 function syncPinned() {
   const box = document.querySelector('#announce-public');
@@ -58,7 +61,8 @@ function syncPinned() {
   const toggle = document.querySelector('#announce-toggle');
   if (!box || !list || !toggle) return;
   const items = list.querySelectorAll('.announce-item');
-  const collapsed = !pinnedOpen;
+  const phone = window.matchMedia(PHONE_PINNED).matches;
+  const collapsed = phone && !pinnedOpen;
   box.classList.toggle('is-empty', items.length === 0);
   box.classList.toggle('is-collapsed', collapsed);
   // Clipped text can only be measured while the page is on screen; off screen, fall back to length.
@@ -66,8 +70,8 @@ function syncPinned() {
   const clipped = collapsed && !!text && (box.getClientRects().length
     ? text.scrollHeight > text.clientHeight + 1
     : text.textContent.length > 70);
-  toggle.hidden = !items.length || (!pinnedOpen && items.length < 2 && !clipped);
-  toggle.setAttribute('aria-expanded', String(pinnedOpen));
+  toggle.hidden = !items.length || !phone || (collapsed && items.length < 2 && !clipped);
+  toggle.setAttribute('aria-expanded', String(collapsed ? 'false' : 'true'));
   toggle.textContent = pinnedOpen ? 'Show less' : (items.length > 1 ? `Show all ${items.length}` : 'Show more');
 }
 

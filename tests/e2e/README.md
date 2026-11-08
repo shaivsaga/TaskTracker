@@ -76,3 +76,35 @@ normalising the strings the app renders.
 sides, plus a few lines of context above the first difference. A diff is either a real regression or a
 deliberate UI change. If it is deliberate: run `capture.mjs --update`, then read `git diff
 tests/e2e/golden/` before committing. Never update a golden just to make a failing check pass.
+
+## The browser audit gate (`audit.mjs`)
+The Phase 3 run kept its real-browser judges outside the repo (`tmp\visual\probe.ps1`, `tmp\oracle\*`)
+and drove them by hand. `audit.mjs` is the reproducible part of that battery, in the repository:
+Node builtins only, the repo's own fixture served as `data/current.json`, and Microsoft Edge over the
+DevTools protocol (Node 22+'s global `WebSocket`), so still no dependency and no build step.
+
+```
+node tests/e2e/audit.mjs [--root <dir>] [--fixture <file>] [--edge <exe>] [--port 8110]
+```
+
+It boots the real app at 320, 375, 640, 768 and 1280 CSS px (640 is 200% zoom of a 1280 window), in
+both themes where the width is a phone, and checks the things a CSS-less judge cannot see:
+
+- **overflow** - no element crosses the viewport edge on any deep-linkable route (Tasks, Done, Past,
+  Calendar, My tasks) or with the task dialog and the settings panel open;
+- **fold** - the first task row is on the first phone screen, above the tab bar;
+- **titles** - no task name is narrower than 120px at 320/375 (the archive once squeezed it to 60px);
+- **names** - every focusable element has an accessible name and none is a bare div/span/article;
+- **lists** - each task list is `role="list"`, every row `role="listitem"`, every row title a button;
+- **keys** - Enter on the title control opens the task dialog and Escape closes it, on board and list;
+- **announce** - every pinned announcement shows on desktop; the phone keeps its one-item collapse;
+- **delete** - archive Delete arms to "Confirm?" first, then deletes, then Undo restores the row;
+- **themes** - light and dark both come from the stored choice, and no console error appears.
+
+No Edge found exits 0 with `SKIP`, the same way the goldens skip without a harness. It is not named
+`*.test.js` for the same reason: it needs a browser and must not fail a checkout that has none.
+
+## label-in-name (`label-in-name.mjs`)
+Static WCAG 2.5.3 sweep: for every widget carrying `aria-label`, the element's own visible text must be
+contained in that label. axe-core does not implement 2.5.3, so this is the committed check for it.
+`node tests/e2e/label-in-name.mjs [index.html]`; exit 1 on any violation.

@@ -212,10 +212,10 @@
     <span id="sum-today" hidden="">0 due today</span>
     <span id="sum-overdue" class="is-alert" hidden="">0 overdue</span>
   </p>
-  <div class="task-list" id="task-list" aria-label="Personal task list" hidden="">
-    <div class="task-row is-entering is-changed" tabindex="0" data-task-id="8qk5cytv6e">
+  <div class="task-list" id="task-list" role="list" aria-label="Personal task list" hidden="">
+    <div class="task-row is-entering is-changed" data-task-id="8qk5cytv6e" role="listitem">
       <button type="button" class="status-check is-not-started" aria-label="math homework: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
-      <span class="task-row-title">math homework</span>
+      <button type="button" class="task-row-title">math homework</button>
       <span></span>
       <span class="task-row-due is-due-soon" title="Nov 4 · 5:00 PM">
         <svg class="i" aria-hidden="true">
@@ -247,10 +247,12 @@
       </div>
       <div class="column-content">
         <p class="column-empty" data-default="Select &quot;New task&quot; to add your first task." hidden="">Select "New task" to add your first task.</p>
-        <article class="task-card is-entering is-changed" data-task-id="8qk5cytv6e" draggable="true" data-status="not_started" tabindex="0">
+        <article class="task-card is-entering is-changed" data-task-id="8qk5cytv6e" draggable="true" data-status="not_started">
           <div class="task-card-header">
             <button type="button" class="status-check is-not-started" aria-label="math homework: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
-            <h3 class="task-card-title">math homework</h3>
+            <h3 class="task-card-title">
+              <button type="button" class="task-title-open">math homework</button>
+            </h3>
             <button class="task-delete-btn" type="button" aria-label="Delete task">
               <svg class="i" aria-hidden="true">
                 <use href="#i-trash-2"></use>

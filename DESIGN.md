@@ -137,6 +137,8 @@ Ten subject tags follow the class schedule colors, always with dark ink (#14183A
 **The Calm Urgency Rule.** Overdue is red text on a faint wash, labeled in plain words ("2 days overdue", "Expired", "Closed"); no alarm fills, no shaming language.
 **The Twenty Names Rule.** The token vocabulary is the twenty names in `:root` (bg, sf, sf2, ln, tx, mu, ac, acd, acs, onac, ok, wn, er, sh, oa and their washes). Add no app-only token.
 
+**The Derived Veil Rule.** The overlay veil is the ink, not a colour of its own: `color-mix(in srgb, var(--tx) 48%, transparent)` on paper and 14% at night. A named scrim token is forbidden by the rule above and by the lockstep lint, and the mockup's `rgba(20,24,58,.5)` is a paper-only value - on the night page it moves the pixels by 2/255 and the modal stops reading as a layer. In night a darkening scrim cannot work at all: pure black over `--bg` tops out at 1.13:1, so the veil lightens instead.
+
 ## Typography
 
 **Body Font:** Plus Jakarta Sans (variable, self-hosted, with system-ui fallback)
@@ -156,9 +158,9 @@ Ten subject tags follow the class schedule colors, always with dark ink (#14183A
 
 ## Layout
 
-From 720px up, a single sticky top bar (64px, inset 40px to match the page column, and to the column's own edge from 1100px) carries the brand, icon tabs and theme toggle; the admin tab is raised 4px as the one distinct tab. On phones (below 720px) the same tabs move to a fixed bottom bar, reachable with one thumb, and a 44px Settings button sits fixed at the top right; the brand and theme toggle are hidden there. Below the top bar on desktop, or on phones above the bottom bar, one centered column: max 1120px (1200px from 1280 up), padding 24px 16px on phones and 32px 40px from 720px, with 16px (24px on desktop) between blocks. List view and Done narrow to 720px and stay left-aligned with the page title, never centered under it.
+From 720px up, a single sticky top bar (64px, inset 40px to match the page column, and to the column's own edge from 1100px) carries the brand, icon tabs and theme toggle; the admin tab is raised 4px as the one distinct tab. On phones (below 720px) the same tabs move to a fixed bottom bar, reachable with one thumb, and a 44px Settings button sits fixed at the top right; the brand and theme toggle are hidden there. Below the top bar on desktop, or on phones above the bottom bar, one centered column: max 1120px (1200px from 1280 up), padding 24px 16px on phones and 32px 40px from 720px, with 16px (24px on desktop) between blocks. List view, Done and Past narrow to an 880px reading column, centred inside the page column; the page title takes that same width and left edge, and the supporting copy stays narrower so it reads as a caption rather than a banner.
 
-The board is three columns (To Do, In Progress, Done) on desktop. On phones the Tasks page is list-only: the Board/List switch and the board are hidden, and rows are 12px-padded cards with 8px between them. Breakpoints: 374, 720 (labels appear next to tab icons; 720 to 819 uses tighter padding), 1100 (brand wordmark appears). Spacing runs on a 4px base (4, 8, 12, 16, 24). Touch targets are 44px on phones. The calendar's phone month shows subject-colored boxes and lists the picked day's tasks underneath.
+The board is three columns (To Do, In Progress, Done) on desktop. On phones the Tasks page is list-only: the Board/List switch and the board are hidden, and rows are 12px-padded cards with 8px between them. Breakpoints: 374, 720 (labels appear next to tab icons; 720 to 819 uses tighter padding), 1100 (brand wordmark appears). Spacing runs on a 4px base (4, 8, 12, 16, 24). Touch targets are 44px on phones. The calendar's phone month shows subject-colored boxes and lists the picked day's tasks underneath. The sheet's floor is 320px, taken as `min(320px, 100%)` on `html`, so a viewport narrower than 320 (a 320px Windows window loses 15px to its scrollbar) reflows instead of growing a horizontal scrollbar.
 
 ## Elevation & Depth
 
@@ -181,7 +183,13 @@ Square. Every corner is 0px; borders are 2px (Rule Tan on cards and containers, 
 - **Icon button:** 40x44 square, 2px Soft Slate border, border turns blue on hover.
 
 ### Task Card
-Card Cream block, 12px padding, 2px border, ledge. Header holds the checkbox and a two-line title; footer holds the subject tag and due badge. Hover borders blue; done cards strike through the title in Soft Slate. A 6px blue square marks unpublished changes in admin. A done tap plays a four-step pixel "stamp" (scale 1.6 to 1 in 400ms), only with motion allowed.
+Card Cream block, 12px padding, 2px border, ledge. Header holds the checkbox and a two-line title; footer holds the subject tag and due badge. Hover borders blue; done cards strike through the title in Soft Slate. A 6px blue square marks unpublished changes in admin. A done tap plays a four-step pixel "stamp" (scale 1.6 to 1 in 400ms), only with motion allowed. The title is the card's own button - the card stays click-anywhere, and the button is what the keyboard and a screen reader reach; it is also the element the two-line clamp is applied to.
+
+### Archive Rows (Done, Past)
+The same two surfaces, one row each. From 720px it is a single line - 24px status, a title track with a 200px floor that may take two lines, a 104px subject, a 112px status and content-sized actions - so the row never spends less than a readable amount of width on the task name. Below 720px it is a card in three rows: title across the top, subject and status on the meta line, actions on their own row, right-aligned at 44px. The action track is always content-sized; a fixed width there is what once collapsed the title to 60px. The row is a list item whose title is a button; Delete is the only destructive action in the app outside a typed confirmation, so it arms to "Confirm?" for 4s before it removes anything, and the resulting toast still offers Undo.
+
+### Pinned Announcements
+Every pinned announcement shows in full on desktop. The collapse is a phone affordance only: below 720px the block shows the newest item clamped to two lines with a "Show all N" toggle, so the first task row stays on the first screen. A resize across 720px re-applies the right state without a reload.
 
 ### Due Badge
 12px label with a calendar or alarm icon; due soon (within 3 days) uses amber on an amber wash, overdue uses red on a red wash, otherwise Soft Slate.
@@ -216,6 +224,7 @@ Month and week grids with 1px-rule cells, alternate rows in Sunk Parchment, toda
 - **Do** keep the pixel font to titles, micro-labels and numerals; keep dates and times in tabular Plus Jakarta Sans.
 - **Do** keep 44px touch targets on phones and test both themes at 320px.
 - **Do** use calm status words: Expired, Closed, Done.
+- **Do** theme the surfaces the browser brings: `scrollbar-color: var(--ln) transparent` and `caret-color: var(--ac)`, alongside the existing `::selection` and `accent-color`.
 - **Do** honor `prefers-reduced-motion` and `prefers-contrast: more` (the latter promotes the remaining Rule Tan borders to Soft Slate); motion is short and stepped (dialogs and pages 140ms steps(3), cards 160ms).
 
 ### Don't:

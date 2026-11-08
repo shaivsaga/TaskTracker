@@ -22,7 +22,7 @@
     <span>Previewing as a student. Showing your unpublished draft.</span>
     <button class="text-button" type="button" id="preview-exit">Exit preview</button>
   </div>
-  <section class="announcements is-collapsed" id="announce-public" aria-label="Pinned announcements">
+  <section class="announcements" id="announce-public" aria-label="Pinned announcements">
     <div class="announce-header">
       <h2>
         <svg class="i" aria-hidden="true">
@@ -30,7 +30,7 @@
         </svg>
         Pinned
       </h2>
-      <button class="text-button announce-toggle" type="button" id="announce-toggle" aria-expanded="false" aria-controls="announce-list-public">Show all 3</button>
+      <button class="text-button announce-toggle" type="button" id="announce-toggle" aria-expanded="true" aria-controls="announce-list-public" hidden="">Show all 3</button>
     </div>
     <ul class="announce-list" id="announce-list-public">
       <li class="announce-item">
@@ -66,10 +66,10 @@
       </li>
     </ul>
   </section>
-  <div class="task-list" id="class-task-list" aria-label="Class task list">
-    <div class="task-row" tabindex="0" data-task-id="fx006">
+  <div class="task-list" id="class-task-list" role="list" aria-label="Class task list">
+    <div class="task-row" data-task-id="fx006" role="listitem">
       <button type="button" class="status-check is-not-started" aria-label="Submit the statistical survey draft: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
-      <span class="task-row-title">Submit the statistical survey draft</span>
+      <button type="button" class="task-row-title">Submit the statistical survey draft</button>
       <span class="subject-tag bg-sand">MABKOM</span>
       <span class="task-row-due is-due-soon" title="Tue, Nov 3">
         <svg class="i" aria-hidden="true">
@@ -91,10 +91,12 @@
       </div>
       <div class="column-content">
         <p class="column-empty" hidden="" data-default="No tasks yet.">No tasks match your search.</p>
-        <article class="task-card" data-task-id="fx006" draggable="true" data-status="not_started" tabindex="0">
+        <article class="task-card" data-task-id="fx006" draggable="true" data-status="not_started">
           <div class="task-card-header">
             <button type="button" class="status-check is-not-started" aria-label="Submit the statistical survey draft: Not started. Change status" aria-haspopup="listbox" aria-expanded="false"></button>
-            <h3 class="task-card-title">Submit the statistical survey draft</h3>
+            <h3 class="task-card-title">
+              <button type="button" class="task-title-open">Submit the statistical survey draft</button>
+            </h3>
           </div>
           <div class="task-card-footer">
             <span class="subject-tag bg-sand">MABKOM</span>

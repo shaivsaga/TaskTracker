@@ -26,9 +26,12 @@
 /* [[section:base]] */
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }
-html { min-width: 320px; background: var(--bg); }
+/* The 320px floor is the app's smallest supported layout, but it must never exceed the viewport: on
+   Windows a 320px window spends 15px on its scrollbar, and a hard 320px min-width then forces a
+   horizontal scrollbar. min() keeps the floor and gives it up only when the screen is smaller. */
+html { min-width: min(320px, 100%); background: var(--bg); scrollbar-color: var(--ln) transparent; }
 body, button, a, input, textarea, select { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
-body { margin: 0; min-height: 100vh; color: var(--tx); background: var(--bg); font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; min-height: 100vh; color: var(--tx); background: var(--bg); caret-color: var(--ac); font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 button, a { font: inherit; }
 a { color: inherit; text-decoration: none; }
 button { border: 0; border-radius: 0; background: none; cursor: pointer; }
@@ -244,9 +247,9 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 /* Phones: the pinned block shows one announcement, two lines tall, until the reader opens it, so the
    first task row stays on screen. With nothing pinned the block is gone, not an empty box. */
 @media (max-width: 719px) {
-  #announce-public { padding: 12px; }
+  #announce-public { padding: 8px; }
   #announce-public.is-empty { display: none; }
-  #announce-public .announce-list { margin-top: 8px; }
+  #announce-public .announce-list { margin-top: 4px; }
   /* The public list has no delete button, so it drops the empty 44px track and gives the text that width. */
   #announce-public .announce-item { grid-template-columns: minmax(0, 1fr) auto; }
   #announce-public.is-collapsed .announce-item { padding: 8px 0 0; }
@@ -293,7 +296,10 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .task-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .task-card-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .task-card-header .status-check { flex-shrink: 0; }
-.task-card-title { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; word-break: break-word; }
+.task-card-title { flex: 1; min-width: 0; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; }
+/* The title button is the clamped box: a block child inside a clamped h3 is clipped, not line-clamped.
+   It is the card's only tab stop for opening the dialog; the card itself keeps click-anywhere. */
+.task-card-title > button { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; width: 100%; padding: 0; border: 0; overflow: hidden; color: inherit; background: none; font: inherit; text-align: left; word-break: break-word; cursor: pointer; }
 .task-card[data-status="done"] .task-card-title { color: var(--mu); text-decoration: line-through; }
 .is-changed .task-card-title::after, .is-changed .task-row-title::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; background: var(--ac); vertical-align: middle; }
 
@@ -369,9 +375,8 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .task-row:last-child { border-bottom: 0; }
 .task-row:hover { background: var(--sf2); }
 .task-row:active { background: var(--sf2); }
-.task-row:focus-visible { outline-offset: -2px; }
 .task-row .status-check { justify-self: center; }
-.task-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; }
+.task-row-title { min-width: 0; padding: 0; border: 0; overflow: hidden; color: var(--tx); background: none; font-size: 16px; font-weight: 600; line-height: 24px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .task-row-title.is-ghost { color: var(--mu); }
 .task-row-title.is-done { color: var(--mu); text-decoration: line-through; }
 .task-row-due { color: var(--mu); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 16px; white-space: nowrap; }
@@ -398,17 +403,25 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
   .task-row:has(> :nth-child(5):empty) { grid-template-columns: 24px minmax(0, 1fr) 104px 160px; }
   .task-row:has(> :nth-child(5):empty) > :nth-child(5) { display: none; }
   .task-row .task-row-due { text-align: right; }
-  /* Done and Past: every action button is the same width, so 'Mark done' and 'Mark not done' line up, and
-     the action column grows when Restore sits beside it instead of overflowing the row. */
-  /* lint-allow:px 112px -- the action column fits 'Mark done'/'Mark not done' without wrapping */
-  .done-row { grid-template-columns: 24px minmax(0, 1fr) 104px 112px minmax(112px, auto); padding: 10px 16px; }
+}
+/* The archive's single-line row only exists where the five tracks actually fit. With content-sized
+   actions it needs ~760px of track, so the breakpoint is 1100 - below it the row is the three-row card
+   the phones already use (see the max-width: 1099px block). Fitting it at 768 by shrinking the title is
+   what produced a 60px name and a 'Delete' button hanging past the card edge. */
+@media (min-width: 1100px) {
+  /* lint-allow:px 200px -- the title floor: below this the title is not readable, which is why the row turns into a card */
+  .done-row { grid-template-columns: 24px minmax(200px, 1fr) 104px 112px auto; padding: 10px 16px; } /* lint-allow:px 112px -- the status column, wide enough for 'Expired' and 'Closed' without wrapping */
   .done-row .task-row-due { text-align: right; }
-  /* lint-allow:px 112px -- every Done/Past action button shares that action-column width */
-  .done-row .text-button { min-width: 112px; }
+  /* The three actions never sit beside a differently-labelled button in the same row, so a fixed
+     min-width bought no alignment and cost the title 144px of track. */
+  .done-row .text-button { min-width: 0; }
 }
 /* The mockup's done title is muted, not struck through (mockup 169): the app's line-through and
    its 600 weight go, and the secondary line stays the app's own --mu. */
 .done-row .task-row-title.is-done { font-weight: 500; text-decoration: none; }
+/* The archive is the one list whose row is also the only place the task name appears at a glance;
+   a two-line clamp replaces the single-line ellipsis that used to hide it. */
+.done-row .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
 .done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .done-row .text-button:hover { border-color: var(--ac); background: var(--sf2); }
 .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
@@ -432,9 +445,12 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 
 /* [[section:dialogs]] */
 /* ---------- Dialogs ---------- */
-/* Overlay scrim: rgba(20, 24, 58, 0.5) is the mockup's own scrim value (.tut), copied verbatim. The mockup
-   has no scrim token, and its --pl ring colour is fully transparent in dark, so --pl cannot serve here. */
-.task-dialog-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20, 24, 58, 0.5); }
+/* Overlay scrim: the ink at low alpha, derived from --tx instead of a new token. The mockup's own
+   .tut literal (rgba(20,24,58,.5)) is a paper-theme value: on --bg it is a 3.3:1 veil, on the night page
+   it changes the pixels by 2/255 (1.02:1). A named token is not available - The Twenty Names Rule forbids
+   one, and design-lint S2 only excuses tokens the mockup also carries - so the veil is computed from an
+   existing token rather than added to the vocabulary. */
+.task-dialog-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; background: color-mix(in srgb, var(--tx) 48%, transparent); }
 .task-dialog { display: flex; flex-direction: column; width: 100%; max-width: 640px; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
 .task-dialog.is-dropping { border-color: var(--ac); box-shadow: 0 4px 0 var(--sh), 0 0 0 2px var(--ac); }
 .dialog-header { display: flex; align-items: flex-start; gap: 8px; padding: 12px 12px 12px 16px; border-bottom: 2px solid var(--ln); }
@@ -487,7 +503,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 
 /* [[section:quick-add]] */
 /* ---------- Quick add ---------- */
-.quick-overlay { position: fixed; inset: 0; z-index: 150; display: flex; align-items: flex-start; justify-content: center; padding: 10vh 16px 16px; background: rgba(20, 24, 58, 0.5); }
+.quick-overlay { position: fixed; inset: 0; z-index: 150; display: flex; align-items: flex-start; justify-content: center; padding: 10vh 16px 16px; background: color-mix(in srgb, var(--tx) 48%, transparent); }
 .quick-add { position: relative; width: min(720px, 100%); padding: 16px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
 .quick-input { width: 100%; padding: 12px 0; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 16px; line-height: 24px; }
 .quick-input::placeholder { color: var(--mu); opacity: 1; }
@@ -676,8 +692,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   /* Settings moves to the top right corner. */
   .tb #settings-open { position: fixed; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); z-index: 31; width: 44px; height: 44px; min-width: 44px; max-width: 44px; flex: none; padding: 0; background: var(--sf); border: 2px solid var(--mu); box-shadow: 0 2px 0 var(--sh); }
   .tb #settings-open .lbl { display: none; }
-  h1.ttl { padding-right: 56px; }
-  main.page-container { padding: max(8px, env(safe-area-inset-top)) 16px calc(104px + env(safe-area-inset-bottom)); }
+  h1.ttl { padding-right: 56px; margin-bottom: -12px; }
+  main.page-container { padding: max(8px, env(safe-area-inset-top)) 16px calc(104px + env(safe-area-inset-bottom)); gap: 12px; }
 /* lint-allow:px 0px -- env() safe-area fallback: a calc with no fallback is dropped entirely */
   .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 }
@@ -756,19 +772,31 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .task-row .task-row-due svg { display: block; width: 12px; height: 12px; flex: none; stroke-width: 2; }
   .task-row .task-row-due.is-overdue { padding: 0 8px; background: var(--erb); }
   .task-row .task-row-due.is-due-soon { padding: 0 8px; background: var(--wnb); }
-  /* Done and Past on phones: the mockup's compact cards - one card per row, the date inline
-     beside the subject and the action as the mockup's 44px ghost button (mockup 268-269,
-     413-427). The bottom tab bar owns the bottom of the screen, so no padding is added here. */
+  /* Phone fold: the first task row has to be on the first screen with two full rows above the tab bar.
+     Same content, tighter rhythm - the supporting copy steps down one size (still 5.6:1), and the page
+     gap, the title's negative margin and the pinned block's padding tighten where they are declared. */
+  .page-supporting-copy { font-size: 12px; line-height: 16px; }
+}
+/* Archive: the card, below the width where the row fits. */
+/* lint-allow:px 1099px -- one pixel below the 1100 breakpoint where the archive row stops fitting */
+@media (max-width: 1099px) {
+  /* Done and Past below 1100px: one card per row, because the five-track row cannot carry a readable
+     title and three actions before then. The mockup's own phone card (mockup 268-269, 413-427) is the
+     shape here - name on its own line, subject and status on the meta line, actions below at 44px. */
   #done-list, #past-list { display: flex; flex-direction: column; gap: 8px; border: 0; background: none; }
-  #done-list .done-row, #past-list .done-row { padding: 12px; background: var(--sf); border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); row-gap: 8px; }
+  #done-list .done-row, #past-list .done-row { grid-template-columns: 24px minmax(0, 1fr) auto; padding: 12px; background: var(--sf); border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); row-gap: 8px; }
   #done-list .done-row .task-row-title, #past-list .done-row .task-row-title { font-size: 16px; line-height: 24px; }
-  #done-list .done-row .text-button, #past-list .done-row .text-button { min-height: 44px; padding: 0 10px; border-color: transparent; background: none; box-shadow: none; color: var(--ac); }
+  /* Three rows, not two: the name owns a full line, the subject and the status share the meta line, and
+     the actions get their own row. Before this, the actions sat on the name's row in a content-sized
+     track, so the card's min-content was 379px inside a 320px screen and the name collapsed to 60px. */
+  #done-list .done-row > :nth-child(2), #past-list .done-row > :nth-child(2) { grid-column: 2 / 4; grid-row: 1; }
+  #done-list .done-row > :nth-child(3), #past-list .done-row > :nth-child(3) { grid-column: 2; grid-row: 2; align-self: center; }
+  #done-list .done-row > :nth-child(4), #past-list .done-row > :nth-child(4) { grid-column: 3; grid-row: 2; justify-self: end; align-self: center; text-align: right; white-space: nowrap; }
+  #done-list .done-row > :nth-child(5), #past-list .done-row > :nth-child(5) { grid-column: 1 / -1; grid-row: 3; justify-self: end; }
+  /* The actions own their own row here, so the old -10px pull to the card edge is what pushed
+     'Delete' 10px past the track and clipped it. */
+  #done-list .done-row .text-button, #past-list .done-row .text-button { min-height: 44px; padding: 0 8px; border-color: transparent; background: none; box-shadow: none; color: var(--ac); }
   #done-list .done-row .text-button[data-armed], #past-list .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
-  #done-list .done-row > .text-button, #past-list .done-row > :nth-child(5) > .text-button:last-child { margin: 0 -10px 0 0; }
-  /* The armed row reflows to the mockup's confirm layout (mockup 425-426): the action gets its
-     own full-width row, right-aligned, instead of sharing the title's row. */
-  #done-list .done-row:has([data-armed]) > :nth-child(5), #past-list .done-row:has([data-armed]) > :nth-child(5) { grid-column: 1 / -1; grid-row: 3; justify-self: end; }  /* Time and Expired/Closed sit bottom-right under the action, on one line, like the due pill on Tasks. */
-  #done-list .done-row > :nth-child(4), #past-list .done-row > :nth-child(4) { grid-column: 3 / 5; grid-row: 2; justify-self: end; align-self: center; text-align: right; white-space: nowrap; }
 }
 /* lint-allow:px 480px -- the app's own narrow-phone breakpoint for the two-column quick preview; the mockup has no 480 boundary */
 @media (max-width: 480px) { .quick-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -783,14 +811,16 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 }
 @media (prefers-contrast: more) {
   body { --ln: var(--mu); }
-/* [[/section:a11y]] */
 }
+/* [[/section:a11y]] */
 
 /* Admin: Preview, History and Discard live in a native <details> menu so Save and Publish lead. */
 .admin-more { position: relative; }
 .admin-more > summary { list-style: none; }
 .admin-more > summary::-webkit-details-marker { display: none; }
-.admin-more-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 200px; padding: 8px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
+/* Anchored to the button's left edge: right-anchored, the 200px menu opened 112px past the left edge
+   of a 320px screen (the button is the first of the three actions). */
+.admin-more-menu { position: absolute; left: 0; right: auto; top: calc(100% + 4px); z-index: 5; display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 200px; padding: 8px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
 @media (max-width: 719px) { .admin-more > summary, .admin-more-menu .text-button { min-height: 44px; } }
 
 /* Forced colors: sprite colors are not ours to control there, so labels carry every tab and the
@@ -870,8 +900,16 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* [[section:tutorial]] */
 /* ---------- First-time tutorial ---------- */
 .tour-overlay { position: fixed; inset: 0; z-index: 300; }
-.tour-overlay.is-centered { background: rgba(20, 24, 58, 0.5); }
-.tour-spot { position: fixed; border-radius: 0; pointer-events: none; box-shadow: 0 0 0 200vmax rgba(20, 24, 58, 0.5), 0 0 0 2px var(--ac); transition: top 120ms steps(3), left 120ms steps(3), width 120ms steps(3), height 120ms steps(3); }
+.tour-overlay.is-centered { background: color-mix(in srgb, var(--tx) 48%, transparent); }
+.tour-spot { position: fixed; border-radius: 0; pointer-events: none; box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--tx) 48%, transparent), 0 0 0 2px var(--ac); transition: top 120ms steps(3), left 120ms steps(3), width 120ms steps(3), height 120ms steps(3); }
+
+/* Night: the page is nearly black, so a darkening scrim cannot separate layers at all - pure black over
+   --bg #0F1226 tops out at 1.13:1. The ink lightens instead, which is the same colour decision as paper,
+   reversed. 14% keeps the veil at ~1.45:1 without turning the board into fog. */
+:root[data-theme="dark"] .task-dialog-overlay,
+:root[data-theme="dark"] .quick-overlay,
+:root[data-theme="dark"] .tour-overlay.is-centered { background: color-mix(in srgb, var(--tx) 14%, transparent); }
+:root[data-theme="dark"] .tour-spot { box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--tx) 14%, transparent), 0 0 0 2px var(--ac); }
 .tour-overlay.is-centered .tour-spot { display: none; }
 .tour-card { position: fixed; display: grid; gap: 12px; width: min(440px, calc(100vw - 16px * 2)); padding: 16px; border: 2px solid var(--ac); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
 .tour-text { display: grid; gap: 8px; }
