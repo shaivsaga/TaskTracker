@@ -577,7 +577,7 @@ dom.dialogDuplicate.addEventListener('click', () => {
 // above this point, so it can be passed by value.
 settings.init({
   $, hideAnimated, adminHint, signIn, showToast: tasks.showToast,
-  JSON_POST, SIDEBAR_KEY: nav.SIDEBAR_KEY, ADMIN_KEY, SIGNED_OUT_KEY,
+  JSON_POST, ADMIN_KEY, SIGNED_OUT_KEY,
 });
 
 // --- Tutorial: js/tour.js (slice 2.3) -----------------------------------------------------------
