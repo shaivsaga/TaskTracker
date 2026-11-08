@@ -678,9 +678,15 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .brand-m b { display: block; }
   .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }
+  /* The current tab is a filled block with its accent bar along the bottom (the base rule's
+     `0 2px 0` shadow), not an outlined box: on a phone the box's 2px side and top strokes read as
+     stray vertical lines beside Calendar and Past. */
+  .tn.is-active { border-color: transparent; }
   .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; font: 600 12px/16px 'Plus Jakarta Sans', system-ui, sans-serif; white-space: nowrap; }
-  .tn.adm { max-width: 72px; height: 56px; transform: none; box-shadow: inset 0 -3px 0 var(--acd); }
-  .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
+  .tn.adm { max-width: 72px; height: 56px; transform: none; border-color: transparent; background: none; box-shadow: none; color: var(--mu); }
+  /* The Admin tab keeps the mockup's filled block on wider screens; on a phone its solid edge is the
+     second stray line (beside Calendar), so the shield and the count badge carry it instead. */
+  .tn.adm.is-active { background: var(--acs); box-shadow: 0 2px 0 var(--ac); color: var(--tx); }
   .bd { top: -8px; right: 0; }
   /* Phone tab order: Tasks, Calendar, Admin (centre, president only), Done, Past. */
   .tn[data-page="class-tasks"] { order: 1; }
