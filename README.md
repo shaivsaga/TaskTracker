@@ -13,7 +13,11 @@ A shared task board for a school class. The class president posts what the secti
   </tr>
   <tr>
     <td><img src="docs/screenshots/calendar.png" alt="Month calendar view" width="480"></td>
-    <td><img src="docs/screenshots/phone.png" alt="Phone layout with the sidebar open" width="240"></td>
+    <td><img src="docs/screenshots/phone.png" alt="Phone layout showing the task list and bottom tab bar" width="240"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/calendar-phone.png" alt="Phone month calendar with its task dots" width="240"></td>
+    <td></td>
   </tr>
 </table>
 
@@ -63,7 +67,7 @@ Progress is personal and stays on the device. Tasks are shared and come from the
 | Back end | PHP 8.1 or newer, with flat JSON files for storage. No database. |
 | Hosting | Azure App Service (Linux, PHP 8.5, nginx) |
 | Deploys | GitHub Actions |
-| Fonts | IBM Plex Sans and IBM Plex Mono |
+| Fonts | Plus Jakarta Sans and Press Start 2P, self-hosted |
 
 ## Data and privacy
 
@@ -162,7 +166,9 @@ nothing, even if it also did not fail.
 index.html        Markup for every page and dialog, plus the icon sprite
 styles.css        Design tokens, layout and both themes
 app.js            Application behavior: pages, dialogs, rendering, publishing
-logic.js          Pure logic (dates, Task model, sorting, progress merge, quick-add parsing)
+js/               Feature modules: state, dom, util, tasks, calendar, nav, settings, tour,
+                  announcements, publish, quick-add, transfer, motion
+logic.js          Pure logic (dates, Task model, sorting, progress merge, sanitizers)
 attachments.js    File picker, image compression and upload
 qr-draw.js        Draws the transfer QR code
 qrcode.js         QR code generator library
@@ -180,9 +186,11 @@ data/             Created at runtime, not in git: board, versions, sessions, upl
 
 ## Testing
 
-I test the interface by hand with a checklist: both themes, collapsed and open sidebar, a 320 px wide screen, touch targets on phones, keyboard-only use, and admin and student sessions.
+I test the interface by hand with a checklist: both themes, a 320 px wide screen, touch targets on phones, keyboard-only use, and admin and student sessions.
 
 `npm test` runs the automated tests: the core logic (merging, sorting, due dates, sanitizers), the nginx config rules, the CI workflows, and the startup script. The startup tests run the real script against stubbed `nginx`, `curl` and `cp`, in a sandbox under the system temp directory, and assert what is on disk, what nginx has loaded, whether nginx is still running, the marker state and the exit status — not just the log text.
+
+The PHP suite runs with `php tests/php/run.php` (with XAMPP, `C:\xampp\php\php.exe tests/php/run.php`). The jsdom golden check is `node tests/e2e/check.mjs --harness <harness>` and needs the external harness directory. The design lint is `node tests/e2e/design-lint.mjs --root . --mock <mockup>` and needs an external mockup directory. The browser audit is `node tests/e2e/audit.mjs`, which drives a real browser; CI runs it with `--require-browser`, so a missing browser there is a failure rather than a silent skip.
 
 ## Known limitations
 
@@ -213,7 +221,7 @@ Why things are built this way is in [`docs/adr/`](docs/adr/README.md).
 
 Released under the [MIT License](LICENSE).
 
-- Fonts: [IBM Plex](https://github.com/IBM/plex), SIL Open Font License.
+- Fonts: [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans) (SIL Open Font License, license file in `assets/fonts/`) and Press Start 2P, both self-hosted.
 - QR generation: `qrcode.js`, which bundles [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase, MIT License.
 
 Built by [@shaivsaga](https://github.com/shaivsaga).
