@@ -177,6 +177,13 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .search input { width: 200px; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 14px; line-height: 20px; }
 .search input::placeholder { color: var(--mu); opacity: 1; }
 
+.class-filters { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.class-filters select { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
+.class-filters select:focus-visible { border-color: var(--ac); }
+@media (min-width: 720px) {
+  #page-class-tasks[data-view="board"] .class-filters { display: none; }
+}
+
 .text-input { width: 100%; height: 44px; padding: 0 12px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 14px; line-height: 20px; }
 .text-input:focus { border-color: var(--ac); }
 /* [[/section:controls]] */
@@ -206,6 +213,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 #page-my-tasks.is-blank .empty-state { display: flex; }
 #page-my-tasks.is-blank .summary, #page-my-tasks.is-blank .kanban-board, #page-my-tasks.is-blank .task-list { display: none; }
 .list-empty { margin: 0; padding: 24px 12px; color: var(--mu); font-size: 14px; }
+.list-empty .text-button { margin-left: 4px; }
 /* [[/section:banners]] */
 
 /* [[section:announcements]] */
@@ -244,6 +252,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .announce-text { margin: 0; font-size: 14px; line-height: 20px; white-space: pre-wrap; word-break: break-word; }
 .announce-date { color: var(--mu); font-size: 12px; font-weight: 500; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #announce-public.is-collapsed .announce-item:nth-child(n+2) { display: none; }
+#announce-public.is-empty { display: none; }
 .announce-empty { margin: 0; padding-top: 12px; border-top: 1px solid var(--ln); color: var(--mu); font-size: 14px; line-height: 20px; }
 /* Phones: the pinned block shows one announcement, two lines tall, until the reader opens it, so the
    first task row stays on screen. With nothing pinned the block is gone, not an empty box. */
@@ -726,6 +735,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .page-actions { width: 100%; flex-wrap: wrap; }
   .search { flex: 1 1 100%; }
   .search input { width: 100%; }
+  .class-filters { flex: 1 1 100%; }
+  .class-filters select { flex: 1 1 0; min-width: 0; }
   .kanban-board { grid-template-columns: 1fr; }
   .kanban-column { min-height: 240px; }
   /* v5.9 phones: Tasks is List-only under the tab bar and its rows are the mockup's cards (mockup
@@ -735,6 +746,12 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #page-class-tasks #class-task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
   #class-task-list .task-row { padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
   #class-task-list .task-row-title { font-size: 16px; line-height: 24px; }
+  /* Admin follows the same phone rule: one list, no Board/List switch. The saved view is left alone,
+     so resizing back to desktop restores it. */
+  #page-my-tasks .view-tabs { display: none; }
+  #page-my-tasks .kanban-board { display: none; }
+  #page-my-tasks #task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
+  #page-my-tasks.is-blank #task-list { display: none !important; }
   .cal-day { min-height: 80px; padding: 4px; border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); }
   /* Each day is its own block with a 2px edge and a gap between, not a cell in one ruled sheet. */
   .cal { gap: 12px 8px; border: 0; background: none; overflow: visible; }

@@ -92,7 +92,7 @@ previous one's admin flag or progress, and the requested admin/student mode is a
 browser clock is frozen to the fixture instant (`FIXTURE_INSTANT`), so seeded progress timestamps and
 the calendar's "today" are identical on every machine.
 
-It boots the real app at 320, 375, 640, 768 and 1280 CSS px (640 is 200% zoom of a 1280 window), in
+It boots the real app at 320, 375, 640, 720, 768 and 1280 CSS px (640 is 200% zoom of a 1280 window), in
 both themes where the width is a phone, and checks the things a CSS-less judge cannot see:
 
 - **overflow** - no element crosses the viewport edge on any deep-linkable route (Tasks, Done, Past,
@@ -113,6 +113,19 @@ both themes where the width is a phone, and checks the things a CSS-less judge c
 - **delete** - archive Delete arms to "Confirm?" first, then deletes, then Undo restores the row;
 - **themes** - light and dark both come from the stored choice, and no console error appears.
 
+The audit also invokes `class-filters.mjs` through the same isolated boots and CDP helpers:
+
+- **filters** - search, subject and status combine on List without changing Board's search-only results;
+  options stay independent, switching retains selections, reload resets All, and Clear resets all three;
+- **filter focus** - regular status changes and confirmed reopens remove nonmatching rows, announce why,
+  and focus Status; Undo restores the row and progress; open dialogs retain focus until closed;
+- **refresh/offline** - no-subject tasks appear under All, a vanished subject resets All, cached tasks
+  still filter offline, progress stays unchanged, and an empty board has no pointless Clear action;
+- **responsive visibility** - phones show class filters despite a saved Board preference, Admin stays
+  list-only, resizing back restores its desktop preference, and empty public announcements disappear
+  without removing admin announcement controls.
+
+
 A missing browser is an optional local `SKIP` (exit 0), so a checkout without one still passes; the CI
 job runs the audit with `--require-browser` (or `AUDIT_REQUIRE_BROWSER=1`), which turns a missing
 browser into a failure. A browser that exists but cannot launch always fails, so an installed-but-broken
@@ -120,6 +133,19 @@ Chromium can never turn the gate green. `ubuntu-latest` ships Google Chrome, whi
 covers. It is not named `*.test.js` for the same reason as the goldens: it needs a browser.
 `tests/audit-harness.test.js` covers the server and launch boundaries (containment, malformed escapes,
 isolation, the frozen clock, missing/required/broken browser) in `node --test`, without a browser.
+
+## Uncoached classmate walkthrough (not run)
+
+No participant results are available. Use a sample board containing at least one in-progress task;
+give only these goals, without naming the controls or showing the path:
+
+1. Find one subject's in-progress tasks.
+2. Return to all tasks.
+3. Change a task's status, then explain what happened to it.
+
+Record whether the classmate finds the controls unaided, can undo narrowing, and understands a
+status-filtered task's disappearance. Keep those observations separate from the automated functional
+checks; no usability claim follows from a passing browser audit.
 
 ## label-in-name (`label-in-name.mjs`)
 Static WCAG 2.5.3 sweep: for every widget carrying `aria-label`, the element's own visible text must be

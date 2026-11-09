@@ -35,6 +35,8 @@ export const state = {
   calAgendaSig: '',
   searchQuery: '',
   classSearchQuery: '',
+  classSubjectFilter: '',
+  classStatusFilter: '',
   justChangedId: null,
   statusPopoverEl: null,
   statusPopoverTask: null,

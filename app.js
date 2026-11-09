@@ -227,6 +227,16 @@ document.querySelector('#class-task-search').addEventListener('input', (e) => {
   
 });
 
+// Class filters: the Board stays search-only; the List combines search, subject and status.
+document.querySelector('#class-subject-filter').addEventListener('change', (e) => {
+  state.classSubjectFilter = e.target.value;
+  tasks.renderClassTasks();
+});
+document.querySelector('#class-status-filter').addEventListener('change', (e) => {
+  state.classStatusFilter = e.target.value;
+  tasks.renderClassTasks();
+});
+
 // --- New task, theme, and view switch ---
 function startNewTask() {
   quickAdd.openQuickAdd();

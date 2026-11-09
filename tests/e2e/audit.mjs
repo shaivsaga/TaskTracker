@@ -39,6 +39,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runClassFilterChecks } from './class-filters.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BOOLEAN_ARGS = new Set(['require-browser']);
@@ -55,7 +56,7 @@ const ROOT = path.resolve(args.root || path.join(HERE, '..', '..'));
 const FIXTURE = path.resolve(args.fixture || path.join(HERE, 'fixture-board.json'));
 const PORT = Number(args.port || 8110);
 const REQUIRE_BROWSER = !!args['require-browser'] || process.env.AUDIT_REQUIRE_BROWSER === '1';
-const WIDTHS = [320, 375, 640, 768, 1280];
+const WIDTHS = [320, 375, 640, 720, 768, 1280];
 
 // The fixture's dates cluster around this day. Freezing the browser clock here keeps the seeded
 // progress ordering and the calendar's "today" identical on every machine and every run.
@@ -775,6 +776,9 @@ async function main() {
     const after = await cdp.evaluate(`document.querySelectorAll('#past-list .done-row').length`);
     check('delete arms + undo', !!armed && !!gone && after === before,
       'rows ' + before + ' -> armed ' + (clicked && clicked.text) + ' -> ' + (deleted && deleted.rows) + ' -> undo ' + after + ' (toast "' + (deleted && deleted.message) + '")');
+
+    // 7b. class List/Board filters and their status transitions, through the same isolated boot
+    await runClassFilterChecks({ cdp, boot, check, click, sleep, pressKey, pressEnter, fixture, FIXTURE_INSTANT });
 
     // 8. both themes render from the stored choice
     const bg = {};

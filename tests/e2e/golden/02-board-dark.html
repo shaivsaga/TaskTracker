@@ -44,6 +44,29 @@
         </svg>
         <input type="search" id="class-task-search" placeholder="Search tasks" aria-label="Search class tasks" autocomplete="off" value="">
       </label>
+      <div class="class-filters">
+        <label class="sr-only" for="class-subject-filter">Subject</label>
+        <select id="class-subject-filter" value="">
+          <option value="">Subject: All</option>
+          <option value="CP104">CP104</option>
+          <option value="EFFCOM">EFFCOM</option>
+          <option value="FINMATH101">FINMATH101</option>
+          <option value="GENMATH">GENMATH</option>
+          <option value="GENSCI">GENSCI</option>
+          <option value="MABKOM">MABKOM</option>
+          <option value="PE">PE</option>
+          <option value="PERDEV">PERDEV</option>
+          <option value="PKLP">PKLP</option>
+          <option value="THEOLOGY">THEOLOGY</option>
+        </select>
+        <label class="sr-only" for="class-status-filter">Status</label>
+        <select id="class-status-filter" value="">
+          <option value="">Status: All</option>
+          <option value="not_started">To do</option>
+          <option value="in_progress">In progress</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
       <div class="view-tabs" role="group" aria-label="View">
         <button type="button" class="view-tab" data-view="board" aria-pressed="false">Board</button>
         <button type="button" class="view-tab is-active" data-view="list" aria-pressed="true">List</button>
