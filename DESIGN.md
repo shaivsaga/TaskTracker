@@ -214,7 +214,7 @@ Card Cream panel, 2px border, 4px ledge, max 640px, header separated by a 2px ru
 
 ### Calendar
 Month and week grids with 1px-rule cells, alternate rows in Sunk Parchment, today shown as a blue square behind the pixel day number, chips with a status-colored left edge.
-Phone task markers use a 4px gap so their 1px outlines remain visibly separate; markers wrap inside narrow day cells.
+Phone month cells pack up to three unfinished subject-colour squares with a 4px gap; a fourth or later task adds a small `+` at the bottom right. Completing a task repacks the remaining squares without changing the day's task list.
 
 ## Do's and Don'ts
 

@@ -604,7 +604,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-more:hover { color: var(--tx); }
 
 /* Phone month view: day cells are tap targets that show dots; the picked day's tasks list below the grid. */
-.cal-day.is-tappable { justify-items: center; align-content: start; gap: 4px; min-height: 56px; padding: 4px; cursor: pointer; }
+.cal-day.is-tappable { position: relative; justify-items: center; align-content: start; gap: 4px; min-height: 56px; padding: 4px; cursor: pointer; }
 .cal-day.is-tappable .cal-num { justify-self: center; }
 @media (hover: hover) {
   .cal-day.is-tappable:hover { background: var(--sf2); }
@@ -612,8 +612,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 }
 .cal-day.is-tappable.is-selected, .cal-day.is-tappable.is-selected:hover { background: var(--acs); box-shadow: inset 0 0 0 2px var(--ac), 0 2px 0 var(--ac); }
 .cal-day.is-tappable:focus-visible { outline-offset: -2px; }
-.cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; min-height: 8px; }
-.cal-dots .cal-dot[data-status="done"] { background: transparent; }
+.cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; width: 100%; min-height: 8px; }
+.cal-plus { position: absolute; right: 4px; bottom: 4px; color: var(--tx); font-size: 12px; font-weight: 700; line-height: 12px; }
 .cal-agenda { margin-top: 16px; }
 /* the mockup's .sec strip: heading, then the rule that fills the row */
 .cal-agenda-title { display: flex; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 8px; color: var(--mu); font-size: 14px; font-weight: 700; line-height: 20px; }
@@ -750,6 +750,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #page-calendar .view-tabs { grid-area: 2 / 1; justify-self: start; }
   #page-calendar #cal-today { grid-area: 2 / 2; justify-self: end; align-self: stretch; }
   .cal[data-mode="month"] .cal-day.is-tappable { min-height: 52px; }
+  .cal[data-mode="month"] .cal-day.is-tappable:has(.cal-plus) { min-height: 72px; }
   .cal[data-mode="month"] .cal-dow { padding: 8px 0; text-align: center; }
   .cal .cal-time { display: none; }
   /* Week view on phones: one full-width row per day instead of seven ~45px columns. */
