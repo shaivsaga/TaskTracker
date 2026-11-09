@@ -209,8 +209,8 @@ The PHP suite runs with `php tests/php/run.php` (with XAMPP, `C:\xampp\php\php.e
 - [ ] Clean up unused uploaded files
 - [ ] Automatic cleanup of progress for deleted tasks
 - [ ] Optional personal to-do list, kept on the device
-- [ ] CSV export and progress charts
 - [ ] Automated tests for the core logic
+- [ ] Longer term: multi-section support
 - [ ] Longer term: reminders and insights, designed with privacy first
 
 ## Decision notes
