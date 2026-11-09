@@ -87,6 +87,18 @@ DevTools protocol (Node 22+'s global `WebSocket`), so still no dependency and no
 node tests/e2e/audit.mjs [--root <dir>] [--fixture <file>] [--edge <exe>] [--port 8110] [--require-browser]
 ```
 
+A run may instead use a real endpoint set: `--php C:/xampp/php/php.exe`. A throwaway docroot is copied
+from the repo, `data/current.json` is seeded with a schema-2 board, one admin session file is written,
+and PHP's built-in server serves the app on a random port. Admin scenarios receive that session cookie
+through CDP and student scenarios delete it, so the two modes cannot leak into each other; the temp
+directory is deleted afterwards and the repository's own `data/` is never touched. Without `--php`,
+`/api/*` answers a `200 {}` stub and the run is a geometry, keyboard and accessibility gate only.
+
+Neither mode is a deployment proof: the built-in server is not nginx, so real routing and `data/`
+denial stay `tests/nginx-conf.test.js` (rules) plus an operator check on the host. The harness server
+itself refuses everything under `data/` except `current.json`, pinned by
+`tests/audit-harness.test.js` with planted private content.
+
 Each scenario clears the app's own `class_tasks_*` keys before seeding, so no scenario inherits the
 previous one's admin flag or progress, and the requested admin/student mode is asserted after boot. The
 browser clock is frozen to the fixture instant (`FIXTURE_INSTANT`), so seeded progress timestamps and

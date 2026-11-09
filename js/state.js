@@ -59,4 +59,11 @@ export const state = {
   transferBusy: false,
   transferQrOk: false,
   pendingImport: null,
+  verifiedRevision: 0,            // highest public revision this session proved with a real response
+  verifiedDeletedIds: [],         // ids the server proved permanently deleted; grow-only
+  adminRevision: 0,               // last private revision the server reported
+  catalog: [],                    // the subject definitions this view renders with
+  draftSubjects: [],              // admin: the catalogue being edited (published only on Publish)
+  presets: [],                    // admin: named catalogues from the private store
+  conflictBoard: null,            // admin: the newer board a refused stale publish returned
 };

@@ -40,6 +40,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { runClassFilterChecks } from './class-filters.mjs';
+import { createHash, randomBytes } from 'node:crypto';
+import net from 'node:net';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BOOLEAN_ARGS = new Set(['require-browser']);
@@ -54,7 +56,12 @@ for (let i = 2; i < process.argv.length; i++) {
 }
 const ROOT = path.resolve(args.root || path.join(HERE, '..', '..'));
 const FIXTURE = path.resolve(args.fixture || path.join(HERE, 'fixture-board.json'));
-const PORT = Number(args.port || 8110);
+let PORT = Number(args.port || 8110);
+// Optional: run every scenario against a REAL PHP endpoint set in a throwaway docroot, instead of the
+// fixture stub. `--require-browser --php C:/xampp/php/php.exe` is the functional gate; without it the
+// run stays a geometry/a11y gate whose `/api/*` answers `200 {}`.
+const PHP_EXE = args.php ? String(args.php) : null;
+let ADMIN_COOKIE = null;
 const REQUIRE_BROWSER = !!args['require-browser'] || process.env.AUDIT_REQUIRE_BROWSER === '1';
 const WIDTHS = [320, 375, 640, 720, 768, 1280];
 
@@ -107,6 +114,10 @@ export function createAuditServer({ root = ROOT, fixturePath = FIXTURE } = {}) {
     let decoded;
     try { decoded = decodeURIComponent(rawPath); } catch (e) { fail(400, 'bad request'); return; }
     if (decoded === '/data/current.json') { res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache' }); res.end(fixture); return; }
+    // Mirrors the deployed nginx rule: only current.json is public under data/. The harness serves
+    // the app, so it must not hand out history, sessions, the private bin or pending state either -
+    // otherwise a passing browser run would prove nothing about those paths.
+    if (decoded === '/data' || decoded.startsWith('/data/')) { fail(404, 'not found'); return; }
     if (decoded.startsWith('/api/')) { res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-store' }); res.end('{}'); return; }
     const file = path.resolve(servedRoot, '.' + decoded);
     if (!contained(servedRoot, file)) { fail(404, 'not found'); return; }
@@ -418,6 +429,7 @@ async function settle(cdp, ms = 900) {
 async function boot(cdp, width, opts = {}) {
   const url = 'http://127.0.0.1:' + PORT + '/index.html' + (opts.admin ? '?admin=1' : '') + (opts.hash ? '#' + opts.hash : '');
   await cdp.setMetrics(width, opts.height || (width <= 480 ? 640 : 900));
+  await setSessionCookie(cdp, !!opts.admin);
   await cdp.navigate('http://127.0.0.1:' + PORT + '/index.html');
   await sleep(250);
   // Isolation: every scenario starts from this app's keys only, so a student boot cannot inherit
@@ -464,6 +476,73 @@ async function pressKey(cdp, key, code, windowsVirtualKeyCode) {
 const focusOk = (a, taskId) => !a.body && a.visible && !a.hiddenAncestor && !a.popover
   && a.name.length > 0 && (taskId === undefined || a.taskId === taskId);
 
+// --- optional real-PHP origin -----------------------------------------------------------------
+// A copy of the app plus a synthetic data/ directory, served by PHP's built-in server. Nothing here
+// touches the repository's own data/: the board, the session and every write live in a temp dir that
+// is deleted afterwards. Only the session file and the schema-2 board are seeded.
+const PHP_APP_FILES = ['index.html', 'styles.css', 'app.js', 'logic.js', 'attachments.js', 'qr-draw.js', 'qrcode.js', 'transfer.php', 'favicon.ico', 'favicon.svg', 'apple-touch-icon.png'];
+const PHP_APP_DIRS = ['js', 'assets', 'api'];
+
+function phpSandbox(fixture) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tt-audit-php-'));
+  for (const f of PHP_APP_FILES) {
+    const src = path.join(ROOT, f);
+    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(root, f));
+  }
+  for (const d of PHP_APP_DIRS) {
+    const src = path.join(ROOT, d);
+    if (fs.existsSync(src)) fs.cpSync(src, path.join(root, d), { recursive: true });
+  }
+  const token = randomBytes(32).toString('hex');
+  fs.mkdirSync(path.join(root, 'data', 'sessions'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'data', 'admin'), { recursive: true });
+  const now = Math.floor(Date.now() / 1000);
+  fs.writeFileSync(path.join(root, 'data', 'sessions', createHash('sha256').update(token).digest('hex') + '.json'),
+    JSON.stringify({ created: now, lastSeen: now, expires: now + 3600 }));
+  fs.writeFileSync(path.join(root, 'data', 'current.json'), JSON.stringify({
+    schemaVersion: 2,
+    revision: 1,
+    operationId: '0'.repeat(32),
+    publishedAt: Math.floor(FIXTURE_INSTANT / 1000),
+    tasks: fixture.tasks,
+    announcements: fixture.announcements,
+    subjects: Array.isArray(fixture.subjects) ? fixture.subjects : [],
+    deletedTasks: [],
+  }));
+  return { root, token };
+}
+
+async function startPhpServer(exe, sandbox) {
+  const log = fs.openSync(path.join(sandbox.root, 'server.log'), 'a');
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const port = 20000 + Math.floor(Math.random() * 30000);
+    const proc = spawn(exe, ['-S', '127.0.0.1:' + port, '-t', sandbox.root], { stdio: ['ignore', log, log] });
+    for (let i = 0; i < 100; i++) {
+      const up = await new Promise((resolve) => {
+        const sock = net.connect(port, '127.0.0.1');
+        sock.once('connect', () => { sock.destroy(); resolve(true); });
+        sock.once('error', () => resolve(false));
+      });
+      if (up) return { proc, port };
+      await sleep(100);
+    }
+    try { proc.kill(); } catch (e) {}
+  }
+  throw new Error('PHP built-in server did not start');
+}
+
+// The admin cookie is the only session this run has; a student scenario deletes it, so the two modes
+// can never leak into each other.
+async function setSessionCookie(cdp, admin) {
+  if (!PHP_EXE) return;
+  await cdp.send('Network.enable');
+  if (admin) {
+    await cdp.send('Network.setCookie', { name: 'tt_admin', value: ADMIN_COOKIE, domain: '127.0.0.1', path: '/', httpOnly: true });
+  } else {
+    await cdp.send('Network.deleteCookies', { name: 'tt_admin', domain: '127.0.0.1', path: '/' });
+  }
+}
+
 async function main() {
   // Launch before the server: a missing/broken browser is decided without opening a port, and the
   // exit code is part of the contract (optional local SKIP vs required/failed CI failure).
@@ -483,7 +562,16 @@ async function main() {
   const fixture = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
   const draft = JSON.stringify({ tasks: fixture.tasks, announcements: fixture.announcements });
   const progress = deriveProgress(fixture);
-  const server = await listen(createAuditServer());
+  let php = null;
+  if (PHP_EXE) {
+    const sandbox = phpSandbox(fixture);
+    php = await startPhpServer(PHP_EXE, sandbox);
+    ADMIN_COOKIE = sandbox.token;
+    PORT = php.port;
+    php.root = sandbox.root;
+    console.log('origin: real PHP sandbox on 127.0.0.1:' + PORT);
+  }
+  const server = php ? null : await listen(createAuditServer());
   const { cdp } = browser;
   try {
     // 0. the harness itself: the browser clock is frozen (the injection lands on the next document,
@@ -762,13 +850,25 @@ async function main() {
       return { text: del.textContent.trim(), rows: document.querySelectorAll('#past-list .done-row').length };
     })()`);
     const armed = clicked && clicked.text === 'Confirm?' && clicked.rows === before;
-    const deleted = await cdp.evaluate(`(() => {
+    // Deletion archives first, so the row disappears one network turn later: poll for the effect
+    // instead of sampling synchronously.
+    await cdp.evaluate(`(() => {
       const row = document.querySelector('#past-list .done-row');
       const del = [...row.querySelectorAll('button')].find((b) => /Confirm\\?/.test(b.textContent));
-      if (!del) return null;
-      del.click();
-      return { rows: document.querySelectorAll('#past-list .done-row').length, toast: !document.getElementById('toast').hidden, message: document.getElementById('toast-message').textContent, undo: !document.getElementById('toast-action').hidden };
+      if (del) del.click();
+      return true;
     })()`);
+    let deleted = null;
+    for (let i = 0; i < 40; i++) {
+      deleted = await cdp.evaluate(`(() => ({
+        rows: document.querySelectorAll('#past-list .done-row').length,
+        toast: !document.getElementById('toast').hidden,
+        message: document.getElementById('toast-message').textContent,
+        undo: !document.getElementById('toast-action').hidden,
+      }))()`);
+      if (deleted.rows === before - 1 && deleted.toast) break;
+      await sleep(50);
+    }
     const gone = deleted && deleted.rows === before - 1 && deleted.toast && deleted.undo;
     await sleep(200);
     await click(cdp, '#toast-action');
@@ -792,7 +892,11 @@ async function main() {
     check('console clean', cdp.errors.length === 0, cdp.errors.slice(0, 3).join(' | '));
   } finally {
     await browser.close();
-    await new Promise((resolve) => server.close(resolve));
+    if (server) await new Promise((resolve) => server.close(resolve));
+    if (php) {
+      try { php.proc.kill(); } catch (e) {}
+      fs.rmSync(php.root, { recursive: true, force: true });
+    }
   }
   const passed = results.filter((r) => r.ok).length;
   console.log('audit: ' + passed + ' passed, ' + (results.length - passed) + ' failed');

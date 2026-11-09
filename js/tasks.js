@@ -38,6 +38,7 @@ import { state } from './state.js';
 import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, STATUS_TO_COLUMN, COLUMN_TO_STATUS } from './util.js';
 import * as motion from './motion.js';   // leaf helper: imports nothing, reads the DOM only
+import { classForColor } from './subjects.js';   // pure: colour -> shipped class
 
 // --- Values app.js passes in through init(deps) ------------------------------------------------
 let Task = null;
@@ -56,6 +57,7 @@ let TTFiles = null;
 let openDuePicker = null;
 let calendar = null;
 let publish = null;
+let recovery = null;
 
 // --- Moved verbatim from app.js ----------------------------------------------------------------
 const findTask = (id) => [...myTasks, ...state.publishedTasks].find((t) => t.id === id);
@@ -176,10 +178,22 @@ function confirmReopen(task, newStatus, onConfirm, openerHint) {
   cancelBtn.focus();
 }
 // --- Persistence: progress (everyone) + draft (admin) ---
+// Returns whether both writes succeeded. A caller must never show "deleted"/"saved" when this is
+// false: the draft and the progress key are separate, so a partial failure is reported, not hidden.
 export function saveTasks() {
-  const ok = writeJSON(KEYS.progress, state.progress)
-    && (!state.isAdmin || writeJSON(KEYS.draft, { tasks: myTasks.map((t) => t.toJSON()), announcements: state.announcements }));
-  if (!ok) showToast('Storage is full. Remove large images.');
+  const steps = [];
+  const progressOk = writeJSON(KEYS.progress, state.progress);
+  const draftOk = !state.isAdmin || writeJSON(KEYS.draft, {
+    schemaVersion: 2,
+    tasks: myTasks.map((t) => t.toJSON()),
+    announcements: state.announcements,
+    subjects: state.draftSubjects,
+    baseRevision: Number.isSafeInteger(state.verifiedRevision) ? state.verifiedRevision : null,
+  });
+  if (!progressOk) steps.push('progress');
+  if (!draftOk) steps.push('draft');
+  if (steps.length) showToast(`Could not save this device's ${steps.join(' and ')}. Storage may be full.`);
+  return progressOk && draftOk;
 }
 function migrateLegacy() {
   try {
@@ -203,20 +217,13 @@ export function loadTasks() {
   myTasks.length = 0;
   (draft.tasks || []).forEach((o) => myTasks.push(Task.fromJSON(o)));
   state.announcements = Array.isArray(draft.announcements) ? draft.announcements : [];
+  // A schema-2 draft carries its own catalogue; a legacy envelope has none, so the published
+  // catalogue is used until the admin saves one (never a generic reset).
+  state.draftSubjects = Array.isArray(draft.subjects) ? draft.subjects : [];
   applyProgress(myTasks);
 }
-// Drops progress for tasks that are gone from the Board and from this browser's Draft. Runs only after a live, non-empty Board load, so a failed or empty load never wipes anything.
-export function pruneProgress(board) {
-  if (!board || !board.tasks.length) return;
-  const keep = new Set(board.tasks.map((t) => String(t.id)));
-  myTasks.forEach((t) => keep.add(t.id));
-  const draft = readJSON(KEYS.draft, null);
-  (draft && Array.isArray(draft.tasks) ? draft.tasks : []).forEach((t) => { if (t && t.id !== undefined) keep.add(String(t.id)); });
-  const gone = Object.keys(state.progress).filter((id) => !keep.has(id));
-  if (!gone.length) return;
-  gone.forEach((id) => { delete state.progress[id]; });
-  writeJSON(KEYS.progress, state.progress);
-}
+// Progress is erased only by an authority the server proved (see app.js applyDeletionAuthority):
+// a task merely absent from this board, or a failed/empty/offline load, never erases anything.
 // --- Task Card Creation ---
 export function createTaskCard(task) {
   const article = document.createElement('article');
@@ -294,17 +301,45 @@ export function createTaskCard(task) {
   return article;
 }
 // --- Delete Task ---
-export function deleteTask(task) {
+// Archive first, then remove locally. If the archive fails, nothing is deleted and the draft keeps
+// the task: the server copy is the only durable recovery, so it cannot be skipped.
+export async function deleteTask(task) {
   const index = myTasks.indexOf(task);
-  if (index === -1) return;
+  if (index === -1) return false;
+  const archive = recovery && state.isAdmin && !state.previewing ? await recovery.archive(task) : { ok: true };
+  if (!archive.ok) {
+    showToast('Could not save this task to the recycle bin. It was not deleted.');
+    return false;
+  }
+  const before = myTasks.slice();
   myTasks.splice(index, 1);
-  saveTasks();
-  renderAllTasks();
-  showToast('Task deleted', 'Undo', () => {
-    myTasks.splice(Math.min(index, myTasks.length), 0, task);
-    saveTasks();
+  if (!saveTasks()) {
+    myTasks.length = 0;
+    myTasks.push(...before);
     renderAllTasks();
-  });
+    showToast('Saved to the recycle bin, but this device would not save the change.');
+    return false;
+  }
+  renderAllTasks();
+  showToast('Task deleted. A copy stays in the recycle bin.', 'Undo', () => undoDelete(task, index));
+  return true;
+}
+
+// Undo re-checks authority at click time: a deletion proved after the toast appeared wins over the
+// older snapshot, and the old id is then offered as a labelled copy instead of silently returning.
+function undoDelete(task, index) {
+  if (recovery.mustRecoverAsNewId(String(task.id))) {
+    showToast('That task was permanently deleted. Recover it as a new copy from the recycle bin.');
+    return;
+  }
+  myTasks.splice(Math.min(index, myTasks.length), 0, task);
+  if (!saveTasks()) {
+    myTasks.splice(myTasks.indexOf(task), 1);
+    renderAllTasks();
+    showToast('Could not restore the task on this device.');
+    return;
+  }
+  renderAllTasks();
 }
 export function hideToast() {
   clearTimeout(state.toastTimer);
@@ -510,6 +545,13 @@ function doneMessage() {
   return open.length && open.every((x) => x.status === 'done') ? 'All caught up' : statusChangeMessage('done');
 }
 export function restoreProgress(taskId, prev) {
+  // A deletion proved after this toast was created wins over the older snapshot: the id must not
+  // come back into device progress at all, whatever the captured entry said.
+  if (recovery && recovery.mustRecoverAsNewId(String(taskId))) {
+    showToast('That task was permanently deleted. Its progress cannot be restored.');
+    renderAllTasks();
+    return;
+  }
   // Undo during the flight: drop the ghost, then let the rows glide back.
   motion.cancel(taskId);
   motion.begin(taskId, state.progress[taskId]?.status || 'not_started', prev ? prev.status : 'not_started');
@@ -602,11 +644,26 @@ export function renderDonePage() {
     host.appendChild(row);
   });
 }
+// A subject is searchable by its editable name as well as its code, so a renamed subject is found
+// by what the class actually sees on the chip.
+function subjectCodesMatching(q) {
+  const out = new Set();
+  for (const s of Array.isArray(state.catalog) ? state.catalog : []) {
+    const name = String(s && s.name || '').toLowerCase();
+    const code = String(s && s.code || '').toLowerCase();
+    if (code.includes(q) || name.includes(q)) out.add(s.code);
+  }
+  return out;
+}
+
 export function getVisibleTasks() {
   const q = state.searchQuery.trim().toLowerCase();
   const active = myTasks.filter((t) => !t.isPast());
   return sortTasks(q
-    ? active.filter((t) => t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
+    ? active.filter((t) => {
+      const named = subjectCodesMatching(q);
+      return t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q) || named.has(t.subject);
+    })
     : active);
 }
 export function updateOverview() {
@@ -641,7 +698,8 @@ function plainNotes(task) {
   return text;
 }
 function matchesClassSearch(task, q) {
-  return task.title.toLowerCase().includes(q) || task.subject.toLowerCase().includes(q) || plainNotes(task).includes(q);
+  return task.title.toLowerCase().includes(q) || task.subject.toLowerCase().includes(q)
+    || subjectCodesMatching(q).has(task.subject) || plainNotes(task).includes(q);
 }
 export function createTaskRow(task) {
   const row = document.createElement('div');
@@ -1108,11 +1166,36 @@ export function handleDrop(e) {
 
   document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
 }
-export const SUBJECTS = {
-  GENSCI: 'bg-cyan', GENMATH: 'bg-pink', PKLP: 'bg-sunglow', EFFCOM: 'bg-green',
-  MABKOM: 'bg-sand', PERDEV: 'bg-teal', PE: 'bg-yellow', THEOLOGY: 'bg-stone', CP104: 'bg-blue', FINMATH101: 'bg-mauve',
-};
+// Membership only: the configured codes, so quick-add and the calendar can recognise a subject.
+// Colours come from the catalogue definition (see app.js createSubjectTag), never from this map.
+export const SUBJECTS = {};
 export const STATUS_ORDER = ['not_started', 'in_progress', 'done'];
+
+// Rebuilt whenever the catalogue changes (a rename or retire must change what is recognised).
+// The value is the shipped class for the subject's colour, so calendar dots and quick-add chips
+// keep rendering exactly as before for the palette, and a custom colour reports no class.
+export function syncSubjectMap(catalog) {
+  for (const code of Object.keys(SUBJECTS)) delete SUBJECTS[code];
+  for (const s of Array.isArray(catalog) ? catalog : []) {
+    if (s && typeof s.code === 'string' && s.code !== '') SUBJECTS[s.code] = classForColor(s.color);
+  }
+}
+
+// The dialog's subject choices: None plus every assignable code. Rebuilt on a catalogue change so a
+// retired subject disappears from the picker without touching a task that already uses it.
+export function refreshSubjectChoices() {
+  if (!dom.dialogSubjectDropdown) return;
+  dom.dialogSubjectDropdown.replaceChildren();
+  [''].concat(Object.keys(SUBJECTS)).forEach((code) => {
+    const opt = document.createElement('button');
+    opt.type = 'button';
+    opt.className = 'status-option';
+    opt.setAttribute('role', 'option');
+    if (code) opt.appendChild(createSubjectTag(code)); else opt.textContent = 'None';
+    opt.addEventListener('click', () => selectSubject(code));
+    dom.dialogSubjectDropdown.appendChild(opt);
+  });
+}
 export function ensureStatusPopover() {
   if (state.statusPopoverEl) return state.statusPopoverEl;
   const el = document.createElement('div');
@@ -1257,6 +1340,7 @@ export function init(deps) {
   openDuePicker = deps.openDuePicker;
   calendar = deps.calendar;
   publish = deps.publish;
+  recovery = deps.recovery;
 // Don't dismiss the toast while someone is tabbing to its Undo button
 dom.toastEl.addEventListener('focusin', () => clearTimeout(state.toastTimer));
 dom.toastEl.addEventListener('focusout', () => { clearTimeout(state.toastTimer); state.toastTimer = setTimeout(hideToast, 3000); });
@@ -1401,15 +1485,7 @@ document.addEventListener('keydown', (e) => {
   // A focused option activates itself on Enter; only click from here when focus is elsewhere.
   if (e.key === 'Enter' && !state.statusPopoverEl.contains(document.activeElement)) { state.statusPopoverEl.children[state.statusPopoverIndex].click(); }
 });
-[''].concat(Object.keys(SUBJECTS)).forEach((code) => {
-  const opt = document.createElement('button');
-  opt.type = 'button';
-  opt.className = 'status-option';
-  opt.setAttribute('role', 'option');
-  if (code) opt.appendChild(createSubjectTag(code)); else opt.textContent = 'None';
-  opt.addEventListener('click', () => selectSubject(code));
-  dom.dialogSubjectDropdown.appendChild(opt);
-});
+refreshSubjectChoices();
 // Lives on <body> (same as the status menu) so the dialog's scroll area can't clip it
 dom.dialogSubjectDropdown.classList.add('status-popover');
 document.body.appendChild(dom.dialogSubjectDropdown);

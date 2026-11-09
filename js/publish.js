@@ -46,6 +46,8 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, API, fmtWhen } from './util.js';
+import { validateSubjects, catalogSignature } from './subjects.js';
+import { prepareRecoveredDraft } from './recovery.js';
 
 let $ = null;                   // app.js: its querySelector shorthand
 let myTasks = null;             // app.js: the live draft array, mutated in place by restoreDraft
@@ -58,14 +60,32 @@ let applyProgress = null;       // app.js: restoreDraft re-applies the saved sta
 let normalizeBoard = null;      // app.js: the publish response is normalised before setPublished
 let setPublished = null;        // app.js: the live board is replaced after a publish
 let Task = null;                // logic.js: restoreDraft rebuilds each task through Task.fromJSON
+let acceptAuthority = null;     // app.js: adopts a returned board's revision and deletion markers
+let catalog = null;             // app.js: the draft subject catalogue and its operation ids
+let archive = null;             // app.js: archive-first, so a replacement never loses a draft copy
+let syncCatalog = null;         // app.js: a restored catalogue must repaint tags and pickers
 let setPage = null;             // nav.setPage: setPreview(true) switches to the Class tasks page
 let adoptInlineImages = null;   // js/note-images.js: publish moves inline note images to uploads/
 let rewriteNotes = null;        // js/note-images.js: the same rewrite for the in-memory draft
 let files = null;               // app.js: window.TTFiles, the upload client
 // --- Admin: diff, checkpoints, publish, history, import/export, preview ---
 
-export const snapshot = () => ({ tasks: myTasks.map((t) => t.toJSON()), announcements: JSON.parse(JSON.stringify(state.announcements)) });
-const describeDiff = (d) => [d.added && `${d.added} added`, d.edited && `${d.edited} edited`, d.removed && `${d.removed} removed`, d.ann && 'announcements changed'].filter(Boolean).join(', ') || 'No changes';
+// The draft content, including its catalogue, in the one shape checkpoints, restore, discard and
+// transfer all share. It carries no authority: a base revision in a snapshot is history, never a
+// licence to write.
+export const snapshot = () => ({
+  schemaVersion: 2,
+  tasks: myTasks.map((t) => t.toJSON()),
+  announcements: JSON.parse(JSON.stringify(state.announcements)),
+  subjects: JSON.parse(JSON.stringify(state.draftSubjects)),
+});
+const describeDiff = (d) => [
+  d.added && `${d.added} added`,
+  d.edited && `${d.edited} edited`,
+  d.removed && `${d.removed} removed`,
+  d.ann && 'announcements changed',
+  d.subjectsChanged && 'subjects changed',
+].filter(Boolean).join(', ') || 'No changes';
 
 export function diffDraft() {
   const defs = (list) => new Map(list.map((t) => [t.id, JSON.stringify(t.toJSON())]));
@@ -79,7 +99,14 @@ export function diffDraft() {
   });
   pub.forEach((_, id) => { if (!cur.has(id)) removed++; });
   const ann = JSON.stringify(state.announcements) !== JSON.stringify(state.publishedAnnouncements);
-  return { added, edited, removed, ann, changed, total: added + edited + removed + (ann ? 1 : 0) };
+  // A catalogue-only edit is a real unpublished change: a rename, a recolour or a retire must
+  // enable Publish even when not a single task moved.
+  const publishedCatalog = state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [];
+  const subjectsChanged = catalogSignature(state.draftSubjects) !== catalogSignature(publishedCatalog);
+  return {
+    added, edited, removed, ann, subjectsChanged, changed,
+    total: added + edited + removed + (ann ? 1 : 0) + (subjectsChanged ? 1 : 0),
+  };
 }
 
 export function updateAdminBar(diff) {
@@ -92,14 +119,51 @@ export function updateAdminBar(diff) {
   $('#btn-discard').disabled = !diff.total;
 }
 
-export function restoreDraft(snap) {
+// One path for history, checkpoints, discard and their Undo. The replacement's own catalogue and
+// base are never adopted: the receiver keeps its publishing base and its authority.
+// Before anything is replaced, a draft-only definition that would otherwise lose its last copy is
+// archived. If that archive fails, the draft is left exactly as it was.
+export async function restoreDraft(snap) {
+  const incoming = Array.isArray(snap && snap.tasks) ? snap.tasks : [];
+  const keep = new Set(incoming.map((t) => String(t && t.id)));
+  const publishedIds = new Set(state.publishedTasks.map((t) => String(t.id)));
+  const onlyHere = myTasks.filter((t) => !keep.has(String(t.id)) && !publishedIds.has(String(t.id)));
+  if (onlyHere.length && typeof archive !== 'function') {
+    showToast('The recycle bin is unavailable, so the draft was left unchanged.');
+    return false;
+  }
+  for (const task of onlyHere) {
+    const archived = await archive(task);
+    if (!archived || !archived.ok) {
+      showToast('Could not save a draft-only task to the recycle bin, so the draft was left unchanged.');
+      return false;
+    }
+  }
+
+  // A permanently deleted id may not come back as itself from any source - a checkpoint, a history
+  // version, a transfer or an Undo. It returns as a clearly labelled new copy, with no progress.
+  const prepared = prepareRecoveredDraft(
+    { tasks: incoming },
+    state.verifiedDeletedIds,
+    () => (crypto.randomUUID ? crypto.randomUUID() : newIntentId()),
+  );
   myTasks.length = 0;
-  (snap.tasks || []).forEach((o) => myTasks.push(Task.fromJSON(o)));
+  prepared.content.tasks.forEach((o) => myTasks.push(Task.fromJSON(o)));
+  if (prepared.recovered.length) {
+    showToast(prepared.recovered.length === 1
+      ? 'Restored one task as a new copy: its old id was permanently deleted.'
+      : `Restored ${prepared.recovered.length} tasks as new copies: their old ids were permanently deleted.`);
+  }
   state.announcements = snap.announcements ? JSON.parse(JSON.stringify(snap.announcements)) : [];
+  if (Array.isArray(snap.subjects) && snap.subjects.length) {
+    const checked = validateSubjects(snap.subjects);
+    if (!checked.error) { state.draftSubjects = checked.subjects; syncCatalog(checked.subjects); }
+  }
   applyProgress(myTasks);
   saveTasks();
   renderAllTasks();
   renderAnnouncements();
+  return true;
 }
 
 function saveCheckpoint() {
@@ -230,6 +294,12 @@ async function loadVersions() {
 }
 
 // Called once by app.js, at the spot the moved listeners used to occupy.
+// One stable intent id per user action: a transport retry repeats it, so the server can tell a
+// replay from a second edit.
+const newIntentId = () => (crypto.randomUUID
+  ? crypto.randomUUID().replace(/-/g, '')
+  : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''));
+
 export function init(deps) {
   $ = deps.$;
   myTasks = deps.myTasks;
@@ -242,11 +312,42 @@ export function init(deps) {
   normalizeBoard = deps.normalizeBoard;
   setPublished = deps.setPublished;
   Task = deps.Task;
+  acceptAuthority = deps.acceptAuthority || null;
+  catalog = deps.catalog || null;
+  archive = deps.archive || null;
+  syncCatalog = deps.syncCatalog || null;
   setPage = deps.setPage;
   adoptInlineImages = deps.adoptInlineImages;
   rewriteNotes = deps.rewriteNotes;
   files = deps.files;
 $('#publish-clear-input').addEventListener('input', syncPublishClear);
+// Explicit review step for a refused stale publish: adopting the newer board is the admin's
+// decision, and it only moves the publishing base - it never edits or replaces the draft.
+$('#publish-rebase').addEventListener('click', async () => {
+  const newer = state.conflictBoard;
+  if (!newer) return;
+  state.conflictBoard = null;
+  $('#publish-conflict').hidden = true;
+  $('#publish-error').hidden = true;
+  // A refused response is evidence that the write lost, not authority: re-read the board with a
+  // fresh successful request and adopt only that. A failure body could otherwise smuggle markers in.
+  let fresh = null;
+  try {
+    const res = await fetch(API.current, { cache: 'no-cache', signal: AbortSignal.timeout(8000) });
+    if (res.ok) fresh = await res.json();
+  } catch (e) { fresh = null; }
+  const board = normalizeBoard(fresh);
+  if (!board || !acceptAuthority(board)) {
+    $('#publish-error').textContent = 'That newer board could not be adopted. Reload the page.';
+    $('#publish-error').hidden = false;
+    return;
+  }
+  writeJSON(KEYS.cache, board);
+  setPublished(board);
+  updateAdminBar(diffDraft());
+  showToast('Now publishing over the newer board. Review your draft, then publish again.');
+  $('#publish-submit').focus();
+});
 
 $('#publish-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -276,21 +377,57 @@ $('#publish-form').addEventListener('submit', async (e) => {
       }
       body = { ...snap, note };
     }
+    // One intent id for this publish, held across a transport retry; the base is the revision this
+    // editor actually reviewed, so the server can refuse a stale write instead of overwriting it.
+    const unknown = catalog && catalog.unknownFor ? catalog.unknownFor(body.tasks) : [];
+    if (unknown.length) {
+      throw new Error(`These subjects are not configured: ${unknown.join(', ')}. Add them to the catalogue before publishing.`);
+    }
+    body = {
+      schemaVersion: 2,
+      operationId: catalog && catalog.newOperationId ? catalog.newOperationId() : newIntentId(),
+      baseRevision: state.verifiedRevision,
+      subjects: catalog ? catalog.forPublish(body.tasks) : [],
+      ...body,
+    };
+    const sentFingerprint = JSON.stringify(snapshot());
     const res = await fetch(API.publish, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const out = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(out.error || 'Publish failed');
+    if (!res.ok) {
+      // Post-commit is not "nothing changed": say what actually happened.
+      if (out.code === 'committed_recovery_pending') throw new Error(out.error || 'Published, but the archive is still settling. Reload.');
+      // A stale write is refused, never retried blindly or rebased silently: keep the draft and let
+      // the admin review the newer board before publishing over it.
+      if (out.code === 'stale_base') {
+        state.conflictBoard = out.current || null;
+        const newer = out.current || {};
+        const live = Array.isArray(newer.tasks) ? newer.tasks.length : null;
+        $('#publish-conflict-text').textContent =
+          `The class board changed since you opened this draft (${live === null ? 'unknown' : live} live task(s), revision ${newer.revision ?? '?'}). Nothing was published. Review the newer board, then choose whether to publish your draft over it.`;
+        $('#publish-conflict').hidden = false;
+        $('#publish-rebase').focus();
+        throw new Error(`${out.error || 'The board changed since you loaded it.'} Your draft is unchanged.`);
+      }
+      throw new Error(out.error || 'Publish failed');
+    }
     const board = normalizeBoard(out.current);
     if (!board) throw new Error('Published, but the response was unreadable. Reload to check.');
     writeJSON(KEYS.cache, board);
+    // A successful publish is authoritative: adopt its revision and markers, then erase progress
+    // the server proved deleted (a publish may carry a permanent-deletion marker).
+    if (typeof acceptAuthority === 'function') acceptAuthority(board);
     setPublished(board);
     hideAnimated(dom.publishOverlay);
     renderAllTasks();
     renderAnnouncements();
-    showToast('Published');
+    // Editing while the request was in flight is legitimate; those edits stay unpublished, and the
+    // toast must not claim they went out with this publish.
+    if (JSON.stringify(snapshot()) !== sentFingerprint) showToast('Published. Your newer edits are still unpublished.');
+    else showToast('Published');
   } catch (ex) {
     err.textContent = ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message;
     err.hidden = false;
@@ -343,7 +480,11 @@ $('#btn-preview').addEventListener('click', () => setPreview(true));
 $('#preview-exit').addEventListener('click', () => setPreview(false));
 $('#btn-discard').addEventListener('click', () => {
   const before = snapshot();
-  restoreDraft({ tasks: state.publishedTasks.map((t) => t.toJSON()), announcements: state.publishedAnnouncements });
+  restoreDraft({
+    tasks: state.publishedTasks.map((t) => t.toJSON()),
+    announcements: state.publishedAnnouncements,
+    subjects: state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [],
+  });
   showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
 });
 

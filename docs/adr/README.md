@@ -8,3 +8,4 @@ Short records of choices that are hard to reverse. Each says what was decided, w
 4. [Plain JavaScript, no build step](0004-plain-javascript.md)
 5. [Multi-section design (deferred, not built)](0005-multi-section-deferred.md)
 6. [app.js split into ES modules](0006-app-js-module-split.md)
+7. [Deletion authority, recycle bin and migration](0007-subjects-and-recovery.md)

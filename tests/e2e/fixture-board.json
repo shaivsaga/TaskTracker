@@ -1,4 +1,16 @@
 {
+  "subjects": [
+    { "code": "GENSCI", "name": "GENSCI", "color": "#70d1fe", "active": true },
+    { "code": "GENMATH", "name": "GENMATH", "color": "#fba6f7", "active": true },
+    { "code": "PKLP", "name": "PKLP", "color": "#ff9f6b", "active": true },
+    { "code": "EFFCOM", "name": "EFFCOM", "color": "#8fe3a8", "active": true },
+    { "code": "MABKOM", "name": "MABKOM", "color": "#d8c7a0", "active": true },
+    { "code": "PERDEV", "name": "PERDEV", "color": "#7ff0e0", "active": true },
+    { "code": "PE", "name": "PE", "color": "#f7cd54", "active": true },
+    { "code": "THEOLOGY", "name": "THEOLOGY", "color": "#c3c7d6", "active": true },
+    { "code": "CP104", "name": "CP104", "color": "#58affc", "active": true },
+    { "code": "FINMATH101", "name": "FINMATH101", "color": "#c9a6e0", "active": true }
+  ],
   "tasks": [
     {
       "id": "fx001",
