@@ -72,9 +72,21 @@ function focusTaskControl(taskId) {
   }
   return null;
 }
+// When the class Status filter is hiding the changed task, its select is the visible control that
+// explains the empty rows. An open task dialog still owns focus; an is-closing one is already gone.
+function focusClassFilterFallback() {
+  if (dom.dialogOverlay && !dom.dialogOverlay.hidden && !dom.dialogOverlay.classList.contains('is-closing')) return null;
+  if (!state.classStatusFilter || !classListVisible()) return null;
+  const select = document.querySelector('#class-status-filter');
+  if (!isLiveControl(select)) return null;
+  select.focus();
+  return select;
+}
 // Last resort after a task leaves the visible page (e.g. reopened from Done): the active nav tile is
 // a meaningful, visible control, never the hidden page, a closed popover or <body>.
 function focusFallbackControl() {
+  const filter = focusClassFilterFallback();
+  if (filter) return filter;
   const nav = [...document.querySelectorAll('.nav-item[aria-current="page"], .nav-item.is-active')].find(isLiveControl);
   if (nav) { nav.focus(); return nav; }
   const first = [...document.querySelectorAll('button, a[href], input, textarea, select')]
@@ -337,6 +349,54 @@ export function showSkeletons() {
   });
 }
 // --- Tasks: published list, same builders as admin, student-safe ---
+function classSubjectCodes(all) {
+  return [...new Set(all.map((t) => t.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+function syncClassSubjectOptions(all) {
+  const select = document.querySelector('#class-subject-filter');
+  if (!select) return;
+  const codes = classSubjectCodes(all);
+  const current = [...select.options].slice(1).map((o) => o.value);
+  if (current.length !== codes.length || current.some((v, i) => v !== codes[i])) {
+    select.replaceChildren();
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'Subject: All';
+    select.appendChild(allOpt);
+    codes.forEach((code) => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = code;
+      select.appendChild(opt);
+    });
+  }
+  if (state.classSubjectFilter && !codes.includes(state.classSubjectFilter)) state.classSubjectFilter = '';
+  select.value = state.classSubjectFilter;
+}
+function classFiltersActive() {
+  return !!(state.classSearchQuery.trim() || state.classSubjectFilter || state.classStatusFilter);
+}
+function matchesClassFilters(task) {
+  return (!state.classSubjectFilter || task.subject === state.classSubjectFilter)
+    && (!state.classStatusFilter || task.status === state.classStatusFilter);
+}
+function classListVisible() {
+  const list = document.querySelector('#class-task-list');
+  return !!list && list.getClientRects().length > 0;
+}
+function clearClassFilters() {
+  state.classSearchQuery = '';
+  state.classSubjectFilter = '';
+  state.classStatusFilter = '';
+  const search = document.querySelector('#class-task-search');
+  const subject = document.querySelector('#class-subject-filter');
+  const status = document.querySelector('#class-status-filter');
+  if (search) search.value = '';
+  if (subject) subject.value = '';
+  if (status) status.value = '';
+  renderClassTasks();
+  if (search) search.focus();
+}
 export function renderClassTasks() {
   const board = document.querySelector('#class-board');
   board.querySelectorAll('.column-content').forEach((c) => {
@@ -344,18 +404,31 @@ export function renderClassTasks() {
   });
   const all = (state.previewing ? myTasks : state.publishedTasks).filter((t) => !t.isPast());
   const q = state.classSearchQuery.trim().toLowerCase();
-  const source = sortTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
-  source.forEach((task) => {
+  syncClassSubjectOptions(all);
+  document.querySelector('#class-status-filter').value = state.classStatusFilter;
+  const searched = sortTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
+  const visible = searched.filter(matchesClassFilters);
+  searched.forEach((task) => {
     const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
     if (col) col.appendChild(createTaskCard(task));
   });
   board.querySelectorAll('.kanban-column').forEach(updateColumn);
 
-  dom.classListEl.replaceChildren(...source.map(createTaskRow));
-  if (!source.length) {
+  dom.classListEl.replaceChildren(...visible.map(createTaskRow));
+  if (!visible.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
-    none.textContent = q && all.length ? 'No tasks match your search.' : 'No tasks yet.';
+    if (all.length && classFiltersActive()) {
+      none.append('No tasks match these filters. ');
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'text-button';
+      clear.textContent = 'Clear filters';
+      clear.addEventListener('click', clearClassFilters);
+      none.appendChild(clear);
+    } else {
+      none.textContent = 'No tasks yet.';
+    }
     dom.classListEl.appendChild(none);
   }
 }
@@ -455,6 +528,11 @@ export function restoreProgress(taskId, prev) {
     updateDialogDue(state.currentTask);
   }
   renderAllTasks();
+  if (state.currentTask && state.currentTask.id === taskId && dom.dialogOverlay && !dom.dialogOverlay.hidden && !dom.dialogOverlay.classList.contains('is-closing')) {
+    dom.dialogStatusBtn.focus();
+  } else if (!focusTaskControl(taskId)) {
+    focusFallbackControl();
+  }
 }
 // The app's inline destructive confirm: the first press arms the button for 4s, the second runs it.
 function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
@@ -1062,17 +1140,21 @@ export function ensureStatusPopover() {
           setStatus(picked, next);
           if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
           renderAllTasks();
-          showToast(statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
+          const hiddenByFilter = !!state.classStatusFilter && next !== state.classStatusFilter && classListVisible();
+          showToast(hiddenByFilter ? `${statusChangeMessage(next)}. Hidden by the Status filter` : statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
         }, pickedFrom);
         return;
       }
       const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
-      setStatus(picked, opt.dataset.status);
+      setStatus(picked, next);
       if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
       closeStatusPopover();
       renderAllTasks();
+      const hiddenByFilter = !!state.classStatusFilter && next !== state.classStatusFilter && classListVisible();
       focusStatusTrigger(picked, pickedFrom);
-      if (opt.dataset.status === 'done') {
+      if (hiddenByFilter) {
+        showToast(`${statusChangeMessage(next)}. Hidden by the Status filter`, 'Undo', () => restoreProgress(picked.id, prev));
+      } else if (next === 'done') {
         showToast(doneMessage(), 'Undo', () => restoreProgress(picked.id, prev));
       }
     });
@@ -1095,7 +1177,11 @@ function paintStatusPopover() {
 function focusStatusTrigger(task, anchor) {
   if (anchor && anchor.isConnected && anchor.getClientRects().length) { anchor.focus(); return; }
   const next = [...document.querySelectorAll(`[data-task-id="${task.id}"] .status-check`)].find((el) => el.getClientRects().length);
-  if (next) next.focus();
+  if (next) { next.focus(); return; }
+  if (state.classStatusFilter && classListVisible()) {
+    const select = document.querySelector('#class-status-filter');
+    if (select) select.focus();
+  }
 }
 export function closeStatusPopover(refocus = false) {
   if (!state.statusPopoverEl) return;
