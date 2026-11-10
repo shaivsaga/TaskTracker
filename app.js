@@ -17,6 +17,11 @@ import * as publish from './js/publish.js';
 import * as tasks from './js/tasks.js';
 import * as motion from './js/motion.js';
 import * as noteImages from './js/note-images.js';
+import * as recovery from './js/recovery.js';
+import * as bin from './js/bin.js';
+import * as subjects from './js/subjects.js';
+import * as subjectsEditor from './js/subjects-editor.js';
+import { selectNoticeChanges } from './js/update-notice.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -72,9 +77,65 @@ const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.inclu
 // listener is registered inside it in source order, so the order of the page listeners - including
 // the dialog/popover Escape chain and the due-picker capture handler - is unchanged. The hub
 // functions the other modules receive are passed on from here as tasks.<name>.
+// --- Private recycle bin: the client side of the archive-first deletion -----------------------
+// Every call carries one intent id and the admin revision it decided from. A stale base is
+// answered with the current revision, so the intent is retried once with the same operation id
+// rather than duplicated; a conflict on the id itself is reported, never retried blindly.
+const newOperationId = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''));
+
+// The catalogue definition a bin record keeps so the archived task still reads correctly.
+// A code with no configured definition keeps a neutral retired one; the task is never re-tagged.
+function subjectDef(code) {
+  if (!code) return [];
+  return [{ code: String(code), name: String(code), color: '#c3c7d6', active: false }];
+}
+
+async function adminPost(payload) {
+  const res = await fetch(API.versions, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    cache: 'no-store',
+  });
+  const data = await res.json().catch(() => null);
+  if (typeof data?.adminRevision === 'number') state.adminRevision = data.adminRevision;
+  return { ok: res.ok, status: res.status, code: data && data.code, data };
+}
+
+async function adminAction(action, fields) {
+  const operationId = newOperationId();
+  const send = (base) => adminPost({ action, operationId, baseAdminRevision: base, ...fields });
+  let out = await send(state.adminRevision);
+  if (!out.ok && out.code === 'stale_admin_base') {
+    // Learn the current private revision, then retry the SAME intent once.
+    const summary = await fetch(`${API.versions}?view=admin`, { cache: 'no-store' });
+    const data = await summary.json().catch(() => null);
+    if (typeof data?.adminRevision === 'number') state.adminRevision = data.adminRevision;
+    out = await send(state.adminRevision);
+  }
+  return out;
+}
+
+const recoveryApi = {
+  async archive(task) {
+    const definition = task && typeof task.toJSON === 'function' ? task.toJSON() : task;
+    try {
+      const out = await adminAction('bin-archive', { task: definition, subjects: subjectDef(task && task.subject) });
+      return out.ok ? { ok: true, binId: out.data && out.data.binId } : { ok: false, status: out.status, code: out.code };
+    } catch (e) {
+      return { ok: false, reason: 'offline' };
+    }
+  },
+  // Authority is checked when the user acts, not when the toast was created.
+  mustRecoverAsNewId(id) {
+    return state.verifiedDeletedIds.includes(String(id));
+  },
+};
+
 tasks.init({
   Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, sanitizeDoc, clampPopoverPosition, myTasks,
   isEditable, hideAnimated, createSubjectTag, startNewTask, TTFiles, openDuePicker, calendar, publish,
+  recovery: recoveryApi,
 });
 
 // Returns a clean { tasks, announcements } or null when the data is not a usable board.
@@ -94,22 +155,34 @@ function setPublished(data) {
   state.publishedTasks = board.tasks.map((o) => Task.fromJSON(o));
   state.publishedAnnouncements = board.announcements;
   tasks.applyProgress(state.publishedTasks);
+  // Students render the published catalogue; an admin edits a draft copy that is only sent on Publish.
+  if (!state.isAdmin) syncCatalog(Array.isArray(board.subjects) ? board.subjects : []);
+  else if (!state.draftSubjects.length) {
+    // A legacy draft carries no catalogue: it starts from the published one, never from a reset.
+    state.draftSubjects = (Array.isArray(board.subjects) ? board.subjects : []).map((s) => ({ ...s }));
+    syncCatalog(state.draftSubjects);
+    subjectsEditor.render();
+  }
 }
 
 // --- Update notice: one popup per visit listing tasks that are new or changed since this device last saw the Board ---
 const SEEN_KEY = 'class_tasks_seen';
+const noticeStamp = (value) => (Number.isFinite(value) && value > 0 ? value : 0);
+const isSeenMap = (seen) => !!seen && typeof seen === 'object' && !Array.isArray(seen);
 
 function checkUpdateNotice(board) {
   if (!board || state.isAdmin || state.previewing || state.noticeShown || !board.tasks.length) return;
   if (!dom.tourOverlay.hidden || !dom.importOverlay.hidden || !dom.dialogOverlay.hidden) return;
+  // Raw authoritative-board stamps stay outside Task.fromJSON; Task never carries changedAt.
   const stamps = {};
-  board.tasks.forEach((t) => { stamps[String(t.id)] = Number.isFinite(t.changedAt) ? t.changedAt : 0; });
+  board.tasks.forEach((t) => { stamps[String(t.id)] = noticeStamp(t.changedAt); });
   const seen = readJSON(SEEN_KEY, null);
-  if (!seen || typeof seen !== 'object' || Array.isArray(seen)) { writeJSON(SEEN_KEY, stamps); return; }  // first visit: start quietly
-  const fresh = board.tasks.filter((t) => { const id = String(t.id); return !Object.hasOwn(seen, id) || (seen[id] > 0 && stamps[id] > seen[id]); });
-  if (!fresh.length) { writeJSON(SEEN_KEY, stamps); return; }
+  if (!isSeenMap(seen)) { writeJSON(SEEN_KEY, stamps); return; }  // first visit: start quietly
+  const fresh = selectNoticeChanges(board.tasks, seen);
+  if (!fresh.length) return;
+  const byId = new Map(board.tasks.map((t) => [String(t.id), t]));
   state.noticeShown = true;
-  showUpdateNotice(fresh.map((t) => ({ isNew: !Object.hasOwn(seen, String(t.id)), task: Task.fromJSON(t) })), () => writeJSON(SEEN_KEY, stamps));
+  showUpdateNotice(fresh.map(({ id, isNew }) => ({ isNew, task: Task.fromJSON(byId.get(id)) })), () => writeJSON(SEEN_KEY, stamps));
 }
 
 function showUpdateNotice(items, onDismiss) {
@@ -158,10 +231,40 @@ function showUpdateNotice(items, onDismiss) {
   ok.focus();
 }
 
+// --- Deletion authority -----------------------------------------------------------------------
+// Only a validated successful schema-2 response proves a permanent deletion. A cache, a 404, a
+// truncated body or an offline fallback prove nothing, so nothing is erased from those.
+function acceptAuthoritativeBoard(board) {
+  const next = recovery.nextAuthority(
+    { revision: state.verifiedRevision, deletedIds: state.verifiedDeletedIds },
+    board,
+  );
+  if (!next) return false;
+  state.verifiedRevision = next.revision;
+  state.verifiedDeletedIds = next.deletedIds;
+  return true;
+}
+
+// Erase exactly the progress the server proved deleted - even when the board has no tasks, and
+// before any early return for an open dialog. Absence alone never erases an entry.
+function applyDeletionAuthority() {
+  const before = state.progress;
+  const filtered = recovery.filterDeletedProgress(before, state.verifiedDeletedIds);
+  if (!filtered.removed.length) return true;
+  state.progress = filtered.progress;
+  if (!writeJSON(KEYS.progress, state.progress)) {
+    state.progress = before;   // never claim a cleanup that did not persist
+    tasks.showToast('Could not update saved progress on this device.');
+    return false;
+  }
+  return true;
+}
+
 let firstBoardPaint = false;
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
+  let authoritative = false;
   try {
     // S2: a unique ?t= URL can never match a cache entry, and no-store forbids the
     // conditional request as well, so every visit downloaded the whole 1.70 MB board.
@@ -174,6 +277,8 @@ async function loadPublished() {
     else throw new Error(String(res.status));
     board = normalizeBoard(data);
     if (!board) throw new Error('Invalid board data');
+    // A 404 body is not a board: it proves nothing, so it never becomes authority.
+    authoritative = res.ok && acceptAuthoritativeBoard(board);
     writeJSON(KEYS.cache, board);
     note.hidden = true;
     state.liveBoard = board;
@@ -182,10 +287,12 @@ async function loadPublished() {
     note.hidden = false;
     state.liveBoard = null;
   }
+  // Server-proved deletions are applied first, even for an empty board and even while a task
+  // dialog is open: a pending overlay must not postpone erasing progress the server forbade.
+  if (authoritative && applyDeletionAuthority()) tasks.applyProgress(state.publishedTasks);
   if (state.currentTask) return;
   setPublished(board);
   checkUpdateNotice(state.liveBoard);
-  tasks.pruneProgress(state.liveBoard);
   if (!firstBoardPaint) { firstBoardPaint = true; motion.init(); motion.enter(); }   // the board arrives once
   tasks.renderAllTasks();
   announcements.renderAnnouncements();
@@ -291,9 +398,34 @@ const STATUS_CODES = {
 
 function createSubjectTag(code) {
   const tag = document.createElement('span');
-  tag.className = `subject-tag ${tasks.SUBJECTS[code] || ''}`;
+  const def = subjects.subjectFor(state.catalog, code);
+  if (def) {
+    // A palette colour keeps its shipped class, so an unchanged subject renders byte-identically;
+    // a custom colour gets validated custom properties instead of any class or CSS string.
+    const cls = subjects.classForColor(def.color);
+    tag.className = `subject-tag ${cls}`.trim();
+    if (!cls) {
+      tag.style.setProperty('--tag', def.color);
+      tag.style.setProperty('--tag-ink', subjects.subjectTextColor(def.color));
+    }
+    tag.textContent = def.name || def.code;
+    return tag;
+  }
+  // No catalogue yet (or an unknown legacy code): a neutral retired chip, never a silent recolour.
+  const retired = subjects.retiredSubject(code);
+  tag.className = 'subject-tag';
+  tag.style.setProperty('--tag', retired.color);
+  tag.style.setProperty('--tag-ink', subjects.subjectTextColor(retired.color));
   tag.textContent = code;
   return tag;
+}
+
+// One place a catalogue change becomes visible: rendering, the pickers and the calendar cache.
+function syncCatalog(list) {
+  state.catalog = Array.isArray(list) ? list : [];
+  tasks.syncSubjectMap(state.catalog);
+  tasks.refreshSubjectChoices();
+  state.calAgendaSig = '';   // a rename or recolour must repaint the calendar
 }
 
 // --- Quick add: "GENMATH worksheet ip 10/5" ---
@@ -565,6 +697,29 @@ publish.init({
   $, myTasks, showToast: tasks.showToast, hideAnimated, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks,
   renderAnnouncements: announcements.renderAnnouncements, applyProgress: tasks.applyProgress,
   normalizeBoard, setPublished, Task, setPage: nav.setPage,
+  acceptAuthority: (board) => { if (acceptAuthoritativeBoard(board)) applyDeletionAuthority(); },
+  archive: (task) => recoveryApi.archive(task),
+  syncCatalog,
+  catalog: {
+    newOperationId,
+    // The draft catalogue is what Publish sends; a legacy install with no draft keeps the published
+    // definitions. A definition is never invented for an unknown code (see unknownFor below).
+    forPublish: () => (state.draftSubjects.length
+      ? state.draftSubjects
+      : (state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [])),
+    unknownFor: (draftTasks) => {
+      const source = state.draftSubjects.length
+        ? state.draftSubjects
+        : (state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : []);
+      const known = new Set(source.map((s) => s && s.code).filter(Boolean));
+      const missing = new Set();
+      for (const t of Array.isArray(draftTasks) ? draftTasks : []) {
+        const code = t && t.subject;
+        if (typeof code === 'string' && code !== '' && !known.has(code)) missing.add(code);
+      }
+      return [...missing];
+    },
+  },
   adoptInlineImages: noteImages.adoptInlineImages, rewriteNotes: noteImages.rewriteNotes, files: window.TTFiles,
 });
 
@@ -615,6 +770,7 @@ transfer.init({
   $, hideAnimated, showToast: tasks.showToast, closeSettings: settings.closeSettings,
   myTasks, applyProgress: tasks.applyProgress, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks, renderAnnouncements: announcements.renderAnnouncements,
   snapshot: publish.snapshot, restoreDraft: publish.restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER: tasks.STATUS_ORDER,
+  syncCatalog,
 });
 
 // --- Focus trap: Tab stays inside the open dialog ---
@@ -650,6 +806,7 @@ function initSkipLink() {
 function init() {
   initSkipLink();
   tasks.loadTasks();
+  if (state.isAdmin && state.draftSubjects.length) syncCatalog(state.draftSubjects);
   announcements.renderAnnouncements();
   ['class', 'admin'].forEach((scope) => {
     let v = null;
@@ -677,6 +834,35 @@ async function start() {
   state.isAdmin = await checkAdmin();
   document.querySelector('#nav-admin').hidden = !state.isAdmin;
   init();
+  bin.init({
+    myTasks,
+    Task,
+    saveTasks: tasks.saveTasks,
+    renderAllTasks: tasks.renderAllTasks,
+    adminAction,
+    archive: (task) => recoveryApi.archive(task),
+    newId: () => (crypto.randomUUID ? crypto.randomUUID() : newOperationId()),
+    acceptAuthority: (board) => { if (acceptAuthoritativeBoard(board)) applyDeletionAuthority(); },
+  });
+  // The bin and the catalogue are server state, so they load when the Admin page is opened.
+  const loadAdminPanels = () => {
+    if (!state.isAdmin || document.querySelector('#page-my-tasks').hidden) return;
+    bin.load();
+    subjectsEditor.render();
+    subjectsEditor.loadPresets();
+  };
+  subjectsEditor.init({
+    syncCatalog,
+    saveTasks: tasks.saveTasks,
+    referencedCodes: () => [...new Set(
+      [...myTasks, ...state.publishedTasks].map((t) => t && t.subject).filter(Boolean),
+    )],
+    adminAction,
+    apiVersions: API.versions,
+    confirm: (message) => window.confirm(message),
+  });
+  window.addEventListener('hashchange', loadAdminPanels);
+  if (state.isAdmin) setTimeout(loadAdminPanels, 0);
 }
 
 if (document.readyState === 'loading') {

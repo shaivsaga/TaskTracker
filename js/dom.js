@@ -53,6 +53,17 @@ export function cacheDom() {
   dom.quickInput = document.querySelector('#quick-input');
   dom.quickPreview = document.querySelector('#quick-preview');
   dom.announceList = document.querySelector('#announce-list');
+  dom.binList = document.querySelector('#bin-list');
+  dom.binStatus = document.querySelector('#bin-status');
+  dom.binRefresh = document.querySelector('#bin-refresh');
+  dom.subjectList = document.querySelector('#subject-list');
+  dom.subjectAdd = document.querySelector('#subject-add');
+  dom.subjectStatus = document.querySelector('#subject-status');
+  dom.presetSelect = document.querySelector('#preset-select');
+  dom.presetName = document.querySelector('#preset-name');
+  dom.presetSave = document.querySelector('#preset-save');
+  dom.presetApply = document.querySelector('#preset-apply');
+  dom.presetDelete = document.querySelector('#preset-delete');
   dom.announceForm = document.querySelector('#announce-form');
   dom.announceInput = document.querySelector('#announce-input');
   dom.announceCount = document.querySelector('#announce-count');

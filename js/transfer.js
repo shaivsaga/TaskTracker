@@ -40,6 +40,7 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { plural } from './util.js';
+import { validateSubjects } from './subjects.js';
 
 let $ = null;                    // app.js's querySelector shorthand (declared above the init call site)
 let hideAnimated = null;         // app.js: closeTransfer / closeImport hide their overlay animated
@@ -52,7 +53,8 @@ let renderAllTasks = null;       // app.js: re-renders the board after a merge a
 let renderAnnouncements = null;  // app.js: a replaced draft carries its own announcements
 let snapshot = null;             // app.js: applyImport snapshots this device before it merges
 let restoreDraft = null;         // app.js: the same Undo path puts the snapshot back
-let mergeProgress = null;        // logic.js: the merge itself, tie rule included; app.js passes its import
+let mergeProgress = null;
+let syncCatalog = null;      // app.js: a received catalogue must repaint tags and pickers
 let Task = null;                 // logic.js: validateTransfer rebuilds a received draft through Task.fromJSON
 let taskIdOk = null;             // logic.js: the id guard on received progress and draft tasks
 let STATUS_ORDER = null;         // app.js: openImport looks up where each task sits on the board
@@ -80,7 +82,16 @@ const transferHeaders = { 'Content-Type': 'application/json' };
 function buildTransferPayload() {
   const payload = { v: 1, progress: state.progress };
   if (state.isAdmin) {
-    const draft = { tasks: myTasks.map((t) => t.toJSON()), announcements: state.announcements };
+    // The catalogue travels with the draft so the receiving device can render and publish it. The
+    // base revision and every deletion marker stay behind: authority belongs to the server.
+    const draft = {
+      schemaVersion: 2,
+      tasks: myTasks.map((t) => t.toJSON()),
+      announcements: state.announcements,
+      subjects: state.draftSubjects,
+    };
+    // The size guard counts the catalogue too, so an oversized draft is reported, never silently
+    // stripped back to progress plus tasks.
     if (JSON.stringify(draft).length < 700000) payload.draft = draft;
   }
   return payload;
@@ -280,13 +291,22 @@ function applyImport() {
     myTasks.length = 0;
     data.draft.tasks.forEach((o) => myTasks.push(Task.fromJSON(o)));
     state.announcements = data.draft.announcements.map((a) => ({ ...a }));
+    // A schema-2 sender carries a catalogue; a legacy sender carries none, so the receiving
+    // catalogue is kept instead of being reset to a generic one.
+    if (Array.isArray(data.draft.subjects) && data.draft.subjects.length) {
+      const checked = validateSubjects(data.draft.subjects);
+      if (!checked.error) { state.draftSubjects = checked.subjects; syncCatalog(checked.subjects); }
+    }
     applyProgress(myTasks);
   }
-  saveTasks();
+  // A partial write is reported, never rounded up to success: the merge is already in memory and
+  // the filtered progress must not be silently reverted.
+  const saved = saveTasks();
   renderAllTasks();
   renderAnnouncements();
   closeImport();
-  showToast(withDraft ? 'Progress merged and draft replaced' : 'Progress merged', 'Undo', () => {
+  if (!saved) showToast('Merged progress could not be saved on this device. Storage may be full.');
+  else showToast(withDraft ? 'Progress merged and draft replaced' : 'Progress merged', 'Undo', () => {
     state.progress = before.progress;
     applyProgress(myTasks);
     applyProgress(state.publishedTasks);
@@ -317,6 +337,7 @@ export function init(deps) {
   renderAllTasks = deps.renderAllTasks; renderAnnouncements = deps.renderAnnouncements;
   snapshot = deps.snapshot; restoreDraft = deps.restoreDraft; mergeProgress = deps.mergeProgress;
   Task = deps.Task; taskIdOk = deps.taskIdOk; STATUS_ORDER = deps.STATUS_ORDER;
+  syncCatalog = deps.syncCatalog;
 
   // The moved listeners, in the order they registered in app.js (the Escape chain depends on it).
 $('#settings-transfer').addEventListener('click', openTransfer);

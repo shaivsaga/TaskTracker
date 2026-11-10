@@ -22,25 +22,44 @@ function tt_e2e_rmdir(string $dir): void {
     @rmdir($dir);
 }
 
+// The commit protocol's one test seam. The copied api/_board.php answers false; here that body is
+// replaced so a scenario can stop the commit at a named step. The trigger is a file in the sandbox
+// data directory, which only this test can write, never a request parameter.
+const TT_E2E_FAULT_SOURCE = '/function tt_fault\(\$name\) \{\s*return false;\s*\}/';
+const TT_E2E_FAULT_SANDBOX = "function tt_fault(\$name) {\n    \$f = dirname(__DIR__) . '/data/.fault';\n    return is_file(\$f) && trim((string)@file_get_contents(\$f)) === \$name;\n}";
+
 // Copy the real api/ files into a temp docroot, add an admin session record whose token this test
 // owns, and start the built-in server on it. Returns null when the environment cannot host it.
-function tt_e2e_start(): ?array {
+// $reuseRoot with $reuseToken starts a second process over an existing sandbox: the token is passed
+// in, never guessed, because two sandboxes in one run hold two different sessions.
+function tt_e2e_start(?string $reuseRoot = null, ?string $reuseToken = null): ?array {
     if (!function_exists('proc_open') || !function_exists('proc_terminate') || !ini_get('allow_url_fopen')) return null;
     $src  = dirname(__DIR__, 2) . '/api';
-    $root = rtrim(sys_get_temp_dir(), '/\\') . '/tt-e2e-' . bin2hex(random_bytes(4));
-    if (!@mkdir($root . '/api', 0777, true)) return null;
-    foreach (glob($src . '/*.php') ?: [] as $f) {
-        if (!@copy($f, $root . '/api/' . basename($f))) { tt_e2e_rmdir($root); return null; }
+    $root = $reuseRoot ?? rtrim(sys_get_temp_dir(), '/\\') . '/tt-e2e-' . bin2hex(random_bytes(4));
+    if ($reuseRoot === null) {
+        if (!@mkdir($root . '/api', 0777, true)) return null;
+        foreach (glob($src . '/*.php') ?: [] as $f) {
+            if (!@copy($f, $root . '/api/' . basename($f))) { tt_e2e_rmdir($root); return null; }
+        }
+        // Only the sandbox copy gets the live fault seam. The source is matched with a tolerant
+        // pattern so a CRLF checkout still rewrites; a silent miss would disable every fault case.
+        $board = $root . '/api/_board.php';
+        $body = (string)@file_get_contents($board);
+        if ($body !== '') @file_put_contents($board, (string)preg_replace(TT_E2E_FAULT_SOURCE, TT_E2E_FAULT_SANDBOX, $body, 1));
     }
-    if (!is_file($root . '/api/publish.php') || !is_file($root . '/api/versions.php')) { tt_e2e_rmdir($root); return null; }
+    if (!is_file($root . '/api/publish.php') || !is_file($root . '/api/versions.php') || !is_file($root . '/api/_board.php')) { tt_e2e_rmdir($root); return null; }
 
-    $token = bin2hex(random_bytes(32));
-    $now   = time();
-    if (!@mkdir($root . '/data/sessions', 0777, true)) { tt_e2e_rmdir($root); return null; }
-    $rec = json_encode(['created' => $now, 'lastSeen' => $now, 'expires' => $now + 3600]);
-    if (@file_put_contents($root . '/data/sessions/' . hash('sha256', $token) . '.json', $rec) !== strlen($rec)) {
-        tt_e2e_rmdir($root);
-        return null;
+    if ($reuseRoot === null) {
+        $token = bin2hex(random_bytes(32));
+        $now   = time();
+        if (!@mkdir($root . '/data/sessions', 0777, true)) { tt_e2e_rmdir($root); return null; }
+        $rec = json_encode(['created' => $now, 'lastSeen' => $now, 'expires' => $now + 3600]);
+        if (@file_put_contents($root . '/data/sessions/' . hash('sha256', $token) . '.json', $rec) !== strlen($rec)) {
+            tt_e2e_rmdir($root);
+            return null;
+        }
+    } else {
+        $token = (string)$reuseToken;
     }
 
     $log = $root . '/server.log';
@@ -64,17 +83,26 @@ function tt_e2e_start(): ?array {
     return null;
 }
 
+// A second real PHP process over the SAME storage, so two writers can interleave on one lock.
+function tt_e2e_start_second(array $sb): ?array {
+    return tt_e2e_start($sb['root'], $sb['token']);
+}
+
 function tt_e2e_stop(?array $sb): void {
     if (!$sb) return;
     if (isset($sb['proc']) && is_resource($sb['proc'])) { @proc_terminate($sb['proc']); @proc_close($sb['proc']); }
+    if (($GLOBALS['TT_E2E_KEEP_ROOT'] ?? false) === true) return;
     tt_e2e_rmdir($sb['root']);
 }
 
 // One admin-authenticated request. Returns ['status' => int, 'body' => string, 'json' => array|null],
 // or null when the request itself could not be made (server died, bad port).
-function tt_e2e_req(array $sb, string $method, string $path, ?string $body = null, array $headers = []): ?array {
+// $auth = false omits the session cookie: the unauthenticated coverage the sandbox needs.
+function tt_e2e_req(array $sb, string $method, string $path, ?string $body = null, array $headers = [], bool $auth = true): ?array {
     $cookie = defined('TT_COOKIE') ? TT_COOKIE : 'tt_admin';   // api/_session.php defines it; run.php requires that file
-    $hs = array_merge(['Cookie: ' . $cookie . '=' . $sb['token'], 'Connection: close'], $headers);
+    $hs = $headers;
+    if ($auth) array_unshift($hs, 'Cookie: ' . $cookie . '=' . $sb['token']);
+    $hs[] = 'Connection: close';
     if ($body !== null && !preg_grep('/^content-type:/i', $hs)) $hs[] = 'Content-Type: application/json';
     $ctx = stream_context_create(['http' => [
         'method' => $method, 'header' => implode("\r\n", $hs), 'content' => $body ?? '',
@@ -86,22 +114,91 @@ function tt_e2e_req(array $sb, string $method, string $path, ?string $body = nul
         if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) { $status = (int)$m[1]; break; }
     }
     if ($status === 0) return null;
-    return ['status' => $status, 'body' => (string)$raw, 'json' => json_decode((string)$raw, true)];
+    return ['status' => $status, 'body' => (string)$raw, 'json' => json_decode((string)$raw, true), 'headers' => $http_response_header ?? []];
 }
 
+// The catalog a normal test publish carries: the live definitions plus a neutral retired
+// definition for any code a scenario invents. Explicit subject cases pass their own 'subjects'.
+function tt_e2e_catalog(array $tasks, ?array $board): array {
+    $out = [];
+    $seen = [];
+    foreach (is_array($board['subjects'] ?? null) ? $board['subjects'] : [] as $s) {
+        if (!is_array($s) || !is_string($s['code'] ?? null)) continue;
+        $out[] = $s;
+        $seen[$s['code']] = true;
+    }
+    foreach ($tasks as $t) {
+        $code = is_array($t) ? ($t['subject'] ?? '') : '';
+        if (!is_string($code) || $code === '' || isset($seen[$code])) continue;
+        $out[] = ['code' => $code, 'name' => $code, 'color' => '#c3c7d6', 'active' => false];
+        $seen[$code] = true;
+    }
+    return $out;
+}
+
+// A schema-2 publish. A payload without schemaVersion is wrapped with the current revision, a
+// fresh operation id and a catalog, so existing per-field assertions still reach their validators.
+// A payload that names schemaVersion is posted verbatim: legacy, stale and malformed cases need that.
 function tt_e2e_publish(array $sb, array $payload): ?array {
+    if (!array_key_exists('schemaVersion', $payload)) {
+        $board = tt_e2e_json_file($sb, 'data/current.json');
+        $payload = $payload + [];
+        if (!array_key_exists('subjects', $payload)) $payload['subjects'] = tt_e2e_catalog($payload['tasks'] ?? [], $board);
+        $payload = ['schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)),
+                    'baseRevision' => is_array($board) ? (int)($board['revision'] ?? 0) : 0] + $payload;
+    }
     $json = json_encode($payload);
     return $json === false ? null : tt_e2e_req($sb, 'POST', '/api/publish.php', $json);
 }
 
-function tt_e2e_get(array $sb, string $path): ?array {
-    return tt_e2e_req($sb, 'GET', $path);
+// A private admin call: action, a fresh operation id and the current admin revision.
+function tt_e2e_admin(array $sb, string $action, array $fields = [], ?string $operationId = null, ?int $baseAdminRevision = null): ?array {
+    $state = tt_e2e_json_file($sb, 'data/admin/state.json');
+    $payload = ['action' => $action, 'operationId' => $operationId ?? bin2hex(random_bytes(16)),
+                'baseAdminRevision' => $baseAdminRevision ?? (is_array($state) ? (int)($state['revision'] ?? 1) : 1)] + $fields;
+    $json = json_encode($payload);
+    return $json === false ? null : tt_e2e_req($sb, 'POST', '/api/versions.php', $json);
+}
+
+function tt_e2e_get(array $sb, string $path, bool $auth = true): ?array {
+    return tt_e2e_req($sb, 'GET', $path, null, [], $auth);
 }
 
 // Read one JSON file out of the sandbox (the board, a snapshot, ...). Null when missing/unreadable.
 function tt_e2e_json_file(array $sb, string $rel): ?array {
     $v = json_decode((string)@file_get_contents($sb['root'] . '/' . $rel), true);
     return is_array($v) ? $v : null;
+}
+
+function tt_e2e_write_json(array $sb, string $rel, array $value): bool {
+    $path = $sb['root'] . '/' . $rel;
+    if (!is_dir(dirname($path))) @mkdir(dirname($path), 0777, true);
+    return @file_put_contents($path, json_encode($value, JSON_UNESCAPED_UNICODE)) !== false;
+}
+
+// Write a board straight into the sandbox, so a scenario can seed a stamp or a legacy shape that
+// the publish path would otherwise normalise away.
+function tt_e2e_write_board(array $sb, array $board): bool {
+    return tt_e2e_write_json($sb, 'data/current.json', $board);
+}
+
+function tt_e2e_bytes(array $sb, string $rel): ?string {
+    $raw = @file_get_contents($sb['root'] . '/' . $rel);
+    return $raw === false ? null : $raw;
+}
+
+// File existence with the stat cache cleared: the server deletes files, and a cached is_file()
+// in this process would keep reporting the file that is already gone.
+function tt_e2e_has(array $sb, string $rel): bool {
+    $path = $sb['root'] . '/' . $rel;
+    clearstatcache(true, $path);
+    return is_file($path);
+}
+
+function tt_e2e_fault(array $sb, ?string $name): void {
+    $f = $sb['root'] . '/data/.fault';
+    if ($name === null) { @unlink($f); return; }
+    @file_put_contents($f, $name);
 }
 
 function tt_e2e_task(?array $board, string $id): ?array {
