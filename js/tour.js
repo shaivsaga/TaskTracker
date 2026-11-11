@@ -21,6 +21,7 @@
 
 import { state } from './state.js';
 import { dom } from './dom.js';
+import { openOverlay } from './motion.js';
 
 let $ = null;                 // app.js's querySelector shorthand, used by the steps and the overlay
 let STATUS_LABELS = null;     // logic.js
@@ -177,8 +178,7 @@ export function startTour() {
   if (state.previewing) setPreview(false);
   setPage('class-tasks');
   dom.tourOverlay._returnFocus = document.activeElement;
-  dom.tourOverlay.classList.remove('is-closing');
-  dom.tourOverlay.hidden = false;
+  openOverlay(dom.tourOverlay);
   document.body.style.overflow = 'hidden';
   showTourStep(0);
   // Layout can shift while the board loads, so keep the spotlight on its target.

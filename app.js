@@ -35,6 +35,8 @@ state.calAnchor = todayDate();
 // top-level `const` lookups that used to live in app.js are gone on purpose: a missed site now
 // throws instead of quietly re-querying, and js/dom.js touches no DOM while it is evaluated.
 cacheDom();
+// Preferences are watched once here, at startup, so a slow or failed board fetch cannot delay them.
+motion.init();
 
 // --- Admin access: Basic Auth signs in once (api/login.php), then an HttpOnly session cookie does the rest ---
 const ADMIN_KEY = 'class_tasks_admin';
@@ -215,6 +217,8 @@ function showUpdateNotice(items, onDismiss) {
   foot.appendChild(ok);
   box.append(head, body, foot);
   overlay.appendChild(box);
+  // Start hidden before it enters the document, so the native entrance samples 0, not 1.
+  overlay.hidden = true;
   document.body.appendChild(overlay);
   const close = () => {
     document.removeEventListener('keydown', onKey);
@@ -228,6 +232,7 @@ function showUpdateNotice(items, onDismiss) {
   x.addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   overlay._returnFocus = document.activeElement;
+  motion.openOverlay(overlay);
   ok.focus();
 }
 
@@ -260,7 +265,6 @@ function applyDeletionAuthority() {
   return true;
 }
 
-let firstBoardPaint = false;
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
@@ -293,7 +297,6 @@ async function loadPublished() {
   if (state.currentTask) return;
   setPublished(board);
   checkUpdateNotice(state.liveBoard);
-  if (!firstBoardPaint) { firstBoardPaint = true; motion.init(); motion.enter(); }   // the board arrives once
   tasks.renderAllTasks();
   announcements.renderAnnouncements();
 }
@@ -301,15 +304,10 @@ async function loadPublished() {
 
 // --- Toast and autosave feedback (hideAnimated); skeletons moved to js/tasks.js (slice 2.6) ---
 
-// Plays the CSS exit animation, then hides. Skips the wait for reduced motion.
+// Hands the logical close to the shared overlay owner, then restores focus to the opener.
 function hideAnimated(el, ms = 180) {
-  if (el._returnFocus && el._returnFocus.isConnected) el._returnFocus.focus();
-  el._returnFocus = null;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.hidden = true; return; }
-  el.classList.add('is-closing');
-  setTimeout(() => {
-    if (el.classList.contains('is-closing')) { el.hidden = true; el.classList.remove('is-closing'); }
-  }, ms);
+  const returnFocus = motion.hideOverlay(el, ms);
+  if (returnFocus && returnFocus.isConnected) returnFocus.focus();
 }
 
 // --- Calendar: js/calendar.js (slice 2.3) -------------------------------------------------------
@@ -376,10 +374,9 @@ function applyView(scope, view) {
 
 function setView(scope, view, animate = true) {
   try { localStorage.setItem(VIEW_KEYS[scope], view); } catch (e) {}
-  const run = () => applyView(scope, view);
-  if (!animate) { run(); return; }
-  if (document.startViewTransition) { document.startViewTransition(run); return; }
-  run();
+  applyView(scope, view);
+  // OS or data-motion reduced changes the view synchronously; only the local CSS fade is used.
+  if (!animate || motion.isReducedMotion()) return;
   const page = document.querySelector(SCOPES[scope].page);
   page.classList.remove('is-swapping');
   void page.offsetWidth;

@@ -105,7 +105,7 @@ Density is phone-first and calm. One royal-blue voice marks selection, focus and
 - Depth is a hard offset ledge, never a soft shadow.
 - Pixel typeface for labels and numerals only, never for sentences or dates.
 - One tab bar for navigation, no sidebar: a sticky top bar from 720px up, a fixed bottom tab bar on phones (thumb zone), with Settings pinned top right.
-- Pixel-stepped, sub-second motion; reduced motion is honored.
+- Short, continuous, sub-second motion using opacity and transform only (never box-shadow); reduced motion is honored with no movement.
 
 ## Colors
 
@@ -160,7 +160,7 @@ Ten subject tags follow the class schedule colors, always with dark ink (#14183A
 
 From 720px up, a single sticky top bar (64px, inset 40px to match the page column, and to the column's own edge from 1100px) carries the brand, icon tabs and theme toggle; the admin tab is raised 4px as the one distinct tab. On phones (below 720px) the same tabs move to a fixed bottom bar, reachable with one thumb, and a 44px Settings button sits fixed at the top right; the brand and theme toggle are hidden there. Below the top bar on desktop, or on phones above the bottom bar, one centered column: max 1120px (1200px from 1280 up), padding 24px 16px on phones and 32px 40px from 720px, with 16px (24px on desktop) between blocks. List view, Done and Past narrow to an 880px reading column, centred inside the page column; the page title takes that same width and left edge, and the supporting copy stays narrower so it reads as a caption rather than a banner.
 
-The board is three columns (To Do, In Progress, Done) on desktop. Below 720px both Tasks and Admin are list-only: their Board/List switches and boards are hidden without overwriting the saved desktop view. Resizing back restores that preference. Tasks rows are 12px-padded cards with 8px between them. Breakpoints: 374, 720 (labels appear next to tab icons; 720 to 819 uses tighter padding), 1100 (brand wordmark appears). Spacing runs on a 4px base (4, 8, 12, 16, 24). Touch targets are 44px on phones. The calendar's phone month shows subject-colored boxes and lists the picked day's tasks underneath. The sheet's floor is 320px, taken as `min(320px, 100%)` on `html`, so a viewport narrower than 320 (a 320px Windows window loses 15px to its scrollbar) reflows instead of growing a horizontal scrollbar.
+The board is three columns (To Do, In Progress, Done) on desktop. Below 720px both Tasks and Admin are list-only: their Board/List switches and boards are hidden without overwriting the saved desktop view. Resizing back restores that preference. Tasks rows are 12px-padded cards with 8px between them. Breakpoints: 374, 720 (labels appear next to tab icons; 720 to 819 uses tighter padding), 1100 (brand wordmark appears). Spacing runs on a 4px base (4, 8, 12, 16, 24). Shared action controls (icon buttons, tabs, chips, property fields) are at least 44px at every width, and phone touch targets are 44px. The calendar's phone month shows subject-colored boxes and lists the picked day's tasks underneath. The sheet's floor is 320px, taken as `min(320px, 100%)` on `html`, so a viewport narrower than 320 (a 320px Windows window loses 15px to its scrollbar) reflows instead of growing a horizontal scrollbar.
 
 ## Elevation & Depth
 
@@ -180,10 +180,10 @@ Square. Every corner is 0px; borders are 2px (Rule Tan on cards and containers, 
 - **Secondary:** Card Cream fill, Ink text, 2px Soft Slate border, 2px ledge in Rule Tan; hover fills Sunk Parchment.
 - **Text button:** royal blue, 600 weight, underlined (3px offset).
 - **Danger:** red outline; solid red only once the typed confirmation is correct.
-- **Icon button:** 40x44 square, 2px Soft Slate border, border turns blue on hover.
+- **Icon button:** 44x44 square, 2px Soft Slate border, border turns blue on hover.
 
 ### Task Card
-Card Cream block, 12px padding, 2px border, ledge. Header holds the checkbox and a two-line title; footer holds the subject tag and due badge. Hover borders blue; done cards strike through the title in Soft Slate. A 6px blue square marks unpublished changes in admin. A done tap plays a four-step pixel "stamp" (scale 1.6 to 1 in 400ms), only with motion allowed. The title is the card's own button - the card stays click-anywhere, and the button is what the keyboard and a screen reader reach; it is also the element the two-line clamp is applied to.
+Card Cream block, 12px padding, 2px border, ledge. Header holds the checkbox and a two-line title; footer holds the subject tag and due badge. Hover borders blue; done cards strike through the title in Soft Slate. A 6px blue square marks unpublished changes in admin. A done tap on the list leaves a stamped completion ghost that holds for a beat, then folds into the Done tab; a board card slides across instead. Undo cancels the movement, and reduced motion skips it for a short static Done-tab highlight. The title is the card's own button - the card stays click-anywhere, and the button is what the keyboard and a screen reader reach; it is also the element the two-line clamp is applied to.
 
 ### Class List Filters
 Two native selects sit beside search: Subject (All plus the subjects on current tasks) and Status (All, To do, In progress, Done). To do maps to `not_started`; the existing task status controls still say Not started. Search keeps matching title, subject and notes. The List combines all three with AND; the desktop Board hides and ignores the two selects but keeps search. Phones always show the List and its filters, including when the saved desktop view is Board.
@@ -202,7 +202,7 @@ Every pinned announcement shows in full on desktop. The collapse is a phone affo
 12px label with a calendar or alarm icon; due soon (within 3 days) uses amber on an amber wash, overdue uses red on a red wash, otherwise Soft Slate.
 
 ### Inputs / Fields
-44px high, 2px Soft Slate (`--mu`) border for 3:1 contrast, white (dark: night) fill, square. Focus swaps the border to Royal Blue plus a 2px outline with 2px offset. The due picker is one combined date-and-time field with a "time is optional" hint.
+44px high, 2px Soft Slate (`--mu`) border for 3:1 contrast, white (dark: night) fill, square. Focus swaps the border to Royal Blue plus a 2px outline with 2px offset. The due picker is one combined date-and-time field with a "time is optional" hint. On phones every text-entry control is 16px so iOS does not zoom on focus.
 
 ### Navigation
 Icon tabs (top bar on desktop, bottom bar on phones): 48px high, 2px transparent border, Soft Slate icons slightly desaturated (saturate .7). Active tab: Royal Wash fill, Royal border and a 2px blue underline. Admin is a solid blue tab raised 4px on a 4px ledge. Badges are 20px Royal squares in pixel type (red for overdue counts). Labels sit beside the icons from 720px (720 to 819px uses tighter padding and a 16px bar inset); on phones the bar shows labels under the icons. Phone order: Tasks, Calendar, Admin (centre, president only), Done, Past. Settings sits in a fixed top-right 44px button, and the theme toggle is hidden on phones (Settings > Appearance: System, Light, Dark). Admin is not raised on phones, and the phone bar carries no box strokes: the active tab is a Royal Wash block with the 2px blue underline and no border, and the Admin tab is a plain tab whose shield and count badge mark it.
@@ -217,7 +217,7 @@ Two icon languages, on purpose: pixel sprites for navigation and theme controls,
 Buttons in flight show a 14px square-edged spinner (700ms) after the label. Data areas use Sunk Parchment skeleton blocks pulsing between 100% and 50% opacity over 1.2s. The toast is an Ink-filled block with a 2px ledge, lifted to 92px above the phone tab bar.
 
 ### Dialogs and Quick Add
-Card Cream panel, 2px border, 4px ledge, max 640px, header separated by a 2px rule. Quick add parses "GENMATH worksheet ip 10/5" live into Task, Subject, Status and Due fields, with chips for subjects, statuses and dates.
+Card Cream panel, 2px border, 4px ledge, max 640px, header separated by a 2px rule. Open and close are one interruptible 180ms opacity fade that starts from the current opacity, so a rapid reopen or close retargets instead of snapping; no CSS modal entrance competes with it. Quick add parses "GENMATH worksheet ip 10/5" live into Task, Subject, Status and Due fields, with chips for subjects, statuses and dates.
 
 ### Calendar
 Month and week grids with 1px-rule cells, alternate rows in Sunk Parchment, today shown as a blue square behind the pixel day number, chips with a status-colored left edge.
@@ -230,10 +230,10 @@ Phone month cells pack up to three unfinished subject-colour squares with a 4px 
 - **Do** build depth only with the solid ledge in Rule Tan (`0 2px 0` or `0 4px 0`).
 - **Do** use Royal Blue for selection, focus and in-progress only.
 - **Do** keep the pixel font to titles, micro-labels and numerals; keep dates and times in tabular Plus Jakarta Sans.
-- **Do** keep 44px touch targets on phones and test both themes at 320px.
+- **Do** keep shared action controls at least 44px, phone text entry at 16px and 44px phone touch targets, and test both themes at 320px.
 - **Do** use calm status words: Expired, Closed, Done.
 - **Do** theme the surfaces the browser brings: `scrollbar-color: var(--ln) transparent` and `caret-color: var(--ac)`, alongside the existing `::selection` and `accent-color`.
-- **Do** honor `prefers-reduced-motion` and `prefers-contrast: more` (the latter promotes the remaining Rule Tan borders to Soft Slate); motion is short and stepped (dialogs and pages 140ms steps(3), cards 160ms).
+- **Do** honor `prefers-reduced-motion` and `prefers-contrast: more` (the latter promotes the remaining Rule Tan borders to Soft Slate); motion is short and continuous: interruptible 180ms opacity overlays, one local 140ms opacity-only page/view fade (no global View Transitions or per-child stagger), and 60-80ms press feedback; box-shadow never animates, and reduced mode does not move.
 
 ### Don't:
 - **Don't** use rounded corners, blurred shadows, gradients or glassmorphism.

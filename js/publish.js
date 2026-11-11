@@ -48,6 +48,7 @@ import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, API, fmtWhen } from './util.js';
 import { validateSubjects, catalogSignature } from './subjects.js';
 import { prepareRecoveredDraft } from './recovery.js';
+import { openOverlay } from './motion.js';
 
 let $ = null;                   // app.js: its querySelector shorthand
 let myTasks = null;             // app.js: the live draft array, mutated in place by restoreDraft
@@ -207,8 +208,7 @@ function openPublishDialog() {
   $('#publish-error').hidden = true;
   syncPublishClear();
   dom.publishOverlay._returnFocus = document.activeElement;
-  dom.publishOverlay.classList.remove('is-closing');
-  dom.publishOverlay.hidden = false;
+  openOverlay(dom.publishOverlay);
   $('#publish-note').focus();
 }
 
@@ -440,8 +440,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
 $('#btn-history').addEventListener('click', () => {
   renderHistory();
   dom.historyOverlay._returnFocus = document.activeElement;
-  dom.historyOverlay.classList.remove('is-closing');
-  dom.historyOverlay.hidden = false;
+  openOverlay(dom.historyOverlay);
   $('#history-close').focus();
   loadVersions();
 });
