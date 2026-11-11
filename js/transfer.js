@@ -41,6 +41,7 @@ import { state } from './state.js';
 import { dom } from './dom.js';
 import { plural } from './util.js';
 import { validateSubjects } from './subjects.js';
+import { openOverlay } from './motion.js';
 
 let $ = null;                    // app.js's querySelector shorthand (declared above the init call site)
 let hideAnimated = null;         // app.js: closeTransfer / closeImport hide their overlay animated
@@ -200,8 +201,7 @@ async function copyTransferLink() {
 function openTransfer() {
   closeSettings();
   dom.transferOverlay._returnFocus = document.activeElement;
-  dom.transferOverlay.classList.remove('is-closing');
-  dom.transferOverlay.hidden = false;
+  openOverlay(dom.transferOverlay);
   $('#transfer-close').focus();
   if (state.activeTransfer && state.activeTransfer.expiresAt > Date.now()) showTransferLink();
   else { state.activeTransfer = null; createTransfer(); }
@@ -269,8 +269,7 @@ function openImport(data) {
     $('#import-draft-text').textContent =
       `Replace my draft here (${plural(myTasks.length, 'task')}) with the draft from the other device (${plural(data.draft.tasks.length, 'task')}, ${plural(data.draft.announcements.length, 'announcement')}).`;
   }
-  dom.importOverlay.classList.remove('is-closing');
-  dom.importOverlay.hidden = false;
+  openOverlay(dom.importOverlay);
   $('#import-cancel').focus();
 }
 

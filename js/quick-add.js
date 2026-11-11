@@ -23,6 +23,7 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { formatTime } from './util.js';
+import { openOverlay } from './motion.js';
 
 let quickWords = null;        // app.js's tokenizer (the parser that stays there uses it)
 let parseQuickAdd = null;     // the natural-language parser, kept in app.js and passed in
@@ -216,8 +217,7 @@ export function openQuickAdd() {
   state.quickPrev = { subject: '', status: '', due: '' };
   renderQuickChips();
   renderQuickPreview();
-  dom.quickOverlay.classList.remove('is-closing');
-  dom.quickOverlay.hidden = false;
+  openOverlay(dom.quickOverlay);
   dom.quickInput.focus();
 }
 

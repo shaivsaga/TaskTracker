@@ -173,8 +173,7 @@ function confirmReopen(task, newStatus, onConfirm, openerHint) {
   cancelBtn.onclick = () => close(false);
   overlay.addEventListener('click', onBackdrop);
   overlay.addEventListener('keydown', onKey, true);
-  overlay.classList.remove('is-closing');
-  overlay.hidden = false;
+  motion.openOverlay(overlay);
   cancelBtn.focus();
 }
 // --- Persistence: progress (everyone) + draft (admin) ---
@@ -890,8 +889,7 @@ export function openTaskDialog(task) {
   refreshLinks(dom.dialogDoc);
   updateDialogSubject(task);
   renderDialogFiles(task);
-  dom.dialogOverlay.classList.remove('is-closing');
-  dom.dialogOverlay.hidden = false;
+  motion.openOverlay(dom.dialogOverlay);
   dom.dialogOverlay.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
   fitDialogTitle();

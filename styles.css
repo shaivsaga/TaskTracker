@@ -159,14 +159,14 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .text-button { padding: 0; border: 0; background: transparent; color: var(--ac); font-size: 14px; font-weight: 600; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .text-button:hover { color: var(--acd); }
 
-.icon-button { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); cursor: pointer; }
+.icon-button { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); cursor: pointer; }
 .icon-button:hover, .icon-button:active { border-color: var(--ac); color: var(--tx); }
 .icon-button svg { width: 18px; height: 18px; stroke-width: 2; }
 .icon-dark { display: none; }
 :root[data-theme="dark"] .icon-dark { display: block; }
 :root[data-theme="dark"] .icon-light { display: none; }
 .view-tabs { display: inline-flex; align-items: stretch; border: 2px solid var(--mu); background: var(--sf); }
-.view-tab { display: flex; align-items: center; justify-content: center; height: 40px; min-width: 0; padding: 0 16px; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.view-tab { display: flex; align-items: center; justify-content: center; height: 44px; min-width: 0; padding: 0 16px; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
 .view-tab + .view-tab { border-left: 2px solid var(--mu); }
 .view-tab:hover { color: var(--tx); background: var(--sf2); }
 .view-tab.is-active { color: var(--tx); background: var(--acs); box-shadow: inset 0 -3px 0 var(--ac); font-weight: 600; }
@@ -200,7 +200,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .admin-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; min-height: 64px; margin-top: 16px; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf); }
 .admin-status { color: var(--mu); font-size: 12px; line-height: 16px; }
 .admin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .admin-actions .text-button:hover, .history-item .text-button:hover, .file-item .text-button:hover { border-color: var(--ac); background: var(--sf2); color: var(--tx); }
 
 .summary { display: flex; flex-wrap: wrap; align-items: center; margin: 16px 0 0; color: var(--mu); font-size: 12px; line-height: 20px; }
@@ -232,7 +232,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .announce-count { margin-right: auto; padding: 0 6px; min-width: 20px; color: var(--mu); background: var(--sf2); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
 .announce-count.is-low { color: var(--er); }
 .announce-toolbar { display: inline-flex; align-self: flex-start; border: 2px solid var(--mu); background: var(--sf); }
-.announce-tool { display: grid; place-content: center; min-width: 40px; height: 40px; padding: 0 12px; border: 0; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.announce-tool { display: grid; place-content: center; min-width: 44px; height: 44px; padding: 0 12px; border: 0; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
 .announce-tool + .announce-tool { border-left: 2px solid var(--mu); }
 .announce-tool:hover { background: var(--sf2); color: var(--tx); }
 .announce-tool[aria-pressed="true"] { background: var(--acs); color: var(--tx); box-shadow: inset 0 -3px 0 var(--ac); }
@@ -434,7 +434,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 /* The archive is the one list whose row is also the only place the task name appears at a glance;
    a two-line clamp replaces the single-line ellipsis that used to hide it. */
 .done-row .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
-.done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .done-row .text-button:hover { border-color: var(--ac); background: var(--sf2); }
 .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
 /* [[/section:list]] */
@@ -469,7 +469,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .dialog-title-input { display: block; flex: 1; min-width: 0; max-height: 120px; padding: 2px 0; border: 0; outline: 0; background: transparent; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; overflow-wrap: anywhere; overflow-y: auto; resize: none; }
 .dialog-title-input::placeholder { color: var(--mu); opacity: 1; }
 .dialog-heading { flex: 1; padding: 2px 0; font-size: 16px; font-weight: 600; line-height: 24px; }
-.panel-close { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
+.panel-close { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
 .panel-close:hover { border-color: var(--ac); color: var(--tx); }
 .panel-close i, .panel-close svg { width: 18px; height: 18px; stroke-width: 2; }
 .dialog-body { display: grid; gap: 16px; padding: 16px; overflow-y: auto; }
@@ -482,12 +482,12 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .due-hint:not(:empty)::before { content: '· '; }
 .due-hint.is-overdue { color: var(--er); }
 .due-controls { display: flex; align-items: center; gap: 4px; }
-.prop-value { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 12px; font-weight: 600; line-height: 16px; cursor: pointer; }
+.prop-value { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 12px; font-weight: 600; line-height: 16px; cursor: pointer; }
 .prop-value:hover { border-color: var(--ac); background: var(--sf2); }
 .prop-value.empty-value { color: var(--mu); }
 .prop-value:disabled { cursor: default; }
 .prop-value:disabled:hover { background: var(--sf); border-color: var(--mu); }
-.prop-clear { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
+.prop-clear { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
 .prop-clear:hover { border-color: var(--ac); color: var(--tx); }
 .prop-clear-icon { width: 16px; height: 16px; stroke-width: 2.5; }
 /* lint-allow:px 160px -- the task dialog's notes area has no mockup counterpart; the mockup's own note input is textarea.in at min-height 80px (mockup 104), and this is a contenteditable block, not an input */
@@ -499,7 +499,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .dialog-doc img { display: block; max-width: 100%; height: auto; margin: 8px 0; cursor: default; }
 .dialog-doc img::selection { background: transparent; }
 .note-toolbar { display: flex; gap: 4px; margin-bottom: 8px; }
-.note-tool { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 14px; line-height: 20px; cursor: pointer; }
+.note-tool { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 14px; line-height: 20px; cursor: pointer; }
 .note-tool:hover { border-color: var(--ac); }
 .note-tool[aria-pressed="true"] { border-color: var(--ac); background: var(--acs); color: var(--tx); box-shadow: inset 0 -3px 0 var(--ac); }
 .note-tool svg { width: 16px; height: 16px; stroke-width: 2; }
@@ -525,14 +525,14 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .quick-field-label { color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; text-transform: uppercase; }
 .quick-field-value { display: flex; align-items: center; min-height: 24px; min-width: 0; overflow-wrap: anywhere; }
 .quick-field-value.is-empty { color: var(--mu); }
-.quick-field-value.is-changed { animation: field-in 140ms steps(3); }
+.quick-field-value.is-changed { animation: field-in 140ms ease-out; }
 .quick-title { color: var(--tx); font-weight: 600; }
 .quick-due { display: flex; flex-wrap: wrap; gap: 4px; }
 .quick-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; }
 .quick-chips { display: grid; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 2px solid var(--ln); }
 .quick-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .quick-group-label { flex: 0 0 56px; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; text-transform: uppercase; }
-.quick-chip-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.quick-chip-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
 .quick-chip-btn.is-subject { padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); }
 .quick-chip-btn.is-subject.is-selected { color: var(--tag-ink, var(--tx)); background: var(--tag, var(--acs)); box-shadow: inset 0 0 0 2px var(--ac), inset 0 -2px 0 rgba(20, 24, 58, 0.28); }
 .quick-chip-btn:hover, .quick-chip-btn:active { border-color: var(--ac); color: var(--tx); background: var(--sf2); }
@@ -547,12 +547,12 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* ---------- Due picker ---------- */
 .due-picker { position: fixed; z-index: 210; width: 300px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); transform-origin: top left; }
 .dp-fields { display: grid; grid-template-columns: 1fr 120px; gap: 8px; }
-.dp-input { min-width: 0; height: 36px; padding: 0 8px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 12px; }
+.dp-input { min-width: 0; height: 44px; padding: 0 8px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 12px; }
 .dp-input::placeholder { color: var(--mu); opacity: 1; }
 .dp-input:focus { border-color: var(--ac); }
 .dp-head { display: flex; align-items: center; gap: 4px; margin: 12px 0 8px; }
 .dp-month { flex: 1; font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; text-transform: uppercase; }
-.dp-nav { display: grid; place-content: center; min-width: 36px; height: 36px; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); font-size: 12px; font-weight: 600; cursor: pointer; }
+.dp-nav { display: grid; place-content: center; min-width: 44px; height: 44px; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); font-size: 12px; font-weight: 600; cursor: pointer; }
 .dp-nav:hover { border-color: var(--ac); color: var(--tx); }
 .dp-nav svg { width: 16px; height: 16px; stroke-width: 2; }
 .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
@@ -643,36 +643,28 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 @keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes fade-in { from { opacity: 0.4; } to { opacity: 1; } }
-@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes quick-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes quick-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-6px); } }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes card-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes field-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: no-preference) {
-  .announce-form:not([hidden]) { animation: pop-in 140ms steps(3); }
-  .task-dialog-overlay:not([hidden]), .quick-overlay:not([hidden]), .tour-overlay:not([hidden]) { animation: fade-in 140ms steps(3); }
-  .task-dialog-overlay:not([hidden]) .task-dialog, .quick-add { animation: quick-in 140ms steps(3); }
-  .task-dialog-overlay.is-closing, .quick-overlay.is-closing, .tour-overlay.is-closing { animation: fade-out 140ms steps(3) forwards; }
-  .task-dialog-overlay.is-closing .task-dialog, .quick-overlay.is-closing .quick-add { animation: quick-out 140ms steps(3) forwards; }
-  .toast { animation: toast-in 140ms steps(3); }
-  .due-picker, .status-dropdown:not([hidden]) { animation: pop-in 140ms steps(3); }
+  .announce-form:not([hidden]) { animation: pop-in 140ms ease-out; }
+  .toast { animation: toast-in 140ms ease-out; }
+  .due-picker, .status-dropdown:not([hidden]) { animation: pop-in 140ms ease-out; }
 }
+/* A closing overlay is logically gone: its fade must not intercept the next action. */
+.task-dialog-overlay.is-closing, .quick-overlay.is-closing, .tour-overlay.is-closing { pointer-events: none; }
 /* Only a newly created task arrives. Status changes are moved by js/motion.js. */
 @media (prefers-reduced-motion: no-preference) {
-  .task-card.is-entering, .task-row.is-entering { animation: card-in 140ms steps(3) backwards; }
+  .task-card.is-entering, .task-row.is-entering { animation: card-in 140ms ease-out backwards; }
 }
 /* Completion ghost (js/motion.js): a disposable copy of the row that folds into the Done tab. */
 .motion-ghost { position: fixed; z-index: 250; margin: 0; box-sizing: border-box; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); transform-origin: 0 0; pointer-events: none; will-change: transform, opacity; overflow: hidden; }
 /* Reduced motion: the Done tab takes a short static highlight instead of the ghost. */
 .tn.is-received { background: var(--acs); border-color: var(--ac); color: var(--tx); }
 .is-swapping .kanban-board, .is-swapping .task-list { animation: page-in 120ms ease-out; }
-::view-transition-old(root) { animation: fade-out 140ms steps(3) both; }
-::view-transition-new(root) { animation: page-in 140ms steps(3) both; }
 /* [[/section:loading]] */
 
 /* [[section:responsive]] */
@@ -716,6 +708,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 @media (max-width: 719px) {
   .panel-close, .prop-clear, .icon-button { width: 44px; height: 44px; }
+  /* Phone text entry is 16px so iOS does not zoom on focus. The transfer row's 12px rule comes
+     later in the sheet, so the body prefix keeps this scoped rule winning by specificity. */
+  .search input, .text-input, body .transfer-link-row .text-input, .class-filters select, #preset-select, .announce-editor, .dp-input { font-size: 16px; }
   /* Task dialog on a phone: facts sit in an even grid (Status | Subject, Due across), every value is a 44px
      target at 14px, and values the student cannot change (disabled) drop to a sunk, quiet surface so only
      what responds to a tap looks like a button. The grid stacks by itself when two columns do not fit (320px). */
@@ -838,7 +833,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* [[section:a11y]] */
 /* ---------- Accessibility ---------- */
-[data-motion=reduce] * { animation: none !important; transition: none !important; }
+[data-motion=reduce], [data-motion=reduce] *, [data-motion=reduce]::before, [data-motion=reduce]::after, [data-motion=reduce] *::before, [data-motion=reduce] *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
@@ -882,7 +877,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .settings-row + .settings-row { margin-top: -2px; }
 .settings-row > div:not(.view-tabs) { flex: 1 1 auto; min-width: 0; }
 .settings-row > .view-tabs { flex: none; }
-.settings-row > .secondary-button, .settings-row > .danger-button { flex: none; min-width: 88px; height: 36px; padding: 0 12px; font-size: 12px; line-height: 16px; }
+.settings-row > .secondary-button, .settings-row > .danger-button { flex: none; min-width: 88px; height: 44px; padding: 0 12px; font-size: 12px; line-height: 16px; }
 .settings-title { margin: 0; color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; }
 /* The mockup's .sub (mockup 54), the second line of a settings row. */
 .settings-desc { margin: 4px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }
@@ -892,11 +887,11 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* The mockup's .acts with the .subp variant (mockup 198/225): the panel's actions wrap and sit right. */
 .settings-confirm-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 /* Cancel is the mockup's plain .btn.sm (mockup 86-89), not the app's underlined text link. */
-.settings-confirm .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.settings-confirm .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .settings-confirm .text-button:hover { color: var(--tx); border-color: var(--ac); background: var(--sf2); }
 /* The mockup's danger button is .btn.dng (mockup 195): --er text and edge on --sf, never a filled
    red button. Only the armed confirm step fills it, the way .btn.dng.pri does (mockup 196). */
-.danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 12px; border: 2px solid var(--er); color: var(--er); background: var(--sf); font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
+.danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 12px; border: 2px solid var(--er); color: var(--er); background: var(--sf); font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
 .danger-button:hover { background: var(--erb); }
 .danger-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .danger-button:disabled:hover { background: var(--sf); }
@@ -930,7 +925,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* ---------- First-time tutorial ---------- */
 .tour-overlay { position: fixed; inset: 0; z-index: 300; }
 .tour-overlay.is-centered { background: color-mix(in srgb, var(--tx) 48%, transparent); }
-.tour-spot { position: fixed; border-radius: 0; pointer-events: none; box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--tx) 48%, transparent), 0 0 0 2px var(--ac); transition: top 120ms steps(3), left 120ms steps(3), width 120ms steps(3), height 120ms steps(3); }
+.tour-spot { position: fixed; border-radius: 0; pointer-events: none; box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--tx) 48%, transparent), 0 0 0 2px var(--ac); }
 
 /* Night: the page is nearly black, so a darkening scrim cannot separate layers at all - pure black over
    --bg #0F1226 tops out at 1.13:1. The ink lightens instead, which is the same colour decision as paper,
@@ -1017,32 +1012,25 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .confirm-dialog .dialog-footer button { width: 100%; min-height: 44px; }
 /* [[/section:confirm]] */
 }
-/* ---------- Motion: arrivals, press, landed (all transform/opacity; reduced motion gets none of it) ---------- */
-@keyframes enter-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes landed { 0% { opacity: 0; transform: translateY(-12px); } 35% { opacity: 1; transform: translateY(0); } }
-@keyframes landed-edge { from { box-shadow: inset 4px 0 0 var(--ac), 0 2px 0 var(--sh); } to { box-shadow: inset 0 0 0 var(--ac), 0 2px 0 var(--sh); } }
+/* ---------- Motion: page, press, landed (all transform/opacity; reduced motion gets none of it) ---------- */
 @media (prefers-reduced-motion: no-preference) {
-  /* Page switch: the page steps up into place. */
-  .page:not([hidden]) { animation: enter-up 160ms steps(4); }
-  /* Lists and board cards arrive in a short staggered run, only while body[data-enter] is set (about 0.7s). */
-  body[data-enter] .task-list > .task-row, body[data-enter] .column-content > .task-card, body[data-enter] .announce-item { animation: enter-up 180ms steps(4) backwards; }
-  body[data-enter] .task-list > :nth-child(2), body[data-enter] .column-content > :nth-child(2) { animation-delay: 30ms; }
-  body[data-enter] .task-list > :nth-child(3), body[data-enter] .column-content > :nth-child(3) { animation-delay: 60ms; }
-  body[data-enter] .task-list > :nth-child(4), body[data-enter] .column-content > :nth-child(4) { animation-delay: 90ms; }
-  body[data-enter] .task-list > :nth-child(5), body[data-enter] .column-content > :nth-child(5) { animation-delay: 120ms; }
-  body[data-enter] .task-list > :nth-child(6), body[data-enter] .column-content > :nth-child(6) { animation-delay: 150ms; }
-  body[data-enter] .task-list > :nth-child(7), body[data-enter] .column-content > :nth-child(7) { animation-delay: 180ms; }
-  body[data-enter] .task-list > :nth-child(n+8), body[data-enter] .column-content > :nth-child(n+8) { animation-delay: 210ms; }
+  /* Page switch: one local, opacity-only fade; lists do not stagger. */
+  .page:not([hidden]) { animation: page-in 140ms ease-out; }
   /* Press: buttons and cards sink 2px into their hard shadow, like a stamped key. */
-  .primary-button, .secondary-button, .icon-button, .tn, .view-tab, .quick-chip-btn { transition: transform 60ms steps(2); }
+  .primary-button, .secondary-button, .icon-button, .tn, .view-tab, .quick-chip-btn { transition: transform 60ms ease-out; }
   .primary-button:active, .secondary-button:active, .icon-button:active, .tn:active, .view-tab:active, .quick-chip-btn:active { transform: translateY(2px); }
-  .task-card, #class-task-list .task-row { transition: transform 80ms steps(2); }
+  .task-card, #class-task-list .task-row { transition: transform 80ms ease-out; }
   .task-card:active, #class-task-list .task-row:active { transform: translateY(2px); }
-  .status-check { transition: transform 60ms steps(2); }
-  .status-check:active { transform: scale(0.82); }
+  .status-check { transition: transform 60ms ease-out; }
+  .status-check:active { transform: scale(0.94); }
   @media (hover: hover) {
     .task-card:hover { transform: translateY(-2px); }
   }
-  /* A task you just finished lands on the Done page and keeps a blue edge for a moment. */
-  #done-list .done-row.is-landed { animation: landed 420ms steps(5), landed-edge 1600ms steps(8) 200ms backwards; }
+}
+/* A task you just finished keeps a static blue edge while it lands; the shadow never animates. */
+#done-list .done-row.is-landed { box-shadow: inset 4px 0 0 var(--ac); }
+/* lint-allow:px 1099px -- matches the existing archive-card breakpoint */
+@media (max-width: 1099px) {
+  /* The archive card still carries its pixel ledge while the blue edge marks the landing. */
+  #done-list .done-row.is-landed { box-shadow: inset 4px 0 0 var(--ac), 0 2px 0 var(--sh); }
 }
