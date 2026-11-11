@@ -1195,6 +1195,43 @@ export function syncSubjectMap(catalog) {
 
 // The dialog's subject choices: None plus every assignable code. Rebuilt on a catalogue change so a
 // retired subject disappears from the picker without touching a task that already uses it.
+let subjectDropdownIndex = 0;
+function paintSubjectDropdown() {
+  if (!dom.dialogSubjectDropdown) return;
+  const cur = state.currentTask ? (state.currentTask.subject || '') : '';
+  [...dom.dialogSubjectDropdown.children].forEach((opt, i) => {
+    opt.classList.toggle('is-active', i === subjectDropdownIndex);
+    opt.setAttribute('aria-selected', String(opt.dataset.subject === cur));
+  });
+}
+export function closeSubjectDropdown(refocus = false) {
+  if (!dom.dialogSubjectDropdown) return;
+  dom.dialogSubjectDropdown.hidden = true;
+  if (dom.dialogSubjectBtn) dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
+  if (refocus && dom.dialogSubjectBtn && dom.dialogSubjectBtn.isConnected && !dom.dialogSubjectBtn.disabled) {
+    dom.dialogSubjectBtn.focus();
+  }
+}
+export function openSubjectDropdown() {
+  if (!dom.dialogSubjectDropdown || !dom.dialogSubjectBtn || dom.dialogSubjectBtn.disabled) return;
+  closeStatusPopover();
+  const opts = [...dom.dialogSubjectDropdown.children];
+  if (!opts.length) return;
+  const cur = state.currentTask ? (state.currentTask.subject || '') : '';
+  const found = opts.findIndex((o) => o.dataset.subject === cur);
+  subjectDropdownIndex = found >= 0 ? found : 0;
+  paintSubjectDropdown();
+  dom.dialogSubjectBtn.setAttribute('aria-expanded', 'true');
+  dom.dialogSubjectDropdown.hidden = false;
+  const r = dom.dialogSubjectBtn.getBoundingClientRect();
+  const h = dom.dialogSubjectDropdown.offsetHeight;
+  const w = dom.dialogSubjectDropdown.offsetWidth;
+  const below = window.innerHeight - r.bottom - 8;
+  const top = h > below && r.top > below ? Math.max(8, r.top - h - 4) : r.bottom + 4;
+  dom.dialogSubjectDropdown.style.top = `${top}px`;
+  dom.dialogSubjectDropdown.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+  opts[subjectDropdownIndex].focus();
+}
 export function refreshSubjectChoices() {
   if (!dom.dialogSubjectDropdown) return;
   dom.dialogSubjectDropdown.replaceChildren();
@@ -1203,10 +1240,12 @@ export function refreshSubjectChoices() {
     opt.type = 'button';
     opt.className = 'status-option';
     opt.setAttribute('role', 'option');
+    opt.dataset.subject = code;
     if (code) opt.appendChild(createSubjectTag(code)); else opt.textContent = 'None';
-    opt.addEventListener('click', () => selectSubject(code));
+    opt.addEventListener('click', () => selectSubject(code, true));
     dom.dialogSubjectDropdown.appendChild(opt);
   });
+  paintSubjectDropdown();
 }
 export function ensureStatusPopover() {
   if (state.statusPopoverEl) return state.statusPopoverEl;
@@ -1327,13 +1366,15 @@ export function updateDialogSubject(task) {
   dom.dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
   if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
   else dom.dialogSubjectBtn.textContent = 'Add subject';
-  dom.dialogSubjectDropdown.hidden = true;
+  closeSubjectDropdown(false);
+  paintSubjectDropdown();
 }
-export function selectSubject(code) {
+export function selectSubject(code, refocus = false) {
   if (!state.currentTask) return;
   state.currentTask.subject = code;
   updateDialogSubject(state.currentTask);
   autosave();
+  if (refocus && dom.dialogSubjectBtn && !dom.dialogSubjectBtn.disabled) dom.dialogSubjectBtn.focus();
 }
 
 // Called once by app.js, at the spot the moved listeners used to occupy.
@@ -1379,9 +1420,9 @@ window.addEventListener('resize', () => { if (state.currentTask) fitDialogTitle(
 dom.dialogClose.addEventListener('click', closeTaskDialog);
 dom.dialogOverlay.addEventListener('click', (e) => { if (e.target === dom.dialogOverlay) closeTaskDialog(); });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !dom.dialogOverlay.hidden && !(state.statusPopoverEl && !state.statusPopoverEl.hidden)) closeTaskDialog();
+  if (e.key === 'Escape' && !dom.dialogOverlay.hidden && !(state.statusPopoverEl && !state.statusPopoverEl.hidden) && dom.dialogSubjectDropdown.hidden) closeTaskDialog();
 });
-dom.dialogDateBtn.addEventListener('click', () => openDialogDuePicker(dom.dialogDateBtn, 'date'));
+dom.dialogDateBtn.addEventListener('click', () => { closeSubjectDropdown(false); openDialogDuePicker(dom.dialogDateBtn, 'date'); });
 dom.dialogDueClear.addEventListener('click', (e) => {
   e.stopPropagation();
   if (state.currentTask) {
@@ -1470,7 +1511,7 @@ dom.dialogDelete.addEventListener('click', () => {
   if (idx !== -1) deleteTask(task); else closeTaskDialog();
   state.currentTask = null;
 });
-dom.dialogStatusBtn.addEventListener('click', () => { if (state.currentTask) openStatusPopover(state.currentTask, dom.dialogStatusBtn); });
+dom.dialogStatusBtn.addEventListener('click', () => { closeSubjectDropdown(false); if (state.currentTask) openStatusPopover(state.currentTask, dom.dialogStatusBtn); });
 // Column drop zones (My Tasks page)
 document.querySelectorAll('.kanban-column').forEach(columnEl => {
   columnEl.addEventListener('dragover', handleDragOver);
@@ -1504,26 +1545,58 @@ refreshSubjectChoices();
 dom.dialogSubjectDropdown.classList.add('status-popover');
 document.body.appendChild(dom.dialogSubjectDropdown);
 dom.dialogSubjectBtn.addEventListener('click', () => {
-  const open = dom.dialogSubjectBtn.getAttribute('aria-expanded') === 'true';
-  dom.dialogSubjectBtn.setAttribute('aria-expanded', String(!open));
-  dom.dialogSubjectDropdown.hidden = open;
-  if (open) return;
-  const r = dom.dialogSubjectBtn.getBoundingClientRect();
-  const h = dom.dialogSubjectDropdown.offsetHeight;
-  const w = dom.dialogSubjectDropdown.offsetWidth;
-  const below = window.innerHeight - r.bottom - 8;
-  const top = h > below && r.top > below ? Math.max(8, r.top - h - 4) : r.bottom + 4;
-  dom.dialogSubjectDropdown.style.top = `${top}px`;
-  dom.dialogSubjectDropdown.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+  if (!dom.dialogSubjectDropdown.hidden) closeSubjectDropdown(true);
+  else openSubjectDropdown();
+});
+dom.dialogSubjectBtn.addEventListener('keydown', (e) => {
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && dom.dialogSubjectDropdown.hidden) {
+    e.preventDefault();
+    openSubjectDropdown();
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (!dom.dialogSubjectDropdown || dom.dialogSubjectDropdown.hidden) return;
+  const opts = [...dom.dialogSubjectDropdown.children];
+  if (!opts.length) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeSubjectDropdown(true);
+    return;
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    closeSubjectDropdown(false);
+    const focusables = [...dom.dialogOverlay.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.closest('[hidden]') && el.getClientRects().length);
+    const idx = focusables.indexOf(dom.dialogSubjectBtn);
+    if (idx !== -1 && focusables.length) {
+      focusables[(idx + (e.shiftKey ? -1 : 1) + focusables.length) % focusables.length].focus();
+    } else {
+      dom.dialogSubjectBtn.focus();
+    }
+    return;
+  }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+    e.preventDefault();
+    if (e.key === 'Home') subjectDropdownIndex = 0;
+    else if (e.key === 'End') subjectDropdownIndex = opts.length - 1;
+    else subjectDropdownIndex = (subjectDropdownIndex + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length;
+    paintSubjectDropdown();
+    opts[subjectDropdownIndex].focus();
+    return;
+  }
+  if (e.key === 'Enter' && !dom.dialogSubjectDropdown.contains(document.activeElement)) {
+    e.preventDefault();
+    opts[subjectDropdownIndex].click();
+  }
 });
 window.addEventListener('resize', () => {
-  dom.dialogSubjectDropdown.hidden = true;
-  dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
+  closeSubjectDropdown(false);
 });
 document.addEventListener('click', (e) => {
   if (!dom.dialogSubjectBtn.contains(e.target) && !dom.dialogSubjectDropdown.contains(e.target)) {
-    dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
-    dom.dialogSubjectDropdown.hidden = true;
+    closeSubjectDropdown(false);
   }
 });
 }
