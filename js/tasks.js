@@ -432,6 +432,18 @@ function clearClassFilters() {
   renderClassTasks();
   if (search) search.focus();
 }
+function classUrgencyBucket(task) {
+  if (task.status === 'done') return 3;
+  if (!task.dueDate) return 2;
+  const diff = dayDiff(task.dueDate);
+  if (!task.isOverdue() && diff >= 0 && diff <= 1) return 0;
+  if (task.isOverdue()) return 1;
+  return 2;
+}
+function orderClassTasks(list) {
+  const sorted = sortTasks(list);
+  return sorted.slice().sort((a, b) => classUrgencyBucket(a) - classUrgencyBucket(b));
+}
 export function renderClassTasks() {
   const board = document.querySelector('#class-board');
   board.querySelectorAll('.column-content').forEach((c) => {
@@ -441,7 +453,7 @@ export function renderClassTasks() {
   const q = state.classSearchQuery.trim().toLowerCase();
   syncClassSubjectOptions(all);
   document.querySelector('#class-status-filter').value = state.classStatusFilter;
-  const searched = sortTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
+  const searched = orderClassTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
   const visible = searched.filter(matchesClassFilters);
   searched.forEach((task) => {
     const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
@@ -1229,12 +1241,14 @@ export function ensureStatusPopover() {
         return;
       }
       const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
+      const prevScrollY = window.scrollY;
       setStatus(picked, next);
       if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
       closeStatusPopover();
       renderAllTasks();
       const hiddenByFilter = !!state.classStatusFilter && next !== state.classStatusFilter && classListVisible();
       focusStatusTrigger(picked, pickedFrom);
+      if (window.scrollY !== prevScrollY) window.scrollTo(0, prevScrollY);
       if (hiddenByFilter) {
         showToast(`${statusChangeMessage(next)}. Hidden by the Status filter`, 'Undo', () => restoreProgress(picked.id, prev));
       } else if (next === 'done') {
@@ -1258,12 +1272,12 @@ function paintStatusPopover() {
 }
 // A pick re-renders the lists, so the old trigger is gone: find the task's new visible check, or the dialog button.
 function focusStatusTrigger(task, anchor) {
-  if (anchor && anchor.isConnected && anchor.getClientRects().length) { anchor.focus(); return; }
+  if (anchor && anchor.isConnected && anchor.getClientRects().length) { anchor.focus({ preventScroll: true }); return; }
   const next = [...document.querySelectorAll(`[data-task-id="${task.id}"] .status-check`)].find((el) => el.getClientRects().length);
-  if (next) { next.focus(); return; }
+  if (next) { next.focus({ preventScroll: true }); return; }
   if (state.classStatusFilter && classListVisible()) {
     const select = document.querySelector('#class-status-filter');
-    if (select) select.focus();
+    if (select) select.focus({ preventScroll: true });
   }
 }
 export function closeStatusPopover(refocus = false) {

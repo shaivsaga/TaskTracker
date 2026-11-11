@@ -22,6 +22,7 @@ const TASKS = read('js/tasks.js');
 const ANNOUNCE = read('js/announcements.js');
 const BIN = read('js/bin.js');
 const SUBJECTS_EDITOR = read('js/subjects-editor.js');
+const CSS = read('styles.css');
 test('the four task lists are role="list" so their aria-label names a role that accepts one', () => {
   for (const id of ['class-task-list', 'task-list', 'done-list', 'past-list']) {
     const tag = HTML.match(new RegExp('<(?:div|ul)[^>]*id="' + id + '"[^>]*>'));
@@ -68,4 +69,11 @@ test('admin task board precedes collapsed Recycle bin and Subjects panels', () =
   assert.match(SUBJECTS_EDITOR, /dom\.subjectToggle\.setAttribute\('aria-expanded'/, 'subjects-editor.js must update aria-expanded on #subject-toggle');
   assert.match(SUBJECTS_EDITOR, /paletteBtn\.dataset\.act = 'palette'/, 'subjects-editor.js must disclose colour swatches per row via a palette button');
   assert.match(SUBJECTS_EDITOR, /swatches\.hidden = !paletteOpen/, 'subject colour swatches must stay hidden until the row palette is opened');
+});
+
+test('student class view prioritises due today/tomorrow, preserves scroll on status change, and guards mobile header', () => {
+  assert.match(TASKS, /function orderClassTasks\(list\)/, 'tasks.js must define orderClassTasks for the student view');
+  assert.match(TASKS, /!task\.isOverdue\(\) && diff >= 0 && diff <= 1/, 'due today and tomorrow must occupy bucket 0 ahead of overdue backlog');
+  assert.match(TASKS, /focus\(\{\s*preventScroll:\s*true\s*\}\)/, 'focusStatusTrigger must prevent scroll jumps when a completed row moves to the bottom');
+  assert.match(CSS, /\.brand-m\s*\{\s*position:\s*sticky;\s*top:\s*0;\s*z-index:\s*5;/, 'phone header brand strip must stay sticky above cards and below #settings-open');
 });

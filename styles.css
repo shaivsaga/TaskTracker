@@ -414,7 +414,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
   /* lint-allow:px 160px -- the same due-date column when the empty delete slot is dropped */
   .task-row:has(> :nth-child(5):empty) { grid-template-columns: 24px minmax(0, 1fr) 104px 160px; }
   .task-row:has(> :nth-child(5):empty) > :nth-child(5) { display: none; }
-  .task-row .task-row-due { text-align: right; }
+  .task-row .task-row-due { text-align: right; white-space: normal; }
 }
 /* The archive's single-line row only exists where the five tracks actually fit. With content-sized
    actions it needs ~760px of track, so the breakpoint is 1100 - below it the row is a card
@@ -683,7 +683,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (max-width: 719px) {
   .tb { position: fixed; top: auto; right: 0; bottom: 0; left: 0; height: auto; align-items: flex-end; padding: 8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-bottom: 0; border-top: 2px solid var(--ln); }
   .tb .brand { display: none; }
-  .brand-m { display: flex; align-self: flex-start; height: 44px; padding: 0; }
+  .brand-m { position: sticky; top: 0; z-index: 5; display: flex; align-self: stretch; height: 52px; margin: -8px -16px 0; padding: 8px 56px 0 16px; background: var(--bg); border-bottom: 2px solid var(--ln); }
   .brand-m b { display: block; }
   .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }

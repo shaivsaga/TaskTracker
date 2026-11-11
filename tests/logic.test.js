@@ -195,3 +195,14 @@ test('taskIdOk accepts generated ids and rejects anything that could break a sel
   assert.equal(taskIdOk('__proto__'), false);    // the id is also an object key
   assert.equal(taskIdOk({}), false);             // "[object Object]" has a space and brackets
 });
+
+test('getDueLabel includes short calendar date alongside relative countdown beyond tomorrow', () => {
+  const today = new Task({ title: 'Today task', dueDate: dateOffset(0) });
+  const tomorrow = new Task({ title: 'Tomorrow task', dueDate: dateOffset(1) });
+  const twoWeeks = new Task({ title: 'Future task', dueDate: dateOffset(15) });
+  const overdue = new Task({ title: 'Overdue task', dueDate: dateOffset(-3) });
+  assert.equal(today.getDueLabel(), 'Due today');
+  assert.equal(tomorrow.getDueLabel(), 'Due tomorrow');
+  assert.match(twoWeeks.getDueLabel(), /^In 2 weeks · [A-Z][a-z]{2} \d{1,2}/);
+  assert.match(overdue.getDueLabel(), /^3 days overdue · [A-Z][a-z]{2} \d{1,2}/);
+});
