@@ -101,6 +101,43 @@ export function subjectFor(catalog, code) {
   return catalog.find((s) => s && s.code === code) || null;
 }
 
+/** Human-readable display name for a subject code, falling back to the code itself. */
+export function subjectDisplayName(catalog, code) {
+  if (typeof code !== 'string' || code === '') return '';
+  const def = subjectFor(catalog, code);
+  return def && typeof def.name === 'string' && def.name.trim() !== '' ? def.name : code;
+}
+
+/**
+ * Normalize and validate a newly created subject before its code is locked.
+ * Normalizes code to uppercase; if code is omitted, derives it from name.
+ */
+export function validateNewSubject(input, existing = []) {
+  const rawCode = typeof input?.code === 'string' ? input.code.trim().toUpperCase() : '';
+  const rawName = typeof input?.name === 'string' ? input.name.trim() : '';
+  const code = rawCode || codeFromName(rawName);
+  if (!code || !CODE_RE.test(code)) {
+    return { error: 'Enter a code of 1-32 letters, digits, dot, dash or underscore, starting with a letter or digit.' };
+  }
+  if (RESERVED.has(code) || RESERVED.has(code.toLowerCase())) {
+    return { error: `${code} is a reserved code.` };
+  }
+  const list = Array.isArray(existing) ? existing : [];
+  if (list.some((s) => s && typeof s.code === 'string' && s.code.toUpperCase() === code)) {
+    return { error: `The code ${code} is already used.` };
+  }
+  const name = rawName || code;
+  if (name.length > MAX_NAME) {
+    return { error: `A name of 1-${MAX_NAME} characters is required.` };
+  }
+  if (CONTROL_RE.test(name)) {
+    return { error: 'Subject name cannot contain control characters.' };
+  }
+  const color = typeof input?.color === 'string' && COLOR_RE.test(input.color.trim().toLowerCase())
+    ? input.color.trim().toLowerCase()
+    : PALETTE[list.length % PALETTE.length];
+  return { subject: { code, name, color, active: true } };
+}
 /**
  * Replace the catalogue's choices with a preset's, without touching a single task.
  * A code the preset leaves out but a task still uses is kept as a retired definition, so the task

@@ -414,7 +414,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
   /* lint-allow:px 160px -- the same due-date column when the empty delete slot is dropped */
   .task-row:has(> :nth-child(5):empty) { grid-template-columns: 24px minmax(0, 1fr) 104px 160px; }
   .task-row:has(> :nth-child(5):empty) > :nth-child(5) { display: none; }
-  .task-row .task-row-due { text-align: right; }
+  .task-row .task-row-due { text-align: right; white-space: normal; }
 }
 /* The archive's single-line row only exists where the five tracks actually fit. With content-sized
    actions it needs ~760px of track, so the breakpoint is 1100 - below it the row is a card
@@ -451,8 +451,9 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .status-option:focus-visible { outline: 2px solid var(--ac); outline-offset: -2px; }
 
 /* lint-allow:px 0px -- env() safe-area fallback: a calc with no fallback is dropped entirely */
-.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; z-index: 200; display: flex; align-items: center; gap: 16px; max-width: calc(100% - 24px); padding: 10px 12px 10px 16px; color: var(--bg); background: var(--tx); border: 2px solid var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 14px; font-weight: 600; line-height: 20px; transform: translateX(-50%); }
-.toast-action { padding: 8px; border: 0; background: transparent; color: var(--bg); font-size: 14px; font-weight: 700; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; z-index: 200; display: flex; align-items: center; gap: 16px; width: max-content; max-width: calc(100% - 24px); padding: 10px 12px 10px 16px; color: var(--bg); background: var(--tx); border: 2px solid var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 14px; font-weight: 600; line-height: 20px; transform: translateX(-50%); }
+#toast-message { min-width: 0; overflow-wrap: anywhere; }
+.toast-action { flex: none; min-height: 44px; padding: 8px; border: 0; background: transparent; color: var(--bg); font-size: 14px; font-weight: 700; line-height: 20px; white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 /* [[/section:popovers]] */
 
 /* [[section:dialogs]] */
@@ -485,8 +486,8 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .prop-value { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 12px; font-weight: 600; line-height: 16px; cursor: pointer; }
 .prop-value:hover { border-color: var(--ac); background: var(--sf2); }
 .prop-value.empty-value { color: var(--mu); }
-.prop-value:disabled { cursor: default; }
-.prop-value:disabled:hover { background: var(--sf); border-color: var(--mu); }
+.prop-value:disabled { cursor: default; border-color: var(--ln); background: var(--sf2); }
+.prop-value:disabled:hover { background: var(--sf2); border-color: var(--ln); }
 .prop-clear { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
 .prop-clear:hover { border-color: var(--ac); color: var(--tx); }
 .prop-clear-icon { width: 16px; height: 16px; stroke-width: 2.5; }
@@ -510,7 +511,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .dialog-footer { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 12px 16px; border-top: 2px solid var(--ln); }
 .save-state { margin-right: auto; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; }
 .task-dialog.is-readonly .dialog-title-input { cursor: default; }
-.task-dialog.is-readonly .dialog-doc { min-height: 48px; }
+.task-dialog.is-readonly .dialog-doc { min-height: 48px; border-color: var(--ln); background: var(--sf2); }
 /* [[/section:dialogs]] */
 
 /* [[section:quick-add]] */
@@ -545,7 +546,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* [[section:due-picker]] */
 /* ---------- Due picker ---------- */
-.due-picker { position: fixed; z-index: 210; width: 300px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); transform-origin: top left; }
+.due-picker { position: fixed; z-index: 210; width: 300px; max-width: calc(100% - 16px); padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); transform-origin: top left; }
 .dp-fields { display: grid; grid-template-columns: 1fr 120px; gap: 8px; }
 .dp-input { min-width: 0; height: 44px; padding: 0 8px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 12px; }
 .dp-input::placeholder { color: var(--mu); opacity: 1; }
@@ -606,7 +607,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-chip[data-status="in_progress"] { --edge: var(--ac); }
 .cal-chip[data-status="done"] { --edge: var(--ok); color: var(--mu); }
 .cal-chip[data-status="done"] .cal-chip-title { text-decoration: line-through; }
-.cal-chip.is-overdue .cal-time { padding: 0 4px; color: var(--er); background: var(--erb); font-weight: 600; }
+/* The overdue pill's red on the cell's wash measured 4.4:1; the same red on --sf2 is 5.2:1, so the
+   time keeps the weight and colour but not the wash behind it. */
+.cal-chip.is-overdue .cal-time { color: var(--er); font-weight: 600; }
 .cal-time { flex: none; color: var(--mu); font-weight: 500; font-variant-numeric: tabular-nums; }
 .cal-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 /* the mockup's dot ring: outline 1px var(--pl) (mockup 135/316), which its dark --pl makes invisible */
@@ -675,7 +678,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (max-width: 719px) {
   .tb { position: fixed; top: auto; right: 0; bottom: 0; left: 0; height: auto; align-items: flex-end; padding: 8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-bottom: 0; border-top: 2px solid var(--ln); }
   .tb .brand { display: none; }
-  .brand-m { display: flex; align-self: flex-start; height: 44px; padding: 0; }
+  .brand-m { position: sticky; top: 0; z-index: 5; display: flex; align-self: stretch; height: 52px; margin: -8px -16px 0; padding: 8px 56px 0 16px; background: var(--bg); border-bottom: 2px solid var(--ln); }
   .brand-m b { display: block; }
   .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }
@@ -720,8 +723,6 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .dialog-controls .field-due { grid-column: 1 / -1; }
   .dialog-controls .prop-value { width: 100%; min-height: 44px; padding: 0 12px; justify-content: flex-start; font-size: 14px; line-height: 20px; }
   .due-controls .prop-value { flex: 1; min-width: 0; }
-  .dialog-controls .prop-value:disabled { border-color: var(--ln); background: var(--sf2); }
-  .task-dialog.is-readonly .dialog-doc { border-color: var(--ln); background: var(--sf2); }
   .task-row .task-delete-btn, .announce-item .task-delete-btn { width: 44px; height: 44px; }
   .task-card .task-delete-btn { width: 44px; height: 44px; margin: -12px -8px -12px 0; }
   .announce-item { grid-template-columns: minmax(0, 1fr) auto 44px; }
@@ -841,11 +842,29 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (prefers-contrast: more) {
   body { --ln: var(--mu); }
 }
+/* Night: --acd darkens toward the page, so --onac text on a --acd fill (4.0:1) and --acd text on
+   --sf2 (3.2:1) both fall under AA. Hover keeps --ac and marks itself with the 2px edge instead. */
+:root[data-theme="dark"] .primary-button:hover,
+:root[data-theme="dark"] .primary-button:active { background: var(--ac); border-color: var(--ac); }
+:root[data-theme="dark"] .primary-button:hover { box-shadow: inset 0 0 0 2px var(--tx), 0 2px 0 var(--sh); }
+:root[data-theme="dark"] .text-button:hover,
+:root[data-theme="dark"] .announce-text a:hover,
+:root[data-theme="dark"] .dialog-doc a:hover,
+:root[data-theme="dark"] .file-item a:hover { color: var(--ac); }
 /* [[/section:a11y]] */
 
 /* Admin actions are one flat row of buttons: no menu to open, so Preview, History and Discard are one
    press away. The row wraps inside the bar and the phone gets 44px targets. */
 @media (max-width: 719px) { .admin-actions .text-button { height: 44px; } }
+
+/* Phones: every text button, chip and picker control reaches the 44px floor, including the ones that
+   are bare links at 20px on desktop. The classes keep their own look; only the hit box grows. */
+@media (max-width: 719px) {
+  .text-button { display: inline-flex; align-items: center; min-height: 44px; }
+  .history-item .text-button, .file-item .text-button { height: 44px; }
+  .quick-chip-btn { min-height: 44px; }
+  .dp-nav, .dp-input { height: 44px; }
+}
 
 /* Forced colors: sprite colors are not ours to control there, so labels carry every tab and the
    active tab is marked with the system highlight. */
@@ -904,6 +923,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 }
 /* lint-allow:px 480px -- a phone viewport boundary where the settings row wraps; a breakpoint, not a design-scale value. */
 @media (max-width: 480px) {
+  #preset-select { flex-basis: 100%; width: 100%; }
   .settings-row:has(> .view-tabs) { flex-wrap: wrap; }
   .settings-row:has(> .view-tabs) > div:not(.view-tabs) { flex: 1 1 100%; }
   /* Phones: the segmented control spans the row in equal thirds. */

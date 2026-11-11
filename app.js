@@ -207,7 +207,7 @@ function showUpdateNotice(items, onDismiss) {
   body.appendChild(el('p', 'dialog-summary', items.length === 1 ? '1 task is new or changed since your last visit.' : `${items.length} tasks are new or changed since your last visit.`));
   const list = el('ul', 'import-summary');
   items.slice(0, 8).forEach(({ isNew, task }) => {
-    list.appendChild(el('li', '', `${isNew ? 'New' : 'Updated'}: ${task.subject ? task.subject + ' · ' : ''}${task.title} · ${task.getDueShort()}`));
+    list.appendChild(el('li', '', `${isNew ? 'New' : 'Updated'}: ${task.subject ? subjects.subjectDisplayName(state.catalog, task.subject) + ' · ' : ''}${task.title} · ${task.getDueShort()}`));
   });
   if (items.length > 8) list.appendChild(el('li', '', `and ${items.length - 8} more`));
   body.appendChild(list);
@@ -650,7 +650,7 @@ function openDuePicker(opts) {
   let top = r.bottom + 6;
   if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
   el.style.top = `${top}px`;
-  el.style.left = `${Math.min(Math.max(8, r.left), window.innerWidth - w - 8)}px`;
+  el.style.left = `${Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8))}px`;
 
   dateIn.focus();
   dateIn.select();
@@ -856,7 +856,10 @@ async function start() {
     )],
     adminAction,
     apiVersions: API.versions,
-    confirm: (message) => window.confirm(message),
+    confirm: (message) => new Promise((resolve) => tasks.confirmDialog({
+      title: 'Apply subject preset?', message, okLabel: 'Apply preset',
+      onConfirm: () => resolve(true), onCancel: () => resolve(false),
+    })),
   });
   window.addEventListener('hashchange', loadAdminPanels);
   if (state.isAdmin) setTimeout(loadAdminPanels, 0);

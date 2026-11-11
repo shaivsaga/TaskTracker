@@ -782,6 +782,40 @@ async function main() {
       && newStatus === 'not_started' && focusOk(popAccepted, doneCard.taskId) && /task-title-open|task-row-title|status-check/.test(popAccepted.cls),
       'task ' + (doneCard && doneCard.taskId) + ' -> ' + newStatus + '; focus ' + popAccepted.tag + '.' + popAccepted.cls + ' "' + popAccepted.name + '"');
 
+    // 5e. subject dropdown keyboard: Enter/ArrowDown opens and focuses the selected option,
+    // Home/End/ArrowDown navigate, Escape closes the dropdown without closing the task dialog,
+    // and Enter selects an option and returns focus to #dialog-subject-btn.
+    await click(cdp, '#page-my-tasks .task-card .task-title-open');
+    await sleep(250);
+    await cdp.evaluate(`document.getElementById('dialog-subject-btn').focus()`);
+    await pressEnter(cdp);
+    const subjOpened = await cdp.evaluate(`(() => {
+      const dd = document.getElementById('dialog-subject-dropdown');
+      const a = document.activeElement;
+      return { open: !dd.hidden, inside: dd.contains(a), ariaSelected: a && a.getAttribute('aria-selected') };
+    })()`);
+    await pressKey(cdp, 'Escape', 'Escape', 27);
+    const subjEscClosed = await cdp.evaluate(`(() => ({
+      ddHidden: document.getElementById('dialog-subject-dropdown').hidden,
+      dlgOpen: !document.getElementById('task-dialog-overlay').hidden,
+      activeId: document.activeElement && document.activeElement.id,
+    }))()`);
+    await pressKey(cdp, 'ArrowDown', 'ArrowDown', 40);
+    await pressKey(cdp, 'Home', 'Home', 36);
+    await pressKey(cdp, 'ArrowDown', 'ArrowDown', 40);
+    const pickedSubjCode = await cdp.evaluate(`document.activeElement && document.activeElement.dataset.subject`);
+    await pressEnter(cdp);
+    const subjPicked = await cdp.evaluate(`(() => ({
+      ddHidden: document.getElementById('dialog-subject-dropdown').hidden,
+      activeId: document.activeElement && document.activeElement.id,
+      btnText: document.getElementById('dialog-subject-btn').textContent.trim(),
+    }))()`);
+    await pressKey(cdp, 'Escape', 'Escape', 27);
+    check('subject dropdown keyboard', subjOpened.open && subjOpened.inside && subjOpened.ariaSelected === 'true'
+      && subjEscClosed.ddHidden && subjEscClosed.dlgOpen && subjEscClosed.activeId === 'dialog-subject-btn'
+      && !!pickedSubjCode && subjPicked.ddHidden && subjPicked.activeId === 'dialog-subject-btn' && subjPicked.btnText === pickedSubjCode,
+      'open=' + subjOpened.open + ' inside=' + subjOpened.inside + ' esc=' + subjEscClosed.activeId + ' picked=' + pickedSubjCode + '/' + subjPicked.btnText);
+
     // 6. pinned announcements: all on desktop, one on the phone
     for (const width of [1280, 375]) {
       await boot(cdp, width);

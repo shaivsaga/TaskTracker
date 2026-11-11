@@ -46,7 +46,7 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, API, fmtWhen } from './util.js';
-import { validateSubjects, catalogSignature } from './subjects.js';
+import { validateSubjects, catalogSignature, subjectDisplayName } from './subjects.js';
 import { prepareRecoveredDraft } from './recovery.js';
 import { openOverlay } from './motion.js';
 
@@ -251,7 +251,7 @@ function renderHistory() {
     detail.hidden = true;
     it.snap.tasks.forEach((t) => {
       const d = document.createElement('li');
-      d.textContent = (t.subject ? `${t.subject} · ` : '') + t.title;
+      d.textContent = (t.subject ? `${subjectDisplayName(state.catalog, t.subject)} · ` : '') + t.title;
       detail.appendChild(d);
     });
     preview.addEventListener('click', () => { detail.hidden = !detail.hidden; });
