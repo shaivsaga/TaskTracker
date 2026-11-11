@@ -1551,6 +1551,7 @@ dom.dialogSubjectBtn.addEventListener('click', () => {
 dom.dialogSubjectBtn.addEventListener('keydown', (e) => {
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && dom.dialogSubjectDropdown.hidden) {
     e.preventDefault();
+    e.stopPropagation();
     openSubjectDropdown();
   }
 });
