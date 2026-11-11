@@ -38,7 +38,7 @@ import { state } from './state.js';
 import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, STATUS_TO_COLUMN, COLUMN_TO_STATUS } from './util.js';
 import * as motion from './motion.js';   // leaf helper: imports nothing, reads the DOM only
-import { classForColor } from './subjects.js';   // pure: colour -> shipped class
+import { classForColor, subjectDisplayName } from './subjects.js';   // pure: colour -> shipped class, code -> display name
 
 // --- Values app.js passes in through init(deps) ------------------------------------------------
 let Task = null;
@@ -391,17 +391,18 @@ function syncClassSubjectOptions(all) {
   const select = document.querySelector('#class-subject-filter');
   if (!select) return;
   const codes = classSubjectCodes(all);
-  const current = [...select.options].slice(1).map((o) => o.value);
-  if (current.length !== codes.length || current.some((v, i) => v !== codes[i])) {
+  const labels = codes.map((code) => subjectDisplayName(state.catalog, code));
+  const current = [...select.options].slice(1);
+  if (current.length !== codes.length || current.some((o, i) => o.value !== codes[i] || o.textContent !== labels[i])) {
     select.replaceChildren();
     const allOpt = document.createElement('option');
     allOpt.value = '';
     allOpt.textContent = 'Subject: All';
     select.appendChild(allOpt);
-    codes.forEach((code) => {
+    codes.forEach((code, i) => {
       const opt = document.createElement('option');
       opt.value = code;
-      opt.textContent = code;
+      opt.textContent = labels[i];
       select.appendChild(opt);
     });
   }

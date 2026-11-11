@@ -11,13 +11,13 @@
 
 import { state } from './state.js';
 import { dom } from './dom.js';
-import { PALETTE, validateSubjects, subjectTextColor, codeFromName, MAX_NAME, describePreset } from './subjects.js';
+import { PALETTE, validateSubjects, validateNewSubject, subjectTextColor, codeFromName, MAX_NAME, describePreset } from './subjects.js';
 
 let deps = null;
 const EMPTY = 'No subjects configured yet. Add one, or apply a preset.';
 let rowError = new Map();   // code -> message, shown inline and never stored
 let openPaletteCode = null; // one subject row's swatch strip open at a time
-
+let pendingNew = null;      // { code, name, color, codeTouched, error } while creating a subject
 function setExpanded(open) {
   if (!dom.subjectBody || !dom.subjectToggle) return;
   const expanded = Boolean(open);
@@ -43,9 +43,11 @@ export function init(d) {
       setExpanded(dom.subjectBody ? dom.subjectBody.hidden : true);
     });
   }
-  dom.subjectAdd.addEventListener('click', addSubject);
+  dom.subjectAdd.addEventListener('click', startAddSubject);
   dom.subjectList.addEventListener('click', onListClick);
   dom.subjectList.addEventListener('change', onListChange);
+  dom.subjectList.addEventListener('input', onListInput);
+  dom.subjectList.addEventListener('keydown', onListKeydown);
   dom.presetApply.addEventListener('click', applySelectedPreset);
   dom.presetDelete.addEventListener('click', deleteSelectedPreset);
   dom.presetSave.addEventListener('click', savePreset);
@@ -68,22 +70,48 @@ function commit(next, message) {
 }
 
 function edit(code, change) {
-  const next = state.draftSubjects.map((s) => (s.code === code ? { ...s, ...change } : s));
+  const next = state.draftSubjects.map((s) => (s.code === code ? { ...s, ...change, code: s.code } : s));
   return commit(next);
 }
 
-function addSubject() {
+function startAddSubject() {
   setExpanded(true);
-  const used = new Set(state.draftSubjects.map((s) => s.code));
-  let n = state.draftSubjects.length + 1;
-  let code = codeFromName(`SUBJECT ${n}`);
-  while (used.has(code)) { n += 1; code = codeFromName(`SUBJECT ${n}`); }
-  const next = state.draftSubjects.concat([{
-    code, name: `Subject ${n}`, color: PALETTE[state.draftSubjects.length % PALETTE.length], active: true,
-  }]);
-  if (commit(next, `Added ${code}. Rename it; the code stays fixed.`)) focusRow(code);
+  pendingNew = {
+    code: '',
+    name: '',
+    color: PALETTE[state.draftSubjects.length % PALETTE.length],
+    codeTouched: false,
+    error: '',
+  };
+  render();
+  const codeInput = dom.subjectList.querySelector('input[data-new-field="code"]');
+  if (codeInput) codeInput.focus();
 }
 
+function confirmAddSubject() {
+  if (!pendingNew) return;
+  const codeEl = dom.subjectList.querySelector('input[data-new-field="code"]');
+  const nameEl = dom.subjectList.querySelector('input[data-new-field="name"]');
+  const colorEl = dom.subjectList.querySelector('input[data-new-field="color"]');
+  if (codeEl) pendingNew.code = codeEl.value;
+  if (nameEl) pendingNew.name = nameEl.value;
+  if (colorEl) pendingNew.color = colorEl.value;
+  const res = validateNewSubject(pendingNew, state.draftSubjects);
+  if (res.error) {
+    pendingNew.error = res.error;
+    dom.subjectStatus.textContent = res.error;
+    render();
+    const target = dom.subjectList.querySelector('input[data-new-field="code"]');
+    if (target) target.focus();
+    return;
+  }
+  const created = res.subject;
+  pendingNew = null;
+  const next = state.draftSubjects.concat([created]);
+  if (commit(next, `Added ${created.code}. Rename it anytime; the code stays fixed.`)) {
+    focusRow(created.code);
+  }
+}
 function removeSubject(code) {
   const referenced = deps.referencedCodes().includes(code);
   if (referenced) {
@@ -102,6 +130,16 @@ function focusRow(code) {
 function onListClick(e) {
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
+  if (btn.dataset.act === 'create-subject') {
+    confirmAddSubject();
+    return;
+  }
+  if (btn.dataset.act === 'cancel-add') {
+    pendingNew = null;
+    render();
+    dom.subjectAdd.focus();
+    return;
+  }
   const code = btn.dataset.code;
   if (btn.dataset.act === 'retire') {
     const current = state.draftSubjects.find((s) => s.code === code);
@@ -118,6 +156,40 @@ function onListClick(e) {
     openPaletteCode = null;
     edit(code, { color: btn.dataset.color });
     focusRow(code);
+  }
+}
+
+function onListInput(e) {
+  const input = e.target.closest('input[data-new-field]');
+  if (!input || !pendingNew) return;
+  const field = input.dataset.newField;
+  if (field === 'code') {
+    pendingNew.code = input.value;
+    pendingNew.codeTouched = input.value.trim() !== '';
+  } else if (field === 'name') {
+    pendingNew.name = input.value;
+    if (!pendingNew.codeTouched) {
+      const suggested = codeFromName(input.value);
+      pendingNew.code = suggested;
+      const codeEl = dom.subjectList.querySelector('input[data-new-field="code"]');
+      if (codeEl) codeEl.value = suggested;
+    }
+  } else if (field === 'color') {
+    pendingNew.color = input.value;
+  }
+}
+
+function onListKeydown(e) {
+  const input = e.target.closest('input[data-new-field]');
+  if (!input || !pendingNew) return;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    confirmAddSubject();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    pendingNew = null;
+    render();
+    dom.subjectAdd.focus();
   }
 }
 
@@ -163,12 +235,66 @@ function el(tag, cls, text) {
 export function render() {
   if (!dom.subjectList) return;
   dom.subjectList.replaceChildren();
-  if (!state.draftSubjects.length) {
+  if (!state.draftSubjects.length && !pendingNew) {
     dom.subjectStatus.textContent = EMPTY;
   } else if (dom.subjectStatus.textContent === EMPTY) {
     dom.subjectStatus.textContent = '';   // a stale empty-state line must not outlive the data
   }
   const referenced = new Set(deps.referencedCodes());
+
+  if (pendingNew) {
+    const li = el('li', 'history-item');
+    li.id = 'subject-new-row';
+    const head = el('div', 'history-head');
+    head.appendChild(el('span', 'history-label', 'New subject (code stays fixed once created)'));
+
+    const codeWrap = el('label', 'search');
+    const codeInput = document.createElement('input');
+    codeInput.type = 'text';
+    codeInput.value = pendingNew.code;
+    codeInput.maxLength = 32;
+    codeInput.placeholder = 'Code (e.g. CHEM1)';
+    codeInput.dataset.newField = 'code';
+    codeInput.setAttribute('aria-label', 'New subject code');
+    codeWrap.appendChild(codeInput);
+    head.appendChild(codeWrap);
+
+    const nameWrap = el('label', 'search');
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = pendingNew.name;
+    nameInput.maxLength = MAX_NAME;
+    nameInput.placeholder = 'Subject name';
+    nameInput.dataset.newField = 'name';
+    nameInput.setAttribute('aria-label', 'New subject name');
+    nameWrap.appendChild(nameInput);
+    head.appendChild(nameWrap);
+
+    const picker = document.createElement('input');
+    picker.type = 'color';
+    picker.value = pendingNew.color;
+    picker.dataset.newField = 'color';
+    picker.setAttribute('aria-label', 'Pick a colour for new subject');
+    head.appendChild(picker);
+
+    const actions = el('div', 'history-bar');
+    const createBtn = el('button', 'primary-button', 'Create subject');
+    createBtn.type = 'button';
+    createBtn.dataset.act = 'create-subject';
+    const cancelBtn = el('button', 'text-button', 'Cancel');
+    cancelBtn.type = 'button';
+    cancelBtn.dataset.act = 'cancel-add';
+    actions.append(createBtn, cancelBtn);
+    head.appendChild(actions);
+
+    li.appendChild(head);
+    if (pendingNew.error) {
+      const errP = el('p', 'history-detail', pendingNew.error);
+      errP.setAttribute('role', 'alert');
+      li.appendChild(errP);
+    }
+    dom.subjectList.appendChild(li);
+  }
 
   for (const s of state.draftSubjects) {
     const li = el('li', 'history-item');

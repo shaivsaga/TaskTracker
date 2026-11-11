@@ -19,6 +19,7 @@
 
 import { state } from './state.js';
 import { plural } from './util.js';
+import { subjectFor } from './subjects.js';
 
 let recordSource = null;    // () => the task list the renderers read (state.isAdmin is read inside it)
 let openTaskDialog = null;  // opens the task dialog when a chip is clicked
@@ -48,13 +49,24 @@ function calRange() {
   return { start: new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay()), days: Math.ceil((first.getDay() + last.getDate()) / 7) * 7 };
 }
 
+// A custom hex colour has no shipped class, so the dot carries the definition's colour itself.
+function subjectDot(code) {
+  const dot = document.createElement('span');
+  const cls = code && subjects()[code] ? subjects()[code] : '';
+  dot.className = 'cal-dot' + (cls ? ` ${cls}` : '');
+  if (code && !cls) {
+    const def = subjectFor(state.catalog, code);
+    if (def) dot.style.setProperty('--tag', def.color);
+  }
+  return dot;
+}
 function createCalChip(task) {
   const chip = document.createElement('button');
   chip.type = 'button';
   chip.className = 'cal-chip' + (task.status !== 'done' && task.isOverdue() ? ' is-overdue' : '');
   chip.dataset.status = task.status;
   chip.title = (task.subject ? `${task.subject} · ` : '') + task.title;
-  if (task.subject) { const dot = document.createElement('span'); dot.className = `cal-dot ${subjects()[task.subject] || ''}`; chip.appendChild(dot); }
+  if (task.subject) chip.appendChild(subjectDot(task.subject));
   if (task.dueTime) { const t = document.createElement('span'); t.className = 'cal-time'; t.textContent = task.getTimeLabel(); chip.appendChild(t); }
   const title = document.createElement('span');
   title.className = 'cal-chip-title';
@@ -75,9 +87,7 @@ function createCalDots(list) {
   // Completion never reserves a marker slot; rank the remaining tasks before limiting them.
   const open = list.filter((t) => t.status !== 'done');
   open.sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
-    const dot = document.createElement('span');
-    dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '');
-    wrap.appendChild(dot);
+    wrap.appendChild(subjectDot(t.subject));
   });
   if (open.length > 3) {
     const more = document.createElement('span');

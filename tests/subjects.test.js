@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import {
   PALETTE, MAX_SUBJECTS, validateSubjects, subjectTextColor, contrastRatio, luminance,
   applyPresetCatalog, describePreset, subjectFor, assignableSubjects, catalogSignature,
-  retiredSubject, codeFromName,
+  retiredSubject, codeFromName, subjectDisplayName, validateNewSubject,
 } from '../js/subjects.js';
 
 const S = (code, extra = {}) => ({ code, name: code, color: '#58affc', active: true, ...extra });
@@ -126,4 +126,27 @@ test('a code suggested from a name is uppercase, legal, and empty when it cannot
   assert.equal(codeFromName('Data Structures'), 'DATASTRUCTURES');
   assert.equal(codeFromName('finite math 101'), 'FINITEMATH101');
   assert.equal(codeFromName('!!!'), '');
+});
+
+test('subjectDisplayName prefers the renamed name and falls back to the code', () => {
+  const catalog = [{ code: 'SUBJECT11', name: 'Chemistry', color: '#58affc', active: true },
+    { code: 'GENSCI', name: '  ', color: '#70d1fe', active: true }];
+  assert.equal(subjectDisplayName(catalog, 'SUBJECT11'), 'Chemistry');
+  assert.equal(subjectDisplayName(catalog, 'GENSCI'), 'GENSCI');
+  assert.equal(subjectDisplayName(catalog, 'MISSING'), 'MISSING');
+  assert.equal(subjectDisplayName(catalog, ''), '');
+});
+
+test('validateNewSubject accepts an admin-chosen code, normalises case, and rejects duplicates and blanks', () => {
+  const existing = [S('EFFCOM')];
+  const ok = validateNewSubject({ code: 'chem1', name: 'Chemistry 1' }, existing);
+  assert.deepEqual(ok.subject, { code: 'CHEM1', name: 'Chemistry 1', color: PALETTE[1], active: true });
+  assert.match(validateNewSubject({ code: 'EFFCOM', name: 'Dup' }, existing).error, /already used/);
+  assert.match(validateNewSubject({ code: '', name: '' }, existing).error, /Enter a code/);
+  assert.match(validateNewSubject({ code: 'constructor', name: 'X' }, existing).error, /reserved/);
+  assert.match(validateNewSubject({ code: 'BAD CODE', name: 'X' }, existing).error, /Enter a code/);
+  // a code is derived from the name when omitted
+  assert.equal(validateNewSubject({ name: 'Data Structures' }, existing).subject.code, 'DATASTRUCTURES');
+  // an omitted name falls back to the code, so a subject is never nameless
+  assert.equal(validateNewSubject({ code: 'PE2' }, existing).subject.name, 'PE2');
 });
