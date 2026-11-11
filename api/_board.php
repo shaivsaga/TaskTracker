@@ -511,8 +511,12 @@ function tt_next_snapshot_id($verDir, $now) {
 
 function tt_prune_versions($verDir, $keepFile) {
     $keep = 20;
-    if (is_file(dirname($verDir) . '/config.php')) {
-        $config = require dirname($verDir) . '/config.php';
+    // api/config.php is tracked, so the retention production runs with is reviewable.
+    // It used to be read from data/config.php, which is gitignored and never deployed, so the
+    // value on the host was invisible and the file in the repo changed nothing.
+    $configFile = __DIR__ . '/config.php';
+    if (is_file($configFile)) {
+        $config = require $configFile;
         $v = filter_var(is_array($config) ? ($config['keep_versions'] ?? null) : null, FILTER_VALIDATE_INT);
         if ($v !== false && $v >= 1) $keep = max(3, $v);
     }

@@ -1,4 +1,12 @@
-# Owner decision briefs — F1, F2, F3, Phase 4 S1b, Phase 5 stamp-vs-no-cache
+# Owner decision briefs — F1, F2, F3, Optimizing board (future), Phase 5 stamp-vs-no-cache
+
+**Status, 2026-11-12.** Phase 5 is done and verified live: `app.js` fetches a stable `API.current`
+URL with `cache: 'no-cache'`, and the host answers 304. The externalised-body format (formerly
+"Phase 4 S1b") was never built, and its motivation has gone — the live board is 7,438 bytes with no
+pasted-image data URIs. It is renamed **Optimizing board (future)** and parked on the roadmap.
+F1 (ref-carry invariant) and F3 (hash validation) stay valid only as preconditions if that work is
+ever revived. F2 (migration locking) applies to any one-off data migration, including the
+second-section `data/` move.
 
 **Worktree:** `TT-ov-briefs` @ `ov/owner-briefs` (origin/main `2222eb4`) · **Date:** 2026-11-01
 **Documentation only.** Nothing here is implemented and no approval is assumed. Each section ends
@@ -277,7 +285,7 @@ publish time.
 
 ---
 
-## Phase 4 S1b — Externalized document bodies
+## Optimizing board (future) — externalized document bodies (parked, not built)
 
 ### Current storage format
 
