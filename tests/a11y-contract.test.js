@@ -88,3 +88,30 @@ test('task dialog subject dropdown supports keyboard navigation, aria-selected, 
   assert.match(TASKS, /&& dom\.dialogSubjectDropdown\.hidden\) closeTaskDialog\(\)/,
     'Escape must not close the task dialog while #dialog-subject-dropdown is open');
 });
+
+test('read-only dialog values look sunk, are named, and stay out of the tab order', () => {
+  assert.match(CSS, /\.prop-value:disabled \{ cursor: default; border-color: var\(--ln\); background: var\(--sf2\); \}/,
+    'a disabled property value must drop to the sunk surface at every width, not only on phones');
+  assert.match(CSS, /\.task-dialog\.is-readonly \.dialog-doc \{[^}]*border-color: var\(--ln\); background: var\(--sf2\);/,
+    'the read-only notes box must read as sunk at every width');
+  assert.match(TASKS, /setAttribute\('tabindex', ro \? '-1' : '0'\)/,
+    'the read-only title must leave the tab order so focus starts on a real control');
+  assert.match(TASKS, /else dom\.dialogSubjectBtn\.textContent = isEditable\(task\) \? 'Add subject' : 'None';/,
+    'a student sees None, never an admin prompt, on an untagged task');
+  assert.match(TASKS, /empty \? \(editable \? 'Add due date' : 'No due date'\)/, 'a student sees No due date on an undated task');
+  assert.match(TASKS, /dialogStatusBtn\.setAttribute\('aria-label', `Status: \$\{s\.label\}`\)/, 'the status control must name its field and value');
+  assert.match(TASKS, /dialogDateBtn\.setAttribute\('aria-label', empty \? 'Due: no due date' : `Due: \$\{task\.getDueShort\(\)\}`\)/,
+    'the due control must name its field and value');
+  assert.match(HTML, /<span class="field-label">Status<\/span>/, 'field labels must not be <label> elements with no control');
+});
+
+test('AA-safe dark hovers, overdue time contrast, and mobile 44px targets', () => {
+  assert.match(CSS, /:root\[data-theme="dark"\] \.primary-button:hover,/, 'dark hover must not put --onac on --acd');
+  assert.match(CSS, /:root\[data-theme="dark"\] \.text-button:hover,/, 'dark text-button hover must keep AA contrast');
+  assert.match(CSS, /\.cal-chip\.is-overdue \.cal-time \{ color: var\(--er\); font-weight: 600; \}/,
+    'the overdue time keeps the red but drops the wash that measured 4.4:1');
+  assert.match(CSS, /\.text-button \{ display: inline-flex; align-items: center; min-height: 44px; \}/,
+    'phone text buttons must reach the 44px touch floor');
+  assert.match(CSS, /\.history-item \.text-button, \.file-item \.text-button \{ height: 44px; \}/, 'phone history and file buttons must reach 44px');
+  assert.match(CSS, /\.quick-chip-btn \{ min-height: 44px; \}/, 'phone quick-add chips must reach 44px');
+});

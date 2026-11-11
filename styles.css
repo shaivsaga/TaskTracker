@@ -485,8 +485,8 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .prop-value { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 12px; font-weight: 600; line-height: 16px; cursor: pointer; }
 .prop-value:hover { border-color: var(--ac); background: var(--sf2); }
 .prop-value.empty-value { color: var(--mu); }
-.prop-value:disabled { cursor: default; }
-.prop-value:disabled:hover { background: var(--sf); border-color: var(--mu); }
+.prop-value:disabled { cursor: default; border-color: var(--ln); background: var(--sf2); }
+.prop-value:disabled:hover { background: var(--sf2); border-color: var(--ln); }
 .prop-clear { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
 .prop-clear:hover { border-color: var(--ac); color: var(--tx); }
 .prop-clear-icon { width: 16px; height: 16px; stroke-width: 2.5; }
@@ -510,7 +510,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .dialog-footer { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 12px 16px; border-top: 2px solid var(--ln); }
 .save-state { margin-right: auto; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; }
 .task-dialog.is-readonly .dialog-title-input { cursor: default; }
-.task-dialog.is-readonly .dialog-doc { min-height: 48px; }
+.task-dialog.is-readonly .dialog-doc { min-height: 48px; border-color: var(--ln); background: var(--sf2); }
 /* [[/section:dialogs]] */
 
 /* [[section:quick-add]] */
@@ -606,7 +606,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-chip[data-status="in_progress"] { --edge: var(--ac); }
 .cal-chip[data-status="done"] { --edge: var(--ok); color: var(--mu); }
 .cal-chip[data-status="done"] .cal-chip-title { text-decoration: line-through; }
-.cal-chip.is-overdue .cal-time { padding: 0 4px; color: var(--er); background: var(--erb); font-weight: 600; }
+/* The overdue pill's red on the cell's wash measured 4.4:1; the same red on --sf2 is 5.2:1, so the
+   time keeps the weight and colour but not the wash behind it. */
+.cal-chip.is-overdue .cal-time { color: var(--er); font-weight: 600; }
 .cal-time { flex: none; color: var(--mu); font-weight: 500; font-variant-numeric: tabular-nums; }
 .cal-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 /* the mockup's dot ring: outline 1px var(--pl) (mockup 135/316), which its dark --pl makes invisible */
@@ -725,8 +727,6 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .dialog-controls .field-due { grid-column: 1 / -1; }
   .dialog-controls .prop-value { width: 100%; min-height: 44px; padding: 0 12px; justify-content: flex-start; font-size: 14px; line-height: 20px; }
   .due-controls .prop-value { flex: 1; min-width: 0; }
-  .dialog-controls .prop-value:disabled { border-color: var(--ln); background: var(--sf2); }
-  .task-dialog.is-readonly .dialog-doc { border-color: var(--ln); background: var(--sf2); }
   .task-row .task-delete-btn, .announce-item .task-delete-btn { width: 44px; height: 44px; }
   .task-card .task-delete-btn { width: 44px; height: 44px; margin: -12px -8px -12px 0; }
   .announce-item { grid-template-columns: minmax(0, 1fr) auto 44px; }
@@ -846,11 +846,29 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (prefers-contrast: more) {
   body { --ln: var(--mu); }
 }
+/* Night: --acd darkens toward the page, so --onac text on a --acd fill (4.0:1) and --acd text on
+   --sf2 (3.2:1) both fall under AA. Hover keeps --ac and marks itself with the 2px edge instead. */
+:root[data-theme="dark"] .primary-button:hover,
+:root[data-theme="dark"] .primary-button:active { background: var(--ac); border-color: var(--ac); }
+:root[data-theme="dark"] .primary-button:hover { box-shadow: inset 0 0 0 2px var(--tx), 0 2px 0 var(--sh); }
+:root[data-theme="dark"] .text-button:hover,
+:root[data-theme="dark"] .announce-text a:hover,
+:root[data-theme="dark"] .dialog-doc a:hover,
+:root[data-theme="dark"] .file-item a:hover { color: var(--ac); }
 /* [[/section:a11y]] */
 
 /* Admin actions are one flat row of buttons: no menu to open, so Preview, History and Discard are one
    press away. The row wraps inside the bar and the phone gets 44px targets. */
 @media (max-width: 719px) { .admin-actions .text-button { height: 44px; } }
+
+/* Phones: every text button, chip and picker control reaches the 44px floor, including the ones that
+   are bare links at 20px on desktop. The classes keep their own look; only the hit box grows. */
+@media (max-width: 719px) {
+  .text-button { display: inline-flex; align-items: center; min-height: 44px; }
+  .history-item .text-button, .file-item .text-button { height: 44px; }
+  .quick-chip-btn { min-height: 44px; }
+  .dp-nav, .dp-input { height: 44px; }
+}
 
 /* Forced colors: sprite colors are not ours to control there, so labels carry every tab and the
    active tab is marked with the system highlight. */

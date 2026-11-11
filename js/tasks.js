@@ -811,11 +811,14 @@ export function fitDialogTitle() {
   dom.dialogTitleInput.style.height = dom.dialogTitleInput.scrollHeight + 'px';
 }
 export function updateDialogDue(task) {
-  dom.dialogDateBtn.textContent = task.dueDate ? task.getDueShort() : 'Add due date';
+  const editable = isEditable(task);
+  const empty = !task.dueDate;
+  dom.dialogDateBtn.textContent = empty ? (editable ? 'Add due date' : 'No due date') : task.getDueShort();
   dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
   dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
-  dom.dialogDateBtn.classList.toggle('empty-value', !task.dueDate);
-  dom.dialogDueClear.hidden = !task.dueDate || !isEditable(task);
+  dom.dialogDateBtn.classList.toggle('empty-value', empty);
+  dom.dialogDateBtn.setAttribute('aria-label', empty ? 'Due: no due date' : `Due: ${task.getDueShort()}`);
+  dom.dialogDueClear.hidden = empty || !editable;
 }
 export function updateDialogStatus(task) {
   const map = {
@@ -827,6 +830,7 @@ export function updateDialogStatus(task) {
   dom.dialogStatusLabel.textContent = s.label;
   dom.dialogStatusDot.className = `status-dot ${s.dot}`;
   dom.dialogStatusBtn.className = `prop-value status-value ${s.cls}`;
+  dom.dialogStatusBtn.setAttribute('aria-label', `Status: ${s.label}`);
 }
 // --- Links in notes: made at render time, never stored. sanitizeDoc flattens <a> back to its text on save. ---
 const URL_RE = /https?:\/\/[^\s<>"']+/gi;
@@ -889,6 +893,7 @@ export function openTaskDialog(task) {
   const ro = !isEditable(task);
   dom.dialog.classList.toggle('is-readonly', ro);
   dom.dialogTitleInput.readOnly = ro;
+  dom.dialogTitleInput.setAttribute('tabindex', ro ? '-1' : '0');
   dom.dialogDoc.contentEditable = ro ? 'false' : 'true';
   dom.dialogDoc.dataset.placeholder = ro ? 'No notes for this task.' : 'Write notes, or drop images here';
   dom.dialogSubjectBtn.disabled = ro;
@@ -1366,7 +1371,10 @@ export function updateDialogSubject(task) {
   dom.dialogSubjectBtn.innerHTML = '';
   dom.dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
   if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
-  else dom.dialogSubjectBtn.textContent = 'Add subject';
+  else dom.dialogSubjectBtn.textContent = isEditable(task) ? 'Add subject' : 'None';
+  dom.dialogSubjectBtn.setAttribute('aria-label', task.subject
+    ? `Subject: ${dom.dialogSubjectBtn.textContent.trim()}`
+    : `Subject: ${isEditable(task) ? 'none chosen' : 'none'}`);
   closeSubjectDropdown(false);
   paintSubjectDropdown();
 }
