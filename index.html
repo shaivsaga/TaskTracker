@@ -204,36 +204,6 @@
               </form>
               <ul class="announce-list" id="announce-list"></ul>
             </section>
-            <section class="announcements" id="bin-panel" aria-label="Recycle bin">
-              <div class="announce-header">
-                <h2>Recycle bin</h2>
-                <button class="text-button" type="button" id="bin-refresh">Refresh</button>
-              </div>
-              <p class="page-supporting-copy">Deleted drafts and every task removed from the class board are kept here. Restoring puts a copy back in your draft; it stays private until you publish.</p>
-              <p class="summary" id="bin-status" role="status"></p>
-              <ul class="history-list" id="bin-list"></ul>
-            </section>
-            <section class="announcements" id="subject-panel" aria-label="Subjects">
-              <div class="announce-header">
-                <h2>Subjects</h2>
-                <button class="text-button" type="button" id="subject-add">Add subject</button>
-              </div>
-              <p class="page-supporting-copy">Rename or recolour any subject here. A code never changes, so no task is re-tagged; retiring a subject removes it from new choices but keeps it on the tasks that already use it.</p>
-              <ul class="history-list" id="subject-list"></ul>
-              <div class="announce-actions">
-                <label class="sr-only" for="preset-select">Saved presets</label>
-                <select id="preset-select"></select>
-                <button class="text-button" type="button" id="preset-apply">Apply</button>
-                <button class="text-button" type="button" id="preset-delete">Delete</button>
-              </div>
-              <div class="announce-actions">
-                <label class="search" for="preset-name">
-                  <input id="preset-name" type="text" maxlength="100" placeholder="Preset name" aria-label="New preset name">
-                </label>
-                <button class="secondary-button" type="button" id="preset-save">Save as preset</button>
-              </div>
-              <p class="summary" id="subject-status" role="status"></p>
-            </section>
             <div class="empty-state">
               <p>No tasks yet.</p>
               <button class="text-button" type="button" id="empty-add-btn">Add a task</button>
@@ -269,6 +239,42 @@
                 <div class="column-content is-empty"><p class="column-empty">Done tasks land here.</p></div>
               </div>
             </div>
+            <section class="announcements" id="bin-panel" aria-label="Recycle bin">
+              <div class="announce-header">
+                <h2>Recycle bin</h2>
+                <button class="text-button" type="button" id="bin-refresh" hidden>Refresh</button>
+                <button class="text-button" type="button" id="bin-toggle" aria-expanded="false" aria-controls="bin-body">Show recycle bin</button>
+              </div>
+              <div id="bin-body" hidden>
+                <p class="page-supporting-copy">Deleted drafts and every task removed from the class board are kept here. Restoring puts a copy back in your draft; it stays private until you publish.</p>
+                <p class="summary" id="bin-status" role="status"></p>
+                <ul class="history-list" id="bin-list"></ul>
+              </div>
+            </section>
+            <section class="announcements" id="subject-panel" aria-label="Subjects">
+              <div class="announce-header">
+                <h2>Subjects</h2>
+                <button class="text-button" type="button" id="subject-add" hidden>Add subject</button>
+                <button class="text-button" type="button" id="subject-toggle" aria-expanded="false" aria-controls="subject-body">Manage subjects</button>
+              </div>
+              <div id="subject-body" hidden>
+                <p class="page-supporting-copy">Rename or recolour any subject here. A code never changes, so no task is re-tagged; retiring a subject removes it from new choices but keeps it on the tasks that already use it.</p>
+                <ul class="history-list" id="subject-list"></ul>
+                <div class="announce-actions">
+                  <label class="sr-only" for="preset-select">Saved presets</label>
+                  <select id="preset-select"></select>
+                  <button class="text-button" type="button" id="preset-apply">Apply</button>
+                  <button class="text-button" type="button" id="preset-delete">Delete</button>
+                </div>
+                <div class="announce-actions">
+                  <label class="search" for="preset-name">
+                    <input id="preset-name" type="text" maxlength="100" placeholder="Preset name" aria-label="New preset name">
+                  </label>
+                  <button class="secondary-button" type="button" id="preset-save">Save as preset</button>
+                </div>
+                <p class="summary" id="subject-status" role="status"></p>
+              </div>
+            </section>
           </section>
 
           <section class="page utility-page" id="page-done" data-page-view="done" aria-label="Done" hidden>

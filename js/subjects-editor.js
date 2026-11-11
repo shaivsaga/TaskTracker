@@ -16,9 +16,33 @@ import { PALETTE, validateSubjects, subjectTextColor, codeFromName, MAX_NAME, de
 let deps = null;
 const EMPTY = 'No subjects configured yet. Add one, or apply a preset.';
 let rowError = new Map();   // code -> message, shown inline and never stored
+let openPaletteCode = null; // one subject row's swatch strip open at a time
+
+function setExpanded(open) {
+  if (!dom.subjectBody || !dom.subjectToggle) return;
+  const expanded = Boolean(open);
+  dom.subjectBody.hidden = !expanded;
+  if (dom.subjectAdd) dom.subjectAdd.hidden = !expanded;
+  dom.subjectToggle.setAttribute('aria-expanded', String(expanded));
+  syncToggleLabel();
+}
+
+function syncToggleLabel() {
+  if (!dom.subjectToggle) return;
+  const open = dom.subjectBody && !dom.subjectBody.hidden;
+  const count = state.draftSubjects.length;
+  dom.subjectToggle.textContent = open
+    ? 'Hide subjects'
+    : (count ? `Manage subjects (${count})` : 'Manage subjects');
+}
 
 export function init(d) {
   deps = d;
+  if (dom.subjectToggle) {
+    dom.subjectToggle.addEventListener('click', () => {
+      setExpanded(dom.subjectBody ? dom.subjectBody.hidden : true);
+    });
+  }
   dom.subjectAdd.addEventListener('click', addSubject);
   dom.subjectList.addEventListener('click', onListClick);
   dom.subjectList.addEventListener('change', onListChange);
@@ -49,6 +73,7 @@ function edit(code, change) {
 }
 
 function addSubject() {
+  setExpanded(true);
   const used = new Set(state.draftSubjects.map((s) => s.code));
   let n = state.draftSubjects.length + 1;
   let code = codeFromName(`SUBJECT ${n}`);
@@ -82,8 +107,15 @@ function onListClick(e) {
     const current = state.draftSubjects.find((s) => s.code === code);
     if (current) edit(code, { active: !current.active });
   } else if (btn.dataset.act === 'remove') {
+    if (openPaletteCode === code) openPaletteCode = null;
     removeSubject(code);
+  } else if (btn.dataset.act === 'palette') {
+    openPaletteCode = openPaletteCode === code ? null : code;
+    render();
+    const toggle = dom.subjectList.querySelector(`button[data-act="palette"][data-code="${CSS.escape(code)}"]`);
+    if (toggle) toggle.focus();
   } else if (btn.dataset.act === 'swatch') {
+    openPaletteCode = null;
     edit(code, { color: btn.dataset.color });
     focusRow(code);
   }
@@ -181,7 +213,20 @@ export function render() {
     picker.setAttribute('aria-label', `Pick a colour for ${s.code}`);
     head.appendChild(picker);
 
+    const paletteOpen = openPaletteCode === s.code;
+    const paletteId = `palette-${s.code}`;
+    const paletteBtn = el('button', 'text-button', paletteOpen ? 'Hide palette' : 'Palette');
+    paletteBtn.type = 'button';
+    paletteBtn.dataset.act = 'palette';
+    paletteBtn.dataset.code = s.code;
+    paletteBtn.setAttribute('aria-label', `${paletteOpen ? 'Hide' : 'Show'} palette for ${s.code}`);
+    paletteBtn.setAttribute('aria-expanded', String(paletteOpen));
+    paletteBtn.setAttribute('aria-controls', paletteId);
+    head.appendChild(paletteBtn);
+
     const swatches = el('div', 'history-bar');
+    swatches.id = paletteId;
+    swatches.hidden = !paletteOpen;
     swatches.setAttribute('role', 'group');
     swatches.setAttribute('aria-label', `Palette for ${s.code}`);
     for (const color of PALETTE) {
@@ -199,7 +244,6 @@ export function render() {
       swatches.appendChild(b);
     }
     head.appendChild(swatches);
-
     const actions = el('div', 'history-bar');
     const retire = el('button', 'text-button', s.active ? 'Retire' : 'Restore to choices');
     retire.type = 'button';
@@ -226,6 +270,7 @@ export function render() {
     }
     dom.subjectList.appendChild(li);
   }
+  syncToggleLabel();
   renderPresets();
 }
 

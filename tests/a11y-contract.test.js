@@ -20,7 +20,8 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const HTML = read('index.html');
 const TASKS = read('js/tasks.js');
 const ANNOUNCE = read('js/announcements.js');
-
+const BIN = read('js/bin.js');
+const SUBJECTS_EDITOR = read('js/subjects-editor.js');
 test('the four task lists are role="list" so their aria-label names a role that accepts one', () => {
   for (const id of ['class-task-list', 'task-list', 'done-list', 'past-list']) {
     const tag = HTML.match(new RegExp('<(?:div|ul)[^>]*id="' + id + '"[^>]*>'));
@@ -49,4 +50,22 @@ test('the pinned-announcement collapse is a phone affordance only', () => {
 test('archive Delete arms before it deletes', () => {
   assert.match(TASKS, /armInlineConfirm\(b, label, confirmLabel, fn\)/, 'mkBtn must route confirmed actions through the 4s inline arm');
   assert.match(TASKS, /mkBtn\('Delete', \(\) => deleteTask\(task\), 'Confirm deleting this task'\)/, 'the archive Delete must pass a confirm label');
+});
+
+test('admin task board precedes collapsed Recycle bin and Subjects panels', () => {
+  const boardIdx = HTML.indexOf('aria-label="Personal task board"');
+  const binIdx = HTML.indexOf('id="bin-panel"');
+  const subjectIdx = HTML.indexOf('id="subject-panel"');
+  assert.ok(boardIdx > 0 && binIdx > boardIdx && subjectIdx > boardIdx,
+    'Personal task board must precede #bin-panel and #subject-panel so tasks are immediately reachable');
+  assert.match(HTML, /id="bin-toggle"[^>]*aria-expanded="false"[^>]*aria-controls="bin-body"/,
+    '#bin-toggle must control #bin-body and start collapsed');
+  assert.match(HTML, /<div id="bin-body" hidden>/, '#bin-body must be hidden by default');
+  assert.match(HTML, /id="subject-toggle"[^>]*aria-expanded="false"[^>]*aria-controls="subject-body"/,
+    '#subject-toggle must control #subject-body and start collapsed');
+  assert.match(HTML, /<div id="subject-body" hidden>/, '#subject-body must be hidden by default');
+  assert.match(BIN, /dom\.binToggle\.setAttribute\('aria-expanded'/, 'bin.js must update aria-expanded on #bin-toggle');
+  assert.match(SUBJECTS_EDITOR, /dom\.subjectToggle\.setAttribute\('aria-expanded'/, 'subjects-editor.js must update aria-expanded on #subject-toggle');
+  assert.match(SUBJECTS_EDITOR, /paletteBtn\.dataset\.act = 'palette'/, 'subjects-editor.js must disclose colour swatches per row via a palette button');
+  assert.match(SUBJECTS_EDITOR, /swatches\.hidden = !paletteOpen/, 'subject colour swatches must stay hidden until the row palette is opened');
 });

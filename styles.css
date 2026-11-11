@@ -178,8 +178,8 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .search input::placeholder { color: var(--mu); opacity: 1; }
 
 .class-filters { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.class-filters select { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
-.class-filters select:focus-visible { border-color: var(--ac); }
+.class-filters select, #preset-select { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
+.class-filters select:focus-visible, #preset-select:focus-visible { border-color: var(--ac); }
 @media (min-width: 720px) {
   #page-class-tasks[data-view="board"] .class-filters { display: none; }
 }
@@ -226,7 +226,9 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .announce-header h2::after { content: ''; flex: 1; height: 2px; background: var(--ln); }
 .announce-header h2 svg { width: 16px; height: 16px; color: var(--mu); stroke-width: 2; }
 .announce-form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; padding: 12px; border: 2px solid var(--ln); background: var(--sf2); }
-.announce-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.announce-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+#subject-panel .announce-actions { margin-top: 12px; }
+#preset-select { flex: 1 1 auto; min-width: 0; }
 .announce-count { margin-right: auto; padding: 0 6px; min-width: 20px; color: var(--mu); background: var(--sf2); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
 .announce-count.is-low { color: var(--er); }
 .announce-toolbar { display: inline-flex; align-self: flex-start; border: 2px solid var(--mu); background: var(--sf); }
@@ -566,7 +568,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* [[section:history]] */
 /* ---------- History ---------- */
-.history-bar { display: flex; justify-content: flex-end; }
+.history-bar { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .history-list, .history-detail { margin: 0; padding: 0; list-style: none; }
 .history-item { padding: 12px 0; border-top: 1px solid var(--ln); }
 .history-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

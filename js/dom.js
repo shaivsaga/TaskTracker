@@ -56,8 +56,12 @@ export function cacheDom() {
   dom.binList = document.querySelector('#bin-list');
   dom.binStatus = document.querySelector('#bin-status');
   dom.binRefresh = document.querySelector('#bin-refresh');
+  dom.binToggle = document.querySelector('#bin-toggle');
+  dom.binBody = document.querySelector('#bin-body');
   dom.subjectList = document.querySelector('#subject-list');
   dom.subjectAdd = document.querySelector('#subject-add');
+  dom.subjectToggle = document.querySelector('#subject-toggle');
+  dom.subjectBody = document.querySelector('#subject-body');
   dom.subjectStatus = document.querySelector('#subject-status');
   dom.presetSelect = document.querySelector('#preset-select');
   dom.presetName = document.querySelector('#preset-name');

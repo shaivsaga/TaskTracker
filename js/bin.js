@@ -23,9 +23,34 @@ let rows = [];
 let armed = null;          // { binId, action } - one armed row at a time
 let busy = false;
 
+function setExpanded(open) {
+  if (!dom.binBody || !dom.binToggle) return;
+  const expanded = Boolean(open);
+  dom.binBody.hidden = !expanded;
+  if (dom.binRefresh) dom.binRefresh.hidden = !expanded;
+  dom.binToggle.setAttribute('aria-expanded', String(expanded));
+  syncToggleLabel();
+}
+
+function syncToggleLabel() {
+  if (!dom.binToggle) return;
+  const open = dom.binBody && !dom.binBody.hidden;
+  dom.binToggle.textContent = open
+    ? 'Hide recycle bin'
+    : (rows.length ? `Show recycle bin (${rows.length})` : 'Show recycle bin');
+}
+
 export function init(d) {
   deps = d;
-  dom.binRefresh.addEventListener('click', () => { load(); });
+  if (dom.binToggle) {
+    dom.binToggle.addEventListener('click', () => {
+      setExpanded(dom.binBody ? dom.binBody.hidden : true);
+    });
+  }
+  dom.binRefresh.addEventListener('click', () => {
+    setExpanded(true);
+    load();
+  });
   dom.binList.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-bin-action]');
     if (!btn) return;
@@ -69,6 +94,7 @@ function render(data) {
   } else {
     say(`${rows.length} saved ${rows.length === 1 ? 'task' : 'tasks'}. A restored task goes into your draft; students see it only after you publish.`);
   }
+  syncToggleLabel();
   const reserved = new Set((data && Array.isArray(data.retiredDraftIds) ? data.retiredDraftIds : []).map((r) => r && r.id).filter(Boolean));
   for (const row of rows) {
     const li = el('li', 'history-item');
