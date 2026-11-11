@@ -79,12 +79,12 @@ Progress is personal and stays on the device. Tasks are shared and come from the
 
 ## Security notes
 
-- Admin sign-in uses HTTP Basic Authentication on one endpoint only, `api/login.php`, enforced by nginx. A successful sign-in sets an HttpOnly, SameSite=Lax session cookie. The server stores only a hash of the session token, and sessions expire after 60 days of inactivity. Every other admin endpoint checks that cookie and answers 401 without a browser password prompt. `api/logout.php` revokes the session.
+- Admin sign-in uses HTTP Basic Authentication on one endpoint only, `api/login.php`, enforced by nginx. A successful sign-in sets an HttpOnly, SameSite=Lax session cookie. The server stores only a hash of the session token, and sessions expire after 60 days of inactivity. Every other admin endpoint checks that cookie and answers 401 without a browser password prompt. `api/logout.php` revokes the session. Signing out ends that session only: other devices stay signed in until each one signs out or its session expires.
 - Publishing is validated on the server: field types and lengths, date and time formats, a maximum board size, and a rule that refuses to publish an empty board unless the president explicitly confirms clearing it.
 - Writes are serialized with a lock and replaced atomically, so a failed publish never leaves a half-written board.
 - Notes and announcements are sanitized to a small whitelist of tags before they are shown.
 - Uploads are admin only, limited to pdf, pptx, docx, jpg and png, checked by file content and not just the name, size limited, and stored under random names. Word and PowerPoint files always download.
-- Transfer endpoints rebuild every payload from a strict whitelist and are rate limited per IP address.
+- Transfer endpoints rebuild every payload from a strict whitelist and are rate limited per IP address. A link is a random 128-bit code that works for anyone who holds it, expires after 10 minutes and can be cancelled early.
 - Secret files, the `data/` folder and the `deploy/` folder are never served to the public. Only `data/current.json` is.
 
 ## Getting started locally
@@ -96,7 +96,7 @@ You need PHP 8.1 or newer, for example through XAMPP.
 3. Make sure the `data/` folder can be written by PHP. It is created on first use.
 4. To try the admin area, add `?admin` to the address. Signing in goes through `api/login.php`, which needs `REMOTE_USER` to be set by the web server. Locally, protect that one file with an `.htaccess` and `.htpasswd` of your own. They are not in this repository.
 
-`api/config.php` is optional. If it is missing, defaults are used.
+`api/config.php` holds server tuning only: how many board snapshots a publish keeps, and the upload size limits. It is tracked so the values production runs with can be reviewed, and it must stay free of secrets, which belong in `.env`. If the file is missing, the defaults in `api/_board.php` and `api/upload.php` apply (20 snapshots, 10 MB per file, 2048 MB in total). An older install may still have `data/config.php`; it is no longer read.
 
 ## Deployment
 
@@ -194,8 +194,7 @@ The PHP suite runs with `php tests/php/run.php` (with XAMPP, `C:\xampp\php\php.e
 
 ## Known limitations
 
-- Uploaded files are never deleted automatically, because older saved versions may still point to them. Cleanup of unused files is planned.
-- Images pasted into notes before this change are still stored inside the note.
+- Uploaded files are never deleted automatically, because older saved versions may still point to them. Deleting them is left to the admin, on purpose.
 - Progress lives in the browser, so it does not follow a person to a new device without Transfer.
 - An already-open tab keeps running the old files until it is reloaded. A normal reload fetches the latest ones.
 
@@ -203,14 +202,14 @@ The PHP suite runs with `php tests/php/run.php` (with XAMPP, `C:\xampp\php\php.e
 
 - [x] Phone calendar readability
 - [x] Add to home screen on iPhone
-- [ ] Update notice: a popup listing tasks that are new or changed since your last visit
-- [ ] Manage subjects from the admin area
+- [x] Update notice: a popup listing tasks that are new or changed since your last visit
+- [x] Manage subjects from the admin area
 - [x] File uploads for PDFs and images on tasks
-- [ ] Clean up unused uploaded files
-- [ ] Automatic cleanup of progress for deleted tasks
-- [ ] Optional personal to-do list, kept on the device
-- [ ] Automated tests for the core logic
-- [ ] Longer term: multi-section support
+- [x] Automated tests for the core logic
+- [ ] Soon: optional personal to-do list, kept on the device
+- [ ] A written, repeatable backup of the board and uploads
+- [ ] Optimizing board: move big note bodies out of the board file (future)
+- [ ] Second section support: plan first, build later — see [`docs/multi-section-plan.md`](docs/multi-section-plan.md)
 - [ ] Longer term: reminders and insights, designed with privacy first
 
 ## Decision notes

@@ -2,7 +2,6 @@ data/
 api/.htaccess
 api/.htaccess.bak
 api/.htpasswd
-api/config.php
 .vscode/
 
 # Local secrets: the app reads its real configuration from .env; only the template is tracked.
