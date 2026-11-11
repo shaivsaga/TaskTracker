@@ -38,7 +38,7 @@ import { state } from './state.js';
 import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, STATUS_TO_COLUMN, COLUMN_TO_STATUS } from './util.js';
 import * as motion from './motion.js';   // leaf helper: imports nothing, reads the DOM only
-import { classForColor } from './subjects.js';   // pure: colour -> shipped class
+import { classForColor, subjectDisplayName } from './subjects.js';   // pure: colour -> shipped class, code -> display name
 
 // --- Values app.js passes in through init(deps) ------------------------------------------------
 let Task = null;
@@ -126,18 +126,17 @@ function ensureConfirmDialog() {
   state.confirmOverlayEl = overlay;
   return overlay;
 }
-// Asks before a Done task is reopened. Runs onConfirm only on an explicit yes.
-function confirmReopen(task, newStatus, onConfirm, openerHint) {
+// Both preset application and reopening use the same keyboard and overlay lifecycle.
+export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, openerHint, taskId }) {
   const overlay = ensureConfirmDialog();
-  if (!overlay.hidden) return;
+  if (!overlay.hidden) { onCancel?.(); return; }
   const okBtn = overlay.querySelector('[data-confirm="ok"]');
   const cancelBtn = overlay.querySelector('[data-confirm="cancel"]');
   const opener = document.activeElement;
 
-  overlay.querySelector('#confirm-title').textContent = 'Reopen this task?';
-  overlay.querySelector('#confirm-message').textContent =
-    `\u201C${task.title}\u201D will move from Done to ${STATUS_LABELS[newStatus]}.`;
-  okBtn.textContent = 'Reopen';
+  overlay.querySelector('#confirm-title').textContent = title;
+  overlay.querySelector('#confirm-message').textContent = message;
+  okBtn.textContent = okLabel;
 
   const close = (accept) => {
     overlay.removeEventListener('keydown', onKey, true);
@@ -146,10 +145,11 @@ function confirmReopen(task, newStatus, onConfirm, openerHint) {
     cancelBtn.onclick = null;
     hideAnimated(overlay);
     if (accept) onConfirm();   // rebuilds the page first: the opener may not survive it
+    else onCancel?.();
     // The option that opened this confirm may be a hidden popover item; only a laid-out control counts.
     if (isLiveControl(opener) && opener.tabIndex >= 0) opener.focus();
     else if (isLiveControl(openerHint)) openerHint.focus();
-    else if (!focusTaskControl(task.id)) focusFallbackControl();
+    else if (!taskId || !focusTaskControl(taskId)) focusFallbackControl();
   };
   const onKey = (e) => {
     if (e.key === 'Escape') {
@@ -175,6 +175,13 @@ function confirmReopen(task, newStatus, onConfirm, openerHint) {
   overlay.addEventListener('keydown', onKey, true);
   motion.openOverlay(overlay);
   cancelBtn.focus();
+}
+function confirmReopen(task, newStatus, onConfirm, openerHint) {
+  confirmDialog({
+    title: 'Reopen this task?',
+    message: `\u201C${task.title}\u201D will move from Done to ${STATUS_LABELS[newStatus]}.`,
+    okLabel: 'Reopen', onConfirm, openerHint, taskId: task.id,
+  });
 }
 // --- Persistence: progress (everyone) + draft (admin) ---
 // Returns whether both writes succeeded. A caller must never show "deleted"/"saved" when this is
@@ -390,17 +397,18 @@ function syncClassSubjectOptions(all) {
   const select = document.querySelector('#class-subject-filter');
   if (!select) return;
   const codes = classSubjectCodes(all);
-  const current = [...select.options].slice(1).map((o) => o.value);
-  if (current.length !== codes.length || current.some((v, i) => v !== codes[i])) {
+  const labels = codes.map((code) => subjectDisplayName(state.catalog, code));
+  const current = [...select.options].slice(1);
+  if (current.length !== codes.length || current.some((o, i) => o.value !== codes[i] || o.textContent !== labels[i])) {
     select.replaceChildren();
     const allOpt = document.createElement('option');
     allOpt.value = '';
     allOpt.textContent = 'Subject: All';
     select.appendChild(allOpt);
-    codes.forEach((code) => {
+    codes.forEach((code, i) => {
       const opt = document.createElement('option');
       opt.value = code;
-      opt.textContent = code;
+      opt.textContent = labels[i];
       select.appendChild(opt);
     });
   }
@@ -431,6 +439,18 @@ function clearClassFilters() {
   renderClassTasks();
   if (search) search.focus();
 }
+function classUrgencyBucket(task) {
+  if (task.status === 'done') return 3;
+  if (!task.dueDate) return 2;
+  const diff = dayDiff(task.dueDate);
+  if (!task.isOverdue() && diff >= 0 && diff <= 1) return 0;
+  if (task.isOverdue()) return 1;
+  return 2;
+}
+function orderClassTasks(list) {
+  const sorted = sortTasks(list);
+  return sorted.slice().sort((a, b) => classUrgencyBucket(a) - classUrgencyBucket(b));
+}
 export function renderClassTasks() {
   const board = document.querySelector('#class-board');
   board.querySelectorAll('.column-content').forEach((c) => {
@@ -440,7 +460,7 @@ export function renderClassTasks() {
   const q = state.classSearchQuery.trim().toLowerCase();
   syncClassSubjectOptions(all);
   document.querySelector('#class-status-filter').value = state.classStatusFilter;
-  const searched = sortTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
+  const searched = orderClassTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
   const visible = searched.filter(matchesClassFilters);
   searched.forEach((task) => {
     const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
@@ -797,11 +817,14 @@ export function fitDialogTitle() {
   dom.dialogTitleInput.style.height = dom.dialogTitleInput.scrollHeight + 'px';
 }
 export function updateDialogDue(task) {
-  dom.dialogDateBtn.textContent = task.dueDate ? task.getDueShort() : 'Add due date';
+  const editable = isEditable(task);
+  const empty = !task.dueDate;
+  dom.dialogDateBtn.textContent = empty ? (editable ? 'Add due date' : 'No due date') : task.getDueShort();
   dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
   dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
-  dom.dialogDateBtn.classList.toggle('empty-value', !task.dueDate);
-  dom.dialogDueClear.hidden = !task.dueDate || !isEditable(task);
+  dom.dialogDateBtn.classList.toggle('empty-value', empty);
+  dom.dialogDateBtn.setAttribute('aria-label', empty ? 'Due: no due date' : `Due: ${task.getDueShort()}`);
+  dom.dialogDueClear.hidden = empty || !editable;
 }
 export function updateDialogStatus(task) {
   const map = {
@@ -813,6 +836,7 @@ export function updateDialogStatus(task) {
   dom.dialogStatusLabel.textContent = s.label;
   dom.dialogStatusDot.className = `status-dot ${s.dot}`;
   dom.dialogStatusBtn.className = `prop-value status-value ${s.cls}`;
+  dom.dialogStatusBtn.setAttribute('aria-label', `Status: ${s.label}`);
 }
 // --- Links in notes: made at render time, never stored. sanitizeDoc flattens <a> back to its text on save. ---
 const URL_RE = /https?:\/\/[^\s<>"']+/gi;
@@ -875,6 +899,7 @@ export function openTaskDialog(task) {
   const ro = !isEditable(task);
   dom.dialog.classList.toggle('is-readonly', ro);
   dom.dialogTitleInput.readOnly = ro;
+  dom.dialogTitleInput.setAttribute('tabindex', ro ? '-1' : '0');
   dom.dialogDoc.contentEditable = ro ? 'false' : 'true';
   dom.dialogDoc.dataset.placeholder = ro ? 'No notes for this task.' : 'Write notes, or drop images here';
   dom.dialogSubjectBtn.disabled = ro;
@@ -1181,6 +1206,43 @@ export function syncSubjectMap(catalog) {
 
 // The dialog's subject choices: None plus every assignable code. Rebuilt on a catalogue change so a
 // retired subject disappears from the picker without touching a task that already uses it.
+let subjectDropdownIndex = 0;
+function paintSubjectDropdown() {
+  if (!dom.dialogSubjectDropdown) return;
+  const cur = state.currentTask ? (state.currentTask.subject || '') : '';
+  [...dom.dialogSubjectDropdown.children].forEach((opt, i) => {
+    opt.classList.toggle('is-active', i === subjectDropdownIndex);
+    opt.setAttribute('aria-selected', String(opt.dataset.subject === cur));
+  });
+}
+export function closeSubjectDropdown(refocus = false) {
+  if (!dom.dialogSubjectDropdown) return;
+  dom.dialogSubjectDropdown.hidden = true;
+  if (dom.dialogSubjectBtn) dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
+  if (refocus && dom.dialogSubjectBtn && dom.dialogSubjectBtn.isConnected && !dom.dialogSubjectBtn.disabled) {
+    dom.dialogSubjectBtn.focus();
+  }
+}
+export function openSubjectDropdown() {
+  if (!dom.dialogSubjectDropdown || !dom.dialogSubjectBtn || dom.dialogSubjectBtn.disabled) return;
+  closeStatusPopover();
+  const opts = [...dom.dialogSubjectDropdown.children];
+  if (!opts.length) return;
+  const cur = state.currentTask ? (state.currentTask.subject || '') : '';
+  const found = opts.findIndex((o) => o.dataset.subject === cur);
+  subjectDropdownIndex = found >= 0 ? found : 0;
+  paintSubjectDropdown();
+  dom.dialogSubjectBtn.setAttribute('aria-expanded', 'true');
+  dom.dialogSubjectDropdown.hidden = false;
+  const r = dom.dialogSubjectBtn.getBoundingClientRect();
+  const h = dom.dialogSubjectDropdown.offsetHeight;
+  const w = dom.dialogSubjectDropdown.offsetWidth;
+  const below = window.innerHeight - r.bottom - 8;
+  const top = h > below && r.top > below ? Math.max(8, r.top - h - 4) : r.bottom + 4;
+  dom.dialogSubjectDropdown.style.top = `${top}px`;
+  dom.dialogSubjectDropdown.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+  opts[subjectDropdownIndex].focus();
+}
 export function refreshSubjectChoices() {
   if (!dom.dialogSubjectDropdown) return;
   dom.dialogSubjectDropdown.replaceChildren();
@@ -1189,10 +1251,12 @@ export function refreshSubjectChoices() {
     opt.type = 'button';
     opt.className = 'status-option';
     opt.setAttribute('role', 'option');
+    opt.dataset.subject = code;
     if (code) opt.appendChild(createSubjectTag(code)); else opt.textContent = 'None';
-    opt.addEventListener('click', () => selectSubject(code));
+    opt.addEventListener('click', () => selectSubject(code, true));
     dom.dialogSubjectDropdown.appendChild(opt);
   });
+  paintSubjectDropdown();
 }
 export function ensureStatusPopover() {
   if (state.statusPopoverEl) return state.statusPopoverEl;
@@ -1227,12 +1291,14 @@ export function ensureStatusPopover() {
         return;
       }
       const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
+      const prevScrollY = window.scrollY;
       setStatus(picked, next);
       if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
       closeStatusPopover();
       renderAllTasks();
       const hiddenByFilter = !!state.classStatusFilter && next !== state.classStatusFilter && classListVisible();
       focusStatusTrigger(picked, pickedFrom);
+      if (window.scrollY !== prevScrollY) window.scrollTo(0, prevScrollY);
       if (hiddenByFilter) {
         showToast(`${statusChangeMessage(next)}. Hidden by the Status filter`, 'Undo', () => restoreProgress(picked.id, prev));
       } else if (next === 'done') {
@@ -1256,12 +1322,12 @@ function paintStatusPopover() {
 }
 // A pick re-renders the lists, so the old trigger is gone: find the task's new visible check, or the dialog button.
 function focusStatusTrigger(task, anchor) {
-  if (anchor && anchor.isConnected && anchor.getClientRects().length) { anchor.focus(); return; }
+  if (anchor && anchor.isConnected && anchor.getClientRects().length) { anchor.focus({ preventScroll: true }); return; }
   const next = [...document.querySelectorAll(`[data-task-id="${task.id}"] .status-check`)].find((el) => el.getClientRects().length);
-  if (next) { next.focus(); return; }
+  if (next) { next.focus({ preventScroll: true }); return; }
   if (state.classStatusFilter && classListVisible()) {
     const select = document.querySelector('#class-status-filter');
-    if (select) select.focus();
+    if (select) select.focus({ preventScroll: true });
   }
 }
 export function closeStatusPopover(refocus = false) {
@@ -1310,14 +1376,19 @@ export function updateDialogSubject(task) {
   dom.dialogSubjectBtn.innerHTML = '';
   dom.dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
   if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
-  else dom.dialogSubjectBtn.textContent = 'Add subject';
-  dom.dialogSubjectDropdown.hidden = true;
+  else dom.dialogSubjectBtn.textContent = isEditable(task) ? 'Add subject' : 'None';
+  dom.dialogSubjectBtn.setAttribute('aria-label', task.subject
+    ? `Subject: ${dom.dialogSubjectBtn.textContent.trim()}`
+    : `Subject: ${isEditable(task) ? 'none chosen' : 'none'}`);
+  closeSubjectDropdown(false);
+  paintSubjectDropdown();
 }
-export function selectSubject(code) {
+export function selectSubject(code, refocus = false) {
   if (!state.currentTask) return;
   state.currentTask.subject = code;
   updateDialogSubject(state.currentTask);
   autosave();
+  if (refocus && dom.dialogSubjectBtn && !dom.dialogSubjectBtn.disabled) dom.dialogSubjectBtn.focus();
 }
 
 // Called once by app.js, at the spot the moved listeners used to occupy.
@@ -1363,9 +1434,9 @@ window.addEventListener('resize', () => { if (state.currentTask) fitDialogTitle(
 dom.dialogClose.addEventListener('click', closeTaskDialog);
 dom.dialogOverlay.addEventListener('click', (e) => { if (e.target === dom.dialogOverlay) closeTaskDialog(); });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !dom.dialogOverlay.hidden && !(state.statusPopoverEl && !state.statusPopoverEl.hidden)) closeTaskDialog();
+  if (e.key === 'Escape' && !dom.dialogOverlay.hidden && !(state.statusPopoverEl && !state.statusPopoverEl.hidden) && dom.dialogSubjectDropdown.hidden) closeTaskDialog();
 });
-dom.dialogDateBtn.addEventListener('click', () => openDialogDuePicker(dom.dialogDateBtn, 'date'));
+dom.dialogDateBtn.addEventListener('click', () => { closeSubjectDropdown(false); openDialogDuePicker(dom.dialogDateBtn, 'date'); });
 dom.dialogDueClear.addEventListener('click', (e) => {
   e.stopPropagation();
   if (state.currentTask) {
@@ -1454,7 +1525,7 @@ dom.dialogDelete.addEventListener('click', () => {
   if (idx !== -1) deleteTask(task); else closeTaskDialog();
   state.currentTask = null;
 });
-dom.dialogStatusBtn.addEventListener('click', () => { if (state.currentTask) openStatusPopover(state.currentTask, dom.dialogStatusBtn); });
+dom.dialogStatusBtn.addEventListener('click', () => { closeSubjectDropdown(false); if (state.currentTask) openStatusPopover(state.currentTask, dom.dialogStatusBtn); });
 // Column drop zones (My Tasks page)
 document.querySelectorAll('.kanban-column').forEach(columnEl => {
   columnEl.addEventListener('dragover', handleDragOver);
@@ -1488,26 +1559,59 @@ refreshSubjectChoices();
 dom.dialogSubjectDropdown.classList.add('status-popover');
 document.body.appendChild(dom.dialogSubjectDropdown);
 dom.dialogSubjectBtn.addEventListener('click', () => {
-  const open = dom.dialogSubjectBtn.getAttribute('aria-expanded') === 'true';
-  dom.dialogSubjectBtn.setAttribute('aria-expanded', String(!open));
-  dom.dialogSubjectDropdown.hidden = open;
-  if (open) return;
-  const r = dom.dialogSubjectBtn.getBoundingClientRect();
-  const h = dom.dialogSubjectDropdown.offsetHeight;
-  const w = dom.dialogSubjectDropdown.offsetWidth;
-  const below = window.innerHeight - r.bottom - 8;
-  const top = h > below && r.top > below ? Math.max(8, r.top - h - 4) : r.bottom + 4;
-  dom.dialogSubjectDropdown.style.top = `${top}px`;
-  dom.dialogSubjectDropdown.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+  if (!dom.dialogSubjectDropdown.hidden) closeSubjectDropdown(true);
+  else openSubjectDropdown();
+});
+dom.dialogSubjectBtn.addEventListener('keydown', (e) => {
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && dom.dialogSubjectDropdown.hidden) {
+    e.preventDefault();
+    e.stopPropagation();
+    openSubjectDropdown();
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (!dom.dialogSubjectDropdown || dom.dialogSubjectDropdown.hidden) return;
+  const opts = [...dom.dialogSubjectDropdown.children];
+  if (!opts.length) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeSubjectDropdown(true);
+    return;
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    closeSubjectDropdown(false);
+    const focusables = [...dom.dialogOverlay.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.closest('[hidden]') && el.getClientRects().length);
+    const idx = focusables.indexOf(dom.dialogSubjectBtn);
+    if (idx !== -1 && focusables.length) {
+      focusables[(idx + (e.shiftKey ? -1 : 1) + focusables.length) % focusables.length].focus();
+    } else {
+      dom.dialogSubjectBtn.focus();
+    }
+    return;
+  }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+    e.preventDefault();
+    if (e.key === 'Home') subjectDropdownIndex = 0;
+    else if (e.key === 'End') subjectDropdownIndex = opts.length - 1;
+    else subjectDropdownIndex = (subjectDropdownIndex + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length;
+    paintSubjectDropdown();
+    opts[subjectDropdownIndex].focus();
+    return;
+  }
+  if (e.key === 'Enter' && !dom.dialogSubjectDropdown.contains(document.activeElement)) {
+    e.preventDefault();
+    opts[subjectDropdownIndex].click();
+  }
 });
 window.addEventListener('resize', () => {
-  dom.dialogSubjectDropdown.hidden = true;
-  dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
+  closeSubjectDropdown(false);
 });
 document.addEventListener('click', (e) => {
   if (!dom.dialogSubjectBtn.contains(e.target) && !dom.dialogSubjectDropdown.contains(e.target)) {
-    dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
-    dom.dialogSubjectDropdown.hidden = true;
+    closeSubjectDropdown(false);
   }
 });
 }

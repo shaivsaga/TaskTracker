@@ -163,3 +163,17 @@ checks; no usability claim follows from a passing browser audit.
 Static WCAG 2.5.3 sweep: for every widget carrying `aria-label`, the element's own visible text must be
 contained in that label. axe-core does not implement 2.5.3, so this is the committed check for it.
 `node tests/e2e/label-in-name.mjs [index.html]`; exit 1 on any violation.
+
+## Targeted calendar and preset regressions
+
+Both use the existing external jsdom harness; set `TT_HARNESS` to override its location.
+
+```
+node tests/e2e/calendar-indicators.mjs
+node tests/e2e/preset-confirmation.mjs
+```
+
+The calendar check covers marker packing, overflow and unfinished/completed counts, including
+an all-completed day. The preset check boots the real application and verifies that preview,
+Escape and Cancel leave the draft unchanged; explicit Apply changes the catalogue without
+retagging tasks. It also checks Cancel-first focus, Tab navigation and focus restoration.

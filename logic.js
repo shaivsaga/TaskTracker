@@ -179,15 +179,21 @@ class Task {
     return `in ${plural(Math.floor(diff / 30), 'month')}`;
   }
 
-  // Card and list text: the countdown, capitalised, plus the time whenever the task has one.
+  // Card and list text: the countdown, capitalised, plus the short calendar date beyond tomorrow and the time whenever the task has one.
   getDueLabel() {
     if (!this.dueDate) return 'Someday';
-    const base = this.dueTime && dayDiff(this.dueDate) === 0 && !this.isOverdue() ? 'today' : this.getDueHint();
+    const diff = dayDiff(this.dueDate);
+    const base = this.dueTime && diff === 0 && !this.isOverdue() ? 'today' : this.getDueHint();
     const lead = base === 'today' || base === 'tomorrow' ? `due ${base}` : base;
     const text = lead.charAt(0).toUpperCase() + lead.slice(1);
-    return this.dueTime ? `${text} · ${this.getTimeLabel()}` : text;
+    const showDate = diff > 1 || diff < 0;
+    const datePart = showDate
+      ? this.dueDate.toLocaleDateString('en-US', this.dueDate.getFullYear() === new Date().getFullYear()
+        ? { month: 'short', day: 'numeric' }
+        : { month: 'short', day: 'numeric', year: 'numeric' })
+      : '';
+    return [text, datePart, this.getTimeLabel()].filter(Boolean).join(' · ');
   }
-
   getTimeLabel() {
     if (!this.dueTime) return '';
     const [h, m] = this.dueTime.split(':').map(Number);

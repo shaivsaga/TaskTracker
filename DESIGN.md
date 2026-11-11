@@ -158,7 +158,7 @@ Ten subject tags follow the class schedule colors, always with dark ink (#14183A
 
 ## Layout
 
-From 720px up, a single sticky top bar (64px, inset 40px to match the page column, and to the column's own edge from 1100px) carries the brand, icon tabs and theme toggle; the admin tab is raised 4px as the one distinct tab. On phones (below 720px) the same tabs move to a fixed bottom bar, reachable with one thumb, and a 44px Settings button sits fixed at the top right; the brand and theme toggle are hidden there. Below the top bar on desktop, or on phones above the bottom bar, one centered column: max 1120px (1200px from 1280 up), padding 24px 16px on phones and 32px 40px from 720px, with 16px (24px on desktop) between blocks. List view, Done and Past narrow to an 880px reading column, centred inside the page column; the page title takes that same width and left edge, and the supporting copy stays narrower so it reads as a caption rather than a banner.
+From 720px up, a single sticky top bar (64px, inset 40px to match the page column, and to the column's own edge from 1100px) carries the brand, icon tabs and theme toggle; the admin tab is raised 4px as the one distinct tab. On phones (below 720px) the same tabs move to a fixed bottom bar, reachable with one thumb. A 52px sticky brand strip stays above scrolling cards, with a 44px Settings button fixed at the top right; the theme toggle is in Settings. One centered content column has a max width of 1120px (1200px from 1280px), padding 24px 16px on phones and 32px 40px from 720px, with 16px (24px on desktop) between blocks. List view, Done and Past narrow to an 880px reading column, with the page title aligned to that column.
 
 The board is three columns (To Do, In Progress, Done) on desktop. Below 720px both Tasks and Admin are list-only: their Board/List switches and boards are hidden without overwriting the saved desktop view. Resizing back restores that preference. Tasks rows are 12px-padded cards with 8px between them. Breakpoints: 374, 720 (labels appear next to tab icons; 720 to 819 uses tighter padding), 1100 (brand wordmark appears). Spacing runs on a 4px base (4, 8, 12, 16, 24). Shared action controls (icon buttons, tabs, chips, property fields) are at least 44px at every width, and phone touch targets are 44px. The calendar's phone month shows subject-colored boxes and lists the picked day's tasks underneath. The sheet's floor is 320px, taken as `min(320px, 100%)` on `html`, so a viewport narrower than 320 (a 320px Windows window loses 15px to its scrollbar) reflows instead of growing a horizontal scrollbar.
 
@@ -193,7 +193,7 @@ The two selections are in-memory only: reload starts at All, while switching vie
 No matches shows "No tasks match these filters." and Clear filters; clearing resets search and both selects and focuses search. A genuinely empty board keeps "No tasks yet." without Clear. A status change that removes a matching row announces "Hidden by the Status filter" and focuses the Status select. An open task dialog retains focus until closed; Undo restores the task, progress and a live task control.
 
 ### Archive Rows (Done, Past)
-The same two surfaces, one row each. From 1100px it is a single line - 24px status, a title track with a 200px floor that may take two lines, a 104px subject, a 112px status and content-sized actions - so the row never spends less than a readable amount of width on the task name. Below 1100px it is a card with the title across the top. Single-action rows stack subject and status on the left, with Mark done or Mark not done beside that metadata at a 44px minimum height. Multiple-action admin rows keep subject and status on the meta line and actions on their own right-aligned, wrapping row. The action track is always content-sized; a fixed width there is what once collapsed the title to 60px. The row is a list item whose title is a button; Delete is the only destructive action in the app outside a typed confirmation, so it arms to "Confirm?" for 4s before it removes anything, and the resulting toast still offers Undo.
+From 1100px, each archive item uses five tracks: 24px status, a title with a 200px floor, 104px subject, 112px status/date and content-sized actions. Between 720px and 1099px, the title spans a card's first row and metadata shares the second row with actions. Below 720px, every card has three rows: title, metadata, then right-aligned wrapping actions, including single-action rows. Actions keep 44px targets. The title remains a button inside a list item. Delete arms to "Confirm?" for 4s before removal; the toast offers Undo.
 
 ### Pinned Announcements
 Every pinned announcement shows in full on desktop. The collapse is a phone affordance only: below 720px the block shows the newest item clamped to two lines with a "Show all N" toggle, so the first task row stays on the first screen. A resize across 720px re-applies the right state without a reload. When empty, the entire public announcements area is hidden at every width. The admin announcement composer remains available.
@@ -201,8 +201,12 @@ Every pinned announcement shows in full on desktop. The collapse is a phone affo
 ### Due Badge
 12px label with a calendar or alarm icon; due soon (within 3 days) uses amber on an amber wash, overdue uses red on a red wash, otherwise Soft Slate.
 
+Tasks due today or tomorrow precede the overdue backlog in the shared list. Compact due text includes the date and optional time; long date descriptions remain available in the task dialog.
+
 ### Inputs / Fields
 44px high, 2px Soft Slate (`--mu`) border for 3:1 contrast, white (dark: night) fill, square. Focus swaps the border to Royal Blue plus a 2px outline with 2px offset. The due picker is one combined date-and-time field with a "time is optional" hint. On phones every text-entry control is 16px so iOS does not zoom on focus.
+
+The due picker stays within the available viewport with 8px side clearance, including scrollbar space. Below 480px the preset selector takes its own full-width row above Apply and Delete.
 
 ### Navigation
 Icon tabs (top bar on desktop, bottom bar on phones): 48px high, 2px transparent border, Soft Slate icons slightly desaturated (saturate .7). Active tab: Royal Wash fill, Royal border and a 2px blue underline. Admin is a solid blue tab raised 4px on a 4px ledge. Badges are 20px Royal squares in pixel type (red for overdue counts). Labels sit beside the icons from 720px (720 to 819px uses tighter padding and a 16px bar inset); on phones the bar shows labels under the icons. Phone order: Tasks, Calendar, Admin (centre, president only), Done, Past. Settings sits in a fixed top-right 44px button, and the theme toggle is hidden on phones (Settings > Appearance: System, Light, Dark). Admin is not raised on phones, and the phone bar carries no box strokes: the active tab is a Royal Wash block with the 2px blue underline and no border, and the Admin tab is a plain tab whose shield and count badge mark it.
@@ -210,18 +214,28 @@ Icon tabs (top bar on desktop, bottom bar on phones): 48px high, 2px transparent
 ### Admin Bar
 Save (secondary) and Publish (primary) close the row; Preview as student, History and Discard changes sit directly beside them as text buttons, one press away, wrapping inside the 64px bar on phones (44px targets). "Publish" is the single verb for releasing to the class. The public list on Tasks is headed "Pinned"; the admin composer is headed "Announcements".
 
+### Admin Subjects and Presets
+Subjects and the recycle bin sit in collapsible panels below the task-editing area. New subjects use an inline form with an editable code before creation; the code becomes immutable afterward. Tasks store codes, while subject tags, filters and update notices show configured names. Renaming or retiring a subject never retags existing tasks. Custom colours receive readable foreground text.
+
+Applying a preset previews added, changed, retired and removed subjects in the shared in-app confirmation dialog. Cancel, Escape and backdrop clicks leave the draft unchanged; explicit Apply changes only the draft catalogue. Publish is still required to release it. Confirmation starts on Cancel, traps Tab, restores focus to Apply, and uses the same interruptible motion as task reopening.
+
 ### Icons
 Two icon languages, on purpose: pixel sprites for navigation and theme controls, and 1.75-stroke square-cap line SVGs inside pages (search, pin, trash, chevrons). In forced-colors mode every tab shows its label and the active tab takes a Highlight outline.
 
 ### Loading and Feedback
 Buttons in flight show a 14px square-edged spinner (700ms) after the label. Data areas use Sunk Parchment skeleton blocks pulsing between 100% and 50% opacity over 1.2s. The toast is an Ink-filled block with a 2px ledge, lifted to 92px above the phone tab bar.
 
+Toasts size to their content within the viewport. Long messages wrap without shrinking the Undo action; that action has a 44px target.
+
 ### Dialogs and Quick Add
 Card Cream panel, 2px border, 4px ledge, max 640px, header separated by a 2px rule. Open and close are one interruptible 180ms opacity fade that starts from the current opacity, so a rapid reopen or close retargets instead of snapping; no CSS modal entrance competes with it. Quick add parses "GENMATH worksheet ip 10/5" live into Task, Subject, Status and Due fields, with chips for subjects, statuses and dates.
+
+Read-only task fields use a sunk surface and quiet border instead of suggesting an editable input. The subject picker supports arrow keys, selection and Escape without also closing the task dialog. Night-mode primary hover keeps the accessible accent fill and adds an inset edge rather than darkening the text background.
 
 ### Calendar
 Month and week grids with 1px-rule cells, alternate rows in Sunk Parchment, today shown as a blue square behind the pixel day number, chips with a status-colored left edge.
 Phone month cells pack up to three unfinished subject-colour squares with a 4px gap; a fourth or later task adds a small `+` at the bottom right. Completing a task repacks the remaining squares without changing the day's task list.
+The accessible day label keeps the total task count and, when completed tasks exist, separates unfinished and completed counts so it explains the remaining markers.
 
 ## Do's and Don'ts
 

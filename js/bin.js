@@ -17,6 +17,7 @@ import { state } from './state.js';
 import { dom } from './dom.js';
 import { API } from './util.js';
 import { RECOVERED_PREFIX } from './recovery.js';
+import { subjectDisplayName } from './subjects.js';
 
 let deps = null;
 let rows = [];
@@ -69,7 +70,7 @@ function say(message) {
   dom.binStatus.textContent = message;
 }
 
-const label = (r) => `${r.subject ? r.subject + ' · ' : ''}${r.title || r.taskId}`;
+const label = (r) => `${r.subject ? subjectDisplayName(state.catalog, r.subject) + ' · ' : ''}${r.title || r.taskId}`;
 
 export async function load() {
   if (!state.isAdmin) return;
