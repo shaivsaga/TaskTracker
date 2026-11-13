@@ -59,6 +59,8 @@ function clean_payload($p) {
             foreach (['notes', 'subject'] as $k) if (isset($t[$k]) && !is_string($t[$k])) return null;
             if (isset($t['subject']) && strlen($t['subject']) > 32) return null;
             if (isset($t['dueDate']) && (!is_string($t['dueDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['dueDate']))) return null;
+            if (isset($t['endDate']) && (!is_string($t['endDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['endDate']))) return null;
+            if (isset($t['endDate']) && (!isset($t['dueDate']) || $t['endDate'] < $t['dueDate'])) return null;
             if (isset($t['dueTime']) && (!is_string($t['dueTime']) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/D', $t['dueTime']))) return null;
             if (isset($t['files'])) {
                 if (!is_array($t['files']) || count($t['files']) > 10) return null;

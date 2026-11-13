@@ -59,6 +59,7 @@ function tt_board_signature($task) {
         'title'   => tt_board_optional_text($task, 'title'),
         'notes'   => tt_board_notes($task),
         'dueDate' => tt_board_optional_text($task, 'dueDate'),
+        'endDate' => tt_board_optional_text($task, 'endDate'),
         'dueTime' => tt_board_optional_text($task, 'dueTime'),
         'subject' => tt_board_optional_text($task, 'subject'),
         'files'   => tt_board_files($task),

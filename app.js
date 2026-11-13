@@ -440,7 +440,7 @@ function quickWords(text) {
 }
 
 function parseQuickAdd(text) {
-  const out = { subject: '', status: null, typedStatus: false, dueDate: undefined, dueTime: undefined, title: '' };
+  const out = { subject: '', status: null, typedStatus: false, dueDate: undefined, endDate: undefined, dueTime: undefined, title: '' };
   const rest = [];
   const now = new Date();
   quickWords(text).forEach((word) => {
@@ -467,8 +467,8 @@ function parseQuickAdd(text) {
       rest.push(word);
     }
   });
-  if (state.quickPicked.date) { out.dueDate = state.quickPicked.date; out.dueTime = state.quickPicked.time || undefined; }   // picker wins
-  if (!out.dueDate) out.dueTime = undefined;              // time needs a date
+  if (state.quickPicked.date) { out.dueDate = state.quickPicked.date; out.endDate = state.quickPicked.endDate || undefined; out.dueTime = state.quickPicked.time || undefined; }   // picker wins
+  if (!out.dueDate) { out.endDate = undefined; out.dueTime = undefined; }              // time and end date need a start date
   out.status = out.status || 'not_started';
   out.title = (rest.join(' ') || (out.subject ? `${out.subject} task` : 'New Task')).slice(0, 500);
   return out;
@@ -524,14 +524,17 @@ function closeDuePicker(reason) {
   if (done && (reason === 'esc' || reason === 'done')) done();
 }
 
-// opts: { anchor, focus: 'date'|'time', date, time, onChange({date, time}), onDone }
+// opts: { anchor, focus: 'date'|'time', date, endDate, time, onChange({date, endDate, time}), onDone }
 function openDuePicker(opts) {
   if (state.dpEl && state.dpState.anchor === opts.anchor && state.dpState.focus === opts.focus) { closeDuePicker(); return; }
   closeDuePicker();
 
   const s = {
     anchor: opts.anchor, focus: opts.focus, onChange: opts.onChange, onDone: opts.onDone,
-    date: opts.date || null, time: opts.time || null, view: null,
+    date: opts.date || null, endDate: opts.endDate || null, time: opts.time || null,
+    rangeMode: !!(opts.date && opts.endDate && opts.endDate.getTime() >= opts.date.getTime()),
+    activeField: 'start',
+    view: null,
   };
   const seed = s.date || todayDate();
   s.view = new Date(seed.getFullYear(), seed.getMonth(), 1);
@@ -541,8 +544,9 @@ function openDuePicker(opts) {
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', 'Due date and time');
   el.innerHTML = `
-    <div class="dp-fields">
-      <input class="dp-input dp-date" type="text" placeholder="Date &amp; time" aria-label="Date and time, time optional" autocomplete="off" spellcheck="false" enterkeyhint="done">
+    <div class="dp-fields${s.rangeMode ? ' is-range' : ''}">
+      <input class="dp-input dp-date" type="text" placeholder="${s.rangeMode ? 'Start date' : 'Date &amp; time'}" aria-label="${s.rangeMode ? 'Start date' : 'Date and time, time optional'}" autocomplete="off" spellcheck="false" enterkeyhint="done">
+      <input class="dp-input dp-end-date" type="text" placeholder="End date" aria-label="End date" autocomplete="off" spellcheck="false" enterkeyhint="done"${s.rangeMode ? '' : ' hidden'}>
     </div>
     <div class="dp-head">
       <span class="dp-month"></span>
@@ -551,19 +555,35 @@ function openDuePicker(opts) {
       <button type="button" class="dp-nav dp-next" aria-label="Next month"><svg class="i" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
     </div>
     <div class="dp-grid" role="grid"></div>
+    <div class="dp-options">
+      <label class="dp-toggle">
+        <span class="dp-toggle-label">End date</span>
+        <input type="checkbox" role="switch" class="dp-end-toggle"${s.rangeMode ? ' checked' : ''}>
+        <span class="dp-switch" aria-hidden="true"></span>
+      </label>
+    </div>
     <div class="dp-foot">
       <span class="dp-hint">Time is optional · e.g. fri 3pm</span>
       <button type="button" class="text-button dp-clear">Clear</button>
     </div>`;
 
   const $ = (sel) => el.querySelector(sel);
+  const fieldsEl = $('.dp-fields');
   const dateIn = $('.dp-date');
+  const endIn = $('.dp-end-date');
+  const endToggle = $('.dp-end-toggle');
   const grid = $('.dp-grid');
   const monthEl = $('.dp-month');
 
-  const emit = () => s.onChange({ date: s.date, time: s.time });
+  const emit = () => s.onChange({ date: s.date, endDate: s.rangeMode ? s.endDate : null, time: s.time });
   const syncFields = () => {
     dateIn.value = s.date ? formatDateText(s.date) + (s.time ? ' ' + formatTime(s.time) : '') : '';
+    endIn.value = s.endDate ? formatDateText(s.endDate) : '';
+    fieldsEl.classList.toggle('is-range', s.rangeMode);
+    dateIn.placeholder = s.rangeMode ? 'Start date' : 'Date & time';
+    dateIn.setAttribute('aria-label', s.rangeMode ? 'Start date' : 'Date and time, time optional');
+    endIn.hidden = !s.rangeMode;
+    endToggle.checked = s.rangeMode;
   };
   const gotoMonth = (d) => { s.view = new Date(d.getFullYear(), d.getMonth(), 1); renderGrid(); };
 
@@ -580,7 +600,13 @@ function openDuePicker(opts) {
     for (let i = 0; i < 42; i++) {
       const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
       const b = document.createElement('button');
-      const selected = !!s.date && d.getTime() === s.date.getTime();
+      const t = d.getTime();
+      const sTime = s.date ? s.date.getTime() : null;
+      const eTime = s.rangeMode && s.endDate ? s.endDate.getTime() : null;
+      const isStart = sTime !== null && t === sTime;
+      const isEnd = eTime !== null && t === eTime;
+      const selected = isStart || isEnd;
+      const inRange = sTime !== null && eTime !== null && t > sTime && t < eTime;
       b.type = 'button';
       b.className = 'dp-day';
       b.textContent = d.getDate();
@@ -588,8 +614,26 @@ function openDuePicker(opts) {
       b.setAttribute('aria-pressed', String(selected));
       if (d.getMonth() !== s.view.getMonth()) b.classList.add('is-outside');
       if (dayDiff(d) === 0) b.classList.add('is-today');
+      if (isStart) b.classList.add('is-range-start');
+      if (isEnd) b.classList.add('is-range-end');
+      if (inRange) b.classList.add('is-in-range');
       if (selected) b.classList.add('is-selected');
-      b.addEventListener('click', () => { s.date = d; syncFields(); renderGrid(); emit(); });
+      b.addEventListener('click', () => {
+        if (!s.rangeMode) {
+          s.date = d;
+          s.endDate = null;
+        } else if (s.activeField === 'end' && s.date) {
+          if (t < s.date.getTime()) { s.endDate = s.date; s.date = d; }
+          else { s.endDate = d; }
+        } else {
+          s.date = d;
+          if (s.endDate && t > s.endDate.getTime()) s.endDate = null;
+          s.activeField = 'end';
+        }
+        syncFields();
+        renderGrid();
+        emit();
+      });
       grid.appendChild(b);
     }
   }
@@ -620,23 +664,55 @@ function openDuePicker(opts) {
     if (changed) { renderGrid(); emit(); }
   });
 
+  dateIn.addEventListener('focus', () => { s.activeField = 'start'; });
+  endIn.addEventListener('focus', () => { s.activeField = 'end'; });
+
+  endIn.addEventListener('input', () => {
+    const r = parseDateField(endIn.value);
+    if (r.empty || !r.date) return;
+    if (!s.date) { s.date = r.date; s.endDate = r.date; }
+    else if (r.date.getTime() < s.date.getTime()) { s.endDate = s.date; s.date = r.date; }
+    else { s.endDate = r.date; }
+    gotoMonth(r.date);
+    renderGrid();
+    emit();
+  });
+
   const commitDate = () => {
-    if (!dateIn.value.trim() && s.date) { s.date = null; s.time = null; renderGrid(); emit(); }
+    if (!dateIn.value.trim() && s.date) { s.date = null; s.endDate = null; s.time = null; renderGrid(); emit(); }
+    if (s.rangeMode && !endIn.value.trim() && s.endDate) { s.endDate = null; renderGrid(); emit(); }
     syncFields();
   };
   dateIn.addEventListener('blur', commitDate);
-  dateIn.addEventListener('keydown', (e) => {
+  endIn.addEventListener('blur', commitDate);
+  const onEnter = (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     e.stopPropagation();
     commitDate();
     closeDuePicker('done');
+  };
+  dateIn.addEventListener('keydown', onEnter);
+  endIn.addEventListener('keydown', onEnter);
+
+  endToggle.addEventListener('change', () => {
+    s.rangeMode = endToggle.checked;
+    if (!s.rangeMode) {
+      s.endDate = null;
+      s.activeField = 'start';
+    } else {
+      s.activeField = s.date ? 'end' : 'start';
+    }
+    syncFields();
+    renderGrid();
+    if (s.date) emit();
+    if (s.rangeMode) endIn.focus();
   });
 
   $('.dp-prev').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() - 1, 1)));
   $('.dp-next').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() + 1, 1)));
-  $('.dp-today').addEventListener('click', () => { s.date = todayDate(); gotoMonth(s.date); syncFields(); emit(); });
-  $('.dp-clear').addEventListener('click', () => { s.date = null; s.time = null; emit(); closeDuePicker(); });
+  $('.dp-today').addEventListener('click', () => { s.date = todayDate(); if (s.endDate && s.endDate.getTime() < s.date.getTime()) s.endDate = null; gotoMonth(s.date); syncFields(); emit(); });
+  $('.dp-clear').addEventListener('click', () => { s.date = null; s.endDate = null; s.time = null; emit(); closeDuePicker(); });
 
   document.body.appendChild(el);
   state.dpEl = el;
@@ -665,7 +741,7 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 document.addEventListener('click', (e) => {
-  if (state.dpEl && !state.dpEl.contains(e.target) && !state.dpState.anchor.contains(e.target)) closeDuePicker();
+  if (state.dpEl && !e.composedPath().includes(state.dpEl) && !state.dpState.anchor.contains(e.target)) closeDuePicker();
 });
 
 // --- Navigation and routing: js/nav.js (slice 2.4) ----------------------------------------------

@@ -43,6 +43,8 @@ foreach ($in['tasks'] as $t) {
   }
   if (isset($t['subject']) && strlen($t['subject']) > 32) fail(422, "Task $n: subject is too long.");
   if (isset($t['dueDate']) && (!is_string($t['dueDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['dueDate']))) fail(422, "Task $n: dueDate must look like 2026-10-26.");
+  if (isset($t['endDate']) && (!is_string($t['endDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['endDate']))) fail(422, "Task $n: endDate must look like 2026-10-26.");
+  if (isset($t['endDate']) && (!isset($t['dueDate']) || $t['endDate'] < $t['dueDate'])) fail(422, "Task $n: endDate must be on or after dueDate.");
   if (isset($t['dueTime']) && (!is_string($t['dueTime']) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/D', $t['dueTime']))) fail(422, "Task $n: dueTime must look like 15:30.");
   if (isset($t['files'])) {
     if (!is_array($t['files']) || count($t['files']) > 10) fail(422, "Task $n: files must be a list of up to 10.");
