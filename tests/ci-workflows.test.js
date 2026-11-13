@@ -83,3 +83,24 @@ test('a pull request can never reach the production deploy', () => {
   const deploy = jobBlock(src, 'deploy');
   assert.match(deploy, /needs:\s*build/, 'deploy no longer depends on build');
 });
+
+test('post-deploy hardening verification only runs for pushes on main or manual dispatch', () => {
+  const src = readWorkflow('post-deploy-hardening.yml');
+  const job = jobBlock(src, 'verify-hardening');
+  assert.ok(job, 'post-deploy-hardening.yml declares no verify-hardening job');
+  assert.match(
+    job,
+    /github\.event\.workflow_run\.event\s*==\s*['"]push['"]/,
+    'verify-hardening does not restrict workflow_run to push events',
+  );
+  assert.match(
+    job,
+    /github\.event\.workflow_run\.head_branch\s*==\s*['"]main['"]/,
+    'verify-hardening does not restrict workflow_run to main branch',
+  );
+});
+
+test('php-tests.yml declares explicit least-privilege permissions', () => {
+  const src = readWorkflow('php-tests.yml');
+  assert.match(src, /\r?\npermissions:\r?\n\s+contents:\s*read/, 'php-tests.yml lacks permissions: contents: read');
+});
