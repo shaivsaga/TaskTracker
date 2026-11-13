@@ -55,6 +55,8 @@ check('draft task without id rejected', $draft(['tasks' => [['title' => 'x']], '
 check('draft task title too long rejected', $draft(['tasks' => [['id' => 'a', 'title' => str_repeat('a', 501)]], 'announcements' => []]) === null);
 check('draft task subject too long rejected', $draft(['tasks' => [['id' => 'a', 'subject' => str_repeat('a', 33)]], 'announcements' => []]) === null);
 check('draft task bad dueDate rejected', $draft(['tasks' => [['id' => 'a', 'dueDate' => '26 October']], 'announcements' => []]) === null);
+check('draft task bad endDate rejected', $draft(['tasks' => [['id' => 'a', 'dueDate' => '2026-11-02', 'endDate' => '2026-11-01']], 'announcements' => []]) === null);
+check('draft task valid endDate accepted', $draft(['tasks' => [['id' => 'a', 'dueDate' => '2026-11-02', 'endDate' => '2026-11-05']], 'announcements' => []]) !== null);
 check('draft task bad dueTime rejected', $draft(['tasks' => [['id' => 'a', 'dueTime' => '3pm']], 'announcements' => []]) === null);
 check('draft task bad file rejected', $draft(['tasks' => [['id' => 'a', 'files' => [['id' => 'nope', 'name' => 'n', 'size' => 1]]]], 'announcements' => []]) === null);
 check('draft task real shape accepted', $draft(['tasks' => [['id' => 'abc123', 'title' => 'Essay', 'dueDate' => '2026-11-02', 'dueTime' => '15:30', 'notes' => 'plain', 'subject' => 'GENSCI', 'files' => [['id' => str_repeat('a', 32) . '.pdf', 'name' => 'a.pdf', 'size' => 12]]]], 'announcements' => []]) !== null);
@@ -176,6 +178,8 @@ if (!$sb) {
         'an over-long title' => [422, ['tasks' => [['id' => 'a', 'title' => str_repeat('a', 501)]]]],
         'non-string notes' => [422, ['tasks' => [['id' => 'a', 'notes' => ['x']]]]],
         'a bad dueDate' => [422, ['tasks' => [['id' => 'a', 'dueDate' => '26 Oct']]]],
+        'an endDate before dueDate' => [422, ['tasks' => [['id' => 'a', 'dueDate' => '2026-11-05', 'endDate' => '2026-11-02']]]],
+        'an endDate without dueDate' => [422, ['tasks' => [['id' => 'a', 'endDate' => '2026-11-05']]]],
         'a bad dueTime' => [422, ['tasks' => [['id' => 'a', 'dueTime' => '3pm']]]],
         'a bad file id' => [422, ['tasks' => [['id' => 'a', 'files' => [['id' => 'nope', 'name' => 'n', 'size' => 1]]]]]],
         'an announcement with disallowed html' => [422, ['tasks' => [['id' => 'a']], 'announcements' => [['text' => 'hi', 'createdAt' => 1, 'html' => '<script>x</script>']]]],

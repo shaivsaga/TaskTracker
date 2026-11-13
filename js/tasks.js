@@ -950,10 +950,12 @@ export function openDialogDuePicker(anchor, focus) {
     anchor,
     focus,
     date: state.currentTask.dueDate || null,
+    endDate: state.currentTask.endDate || null,
     time: state.currentTask.dueTime || null,
-    onChange: ({ date, time }) => {
+    onChange: ({ date, endDate, time }) => {
       if (!state.currentTask) return;
       state.currentTask.dueDate = date || undefined;
+      state.currentTask.endDate = (date && endDate) ? endDate : undefined;
       state.currentTask.dueTime = date ? (time || undefined) : undefined;
       updateDialogDue(state.currentTask);
       autosave();
@@ -1441,6 +1443,7 @@ dom.dialogDueClear.addEventListener('click', (e) => {
   e.stopPropagation();
   if (state.currentTask) {
     state.currentTask.dueDate = undefined;
+    state.currentTask.endDate = undefined;
     state.currentTask.dueTime = undefined;
     updateDialogDue(state.currentTask);
     autosave();

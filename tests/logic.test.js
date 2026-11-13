@@ -206,3 +206,25 @@ test('getDueLabel includes short calendar date alongside relative countdown beyo
   assert.match(twoWeeks.getDueLabel(), /^In 2 weeks · [A-Z][a-z]{2} \d{1,2}/);
   assert.match(overdue.getDueLabel(), /^3 days overdue · [A-Z][a-z]{2} \d{1,2}/);
 });
+
+test('Task endDate serializes, validates ordering, and formats range with arrow', () => {
+  const start = new Date(2026, 10, 13);
+  const end = new Date(2026, 10, 16);
+  const earlier = new Date(2026, 10, 10);
+
+  const ranged = new Task({ title: 'Range', dueDate: start, endDate: end });
+  assert.equal(ranged.toJSON().dueDate, '2026-11-13');
+  assert.equal(ranged.toJSON().endDate, '2026-11-16');
+  assert.match(ranged.getDueShort(), /→/);
+  assert.match(ranged.getDueDateDisplay(), /→/);
+
+  assert.equal(ranged.dueDate.getTime(), start.getTime());
+  assert.equal(ranged.endDate.getTime(), end.getTime());
+
+  const reversed = new Task({ title: 'Bad order', dueDate: start, endDate: earlier });
+  assert.equal(reversed.endDate, undefined);
+  assert.equal(reversed.toJSON().endDate, undefined);
+
+  const orphan = new Task({ title: 'No start', endDate: end });
+  assert.equal(orphan.endDate, undefined);
+});

@@ -83,6 +83,8 @@ class Task {
     if (this.title === '') this.title = 'New Task';
 
     this.dueDate = opts.dueDate instanceof Date ? opts.dueDate : undefined;
+    this.endDate = (this.dueDate && opts.endDate instanceof Date && opts.endDate.getTime() >= this.dueDate.getTime())
+      ? opts.endDate : undefined;
     this.dueTime = typeof opts.dueTime === 'string' ? opts.dueTime : undefined;
 
     this.status = opts.status !== undefined ? String(opts.status) : 'not_started';
@@ -102,8 +104,12 @@ class Task {
 
   getDueDateDisplay() {
     if (!this.dueDate) return '';
+    const opts = { year: 'numeric', month: 'long', day: 'numeric' };
+    const full = this.dueDate.toLocaleDateString(undefined, opts);
+    if (this.endDate && toInputValue(this.endDate) !== toInputValue(this.dueDate)) {
+      return `${full} → ${this.endDate.toLocaleDateString(undefined, opts)}`;
+    }
     const diff = dayDiff(this.dueDate);
-    const full = this.dueDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     if (diff < 0) return full;
     if (diff === 0) return 'Today';
     if (diff === 1) return 'Tomorrow';
@@ -144,16 +150,16 @@ class Task {
 
   getDueShort() {
     if (!this.dueDate) return 'Someday';
-    const sameYear = this.dueDate.getFullYear() === new Date().getFullYear();
-    if (this.dueTime) {
-      const date = this.dueDate.toLocaleDateString('en-US', sameYear
-        ? { month: 'short', day: 'numeric' }
-        : { month: 'short', day: 'numeric', year: 'numeric' });
-      return `${date} · ${this.getTimeLabel()}`;
-    }
-    return this.dueDate.toLocaleDateString('en-US', sameYear
-      ? { weekday: 'short', month: 'short', day: 'numeric' }
+    const year = new Date().getFullYear();
+    const fmt = (d, wd) => d.toLocaleDateString('en-US', d.getFullYear() === year
+      ? (wd ? { weekday: 'short', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric' })
       : { month: 'short', day: 'numeric', year: 'numeric' });
+    if (this.endDate && toInputValue(this.endDate) !== toInputValue(this.dueDate)) {
+      const range = `${fmt(this.dueDate, false)} → ${fmt(this.endDate, false)}`;
+      return this.dueTime ? `${range} · ${this.getTimeLabel()}` : range;
+    }
+    if (this.dueTime) return `${fmt(this.dueDate, false)} · ${this.getTimeLabel()}`;
+    return fmt(this.dueDate, true);
   }
 
   getDueHint() {
@@ -206,6 +212,7 @@ class Task {
       id: this.id,
       title: this.title,
       dueDate: this.dueDate ? toInputValue(this.dueDate) : undefined,
+      endDate: (this.dueDate && this.endDate) ? toInputValue(this.endDate) : undefined,
       dueTime: this.dueTime,
       notes: this.notes,
       subject: this.subject,
@@ -227,6 +234,10 @@ class Task {
       title: obj.title,
       dueDate: (() => {
         const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof obj.dueDate === 'string' ? obj.dueDate : '');
+        return (m && makeDate(+m[1], +m[2] - 1, +m[3])) || undefined;
+      })(),
+      endDate: (() => {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof obj.endDate === 'string' ? obj.endDate : '');
         return (m && makeDate(+m[1], +m[2] - 1, +m[3])) || undefined;
       })(),
       dueTime: typeof obj.dueTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(obj.dueTime) ? obj.dueTime : undefined,

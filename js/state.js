@@ -42,7 +42,7 @@ export const state = {
   statusPopoverTask: null,
   statusPopoverIndex: 0,
   quickReturnFocus: null,
-  quickPicked: { date: null, time: null },
+  quickPicked: { date: null, endDate: null, time: null },
   quickPrev: { subject: '', status: '', due: '' },
   quickChipEls: [],
   announcements: [],
