@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   verify-hardening:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
       # Verify the commit that was actually deployed. `workflow_run` defaults checkout to
