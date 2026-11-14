@@ -712,6 +712,8 @@ export function updateOverview() {
   csumOverdue.textContent = `${classOverdue} overdue`;
   csumOverdue.hidden = classOverdue === 0;
   document.querySelector('#csum-done').textContent = `${classTasks.length - classOpen.length} of ${classTasks.length} done here`;
+  // An empty board already says "No tasks yet."; a 0-of-0 tally above it is noise.
+  document.querySelector('#class-summary').hidden = classTasks.length === 0;
   const badge = document.querySelector('#nav-badge');
   badge.textContent = open.length ? String(open.length) : '';
   badge.hidden = open.length === 0;
