@@ -216,6 +216,8 @@ Applying a preset previews added, changed, retired and removed subjects in the s
 ### Icons
 Two icon languages, on purpose: pixel sprites for navigation and theme controls, and 1.75-stroke square-cap line SVGs inside pages (search, pin, trash, chevrons). The sprite art is a **per-theme pair** — `assets/sprites-light.svg` outlines in ink `#14183A`, `assets/sprites-dark.svg` outlines in white — swapped by `--sheet` in `:root` and `:root[data-theme="dark"]`. That pair exists because a single outline cannot serve both surfaces: ink is 1.08:1 on the night surface and white is 1.15:1 on cream, so each theme needs the outline drawn against its own background. Do not collapse it into one sheet. In forced-colors mode every tab shows its label and the active tab takes a Highlight outline.
 
+**The Settings cell.** Cell 5 of the sheet is the cog behind the 44px Settings button: a 16×16 octagonal body with four lugs and a 4×4 hollow centre, in the sheet's own layers — ink outline, `#9AA3CC` body, `#D2D7F0` highlight top-left, `#5C6598` shade bottom-right, and the same geometry in white for the dark sheet. It is redrawn, not imported: production's cell 5 renders as a shaded disc with no teeth or hub, which read as an unlabelled blob at 32px. Regenerate it as runs of `M{x} {y}h{w}v1h-{w}z` if the sheet is ever rebuilt, and keep both sheets on the same geometry.
+
 ### Loading and Feedback
 Buttons in flight show a 14px square-edged spinner (700ms) after the label. Data areas use Sunk Parchment skeleton blocks pulsing between 100% and 50% opacity over 1.2s. The toast is an Ink-filled block with a 2px ledge, lifted to 92px above the phone tab bar.
 
