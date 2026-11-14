@@ -153,7 +153,8 @@ Ten subject tags follow the class schedule colors, always with dark ink (#14183A
 - **Title** (600, 16px, 24px): task card titles, clamped to two lines.
 - **Body** (400, 14px, 20px): notes, descriptions, list rows.
 - **Label** (600, 12px, 16px): due badges, field labels, phone tab labels. Subject tags and chips are 700 with 0.04em tracking.
-- **Pixel Micro** (400, 12px floor, uppercase): nav badges, calendar day numbers, step counters, keyboard hints.
+- **Pixel Micro** (400, 12px floor, uppercase): nav badges, step counters, keyboard hints. **Calendar day numbers are 16px** — the pixel face is drawn on an 8px grid, so 12px renders soft at 1.5x while 16px is a crisp 2x. On phones the numeral gets no gutter (`min-width: 0`, no padding) because a 320px grid gives a 34px day cell and anything wider overflows it.
+- **Personal strip** (`.mine`): the count is Pixel Display at 32px/32px against a 16px/24px bold label on a shared baseline, 10px apart; the next-deadline line is 14px/20px and **wraps** rather than ellipsising, because clipping it was hiding the time.
 
 ### Named Rules
 **The Pixel Is a Garnish Rule.** The pixel face never sets a sentence, a date or a time. If a classmate must read it to act, it is Plus Jakarta Sans.
@@ -213,7 +214,7 @@ Subjects and the recycle bin sit in collapsible panels below the task-editing ar
 Applying a preset previews added, changed, retired and removed subjects in the shared in-app confirmation dialog. Cancel, Escape and backdrop clicks leave the draft unchanged; explicit Apply changes only the draft catalogue. Publish is still required to release it. Confirmation starts on Cancel, traps Tab, restores focus to Apply, and uses the same interruptible motion as task reopening.
 
 ### Icons
-Two icon languages, on purpose: pixel sprites for navigation and theme controls, and 1.75-stroke square-cap line SVGs inside pages (search, pin, trash, chevrons). There is **one** sprite sheet, `assets/sprites.svg`, used by both themes: its art is the dark-theme drawing with the outline in `#787FB0` rather than an ink or white outline. An ink outline (`#14183A`) is 1.08:1 on the night surface and a white one is 1.15:1 on cream, which is exactly why two sheets used to exist; `#787FB0` is the tone that clears 3:1 on both (4.85 on paper, 5.39 on card, 3.32 on night background, 2.98 on night card — and after `.tn .sp`'s `saturate(.7)` the rendered outline `#7B80A2` measures 3.73 on the light bar and 4.31 on the dark bar). Do not reintroduce a per-theme sheet. In forced-colors mode every tab shows its label and the active tab takes a Highlight outline.
+Two icon languages, on purpose: pixel sprites for navigation and theme controls, and 1.75-stroke square-cap line SVGs inside pages (search, pin, trash, chevrons). The sprite art is a **per-theme pair** — `assets/sprites-light.svg` outlines in ink `#14183A`, `assets/sprites-dark.svg` outlines in white — swapped by `--sheet` in `:root` and `:root[data-theme="dark"]`. That pair exists because a single outline cannot serve both surfaces: ink is 1.08:1 on the night surface and white is 1.15:1 on cream, so each theme needs the outline drawn against its own background. Do not collapse it into one sheet. In forced-colors mode every tab shows its label and the active tab takes a Highlight outline.
 
 ### Loading and Feedback
 Buttons in flight show a 14px square-edged spinner (700ms) after the label. Data areas use Sunk Parchment skeleton blocks pulsing between 100% and 50% opacity over 1.2s. The toast is an Ink-filled block with a 2px ledge, lifted to 92px above the phone tab bar.

@@ -5,7 +5,7 @@
 @font-face { font-family: 'Plus Jakarta Sans'; font-weight: 200 800; font-display: swap; src: url(assets/fonts/plus-jakarta-sans.woff2) format('woff2'); }
 @font-face { font-family: 'Press Start 2P'; font-weight: 400; font-display: swap; src: url(assets/fonts/press-start-2p.woff2) format('woff2'); }
 :root {
-  --sheet: url(assets/sprites.svg);
+  --sheet: url(assets/sprites-light.svg);
   --bg: #F4EFE2; --sf: #FFFBF0; --sf2: #EBE4D0; --ln: #CFC4A6; --tx: #1A1D3D; --mu: #585C84;
   --ac: #2E4FB3; --acd: #1F3A8A; --acs: #DDE5FF; --onac: #FFFFFF;
   --ok: #1F7A49; --wn: #8A5A00; --er: #B3261E; --sh: #CFC4A6; --oa: #FFFFFF;
@@ -15,6 +15,7 @@
   color-scheme: light;
 }
 :root[data-theme="dark"] {
+  --sheet: url(assets/sprites-dark.svg);
   --bg: #0F1226; --sf: #181C3A; --sf2: #20254A; --ln: #434C8F; --tx: #EEF0FF; --mu: #A3ABDF;
   --ac: #7C9BFF; --acd: #4F6FD6; --acs: #262F66; --onac: #0F1226;
   --ok: #5BD08A; --wn: #F7CD54; --er: #FF8F85; --sh: #434C8F; --oa: #0F1226;
@@ -57,6 +58,8 @@ main[tabindex="-1"]:focus { outline: 0; }
    every overlay (the dialog overlay is 100, the toast 200). */
 .tb { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 4px; height: 64px; padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left)); background: var(--sf); border-bottom: 2px solid var(--ln); }
 .ib { margin-left: auto; width: 40px; height: 44px; flex: none; display: grid; place-items: center; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); }
+/* Only the first trailing icon pushes the pair right; otherwise both take an auto margin and open a hole between them. */
+.ib + .ib { margin-left: 0; }
 .ib:hover { border-color: var(--ac); }
 .brand { display: flex; align-items: center; gap: 10px; flex: none; min-height: 44px; padding: 0 4px; }
 .brand b { display: none; font: 400 16px/24px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
@@ -621,7 +624,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
 .cal-day.is-outside .cal-num { color: var(--mu); }
-.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 20px; }
+.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 24px; padding: 0 2px; color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 16px; line-height: 24px; }
 .cal-day.is-today .cal-num { background: var(--ac); color: var(--onac); }
 /* the mockup's .stub box (2px --ln on --sf2) with the status spine on the left border */
 .cal-chip { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 4px 8px; border: 2px solid var(--ln); border-left: 3px solid var(--edge, var(--mu)); color: var(--tx); background: var(--sf2); font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
@@ -641,7 +644,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* Phone month view: day cells are tap targets that show dots; the picked day's tasks list below the grid. */
 .cal-day.is-tappable { position: relative; justify-items: center; align-content: start; gap: 4px; min-height: 56px; padding: 4px; cursor: pointer; }
-.cal-day.is-tappable .cal-num { justify-self: center; }
+.cal-day.is-tappable .cal-num { justify-self: center; min-width: 0; padding: 0; }
+/* 16px is the crisp 2x multiple of the pixel font's 8px grid; the cell gives it no gutter to spare. */
+.cal[data-mode="month"] .cal-num { font-size: 16px; line-height: 24px; height: 24px; }
 @media (hover: hover) {
   .cal-day.is-tappable:hover { background: var(--sf2); }
   .cal-day.is-tappable.is-outside:hover { background: var(--sf2); }
@@ -1085,9 +1090,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* [[section:mine]] */
 /* What is left for this student: one pixel numeral and the next deadline. No frame, no comparison. */
 .mine { display: flex; align-items: baseline; gap: 10px; padding: 4px 0 8px; }
-.mine-n { margin: 0; color: var(--ac); font: 400 32px/40px 'Press Start 2P', monospace; font-variant-numeric: normal; }
+.mine-n { margin: 0; color: var(--ac); font: 400 32px/32px 'Press Start 2P', monospace; font-variant-numeric: normal; }
 .mine.is-clear .mine-n { color: var(--ok); }
 .mine-t { display: grid; gap: 2px; min-width: 0; }
 .mine-l { margin: 0; color: var(--tx); font-size: 16px; font-weight: 700; line-height: 24px; }
-.mine-next { margin: 0; overflow: hidden; color: var(--mu); font-size: 14px; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.mine-next { margin: 0; overflow-wrap: anywhere; color: var(--mu); font-size: 14px; line-height: 20px; }
 /* [[/section:mine]] */
