@@ -610,7 +610,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
    (.cd.today .dn), the picked tile with the inset ring plus the mockup's 2px offset shadow (.cd.sel),
    weekends a shade back on --sf2 (.cd.we), and the 8px dot carrying its --pl outline ring
    (.cd .pp i). The grid keeps the app's own paper sheet: 1px --ln gaps, cells rather than boxes. */
-.cal-title { color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 16px; line-height: 24px; letter-spacing: .02em; text-transform: uppercase; }
+.cal-title { color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 20px; letter-spacing: .02em; text-transform: uppercase; }
 @media (min-width: 720px) { .cal-title { font-size: 16px; line-height: 24px; } }
 .cal-nav { display: inline-flex; gap: 8px; }
 #page-calendar .cal-nav .icon-button { width: 44px; height: 44px; }
@@ -624,7 +624,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
 .cal-day.is-outside .cal-num { color: var(--mu); }
-.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 24px; padding: 0 2px; color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 16px; line-height: 24px; }
+.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 16px; }
 .cal-day.is-today .cal-num { background: var(--ac); color: var(--onac); }
 /* the mockup's .stub box (2px --ln on --sf2) with the status spine on the left border */
 .cal-chip { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 4px 8px; border: 2px solid var(--ln); border-left: 3px solid var(--edge, var(--mu)); color: var(--tx); background: var(--sf2); font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
@@ -644,9 +644,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* Phone month view: day cells are tap targets that show dots; the picked day's tasks list below the grid. */
 .cal-day.is-tappable { position: relative; justify-items: center; align-content: start; gap: 4px; min-height: 56px; padding: 4px; cursor: pointer; }
-.cal-day.is-tappable .cal-num { justify-self: center; min-width: 0; padding: 0; }
-/* 16px is the crisp 2x multiple of the pixel font's 8px grid; the cell gives it no gutter to spare. */
-.cal[data-mode="month"] .cal-num { font-size: 16px; line-height: 24px; height: 24px; }
+.cal-day.is-tappable .cal-num { justify-self: center; }
 @media (hover: hover) {
   .cal-day.is-tappable:hover { background: var(--sf2); }
   .cal-day.is-tappable.is-outside:hover { background: var(--sf2); }
@@ -775,7 +773,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #page-my-tasks .kanban-board { display: none; }
   #page-my-tasks #task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
   #page-my-tasks.is-blank #task-list { display: none !important; }
-  .cal-day { min-height: 80px; padding: 4px; border: 2px solid var(--ed); box-shadow: 0 2px 0 var(--sh); }
+  .cal-day { min-height: 80px; padding: 4px; border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); }
   /* Each day is its own block with a 2px edge and a gap between, not a cell in one ruled sheet. */
   .cal { gap: 12px 8px; border: 0; background: none; overflow: visible; }
   .cal-dow { background: transparent; }
