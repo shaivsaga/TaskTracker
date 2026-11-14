@@ -47,6 +47,18 @@ let renderAllTasks = null;    // app.js
 let openTaskDialog = null;    // app.js
 let showToast = null;         // app.js
 
+// The subject row shows the parser's own guess plus one Change chip. The full list appears only when
+// there is nothing to guess from, or after Change is pressed, and stays revealed until the overlay
+// closes so the list cannot collapse under a finger mid-choice.
+let quickSubjectOpen = false;
+let quickSubjectSig = '';
+
+const subjectItems = (p) => {
+  const guess = p && p.subject ? p.subject : '';
+  if (guess && !quickSubjectOpen) return [{ type: 'subject', code: guess }, { type: 'change' }];
+  return Object.keys(subjects()).map((code) => ({ type: 'subject', code }));
+};
+
 function isDateWord(w) {
   const l = w.toLowerCase();
   return /^(\d{1,2})[\/-](\d{1,2})$/.test(w) || ['today', 'tmr', 'tomorrow'].includes(l) || lookup(WEEKDAYS, l) !== undefined;
@@ -128,23 +140,26 @@ function renderQuickPreview() {
   document.querySelector('#quick-open-btn').disabled = !hasText;
 }
 
-function renderQuickChips() {
+function renderQuickChips(p) {
   const host = document.querySelector('#quick-chips');
   host.replaceChildren();
   state.quickChipEls = [];
+  quickSubjectSig = `${(p && p.subject) || ''}|${quickSubjectOpen}`;
   const groups = [
-    ['Subject', Object.keys(subjects()).map((code) => ({ type: 'subject', code }))],
-    ['Status', [['ns', 'Not started', 'ns'], ['ip', 'In progress', 'ip'], ['dn', 'Done', 'dn']].map(([code, label, shown]) => ({ type: 'status', code, label, shown }))],
-    ['Due', [
+    ['Subject', 'subject', subjectItems(p)],
+    // Status is personal progress, not a property of the posted task: it is set on your own list, and
+    // typing "ip"/"done" still parses. Only Subject and Due get chips here.
+    ['Due', 'due', [
       { type: 'date', code: 'today', label: 'Today', shown: 'today' },
       { type: 'date', code: 'tmr', label: 'Tomorrow', shown: 'tmr' },
       { type: 'pick', code: 'pick', label: 'Date & time', shown: 'cal' },
       { type: 'clear', code: 'clear', label: 'Clear' },
     ]],
   ];
-  groups.forEach(([name, items]) => {
+  groups.forEach(([name, key, items]) => {
     const group = document.createElement('div');
     group.className = 'quick-group';
+    group.dataset.group = key;
     group.setAttribute('role', 'group');
     group.setAttribute('aria-label', name);
     group.appendChild(quickText(name, 'quick-group-label'));
@@ -153,17 +168,23 @@ function renderQuickChips() {
       btn.type = 'button';
       btn.className = 'quick-chip-btn';
       btn.dataset.type = type;
-      btn.dataset.code = code;
+      if (code) btn.dataset.code = code;
       btn.title = type === 'subject' ? code : shown ? `Shortcut: ${shown}` : label;
       btn.setAttribute('aria-pressed', 'false');
-      if (type === 'subject') {
+      if (type === 'change') {
+        btn.textContent = 'Change subject';
+        btn.title = 'Show every subject';
+        btn.addEventListener('click', () => { quickSubjectOpen = true; renderQuickPreview(); });
+      } else if (type === 'subject') {
         btn.classList.add('is-subject');
         btn.appendChild(createSubjectTag(code));
+        btn.addEventListener('click', () => applyQuickToken(type, code));
       } else {
         btn.appendChild(quickText(label));
         if (shown) btn.appendChild(quickText(shown, 'quick-code'));
+        btn.addEventListener('click', () => applyQuickToken(type, code));
       }
-      btn.addEventListener('click', () => applyQuickToken(type, code));
+      if (type === 'change') btn.classList.add('is-change');
       group.appendChild(btn);
       state.quickChipEls.push(btn);
     });
@@ -172,6 +193,19 @@ function renderQuickChips() {
 }
 
 function syncQuickChips(p) {
+  // Re-render only when the guess or the reveal flag actually moved, so typing inside a subject word
+  // does not rebuild the row on every keystroke, and never silently drop the focused chip.
+  const subjectGroup = document.querySelector('#quick-chips .quick-group[data-group="subject"]');
+  const hadFocus = !!subjectGroup && subjectGroup.contains(document.activeElement);
+  if (`${(p && p.subject) || ''}|${quickSubjectOpen}` !== quickSubjectSig) {
+    renderQuickChips(p);
+    if (hadFocus) {
+      const next = quickSubjectOpen
+        ? document.querySelector('#quick-chips .quick-group[data-group="subject"] .quick-chip-btn')
+        : dom.quickInput;
+      if (next) next.focus();
+    }
+  }
   state.quickChipEls.forEach((el) => {
     const { type, code } = el.dataset;
     let on = false;
@@ -214,6 +248,7 @@ export function openQuickAdd() {
   state.quickPicked = { date: null, time: null };
   closeDuePicker();
   state.quickPrev = { subject: '', status: '', due: '' };
+  quickSubjectOpen = false;
   renderQuickChips();
   renderQuickPreview();
   dom.quickOverlay.classList.remove('is-closing');

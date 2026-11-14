@@ -73,12 +73,20 @@ function createCalDots(list) {
   wrap.className = 'cal-dots';
   wrap.setAttribute('aria-hidden', 'true');
   // Only three dots fit, so the urgent ones go first (a stable sort keeps the time order within a rank).
-  list.slice().sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
+  const shown = list.slice().sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3);
+  shown.forEach((t) => {
     const dot = document.createElement('span');
     dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '') + (t.status !== 'done' && t.isOverdue() ? ' is-overdue' : isDueSoon(t) ? ' is-due-soon' : '');
     dot.dataset.status = t.status;
     wrap.appendChild(dot);
   });
+  // The cell's aria-label carries the true count; this is the visible remainder for the rest.
+  if (list.length > shown.length) {
+    const more = document.createElement('span');
+    more.className = 'cal-dot-more';
+    more.textContent = `+${list.length - shown.length}`;
+    wrap.appendChild(more);
+  }
   return wrap;
 }
 
@@ -142,6 +150,25 @@ function syncCalTabs() {
   });
 }
 
+// The day cell's two ARIA contracts sit here side by side instead of being duplicated per branch:
+// the phone month cell is a picker (role=button, roving tabindex, aria-current="true" on the picked
+// day), every other cell is a labelled group that holds that day's chips and marks today
+// aria-current="date".
+function calLabelCell(cell, num, { d, key, list, picker, current }) {
+  const overdue = list.filter((t) => t.status !== 'done' && t.isOverdue()).length;
+  const soon = list.filter(isDueSoon).length;
+  cell.dataset.date = key;
+  cell.setAttribute('aria-label', `${calLongDate(d)}, ${list.length ? plural(list.length, 'task') : 'no tasks'}${overdue ? `, ${overdue} overdue` : ''}${soon ? `, ${soon} due soon` : ''}`);
+  num.setAttribute('aria-hidden', 'true');
+  if (picker) {
+    cell.setAttribute('role', 'button');
+    if (current) cell.setAttribute('aria-current', 'true');
+  } else {
+    cell.setAttribute('role', 'group');
+    if (dayDiff(d) === 0) cell.setAttribute('aria-current', 'date');
+  }
+}
+
 export function renderCalendar() {
   const grid = document.querySelector('#cal-grid');
   if (!grid) return;
@@ -153,12 +180,19 @@ export function renderCalendar() {
   document.querySelector('#cal-title').textContent = state.calMode === 'week'
     ? `${short(start)} – ${short(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6))}`
     : state.calAnchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  // The arrows move a month or a week; say which, instead of a bare "Previous"/"Next".
+  const period = state.calMode === 'week' ? 'week' : 'month';
+  document.querySelector('#cal-prev').setAttribute('aria-label', `Previous ${period}`);
+  document.querySelector('#cal-next').setAttribute('aria-label', `Next ${period}`);
   grid.dataset.mode = state.calMode;
+  grid.setAttribute('role', 'region');
+  grid.setAttribute('aria-labelledby', 'cal-title');
   const focusedDay = grid.contains(document.activeElement) ? document.activeElement.dataset.date : '';
   grid.replaceChildren();
   for (let i = 0; i < 7; i++) {
     const h = document.createElement('div');
     h.className = 'cal-dow';
+    h.setAttribute('aria-hidden', 'true');
     h.textContent = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i).toLocaleDateString(undefined, { weekday: 'short' });
     grid.appendChild(h);
   }
@@ -168,6 +202,8 @@ export function renderCalendar() {
   state.calByDay = byDay;
   for (let i = 0; i < days; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const key = toInputValue(d);
+    const list = (byDay.get(key) || []).slice().sort(calSort);
     const cell = document.createElement('div');
     cell.className = 'cal-day' + (state.calMode === 'month' && d.getMonth() !== state.calAnchor.getMonth() ? ' is-outside' : '') + (dayDiff(d) === 0 ? ' is-today' : '');
     if (state.calMode === 'week') cell.dataset.dow = d.toLocaleDateString(undefined, { weekday: 'short' });
@@ -175,18 +211,11 @@ export function renderCalendar() {
     num.className = 'cal-num';
     num.textContent = d.getDate();
     cell.appendChild(num);
-    const list = (byDay.get(toInputValue(d)) || []).slice().sort(calSort);
+    calLabelCell(cell, num, { d, key, list, picker: phoneMonth, current: key === picked });
     if (phoneMonth) {
-      const key = toInputValue(d);
       cell.classList.add('is-tappable');
       if (key === picked) cell.classList.add('is-selected');
-      const overdue = list.filter((t) => t.status !== 'done' && t.isOverdue()).length;
-      const soon = list.filter(isDueSoon).length;
-      cell.dataset.date = key;
       cell.tabIndex = key === picked ? 0 : -1;
-      cell.setAttribute('role', 'button');
-      if (key === picked) cell.setAttribute('aria-current', 'true');
-      cell.setAttribute('aria-label', `${calLongDate(d)}, ${list.length ? plural(list.length, 'task') : 'no tasks'}${overdue ? `, ${overdue} overdue` : ''}${soon ? `, ${soon} due soon` : ''}`);
       if (list.length) cell.appendChild(createCalDots(list));
       cell.addEventListener('click', () => calSelect(d));
       cell.addEventListener('keydown', (e) => calKey(e, d));

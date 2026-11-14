@@ -11,6 +11,7 @@
   --ok: #1F7A49; --wn: #8A5A00; --er: #B3261E; --sh: #CFC4A6; --oa: #FFFFFF;
   --wnb: rgba(138,90,0,.12); --erb: rgba(179,38,30,.10); --okb: rgba(31,122,73,.12);
   --pl: rgba(26,29,61,.55);
+  --ed: #8F8360;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -20,6 +21,7 @@
   --ok: #5BD08A; --wn: #F7CD54; --er: #FF8F85; --sh: #434C8F; --oa: #0F1226;
   --wnb: rgba(247,205,84,.14); --erb: rgba(255,143,133,.14); --okb: rgba(91,208,138,.14);
   --pl: rgba(15,18,38,0);
+  --ed: var(--ln);
   color-scheme: dark;
 /* [[/section:tokens]] */
 }
@@ -57,8 +59,8 @@ main[tabindex="-1"]:focus { outline: 0; }
 .tb { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 4px; height: 64px; padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left)); background: var(--sf); border-bottom: 2px solid var(--ln); }
 .ib { margin-left: auto; width: 40px; height: 44px; flex: none; display: grid; place-items: center; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); }
 .ib:hover { border-color: var(--ac); }
-.brand { display: flex; align-items: center; gap: 10px; flex: none; padding: 0 4px; }
-.brand b { display: none; font: 400 12px/20px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
+.brand { display: flex; align-items: center; gap: 10px; flex: none; min-height: 44px; padding: 0 4px; }
+.brand b { display: none; font: 400 16px/24px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
 /* Phone-only logo row at the top of the page; the header brand is hidden there because the header is the bottom tab bar. */
 .brand-m { display: none; }
 .nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
@@ -68,9 +70,9 @@ main[tabindex="-1"]:focus { outline: 0; }
 .tn.is-active { background: var(--acs); border-color: var(--ac); color: var(--tx); box-shadow: 0 2px 0 var(--ac); }
 .tn.is-active .sp, .tn.adm .sp { filter: none; }
 .tn .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
-.tn.adm { background: var(--ac); border-color: var(--ac); color: var(--onac); transform: translateY(-4px); box-shadow: inset 0 -3px 0 var(--acd), 0 4px 0 var(--sh); }
+.tn.adm { background: var(--ac); border-color: var(--ac); color: var(--onac); box-shadow: inset 0 -3px 0 var(--acd); }
 .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
-.bd { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 3px; display: grid; place-items: center; font: 400 12px/12px 'Press Start 2P', monospace; background: var(--ac); color: var(--onac); }
+.bd { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 3px; display: grid; place-items: center; font: 700 12px/12px 'Plus Jakarta Sans', system-ui, sans-serif; background: var(--ac); color: var(--onac); }
 .bd.er { background: var(--er); color: var(--oa); }
 .px { font-family: 'Press Start 2P', monospace; font-weight: 400; text-transform: uppercase; }
 .ttl { font-size: 16px; line-height: 24px; }
@@ -101,12 +103,6 @@ h1.ttl { margin-bottom: -8px; }
   .tb { gap: 4px; padding: 0 16px; }
   .nav { gap: 2px; }
   .tn { gap: 6px; padding: 0 8px; }
-  /* Settings keeps its icon only here; its label returns at 820px, where there is room. */
-  .tb #settings-open .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
-}
-/* lint-allow:px 820px -- the Settings label returns here, one pixel after the 819 band */
-@media (min-width: 820px) {
-  .tb #settings-open .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
 }
 @media (min-width: 1100px) {
   .brand b { display: block; }
@@ -156,7 +152,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .primary-button:disabled, .secondary-button:disabled, .text-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .primary-button.is-loading::after, .secondary-button.is-loading::after, .danger-button.is-loading::after { content: ''; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; animation: spin 700ms linear infinite; }
 
-.text-button { padding: 0; border: 0; background: transparent; color: var(--ac); font-size: 14px; font-weight: 600; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.text-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: var(--ac); font-size: 14px; font-weight: 600; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .text-button:hover { color: var(--acd); }
 
 .icon-button { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); cursor: pointer; }
@@ -165,8 +161,8 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .icon-dark { display: none; }
 :root[data-theme="dark"] .icon-dark { display: block; }
 :root[data-theme="dark"] .icon-light { display: none; }
-.view-tabs { display: inline-flex; align-items: stretch; border: 2px solid var(--mu); background: var(--sf); }
-.view-tab { display: flex; align-items: center; justify-content: center; height: 40px; min-width: 0; padding: 0 16px; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.view-tabs { display: inline-flex; align-items: stretch; gap: 2px; padding: 2px; border: 2px solid var(--mu); background: var(--sf); }
+.view-tab { display: flex; align-items: center; justify-content: center; min-height: 44px; min-width: 0; padding: 0 16px; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
 .view-tab + .view-tab { border-left: 2px solid var(--mu); }
 .view-tab:hover { color: var(--tx); background: var(--sf2); }
 .view-tab.is-active { color: var(--tx); background: var(--acs); box-shadow: inset 0 -3px 0 var(--ac); font-weight: 600; }
@@ -174,7 +170,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .search { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); }
 .search:focus-within { border-color: var(--ac); }
 .search svg { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 2; }
-.search input { width: 200px; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 14px; line-height: 20px; }
+.search input { width: 200px; min-height: 40px; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 14px; line-height: 20px; }
 .search input::placeholder { color: var(--mu); opacity: 1; }
 
 .text-input { width: 100%; height: 44px; padding: 0 12px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 14px; line-height: 20px; }
@@ -190,11 +186,23 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 
 /* The admin bar is the mockup's quiet row (.srow: 2px var(--ln) on var(--sf), 64px tall, 8px 12px of
    padding) with .acts' 8px gap, and its link actions wear the same 36px sm button as the Done rows. */
-.admin-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; min-height: 64px; margin-top: 16px; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf); }
+.admin-bar { display: grid; gap: 8px; min-height: 64px; margin-top: 16px; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf); }
 .admin-status { color: var(--mu); font-size: 12px; line-height: 16px; }
 .admin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* From 720px the status keeps the left edge and the three groups sit on the right of one line. */
+@media (min-width: 720px) {
+  .admin-bar { grid-template-columns: auto 1fr; align-items: center; gap: 8px 16px; }
+  .admin-actions { justify-content: flex-end; }
+  .admin-group { justify-content: flex-end; }
+}
 .admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .admin-actions .text-button:hover, .history-item .text-button:hover, .file-item .text-button:hover { border-color: var(--ac); background: var(--sf2); color: var(--tx); }
+/* Three groups, one divider each: quiet tools, then the draft pair, then Publish standing alone. */
+.admin-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.admin-group + .admin-group { padding-left: 8px; border-left: 2px solid var(--ln); }
+/* The tools read as links, Save keeps its frame, Publish keeps the fill: weight descends left to right. */
+.admin-actions .admin-tools .text-button { border-color: transparent; background: none; box-shadow: none; color: var(--mu); }
+.admin-actions .admin-tools .text-button:hover { border-color: transparent; background: none; color: var(--tx); }
 
 .summary { display: flex; flex-wrap: wrap; align-items: center; margin: 16px 0 0; color: var(--mu); font-size: 12px; line-height: 20px; }
 .summary span:first-child { color: var(--tx); font-weight: 500; }
@@ -267,19 +275,19 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
    status square, heading, the .n count chip, then the .sec rule that fills the rest of the row. */
 .kanban-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; align-items: flex-start; }
 @media (min-width: 720px) { .kanban-board { gap: 24px; } }
-.kanban-column { display: flex; min-width: 0; min-height: 320px; flex-direction: column; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
+.kanban-column { display: flex; min-width: 0; min-height: 320px; flex-direction: column; padding: 12px; border: 2px solid transparent; background: var(--sf2); }
 .column-header { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .column-header > div { display: flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 8px; }
 .column-header h2 { color: var(--tx); font-size: 14px; font-weight: 700; line-height: 20px; }
 .column-header::after { content: ''; flex: 1; height: 2px; background: var(--ln); }
-.column-count { padding: 0 6px; min-width: 20px; color: var(--mu); background: var(--sf2); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
+.column-count { padding: 0 6px; min-width: 20px; color: var(--mu); background: var(--sf); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
 .column-marker { order: -1; width: 8px; height: 8px; flex-shrink: 0; outline: 1px solid var(--ln); }
 .marker-todo { background: var(--mu); }
 .marker-progress { background: var(--ac); }
 .marker-done { background: var(--ok); }
 .column-content { display: grid; flex: 1; align-content: start; gap: 12px; padding: 12px 0 0; }
 .column-content.is-empty { place-items: center; align-content: center; }
-.column-empty { margin: 0; padding: 24px 16px; border: 2px dashed var(--ln); background: var(--sf2); color: var(--mu); font-size: 12px; line-height: 16px; text-align: center; }
+.column-empty { margin: 0; padding: 24px 16px; border: 2px dashed var(--ln); background: transparent; color: var(--mu); font-size: 12px; line-height: 16px; text-align: center; }
 .kanban-column.drag-over { border-color: var(--ac); }
 .kanban-column.drag-over .column-content { outline: 2px dashed var(--ac); outline-offset: 4px; background: var(--acs); }
 .drop-placeholder { display: grid; place-content: center; height: 56px; border: 2px dashed var(--ac); background: var(--acs); color: var(--ac); font-size: 12px; font-weight: 600; }
@@ -290,7 +298,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 /* The mockup's .card: 2px var(--ln) on var(--sf) with the same 2px offset shadow, 12px padding, and the
    title over its .mt meta row at the mockup's 8px. The status square, subject chip and due badge are
    3.1d's components, composed here, not restyled. */
-.task-card { display: grid; gap: 8px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
+.task-card { display: grid; gap: 8px; padding: 12px; border: 2px solid var(--ed); background: var(--sf); box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
 .task-card:hover { border-color: var(--ac); }
 .task-card:active { background: var(--sf2); }
 .task-card.is-dragging { opacity: 0.35; }
@@ -357,7 +365,8 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 
 /* Checkbox: [ ] not started, [-] in progress, [x] done */
 .status-check { position: relative; display: grid; place-content: center; width: 22px; height: 22px; margin: 0; padding: 0; border: 2px solid var(--mu); background: var(--oa); color: var(--onac); cursor: pointer; }
-.status-check::after { content: ''; position: absolute; inset: -12px; }
+/* lint-allow:px -13px -- the 44px touch target around the 22px box, not a visual dimension (18px padding box + 26px) */
+.status-check::after { content: ''; position: absolute; inset: -13px; }
 .status-check:hover { border-color: var(--tx); }
 .status-check:active { background: var(--sf2); }
 .status-check svg { width: 12px; height: 12px; stroke-width: 3; }
@@ -440,8 +449,9 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .status-option:focus-visible { outline: 2px solid var(--ac); outline-offset: -2px; }
 
 /* lint-allow:px 0px -- env() safe-area fallback: a calc with no fallback is dropped entirely */
-.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; z-index: 200; display: flex; align-items: center; gap: 16px; max-width: calc(100% - 24px); padding: 10px 12px 10px 16px; color: var(--bg); background: var(--tx); border: 2px solid var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 14px; font-weight: 600; line-height: 20px; transform: translateX(-50%); }
-.toast-action { padding: 8px; border: 0; background: transparent; color: var(--bg); font-size: 14px; font-weight: 700; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; z-index: 200; display: flex; align-items: center; gap: 16px; max-width: calc(100% - 24px); padding: 4px 8px 4px 16px; color: var(--bg); background: var(--tx); border: 2px solid var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 14px; font-weight: 600; line-height: 20px; transform: translateX(-50%); }
+/* Undo is the control a mis-tap sends you to, so it takes the full 44px target; the 4px toast padding room makes the toast 52px, not 64px. */
+.toast-action { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--bg); font-size: 14px; font-weight: 700; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 /* [[/section:popovers]] */
 
 /* [[section:dialogs]] */
@@ -518,17 +528,19 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .quick-title { color: var(--tx); font-weight: 600; }
 .quick-due { display: flex; flex-wrap: wrap; gap: 4px; }
 .quick-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; }
-.quick-chips { display: grid; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 2px solid var(--ln); }
+.quick-chips { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--ln); }
 .quick-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .quick-group-label { flex: 0 0 56px; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; text-transform: uppercase; }
-.quick-chip-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.quick-chip-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
 .quick-chip-btn.is-subject { padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); }
 .quick-chip-btn.is-subject.is-selected { color: var(--tag-ink, var(--tx)); background: var(--tag, var(--acs)); box-shadow: inset 0 0 0 2px var(--ac), inset 0 -2px 0 rgba(20, 24, 58, 0.28); }
 .quick-chip-btn:hover, .quick-chip-btn:active { border-color: var(--ac); color: var(--tx); background: var(--sf2); }
 .quick-chip-btn.is-selected { border-color: var(--ac); background: var(--acs); color: var(--tx); box-shadow: inset 0 -3px 0 var(--ac); }
 .quick-chip-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* The Change chip is an action among value chips: underlined, never filled like a subject. */
+.quick-chip-btn.is-change { text-decoration: underline; text-underline-offset: 3px; }
 .quick-code { color: var(--mu); font-size: 12px; }
-.quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; }
+.quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-size: 12px; line-height: 20px; }
 kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; background: var(--sf); font-size: 12px; }
 /* [[/section:quick-add]] */
 
@@ -540,7 +552,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .dp-input::placeholder { color: var(--mu); opacity: 1; }
 .dp-input:focus { border-color: var(--ac); }
 .dp-head { display: flex; align-items: center; gap: 4px; margin: 12px 0 8px; }
-.dp-month { flex: 1; font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; text-transform: uppercase; }
+.dp-month { flex: 1; font-size: 14px; font-weight: 700; line-height: 20px; text-transform: uppercase; }
 .dp-nav { display: grid; place-content: center; min-width: 36px; height: 36px; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); font-size: 12px; font-weight: 600; cursor: pointer; }
 .dp-nav:hover { border-color: var(--ac); color: var(--tx); }
 .dp-nav svg { width: 16px; height: 16px; stroke-width: 2; }
@@ -573,7 +585,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
    (.cd.today .dn), the picked tile with the inset ring plus the mockup's 2px offset shadow (.cd.sel),
    weekends a shade back on --sf2 (.cd.we), and the 8px dot carrying its --pl outline ring
    (.cd .pp i). The grid keeps the app's own paper sheet: 1px --ln gaps, cells rather than boxes. */
-.cal-title { color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 20px; letter-spacing: .02em; text-transform: uppercase; }
+.cal-title { color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 16px; line-height: 24px; letter-spacing: .02em; text-transform: uppercase; }
 @media (min-width: 720px) { .cal-title { font-size: 16px; line-height: 24px; } }
 .cal-nav { display: inline-flex; gap: 8px; }
 #page-calendar .cal-nav .icon-button { width: 44px; height: 44px; }
@@ -587,7 +599,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
 .cal-day.is-outside .cal-num { color: var(--mu); }
-.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 16px; }
+.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-weight: 700; font-size: 14px; line-height: 20px; }
 .cal-day.is-today .cal-num { background: var(--ac); color: var(--onac); }
 /* the mockup's .stub box (2px --ln on --sf2) with the status spine on the left border */
 .cal-chip { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 4px 8px; border: 2px solid var(--ln); border-left: 3px solid var(--edge, var(--mu)); color: var(--tx); background: var(--sf2); font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
@@ -612,10 +624,12 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 }
 .cal-day.is-tappable.is-selected, .cal-day.is-tappable.is-selected:hover { background: var(--acs); box-shadow: inset 0 0 0 2px var(--ac), 0 2px 0 var(--ac); }
 .cal-day.is-tappable:focus-visible { outline-offset: -2px; }
-.cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; min-height: 8px; }
+.cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; min-height: 8px; }
 .cal-dots .cal-dot[data-status="done"] { background: transparent; }
-.cal-dots .cal-dot.is-overdue { background: var(--er); outline-color: var(--er); }
-.cal-dots .cal-dot.is-due-soon { background: var(--wn); outline-color: var(--wn); }
+.cal-dots .cal-dot.is-overdue { outline: 2px solid var(--er); outline-offset: 1px; }
+.cal-dots .cal-dot.is-due-soon { outline: 1px solid var(--wn); outline-offset: 1px; }
+/* The "+3" remainder sits on the dot row, small enough to fit a 52px phone day cell. */
+.cal-dot-more { color: var(--mu); font-size: 12px; font-weight: 700; line-height: 8px; font-variant-numeric: tabular-nums; }
 .cal-agenda { margin-top: 16px; }
 /* the mockup's .sec strip: heading, then the rule that fills the row */
 .cal-agenda-title { display: flex; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 8px; color: var(--mu); font-size: 14px; font-weight: 700; line-height: 20px; }
@@ -681,18 +695,17 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; font: 600 12px/16px 'Plus Jakarta Sans', system-ui, sans-serif; white-space: nowrap; }
   .tn.adm { max-width: 72px; height: 56px; transform: none; box-shadow: inset 0 -3px 0 var(--acd); }
   .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
-  .bd { top: -8px; right: 0; }
+  .bd { top: 0; right: 2px; }
   /* Phone tab order: Tasks, Calendar, Admin (centre, president only), Done, Past. */
   .tn[data-page="class-tasks"] { order: 1; }
   .tn[data-page="calendar"] { order: 2; }
   .tn[data-page="my-tasks"] { order: 3; }
   .tn[data-page="done"] { order: 4; }
   .tn[data-page="past"] { order: 5; }
-  /* No theme toggle in the phone bar; Appearance lives in Settings. */
-  .tb .ib { display: none; }
+  /* No theme toggle in the phone bar; Appearance lives in Settings. Settings itself stays, fixed. */
+  .tb .ib:not(#settings-open) { display: none; }
   /* Settings moves to the top right corner. */
-  .tb #settings-open { position: fixed; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); z-index: 31; width: 44px; height: 44px; min-width: 44px; max-width: 44px; flex: none; padding: 0; background: var(--sf); border: 2px solid var(--mu); box-shadow: 0 2px 0 var(--sh); }
-  .tb #settings-open .lbl { display: none; }
+  .tb #settings-open { display: grid; place-content: center; position: fixed; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); z-index: 31; width: 44px; height: 44px; min-width: 44px; max-width: 44px; flex: none; padding: 0; background: var(--sf); border: 2px solid var(--mu); box-shadow: 0 2px 0 var(--sh); }
   h1.ttl { padding-right: 56px; margin-bottom: -12px; }
   main.page-container { padding: max(8px, env(safe-area-inset-top)) 16px calc(104px + env(safe-area-inset-bottom)); gap: 12px; }
 /* lint-allow:px 0px -- env() safe-area fallback: a calc with no fallback is dropped entirely */
@@ -729,9 +742,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
      list has to win, and [hidden] is !important, which is why display carries it too. */
   #page-class-tasks .view-tabs, #class-board { display: none; }
   #page-class-tasks #class-task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
-  #class-task-list .task-row { padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
+  #class-task-list .task-row { padding: 12px; border: 2px solid var(--ed); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
   #class-task-list .task-row-title { font-size: 16px; line-height: 24px; }
-  .cal-day { min-height: 80px; padding: 4px; border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); }
+  .cal-day { min-height: 80px; padding: 4px; border: 2px solid var(--ed); box-shadow: 0 2px 0 var(--sh); }
   /* Each day is its own block with a 2px edge and a gap between, not a cell in one ruled sheet. */
   .cal { gap: 12px 8px; border: 0; background: none; overflow: visible; }
   .cal-dow { background: transparent; }
@@ -811,13 +824,18 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
 @media (prefers-contrast: more) {
-  body { --ln: var(--mu); }
+  body { --ln: var(--mu); --ed: var(--mu); }
 }
 /* [[/section:a11y]] */
 
 /* Admin actions are one flat row of buttons: no menu to open, so Preview, History and Discard are one
    press away. The row wraps inside the bar and the phone gets 44px targets. */
-@media (max-width: 719px) { .admin-actions .text-button { height: 44px; } }
+/* lint-allow:px 719px -- the phone/desktop boundary the app already uses, not a design-scale value */
+@media (max-width: 719px) {
+  .admin-actions .text-button, .history-item .text-button, .file-item .text-button { height: 44px; }
+  /* On a phone the bar wraps, so a group rule would open a line as a stray tick; the wrap already separates. */
+  .admin-group + .admin-group { padding-left: 0; border-left: 0; }
+}
 
 /* Forced colors: sprite colors are not ours to control there, so labels carry every tab and the
    active tab is marked with the system highlight. */
@@ -909,7 +927,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .tour-overlay.is-centered .tour-spot { display: none; }
 .tour-card { position: fixed; display: grid; gap: 12px; width: min(440px, calc(100vw - 16px * 2)); padding: 16px; border: 2px solid var(--ac); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
 .tour-text { display: grid; gap: 8px; }
-.tour-step { margin: 0; color: var(--mu); font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; text-transform: uppercase; }
+.tour-step { margin: 0; color: var(--mu); font-size: 12px; font-weight: 700; letter-spacing: .04em; line-height: 20px; text-transform: uppercase; }
 .tour-title { font-size: 16px; font-weight: 600; line-height: 24px; }
 .tour-body { margin: 0; color: var(--tx); font-size: 14px; line-height: 20px; }
 .tour-sample-card { cursor: default; }
@@ -1013,3 +1031,14 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   /* A task you just finished lands on the Done page and keeps a blue edge for a moment. */
   #done-list .done-row.is-landed { animation: landed 420ms steps(5), landed-edge 1600ms steps(8) 200ms backwards; }
 }
+
+
+/* [[section:mine]] */
+/* What is left for this student: one pixel numeral and the next deadline. No frame, no comparison. */
+.mine { display: flex; align-items: baseline; gap: 10px; padding: 4px 0 8px; }
+.mine-n { margin: 0; color: var(--ac); font: 400 32px/40px 'Press Start 2P', monospace; font-variant-numeric: normal; }
+.mine.is-clear .mine-n { color: var(--ok); }
+.mine-t { display: grid; gap: 2px; min-width: 0; }
+.mine-l { margin: 0; color: var(--tx); font-size: 16px; font-weight: 700; line-height: 24px; }
+.mine-next { margin: 0; overflow: hidden; color: var(--mu); font-size: 14px; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+/* [[/section:mine]] */

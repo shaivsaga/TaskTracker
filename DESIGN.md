@@ -6,6 +6,7 @@ colors:
   card: "#FFFBF0"
   card-sunk: "#EBE4D0"
   rule: "#CFC4A6"
+  edge: "#8F8360"
   ink: "#1A1D3D"
   ink-soft: "#585C84"
   royal: "#2E4FB3"
@@ -118,9 +119,10 @@ Warm paper and ink in light, indigo night in dark, with a single saturated blue.
 
 ### Neutral
 - **Paper** (#F4EFE2; dark: #0F1226): page background.
-- **Card Cream** (#FFFBF0; dark: #181C3A): cards, columns, dialogs, top bar.
-- **Sunk Parchment** (#EBE4D0; dark: #20254A): hover and pressed fills, alternate calendar rows, banners.
-- **Rule Tan** (#CFC4A6; dark: #434C8F): card borders, dividers and the ledge shadow. Every interactive control and form field uses Soft Slate for its border (3:1).
+- **Card Cream** (#FFFBF0; dark: #181C3A): cards, dialogs, top bar.
+- **Sunk Parchment** (#EBE4D0; dark: #20254A): board column fills, hover and pressed fills, alternate calendar rows, banners.
+- **Rule Tan** (#CFC4A6; dark: #434C8F): dividers, calendar grid rules and the ledge shadow.
+- **Card Edge** (`--ed`, #8F8360; dark: Rule Tan #434C8F): task card, phone task row and phone calendar day borders (~3.6:1 against Paper/Card Cream in light). Every interactive control and form field uses Soft Slate (`--mu`) for its border (3:1).
 - **Ink Navy** (#1A1D3D; dark: #EEF0FF): body text.
 - **Soft Slate** (#585C84; dark: #A3ABDF): secondary text and unchecked checkbox borders.
 
@@ -135,7 +137,7 @@ Ten subject tags follow the class schedule colors, always with dark ink (#14183A
 ### Named Rules
 **The One Voice Rule.** Royal blue is the only accent. Green, amber and red are status, never decoration.
 **The Calm Urgency Rule.** Overdue is red text on a faint wash, labeled in plain words ("2 days overdue", "Expired", "Closed"); no alarm fills, no shaming language.
-**The Twenty Names Rule.** The token vocabulary is the twenty names in `:root` (bg, sf, sf2, ln, tx, mu, ac, acd, acs, onac, ok, wn, er, sh, oa and their washes). Add no app-only token.
+**The Twenty-One Names Rule.** The token vocabulary is the twenty-one names in `:root` (bg, sf, sf2, ln, tx, mu, ac, acd, acs, onac, ok, wn, er, sh, oa, ed and their washes). Add no app-only token.
 
 **The Derived Veil Rule.** The overlay veil is the ink, not a colour of its own: `color-mix(in srgb, var(--tx) 48%, transparent)` on paper and 14% at night. A named scrim token is forbidden by the rule above and by the lockstep lint, and the mockup's `rgba(20,24,58,.5)` is a paper-only value - on the night page it moves the pixels by 2/255 and the modal stops reading as a layer. In night a darkening scrim cannot work at all: pure black over `--bg` tops out at 1.13:1, so the veil lightens instead.
 
@@ -164,14 +166,14 @@ The board is three columns (To Do, In Progress, Done) on desktop. On phones the 
 
 ## Elevation & Depth
 
-Flat, with a hard offset ledge instead of blur: cards, columns, the toast and secondary buttons sit on `0 2px 0` in Rule Tan; dialogs, the quick-add panel, the due picker and the status menu use `0 4px 0`; the primary button adds an inset bottom bar in Deep Royal plus the 2px ledge, so it reads as pressable. Pressing removes the ledge. Selected controls (view tabs, toolbar toggles, chips) swap the ledge for an inset 3px Royal bar along the bottom. The active nav tab takes a 2px Royal underline; the active Admin tab adds a 2px page-colored gap and a 4px Ink ring. There are no soft or blurred shadows.
+Flat, with a hard offset ledge instead of blur: cards, the toast and secondary buttons sit on `0 2px 0` in Rule Tan (`--sh`); desktop board columns are borderless, shadowless Sunk Parchment (`--sf2`) areas so cards do not sit inside a second framed box. Dialogs, the quick-add panel, the due picker and the status menu use `0 4px 0`; the primary button adds an inset bottom bar in Deep Royal plus the 2px ledge, so it reads as pressable. Pressing removes the ledge. Selected controls (view tabs, toolbar toggles, chips) swap the ledge for an inset 3px Royal bar along the bottom. The active nav tab takes a 2px Royal underline; the active Admin tab adds a 2px page-colored gap and a 4px Ink ring. There are no soft or blurred shadows.
 
 ### Named Rules
 **The Ledge Rule.** Depth is a solid offset in the rule color. Never blur, never spread.
 
 ## Shapes
 
-Square. Every corner is 0px; borders are 2px (Rule Tan on cards and containers, Soft Slate on controls) and turn Royal Blue on hover or focus. The checkbox is a 22px square with a 44px invisible touch area: empty (not started), a minus on blue (in progress), a check on green (done). Subject tags are 24px-high blocks with a 2px darker underside.
+Square. Every corner is 0px; borders are 2px (Card Edge `--ed` on task cards and phone day cells, Rule Tan `--ln` on dividers and secondary containers, Soft Slate `--mu` on controls) and turn Royal Blue on hover or focus. The checkbox is a 22px square with a 44px invisible touch area: empty (not started), a minus on blue (in progress), a check on green (done). Subject tags are 24px-high blocks with a 2px darker underside.
 
 ## Components
 
@@ -183,7 +185,7 @@ Square. Every corner is 0px; borders are 2px (Rule Tan on cards and containers, 
 - **Icon button:** 40x44 square, 2px Soft Slate border, border turns blue on hover.
 
 ### Task Card
-Card Cream block, 12px padding, 2px border, ledge. Header holds the checkbox and a two-line title; footer holds the subject tag and due badge. Hover borders blue; done cards strike through the title in Soft Slate. A 6px blue square marks unpublished changes in admin. A done tap plays a four-step pixel "stamp" (scale 1.6 to 1 in 400ms), only with motion allowed. The title is the card's own button - the card stays click-anywhere, and the button is what the keyboard and a screen reader reach; it is also the element the two-line clamp is applied to.
+Card Cream block, 12px padding, 2px Card Edge (`--ed`) border, ledge. Header holds the checkbox and a two-line title; footer holds the subject tag and due badge. Hover borders blue; done cards strike through the title in Soft Slate. A 6px blue square marks unpublished changes in admin. A done tap plays a four-step pixel "stamp" (scale 1.6 to 1 in 400ms), only with motion allowed. The title is the card's own button - the card stays click-anywhere, and the button is what the keyboard and a screen reader reach; it is also the element the two-line clamp is applied to.
 
 ### Archive Rows (Done, Past)
 The same two surfaces, one row each. From 1100px it is a single line - 24px status, a title track with a 200px floor that may take two lines, a 104px subject, a 112px status and content-sized actions - so the row never spends less than a readable amount of width on the task name. Below 1100px it is a card with the title across the top. Single-action rows stack subject and status on the left, with Mark done or Mark not done beside that metadata at a 44px minimum height. Multiple-action admin rows keep subject and status on the meta line and actions on their own right-aligned, wrapping row. The action track is always content-sized; a fixed width there is what once collapsed the title to 60px. The row is a list item whose title is a button; Delete is the only destructive action in the app outside a typed confirmation, so it arms to "Confirm?" for 4s before it removes anything, and the resulting toast still offers Undo.
@@ -195,13 +197,13 @@ Every pinned announcement shows in full on desktop. The collapse is a phone affo
 12px label with a calendar or alarm icon; due soon (within 3 days) uses amber on an amber wash, overdue uses red on a red wash, otherwise Soft Slate.
 
 ### Inputs / Fields
-44px high, 2px Soft Slate (`--mu`) border for 3:1 contrast, white (dark: night) fill, square. Focus swaps the border to Royal Blue plus a 2px outline with 2px offset. The due picker is one combined date-and-time field with a "time is optional" hint.
+44px high, 2px Soft Slate (`--mu`) border for 3:1 contrast, white (dark: night) fill, square. Focus swaps the border to Royal Blue plus a 2px outline with 2px offset. The due picker is one combined date-and-time field with a "time is optional" hint. In the task dialog, the Status, Subject and Due buttons name themselves from the visible field label plus their own value (`aria-labelledby`), so a screen reader announces "Subject, Add subject" rather than an unlabelled button.
 
 ### Navigation
-Icon tabs (top bar on desktop, bottom bar on phones): 48px high, 2px transparent border, Soft Slate icons slightly desaturated (saturate .7). Active tab: Royal Wash fill, Royal border and a 2px blue underline. Admin is a solid blue tab raised 4px on a 4px ledge. Badges are 20px Royal squares in pixel type (red for overdue counts). Labels sit beside the icons from 720px (720 to 819px uses tighter padding and a 16px bar inset); on phones the bar shows labels under the icons. Phone order: Tasks, Calendar, Admin (centre, president only), Done, Past. Settings sits in a fixed top-right 44px button, and the theme toggle is hidden on phones (Settings > Appearance: System, Light, Dark). Admin is not raised on phones.
+Icon tabs (top bar on desktop, bottom bar on phones): 48px high, 2px transparent border, Soft Slate icons slightly desaturated (saturate .7). Active tab: Royal Wash fill, Royal border and a 2px blue underline. Admin is a solid Royal tab in the same row as the others — it is **not** raised, so the bar reads as one even line. Badges are 20px Royal squares (red for overdue counts) seated inside the tab's top-right corner, never floating outside it. Labels sit beside the icons from 720px (720 to 819px uses tighter padding and a 16px bar inset); on phones the bar shows labels under the icons. Phone order: Tasks, Calendar, Admin (centre, president only), Done, Past. Settings is **not a tab**: it is a 44px icon-only button sitting immediately left of the theme toggle on desktop, and a fixed top-right 44px button on phones, where the theme toggle is hidden (Settings > Appearance: System, Light, Dark).
 
 ### Admin Bar
-Save (secondary) and Publish (primary) close the row; Preview as student, History and Discard changes sit directly beside them as text buttons, one press away, wrapping inside the 64px bar on phones (44px targets). "Publish" is the single verb for releasing to the class. The public list on Tasks is headed "Pinned"; the admin composer is headed "Announcements".
+Save (secondary) and Publish (primary) close the row; Preview as student, History and Discard changes sit directly beside them as text buttons, one press away. The bar is a grid: on phones the status line takes its own row and the actions stack beneath it (124px at 375, 176px at 320), while from 720px the status keeps the left edge and all three groups sit right-aligned on one 64px line. The bar holds all five in three divider-separated groups so weight descends left to right: **tools** (Preview as student, History) as quiet unbordered `--mu` links, then **draft** (Discard changes as a framed text button, Save as the secondary button), then **release** (Publish alone, filled Royal). On phones the groups drop their dividers, so no wrapped line opens with a stray rule. "Publish" is the single verb for releasing to the class. The public list on Tasks is headed "Pinned"; the admin composer is headed "Announcements".
 
 ### Icons
 Two icon languages, on purpose: pixel sprites for navigation and theme controls, and 1.75-stroke square-cap line SVGs inside pages (search, pin, trash, chevrons). In forced-colors mode every tab shows its label and the active tab takes a Highlight outline.
@@ -210,11 +212,11 @@ Two icon languages, on purpose: pixel sprites for navigation and theme controls,
 Buttons in flight show a 14px square-edged spinner (700ms) after the label. Data areas use Sunk Parchment skeleton blocks pulsing between 100% and 50% opacity over 1.2s. The toast is an Ink-filled block with a 2px ledge, lifted to 92px above the phone tab bar.
 
 ### Dialogs and Quick Add
-Card Cream panel, 2px border, 4px ledge, max 640px, header separated by a 2px rule. Quick add parses "GENMATH worksheet ip 10/5" live into Task, Subject, Status and Due fields, with chips for subjects, statuses and dates.
+Card Cream panel, 2px border, 4px ledge, max 640px, header separated by a 2px rule. Quick add parses "GENMATH worksheet ip 10/5" live into Task, Subject, Status and Due preview rows, but only **Subject and Due** carry chips: status is personal progress, set on your own list rather than declared at post time, and typing "ip"/"done" still parses. The Subject row shows the parser's own guess plus a "Change subject" chip rather than all ten subject chips; the full list appears only when the input names no subject yet, or after Change is pressed, and stays revealed until the overlay closes so the row cannot re-collapse under a finger mid-choice. Chips are 44px tall and the Change chip is underlined so it reads as an action among values.
 
 ### Calendar
 Month and week grids with 1px-rule cells, alternate rows in Sunk Parchment, today shown as a blue square behind the pixel day number, chips with a status-colored left edge.
-Phone task markers use a 4px gap so their 1px outlines remain visibly separate; markers wrap inside narrow day cells.
+Phone task markers use a 4px gap so their 1px outlines remain visibly separate; markers wrap inside narrow day cells. Only the three most urgent dots fit, so a day with more shows a `+N` remainder on the dot row; the cell's own accessible label always carries the true task count.
 
 ## Do's and Don'ts
 
@@ -230,7 +232,7 @@ Phone task markers use a 4px gap so their 1px outlines remain visibly separate; 
 
 ### Don't:
 - **Don't** use rounded corners, blurred shadows, gradients or glassmorphism.
-- **Don't** add a second accent color or a new token outside the twenty.
+- **Don't** add a second accent color or a new token outside the twenty-one.
 - **Don't** show "Missed", "Failed", scores, streaks, leaderboards or any comparison between students.
 - **Don't** set sentences, dates or times in Press Start 2P.
 - **Don't** bring back the left sidebar; navigation lives in the top bar on desktop and the bottom bar on phones.
