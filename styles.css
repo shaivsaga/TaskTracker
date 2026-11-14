@@ -62,7 +62,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 .ib + .ib { margin-left: 0; }
 .ib:hover { border-color: var(--ac); }
 .brand { display: flex; align-items: center; gap: 10px; flex: none; min-height: 44px; padding: 0 4px; }
-.brand b { display: none; font: 400 16px/24px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
+.brand b { display: none; font: 400 12px/20px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
 /* Phone-only logo row at the top of the page; the header brand is hidden there because the header is the bottom tab bar. */
 .brand-m { display: none; }
 .nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
@@ -74,7 +74,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 .tn .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 .tn.adm { background: var(--ac); border-color: var(--ac); color: var(--onac); box-shadow: inset 0 -3px 0 var(--acd); }
 .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
-.bd { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 3px; display: grid; place-items: center; font: 700 12px/12px 'Plus Jakarta Sans', system-ui, sans-serif; background: var(--ac); color: var(--onac); }
+.bd { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 3px; display: grid; place-items: center; font: 400 12px/12px 'Press Start 2P', monospace; background: var(--ac); color: var(--onac); }
 .bd.er { background: var(--er); color: var(--oa); }
 .px { font-family: 'Press Start 2P', monospace; font-weight: 400; text-transform: uppercase; }
 .ttl { font-size: 16px; line-height: 24px; }
@@ -553,7 +553,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 /* The Change chip is an action among value chips: underlined, never filled like a subject. */
 .quick-chip-btn.is-change { text-decoration: underline; text-underline-offset: 3px; }
 .quick-code { color: var(--mu); font-size: 12px; }
-.quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-size: 12px; line-height: 20px; }
+.quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; }
 kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; background: var(--sf); font-size: 12px; }
 /* [[/section:quick-add]] */
 
@@ -765,7 +765,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #page-class-tasks > .page-heading .page-supporting-copy { display: none; }
   #page-class-tasks .view-tabs, #class-board { display: none; }
   #page-class-tasks #class-task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
-  #class-task-list .task-row { padding: 12px; border: 2px solid var(--ed); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
+  #class-task-list .task-row { padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
   #class-task-list .task-row-title { font-size: 16px; line-height: 24px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; max-height: 48px; }
   /* Admin follows the same phone rule: one list, no Board/List switch. The saved view is left alone,
      so resizing back to desktop restores it. */
@@ -985,7 +985,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .tour-overlay.is-centered .tour-spot { display: none; }
 .tour-card { position: fixed; display: grid; gap: 12px; width: min(440px, calc(100vw - 16px * 2)); padding: 16px; border: 2px solid var(--ac); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
 .tour-text { display: grid; gap: 8px; }
-.tour-step { margin: 0; color: var(--mu); font-size: 12px; font-weight: 700; letter-spacing: .04em; line-height: 20px; text-transform: uppercase; }
+.tour-step { margin: 0; color: var(--mu); font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; text-transform: uppercase; }
 .tour-title { font-size: 16px; font-weight: 600; line-height: 24px; }
 .tour-body { margin: 0; color: var(--tx); font-size: 14px; line-height: 20px; }
 .tour-sample-card { cursor: default; }
