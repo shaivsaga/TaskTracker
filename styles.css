@@ -11,7 +11,6 @@
   --ok: #1F7A49; --wn: #8A5A00; --er: #B3261E; --sh: #CFC4A6; --oa: #FFFFFF;
   --wnb: rgba(138,90,0,.12); --erb: rgba(179,38,30,.10); --okb: rgba(31,122,73,.12);
   --pl: rgba(26,29,61,.55);
-  --ed: #8F8360;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -21,7 +20,6 @@
   --ok: #5BD08A; --wn: #F7CD54; --er: #FF8F85; --sh: #434C8F; --oa: #0F1226;
   --wnb: rgba(247,205,84,.14); --erb: rgba(255,143,133,.14); --okb: rgba(91,208,138,.14);
   --pl: rgba(15,18,38,0);
-  --ed: var(--ln);
   color-scheme: dark;
 /* [[/section:tokens]] */
 }
@@ -90,6 +88,8 @@ h1.ttl { margin-bottom: -8px; }
 }
 @media (min-width: 720px) {
   .tb { padding: 0 40px; gap: 8px; }
+  /* Icon-only from 720 to 1099: the wordmark starts at 1100, so the link needs its own 44px floor. */
+  .brand { min-width: 44px; }
   .ib { width: 44px; }
   .nav { gap: 4px; }
   .tn { padding: 0 12px; }
@@ -137,9 +137,13 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 #page-done, #page-past { width: 100%; max-width: 880px; margin-inline: auto; }
 /* lint-allow:px 880px -- List views reuse that same reading column */
 #page-my-tasks[data-view="list"], #page-class-tasks[data-view="list"] { max-width: 880px; }
-/* The shared page title sits above the sections, so it takes the narrow column's width whenever a narrow page is showing. */
+/* The shared page title sits above the sections, so it takes the narrow column's width whenever a narrow page is showing.
+   Desktop only: on phones the title is off-canvas (see the phone-fold section), and a stretched 100% box made the
+   absolutely positioned title 320px wide inside a 288px column, which scrolled the page 16px sideways. */
 /* lint-allow:px 880px -- the title tracks the reading column above so its edge lines up */
-main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: auto; }
+@media (min-width: 720px) {
+  main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: auto; }
+}
 /* [[/section:shell]] */
 
 /* [[section:controls]] */
@@ -325,7 +329,9 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .task-card[data-status="done"] .task-card-title { color: var(--mu); text-decoration: line-through; }
 .is-changed .task-card-title::after, .is-changed .task-row-title::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; background: var(--ac); vertical-align: middle; }
 
-.task-delete-btn { display: grid; place-content: center; width: 28px; height: 28px; color: var(--mu); background: transparent; cursor: pointer; opacity: 0; }
+.task-delete-btn { position: relative; display: grid; place-content: center; width: 28px; height: 28px; color: var(--mu); background: transparent; cursor: pointer; opacity: 0; }
+/* lint-allow:px -8px -- the 44px touch target around a 28px mark, same device as .status-check */
+.task-delete-btn::after { content: ''; position: absolute; inset: -8px; }
 .task-card:hover .task-delete-btn, .task-card:focus-within .task-delete-btn, .task-row:hover .task-delete-btn, .task-row:focus-within .task-delete-btn { opacity: 1; }
 .task-delete-btn:hover { color: var(--er); background: var(--erb); }
 .task-delete-btn:focus-visible { opacity: 1; }
@@ -863,7 +869,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
 @media (prefers-contrast: more) {
-  body { --ln: var(--mu); --ed: var(--mu); }
+  body { --ln: var(--mu); }
 }
 /* Night: --acd darkens toward the page, so --onac text on a --acd fill (4.0:1) and --acd text on
    --sf2 (3.2:1) both fall under AA. Hover keeps --ac and marks itself with the 2px edge instead. */
@@ -1094,3 +1100,22 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .mine-l { margin: 0; color: var(--tx); font-size: 16px; font-weight: 700; line-height: 24px; }
 .mine-next { margin: 0; overflow-wrap: anywhere; color: var(--mu); font-size: 14px; line-height: 20px; }
 /* [[/section:mine]] */
+
+/* [[section:phone-fold]] */
+/* Phones: the tab bar's active label already names the page, so the pixel title stops taking a row, and the
+   strip tightens to two small lines. Measured at 320x568 this lifts the first task card from 465px to ~375px,
+   which is the difference between "under the fixed tab bar" and "one whole row above it". */
+@media (max-width: 719px) {
+  #breadcrumb-current { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .mine { gap: 8px; padding: 2px 0 6px; }
+  .mine-n { font-size: 24px; line-height: 24px; }
+  .mine-l { font-size: 14px; line-height: 20px; }
+  .mine-next { font-size: 12px; line-height: 16px; }
+}
+/* Below 375 the announcement's two clamped lines are the last 20px standing between the header and the
+   first task, and a one-line clamp still shows it exists. Above 374 the two-line clamp stays (this
+   announcement already fits one line at 375, so the visible difference is at 320). */
+@media (max-width: 374px) {
+  #announce-public.is-collapsed .announce-text { -webkit-line-clamp: 1; max-height: 20px; }
+}
+/* [[/section:phone-fold]] */
