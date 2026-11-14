@@ -216,6 +216,18 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 /* The tools read as links, Save keeps its frame, Publish keeps the fill: weight descends left to right. */
 .admin-actions .admin-tools .text-button { border-color: transparent; background: none; box-shadow: none; color: var(--mu); }
 .admin-actions .admin-tools .text-button:hover { border-color: transparent; background: none; color: var(--tx); }
+/* One size per role inside the bar. Before this, "Discard changes" (12px) sat between "Preview as
+   student" (12px) and "Save" (14px) in the same row, so the row had no type logic. The two tools stay at
+   the label size and lose their button padding, because they read as links, not as framed actions. */
+#admin-bar .admin-group .text-button,
+#admin-bar .admin-group .secondary-button,
+#admin-bar .admin-group .primary-button { font-size: 14px; line-height: 20px; }
+#admin-bar .admin-tools .text-button { font-size: 12px; line-height: 16px; padding: 0 4px; }
+/* Phones: one group per row. At 14px the three groups no longer share 343px, and a bar that reflows at
+   375 but not at 320 reads as a bug rather than as breakpoint behaviour. */
+@media (max-width: 719px) {
+  #admin-bar .admin-actions { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 8px; }
+}
 
 .summary { display: flex; flex-wrap: wrap; align-items: center; margin: 16px 0 0; color: var(--mu); font-size: 12px; line-height: 20px; }
 .summary span:first-child { color: var(--tx); font-weight: 500; }
@@ -1108,7 +1120,10 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (max-width: 719px) {
   #breadcrumb-current { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .mine { gap: 8px; padding: 2px 0 6px; }
-  .mine-n { font-size: 24px; line-height: 24px; }
+  /* The count is the product's one number: it keeps its 32px Pixel Display size so each font pixel is a
+     whole 2 CSS px (crisp at any DPR). At 24px it fell to 1.5x and read as a soft, cropped glyph next to
+     its own label. The strip is 62px this way, shorter than the 70px it measured at 24px. */
+  .mine-n { font-size: 32px; line-height: 32px; }
   .mine-l { font-size: 14px; line-height: 20px; }
   .mine-next { font-size: 12px; line-height: 16px; }
 }
