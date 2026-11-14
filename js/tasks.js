@@ -687,7 +687,7 @@ export function getVisibleTasks() {
 }
 export function updateOverview() {
   const open = myTasks.filter((t) => t.status !== 'done' && !t.isPast());
-  const dueToday = open.filter((t) => t.dueDate && dayDiff(t.dueDate) === 0).length;
+  const dueToday = open.filter((t) => t.dueDate && dayDiff(t.getDeadline()) === 0).length;
   const overdue = open.filter((t) => t.dueDate && t.isOverdue()).length;
   const inProgress = myTasks.filter((t) => t.status === 'in_progress' && !t.isPast()).length;
   document.querySelector('#sum-open').textContent = `${open.length} open`;
@@ -698,6 +698,20 @@ export function updateOverview() {
   const sumOverdue = document.querySelector('#sum-overdue');
   sumOverdue.textContent = `${overdue} overdue`;
   sumOverdue.hidden = overdue === 0;
+  // The class page shows the same answer for the board the class sees, plus what is already done on
+  // this device. Same source as renderClassTasks, so preview and student views agree.
+  const classTasks = (state.previewing ? myTasks : state.publishedTasks).filter((t) => !t.isPast());
+  const classOpen = classTasks.filter((t) => t.status !== 'done');
+  const classDueToday = classOpen.filter((t) => t.dueDate && dayDiff(t.getDeadline()) === 0).length;
+  const classOverdue = classOpen.filter((t) => t.dueDate && t.isOverdue()).length;
+  document.querySelector('#csum-open').textContent = `${classOpen.length} open`;
+  const csumToday = document.querySelector('#csum-today');
+  csumToday.textContent = `${classDueToday} due today`;
+  csumToday.hidden = classDueToday === 0;
+  const csumOverdue = document.querySelector('#csum-overdue');
+  csumOverdue.textContent = `${classOverdue} overdue`;
+  csumOverdue.hidden = classOverdue === 0;
+  document.querySelector('#csum-done').textContent = `${classTasks.length - classOpen.length} of ${classTasks.length} done here`;
   const badge = document.querySelector('#nav-badge');
   badge.textContent = open.length ? String(open.length) : '';
   badge.hidden = open.length === 0;

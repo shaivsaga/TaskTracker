@@ -822,7 +822,9 @@ async function main() {
       const a = await cdp.evaluate(READ_ANNOUNCE);
       const ok = width > 719
         ? a.total > 1 && a.shown === a.total && a.toggleHidden
-        : a.total > 1 && a.shown === 1 && !a.toggleHidden && /Show all/.test(a.toggleText);
+        : a.total > 1 && a.shown === 1 && !a.toggleHidden
+          // The collapsed label must name the rows it still hides, not the total ("Show 2 more").
+          && a.toggleText.includes(String(a.total - a.shown));
       check('announce ' + width, ok, 'total ' + a.total + ' shown ' + a.shown + ' toggleHidden ' + a.toggleHidden + ' "' + a.toggleText + '"');
     }
 
