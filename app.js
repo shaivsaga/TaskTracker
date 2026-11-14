@@ -325,7 +325,7 @@ function renderMine() {
   if (!mineEl) return;
   const all = state.publishedTasks || [];
   const now = Date.now();
-  const unfinished = all.filter((t) => t.status !== 'done' && !t.closed).map((t) => ({ t, d: mineDue(t) }));
+  const unfinished = all.filter((t) => t.status !== 'done' && !t.closedAt).map((t) => ({ t, d: mineDue(t) }));
   const open = unfinished.filter((x) => !x.d || now - x.d.getTime() <= 7 * 864e5);   // 7+ days overdue lives in Past
   const olderOverdue = unfinished.length - open.length;
   const dated = open.filter((x) => x.d).sort((a, b) => a.d - b.d);
