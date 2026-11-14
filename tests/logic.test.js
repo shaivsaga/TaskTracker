@@ -24,6 +24,20 @@ const dateOffset = (days) => {
   return date;
 };
 
+// Run fn with Date frozen at an ISO instant. logic.js and the Task methods read Date.now()
+// and new Date() at call time, so both go through the replacement. The stand-in shares
+// Date.prototype, so ordinary Date instances still pass `instanceof Date`.
+const withFrozenNow = (iso, fn) => {
+  const RealDate = Date;
+  const frozen = new RealDate(iso).getTime();
+  function FrozenDate(...args) { return args.length ? new RealDate(...args) : new RealDate(frozen); }
+  Object.setPrototypeOf(FrozenDate, RealDate);
+  FrozenDate.now = () => frozen;
+  FrozenDate.prototype = RealDate.prototype;
+  globalThis.Date = FrozenDate;
+  try { return fn(); } finally { globalThis.Date = RealDate; }
+};
+
 test('dayDiff handles today, past, and future calendar days', () => {
   assert.equal(dayDiff(dateOffset(0)), 0);
   assert.equal(dayDiff(dateOffset(-3)), -3);
@@ -194,4 +208,66 @@ test('taskIdOk accepts generated ids and rejects anything that could break a sel
   assert.equal(taskIdOk('x'.repeat(101)), false);
   assert.equal(taskIdOk('__proto__'), false);    // the id is also an object key
   assert.equal(taskIdOk({}), false);             // "[object Object]" has a space and brackets
+});
+
+test('getDueLabel includes short calendar date alongside relative countdown beyond tomorrow', () => {
+  const today = new Task({ title: 'Today task', dueDate: dateOffset(0) });
+  const tomorrow = new Task({ title: 'Tomorrow task', dueDate: dateOffset(1) });
+  const twoWeeks = new Task({ title: 'Future task', dueDate: dateOffset(15) });
+  const overdue = new Task({ title: 'Overdue task', dueDate: dateOffset(-3) });
+  assert.equal(today.getDueLabel(), 'Due today');
+  assert.equal(tomorrow.getDueLabel(), 'Due tomorrow');
+  assert.match(twoWeeks.getDueLabel(), /^In 2 weeks · [A-Z][a-z]{2} \d{1,2}/);
+  assert.match(overdue.getDueLabel(), /^3 days overdue · [A-Z][a-z]{2} \d{1,2}/);
+});
+
+test('Task endDate serializes, validates ordering, and formats range with arrow', () => {
+  const start = new Date(2026, 10, 13);
+  const end = new Date(2026, 10, 16);
+  const earlier = new Date(2026, 10, 10);
+
+  const ranged = new Task({ title: 'Range', dueDate: start, endDate: end });
+  assert.equal(ranged.toJSON().dueDate, '2026-11-13');
+  assert.equal(ranged.toJSON().endDate, '2026-11-16');
+  assert.match(ranged.getDueShort(), /→/);
+  assert.match(ranged.getDueDateDisplay(), /→/);
+
+  assert.equal(ranged.dueDate.getTime(), start.getTime());
+  assert.equal(ranged.endDate.getTime(), end.getTime());
+
+  const reversed = new Task({ title: 'Bad order', dueDate: start, endDate: earlier });
+  assert.equal(reversed.endDate, undefined);
+  assert.equal(reversed.toJSON().endDate, undefined);
+
+  const orphan = new Task({ title: 'No start', endDate: end });
+  assert.equal(orphan.endDate, undefined);
+
+  // The range's last day is the deadline: the window is open on Nov 19, overdue on Nov 21.
+  const open = () => new Task({ title: 'Open', dueDate: start, endDate: new Date(2026, 10, 20) });
+  withFrozenNow('2026-11-19T12:00:00', () => {
+    const task = open();
+    assert.equal(task.isOverdue(), false);
+    assert.equal(task.getDueTimestamp().getTime(), new Date(2026, 10, 20, 23, 59, 59, 999).getTime());
+    assert.equal(task.getDueHint(), 'tomorrow');
+    const label = task.getDueLabel();
+    assert.match(label, /Nov 13[–-]20/);  // both endpoints, month collapsed (item 5's format)
+    assert.doesNotMatch(label, /overdue/i);
+
+    const sameMonth = new Task({ dueDate: new Date(2026, 10, 19), endDate: new Date(2026, 10, 20) });
+    assert.match(sameMonth.getDueLabel(), /Nov 19–20/);
+
+    const acrossMonths = new Task({ dueDate: new Date(2026, 10, 19), endDate: new Date(2026, 11, 3) });
+    assert.match(acrossMonths.getDueLabel(), /Nov 19 – Dec 3/);
+
+    const acrossYears = new Task({ dueDate: new Date(2026, 11, 30), endDate: new Date(2027, 0, 3) });
+    assert.match(acrossYears.getDueLabel(), /Dec 30, 2026 – Jan 3, 2027/);
+  });
+  withFrozenNow('2026-11-19T12:00:00', () => {
+    const timed = new Task({ title: 'Timed', dueDate: start, endDate: new Date(2026, 10, 20), dueTime: '08:30' });
+    assert.equal(timed.getDueTimestamp().getTime(), new Date(2026, 10, 20, 8, 30).getTime());
+    assert.ok(timed.getDueDateDisplay().includes(timed.getTimeLabel()));
+  });
+  withFrozenNow('2026-11-21T12:00:00', () => {
+    assert.equal(open().isOverdue(), true);
+  });
 });

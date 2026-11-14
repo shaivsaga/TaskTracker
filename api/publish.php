@@ -1,10 +1,15 @@
 <?php
 require __DIR__ . '/_session.php';
 require __DIR__ . '/_validate.php';
+require_once __DIR__ . '/_board.php';
 tt_require_admin();
 header('Content-Type: application/json');
-$config = is_file(__DIR__ . '/config.php') ? require __DIR__ . '/config.php' : [];
-function fail($code, $msg) { http_response_code($code); echo json_encode(['error' => $msg]); exit; }
+$dataDir = dirname(__DIR__) . '/data';
+function fail($code, $msg, $extra = []) {
+  http_response_code($code);
+  echo json_encode(['error' => $msg] + $extra);
+  exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'POST only');
 $ct = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '')[0]));
@@ -15,6 +20,7 @@ $in = json_decode($raw, true);
 if (!is_array($in) || !isset($in['tasks']) || !is_array($in['tasks'])
     || (isset($in['announcements']) && !is_array($in['announcements']))
     || (isset($in['note']) && !is_scalar($in['note']))) fail(400, 'Invalid payload');  // wrong types would otherwise be a TypeError / warning after the lock is taken
+
 // Explicit clear-board intent. Absent = ordinary publish (unchanged). Present = it must be exactly {confirm:"CLEAR BOARD", expectedCount:<int >= 0>} AND tasks must be a literal empty JSON array (not {}). Anything else is rejected here, before the lock is taken or anything is written.
 $clear = null;
 if (array_key_exists('clearBoard', $in)) {
@@ -37,6 +43,8 @@ foreach ($in['tasks'] as $t) {
   }
   if (isset($t['subject']) && strlen($t['subject']) > 32) fail(422, "Task $n: subject is too long.");
   if (isset($t['dueDate']) && (!is_string($t['dueDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['dueDate']))) fail(422, "Task $n: dueDate must look like 2026-10-26.");
+  if (isset($t['endDate']) && (!is_string($t['endDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['endDate']))) fail(422, "Task $n: endDate must look like 2026-10-26.");
+  if (isset($t['endDate']) && (!isset($t['dueDate']) || $t['endDate'] < $t['dueDate'])) fail(422, "Task $n: endDate must be on or after dueDate.");
   if (isset($t['dueTime']) && (!is_string($t['dueTime']) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/D', $t['dueTime']))) fail(422, "Task $n: dueTime must look like 15:30.");
   if (isset($t['files'])) {
     if (!is_array($t['files']) || count($t['files']) > 10) fail(422, "Task $n: files must be a list of up to 10.");
@@ -52,109 +60,197 @@ foreach ($anns as $a) {
   if (!is_array($a) || !is_string($a['text'] ?? null) || mb_strlen($a['text']) > 500 || !is_numeric($a['createdAt'] ?? null)) fail(422, 'An announcement is malformed or longer than 500 characters.');
   if (isset($a['html']) && !announce_html_ok($a['html'])) fail(422, 'An announcement has formatting that is not allowed.');
 }
+
+// --- schema 2: the server owns revision, operationId and every deletion marker ------------------
+// An old client that posts the pre-schema body is told to refresh rather than silently losing the
+// catalog and the markers; the browser keeps its draft either way.
+if (($in['schemaVersion'] ?? null) !== 2) fail(409, 'This board needs a newer client. Reload the page and publish again.', ['code' => 'refresh_required']);
+if (!tt_operation_id($in['operationId'] ?? null)) fail(400, 'operationId must be 32 lowercase hex characters.');
+if (!isset($in['baseRevision']) || !is_int($in['baseRevision']) || $in['baseRevision'] < 0) {
+  fail(409, 'This board needs a newer client. Reload the page and publish again.', ['code' => 'refresh_required']);
+}
+if (!array_key_exists('subjects', $in)) fail(409, 'This board needs a newer client. Reload the page and publish again.', ['code' => 'refresh_required']);
+// Authority is server-owned: a request may never supply markers or private state.
+foreach (['deletedTasks', 'presets', 'bin', 'retiredDraftIds', 'adminRevision', 'revision'] as $forbidden) {
+  if (array_key_exists($forbidden, $in)) fail(400, "The server owns $forbidden; it must not be sent.");
+}
+
+[$subjects, $subErr] = tt_subject_validate($in['subjects']);
+if ($subErr !== null) fail(422, $subErr);
+$idErr = tt_taskids_validate($in['tasks']);
+if ($idErr !== null) fail(422, $idErr);
+$coverErr = tt_subjects_cover($in['tasks'], $subjects);
+if ($coverErr !== null) fail(422, $coverErr);
+
 @ignore_user_abort(true);  // a client disconnect must not stop the script between snapshot and rename
 
-$dataDir = dirname(__DIR__) . '/data';
-$verDir  = $dataDir . '/versions';
+$verDir = $dataDir . '/versions';
 if (!is_dir($verDir)) {
   if (!@mkdir($verDir, 0775, true) && !is_dir($verDir)) fail(500, 'Cannot create data directory');
   file_put_contents($verDir . '/.htaccess', "Require all denied\n");
 }
-
-// Serialise publishes. Everything below (id, timestamp, snapshot, replace, prune) runs under one lock, so current.json always equals the newest snapshot. Fails closed (503) if the lock cannot be taken, before anything is written.
-$lock = @fopen($dataDir . '/.publish.lock', 'c');
-$locked = false;
-for ($i = 0; $lock && $i < 50 && !$locked; $i++) { $locked = flock($lock, LOCK_EX | LOCK_NB); if (!$locked) usleep(100000); }
-if (!$locked) { if ($lock) fclose($lock); fail(503, 'Another publish is in progress or locking is unavailable. Try again.'); }
-
-$now = time();  // taken inside the lock so publishedAt never goes backwards
-
-// Per-task changedAt, set here so a browser cannot fake it. New task, or a changed due date, time, Subject or attached files = now. Anything else keeps its old value.
-$liveFile  = $dataDir . '/current.json';
-$liveBoard = is_file($liveFile) ? json_decode((string)@file_get_contents($liveFile), true) : null;
-$livePub   = is_array($liveBoard) ? (int)($liveBoard['publishedAt'] ?? 0) : 0;
-$liveById  = [];
-foreach (is_array($liveBoard['tasks'] ?? null) ? $liveBoard['tasks'] : [] as $lt) {
-  if (is_array($lt) && is_string($lt['id'] ?? null)) $liveById[$lt['id']] = $lt;
+if (!is_dir($dataDir . '/admin')) {
+  if (!@mkdir($dataDir . '/admin', 0775, true) && !is_dir($dataDir . '/admin')) fail(500, 'Cannot create private data directory');
+  file_put_contents($dataDir . '/admin/.htaccess', "Require all denied\n");
 }
-$stamped = [];
-foreach ($in['tasks'] as $t) {
-  unset($t['changedAt']);
-  $old = $liveById[$t['id']] ?? null;
-  if ($old === null) {
-    $t['changedAt'] = $now;
-  } else {
-    $same = ($t['dueDate'] ?? '') === ($old['dueDate'] ?? '')
-      && ($t['dueTime'] ?? '') === ($old['dueTime'] ?? '')
-      && ($t['subject'] ?? '') === ($old['subject'] ?? '')
-      && json_encode($t['files'] ?? []) === json_encode($old['files'] ?? []);
-    $t['changedAt'] = $same ? (int)($old['changedAt'] ?? $livePub) : $now;
+
+[$lock, $lockErr] = tt_board_lock($dataDir);
+if ($lock === null) fail(503, 'Another publish is in progress or locking is unavailable. Try again.');
+
+$note = mb_substr(trim((string)($in['note'] ?? '')), 0, 80);
+if ($clear !== null && $note === '') $note = 'Board cleared';  // makes the clear easy to spot in History
+$now = time();  // inside the lock, so publishedAt never goes backwards
+
+try {
+  // An interrupted earlier commit is resolved before this one decides anything.
+  $rec = tt_recover_pending($dataDir);
+  if (isset($rec['error'])) fail(500, 'The last publish could not be resolved. The board is unchanged; retry after the recovery step.', ['code' => $rec['error']]);
+
+  [$liveBoard, $boardErr] = tt_read_board($dataDir);
+  if ($boardErr !== null) fail(500, 'The published board cannot be read; refusing to overwrite it.', ['code' => 'board_unreadable', 'detail' => $boardErr]);
+  [$admin, $adminErr] = tt_read_admin($dataDir);
+  if ($adminErr !== null) fail(500, 'The private admin state cannot be read; refusing to write.', ['code' => 'admin_unreadable']);
+  if ($admin === null) $admin = tt_admin_blank();
+
+  $liveRevision = is_array($liveBoard) ? (int)($liveBoard['revision'] ?? 0) : 0;
+  $liveTasks = is_array($liveBoard) && is_array($liveBoard['tasks'] ?? null) ? $liveBoard['tasks'] : [];
+  $liveSubjects = is_array($liveBoard) && is_array($liveBoard['subjects'] ?? null) ? $liveBoard['subjects'] : [];
+  $markers = is_array($liveBoard) && is_array($liveBoard['deletedTasks'] ?? null) ? $liveBoard['deletedTasks'] : [];
+
+  // One canonical body hash: an exact transport retry replays the stored result, a different body
+  // with the same token is a conflict. The receipt is bounded to the latest operation.
+  $bodyHash = tt_hash_value([
+    'baseRevision'  => $in['baseRevision'],
+    'tasks'         => $in['tasks'],
+    'announcements' => $anns,
+    'subjects'      => $subjects,
+    'note'          => $note,
+    'clearBoard'    => $clear,
+  ]);
+  $receipt = tt_receipt($admin, $in['operationId'], $bodyHash);
+  if ($receipt === 'conflict') fail(409, 'That operation id was already used for a different change. Reload and try again.', ['code' => 'operation_conflict', 'latestRevision' => $liveRevision]);
+  if ($receipt === 'replay') {
+    $last = $admin['lastOperation'];
+    echo json_encode([
+      'current'       => $liveBoard,
+      'adminRevision' => (int)($last['adminRevision'] ?? $admin['revision']),
+      'operationId'   => $in['operationId'],
+      'replayed'      => true,
+    ]);
+    exit;
   }
-  $stamped[] = $t;
-}
-$current = [
-  'publishedAt'   => $now,
-  'tasks'         => $stamped,
-  'announcements' => array_values($in['announcements'] ?? []),
-];
-if ($clear !== null) $current['announcements'] = [];  // clear-board never takes announcements from the request; they are carried over from the live board below
-if ($clear !== null && !file_exists($dataDir . '/current.json')) { flock($lock, LOCK_UN); fail(409, 'Cannot verify the published board (no current.json); refusing to clear it.'); }  // a missing file is not proof of an empty board
-if (!$current['tasks'] && file_exists($dataDir . '/current.json')) {
-  // An empty publish is allowed only when the live board is provably empty: current.json must decode to an object whose tasks is an array with zero entries. A valid clearBoard intent is the only other way through, and it must also match the live count.
-  $live = json_decode((string)@file_get_contents($dataDir . '/current.json'), true);
-  if (!is_array($live) || !isset($live['tasks']) || !is_array($live['tasks'])) { flock($lock, LOCK_UN); fail(409, 'Cannot verify the published board; refusing to publish an empty one.'); }
-  $liveCount = count($live['tasks']);
-  if ($clear === null) {
-    if ($liveCount > 0) { flock($lock, LOCK_UN); fail(409, 'Refusing to publish an empty board: it would remove every published assignment.'); }
-  } else {
-    if ($liveCount !== $clear['expectedCount']) { flock($lock, LOCK_UN); fail(409, "The live board has changed (it now has $liveCount assignment(s)). Reload and confirm again."); }
-    $current['announcements'] = is_array($live['announcements'] ?? null) ? array_values($live['announcements']) : [];  // assignments only
-    if ($liveCount > 0) {
-      // Recovery guarantee: the live board must already be in the newest snapshot (it normally is). If not, e.g. after "Clear all history", save a backup snapshot first. If that fails, nothing is changed.
-      $newest = null;
-      foreach (glob("$verDir/*.json") ?: [] as $f) { $n = basename($f, '.json'); if (preg_match('/^\d+$/', $n) && ($newest === null || (int)$n > $newest)) $newest = (int)$n; }
-      $last = $newest === null ? null : json_decode((string)@file_get_contents("$verDir/$newest.json"), true);
-      if (!is_array($last) || ($last['tasks'] ?? null) !== $live['tasks']) {
-        $bid = max($now, ($newest ?? 0) + 1);
-        for ($i = 0, $bh = false; $i < 50 && !$bh; $i++) { $bh = @fopen("$verDir/$bid.json", 'x'); if (!$bh) $bid++; }
-        $bJson = json_encode(['publishedAt' => (int)($live['publishedAt'] ?? $now), 'tasks' => $live['tasks'], 'announcements' => is_array($live['announcements'] ?? null) ? array_values($live['announcements']) : [], 'note' => 'Backup before clearing board'], JSON_UNESCAPED_UNICODE);
-        $bOk = $bh && $bJson !== false && fwrite($bh, $bJson) === strlen($bJson);
-        if ($bh) $bOk = fclose($bh) && $bOk;
-        if (!$bOk) { if ($bh) @unlink("$verDir/$bid.json"); flock($lock, LOCK_UN); fail(500, 'Cannot save a backup of the live board; nothing was changed.'); }
+
+  // Optimistic concurrency on the public revision, checked under the lock. Counting tasks would
+  // miss a catalog-only or marker-only change, so the revision is the only accepted base.
+  if ($in['baseRevision'] !== $liveRevision) {
+    fail(409, 'The board changed since you loaded it. Review the newer board and publish again.',
+      ['code' => 'stale_base', 'latestRevision' => $liveRevision, 'current' => $liveBoard]);
+  }
+
+  // A marker is indefinite: no live task may ever reuse a permanently deleted identity.
+  $marked = [];
+  foreach ($markers as $m) if (is_array($m) && is_string($m['id'] ?? null)) $marked[$m['id']] = true;
+  foreach ($in['tasks'] as $t) {
+    $id = (string)$t['id'];
+    if (isset($marked[$id])) fail(422, "Task \"$id\" was permanently deleted and cannot be published again. Recover it as a new copy instead.", ['code' => 'forbidden_identity']);
+  }
+
+  // The empty-board guard keeps its original meaning: an accidental empty publish is refused, and
+  // clearing the whole board stays an explicit, counted intent.
+  if (!$in['tasks'] && $liveBoard !== null) {
+    $liveCount = count($liveTasks);
+    if ($clear === null) {
+      if ($liveCount > 0) fail(409, 'Refusing to publish an empty board: it would remove every published assignment.');
+    } elseif ($liveCount !== $clear['expectedCount']) {
+      fail(409, "The live board has changed (it now has $liveCount assignment(s)). Reload and confirm again.");
+    }
+  } elseif ($clear !== null && $liveBoard === null) {
+    fail(409, 'Cannot verify the published board (no current.json); refusing to clear it.');
+  }
+
+  // Clear-board removes assignments only; the live announcements and the catalog are carried over.
+  $nextAnnouncements = $clear !== null ? array_values(is_array($liveBoard['announcements'] ?? null) ? $liveBoard['announcements'] : []) : array_values($anns);
+  if ($clear !== null && !$in['subjects']) $subjects = $liveSubjects;
+
+  // Every live definition this publish removes is archived before the board can lose it - whatever
+  // the reason it disappeared (deletion, an old snapshot, an import or a typed clear).
+  $submitted = [];
+  foreach ($in['tasks'] as $t) $submitted[(string)$t['id']] = true;
+  $removed = [];
+  $liveSubjectByCode = [];
+  foreach ($liveSubjects as $ls) if (is_array($ls) && is_string($ls['code'] ?? null)) $liveSubjectByCode[$ls['code']] = $ls;
+  foreach ($liveTasks as $lt) {
+    if (!is_array($lt) || !is_string($lt['id'] ?? null) || isset($submitted[$lt['id']])) continue;
+    $code = is_string($lt['subject'] ?? null) ? $lt['subject'] : '';
+    $subs = $code !== '' ? [isset($liveSubjectByCode[$code]) ? $liveSubjectByCode[$code] : tt_subject_retired($code)] : [];
+    $removed[] = ['task' => $lt, 'subjects' => $subs];
+  }
+  $archiveAdmin = $removed ? tt_archive_records($admin, $removed, 'publish-removal', true) : $admin;
+
+  // Keep the clear-board backup snapshot: it predates this protocol and is cheap insurance.
+  if ($clear !== null && count($liveTasks) > 0) {
+    $newest = null;
+    foreach (glob("$verDir/*.json") ?: [] as $f) { $bn = basename($f, '.json'); if (preg_match('/^\d+$/D', $bn) && ($newest === null || (int)$bn > $newest)) $newest = (int)$bn; }
+    $last = $newest === null ? null : json_decode((string)@file_get_contents("$verDir/$newest.json"), true);
+    if (!is_array($last) || ($last['tasks'] ?? null) !== $liveTasks) {
+      $backup = [
+        'publishedAt'   => (int)($liveBoard['publishedAt'] ?? $now),
+        'tasks'         => $liveTasks,
+        'announcements' => array_values(is_array($liveBoard['announcements'] ?? null) ? $liveBoard['announcements'] : []),
+        'subjects'      => $liveSubjects,
+        'deletedTasks'  => $markers,
+        'note'          => 'Backup before clearing board',
+      ];
+      if (!tt_write_json_atomic($verDir . '/' . tt_next_snapshot_id($verDir, $now) . '.json', $backup)) {
+        fail(500, 'Cannot save a backup of the live board; nothing was changed.');
       }
     }
   }
+
+  // Stamps are server-owned and compare the meaningful fields only.
+  $stamped = tt_stamp_tasks($in['tasks'], $liveTasks, $now);
+
+  $nextRevision = $liveRevision + 1;
+  if ($nextRevision > 9007199254740991) fail(500, 'The board revision has reached its limit; no further publishes are possible.', ['code' => 'revision_exhausted']);
+  $nextBoard = [
+    'schemaVersion' => 2,
+    'revision'      => $nextRevision,
+    'operationId'   => $in['operationId'],
+    'publishedAt'   => $now,
+    'tasks'         => $stamped,
+    'announcements' => $nextAnnouncements,
+    'subjects'      => array_values($subjects),
+    'deletedTasks'  => array_values($markers),
+  ];
+
+  $finalAdmin = $archiveAdmin;
+  $finalAdmin['lastOperation'] = [
+    'id'             => $in['operationId'],
+    'hash'           => $bodyHash,
+    'kind'           => 'publish',
+    'publicRevision' => $nextRevision,
+    'adminRevision'  => (int)$archiveAdmin['revision'],
+    'result'         => ['revision' => $nextRevision],
+  ];
+
+  $commit = tt_commit_board($dataDir, $liveBoard, $nextBoard, $archiveAdmin, $finalAdmin, $note);
+  if (!$commit['ok']) {
+    if ($commit['code'] === 'committed_recovery_pending') {
+      // Past the commit point the board IS live. Saying "failed" would invite a duplicate retry.
+      fail(500, 'The board was published, but the private archive is still being finalized. Reload; no content was lost.', [
+        'code'     => 'committed_recovery_pending',
+        'revision' => $commit['revision'],
+        'operationId' => $commit['operationId'],
+      ]);
+    }
+    fail($commit['status'] ?? 500, 'The board was not published; nothing changed.', ['code' => $commit['code']]);
+  }
+
+  echo json_encode([
+    'current'       => $nextBoard,
+    'adminRevision' => (int)$finalAdmin['revision'],
+    'operationId'   => $in['operationId'],
+  ]);
+} finally {
+  tt_board_unlock($lock);
 }
-$note = mb_substr(trim((string)($in['note'] ?? '')), 0, 80);
-if ($clear !== null && $note === '') $note = 'Board cleared';  // makes the clear easy to spot in History
-$version = $current + ['note' => $note];
-$flags = JSON_UNESCAPED_UNICODE;
-$curJson = json_encode($current, $flags);
-$verJson = json_encode($version, $flags);
-if ($curJson === false || $verJson === false) fail(500, 'Encode failed');
-$cur = $dataDir . '/current.json';
-$tmp = $dataDir . '/.current.' . bin2hex(random_bytes(6)) . '.tmp';  // before the snapshot, so an exception here leaves nothing to clean up
-
-// 1. Snapshot first. New id = max(now, highest existing id + 1). Exclusive create ('x') never overwrites an existing version; if a concurrent request grabs the id, take the next one.
-$id = $now;
-foreach (glob("$verDir/*.json") ?: [] as $f) { $n = basename($f, '.json'); if (preg_match('/^\d+$/', $n) && (int)$n >= $id) $id = (int)$n + 1; }  // ids only ever increase, so sort order = publish order
-for ($i = 0, $fh = false; $i < 50 && !$fh; $i++) { $fh = @fopen("$verDir/$id.json", 'x'); if (!$fh) $id++; }
-if (!$fh) fail(500, 'Cannot create version snapshot');
-$verFile = "$verDir/$id.json";
-$ok = fwrite($fh, $verJson) === strlen($verJson);
-$ok = fclose($fh) && $ok;
-if (!$ok) { @unlink($verFile); fail(500, 'Cannot write version snapshot'); }
-
-// 2. Replace current.json via a temp file in the same directory + atomic rename. On any failure the old file is untouched.
-if (@file_put_contents($tmp, $curJson, LOCK_EX) !== strlen($curJson)) { @unlink($tmp); @unlink($verFile); fail(500, 'Write failed'); }
-@chmod($tmp, 0644);  // fixed mode: current.json is public by design; never inherit a stricter (or 0) mode from the old file
-if (!@rename($tmp, $cur)) { @unlink($tmp); @unlink($verFile); fail(500, 'Write failed'); }
-
-// 3. Prune. keep_versions missing/invalid -> 20; never fewer than 3; never remove the snapshot just written.
-$keep = filter_var(is_array($config) ? ($config['keep_versions'] ?? null) : null, FILTER_VALIDATE_INT);
-$keep = ($keep === false || $keep < 1) ? 20 : max(3, $keep);
-$files = glob("$verDir/*.json") ?: [];
-sort($files);
-foreach (array_slice($files, 0, max(0, count($files) - $keep)) as $f) { if ($f !== $verFile) @unlink($f); }
-flock($lock, LOCK_UN);
-echo json_encode(['current' => $current]);

@@ -19,6 +19,7 @@
 
 import { state } from './state.js';
 import { plural } from './util.js';
+import { subjectFor } from './subjects.js';
 
 let recordSource = null;    // () => the task list the renderers read (state.isAdmin is read inside it)
 let openTaskDialog = null;  // opens the task dialog when a chip is clicked
@@ -48,13 +49,24 @@ function calRange() {
   return { start: new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay()), days: Math.ceil((first.getDay() + last.getDate()) / 7) * 7 };
 }
 
+// A custom hex colour has no shipped class, so the dot carries the definition's colour itself.
+function subjectDot(code) {
+  const dot = document.createElement('span');
+  const cls = code && subjects()[code] ? subjects()[code] : '';
+  dot.className = 'cal-dot' + (cls ? ` ${cls}` : '');
+  if (code && !cls) {
+    const def = subjectFor(state.catalog, code);
+    if (def) dot.style.setProperty('--tag', def.color);
+  }
+  return dot;
+}
 function createCalChip(task) {
   const chip = document.createElement('button');
   chip.type = 'button';
   chip.className = 'cal-chip' + (task.status !== 'done' && task.isOverdue() ? ' is-overdue' : '');
   chip.dataset.status = task.status;
   chip.title = (task.subject ? `${task.subject} · ` : '') + task.title;
-  if (task.subject) { const dot = document.createElement('span'); dot.className = `cal-dot ${subjects()[task.subject] || ''}`; chip.appendChild(dot); }
+  if (task.subject) chip.appendChild(subjectDot(task.subject));
   if (task.dueTime) { const t = document.createElement('span'); t.className = 'cal-time'; t.textContent = task.getTimeLabel(); chip.appendChild(t); }
   const title = document.createElement('span');
   title.className = 'cal-chip-title';
@@ -72,19 +84,16 @@ function createCalDots(list) {
   const wrap = document.createElement('span');
   wrap.className = 'cal-dots';
   wrap.setAttribute('aria-hidden', 'true');
-  // Only three dots fit, so the urgent ones go first (a stable sort keeps the time order within a rank).
-  const shown = list.slice().sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3);
-  shown.forEach((t) => {
-    const dot = document.createElement('span');
-    dot.className = 'cal-dot' + (t.subject && subjects()[t.subject] ? ` ${subjects()[t.subject]}` : '') + (t.status !== 'done' && t.isOverdue() ? ' is-overdue' : isDueSoon(t) ? ' is-due-soon' : '');
-    dot.dataset.status = t.status;
-    wrap.appendChild(dot);
+  // Completion never reserves a marker slot; rank the remaining tasks before limiting them.
+  const open = list.filter((t) => t.status !== 'done');
+  open.sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
+    wrap.appendChild(subjectDot(t.subject));
   });
   // The cell's aria-label carries the true count; this is the visible remainder for the rest.
-  if (list.length > shown.length) {
+  if (open.length > 3) {
     const more = document.createElement('span');
-    more.className = 'cal-dot-more';
-    more.textContent = `+${list.length - shown.length}`;
+    more.className = 'cal-plus';
+    more.textContent = `+${open.length - 3}`;
     wrap.appendChild(more);
   }
   return wrap;
@@ -157,8 +166,10 @@ function syncCalTabs() {
 function calLabelCell(cell, num, { d, key, list, picker, current }) {
   const overdue = list.filter((t) => t.status !== 'done' && t.isOverdue()).length;
   const soon = list.filter(isDueSoon).length;
+  const completed = list.filter((t) => t.status === 'done').length;
+  const completion = completed ? `, ${plural(list.length - completed, 'unfinished task')}, ${plural(completed, 'completed task')}` : '';
   cell.dataset.date = key;
-  cell.setAttribute('aria-label', `${calLongDate(d)}, ${list.length ? plural(list.length, 'task') : 'no tasks'}${overdue ? `, ${overdue} overdue` : ''}${soon ? `, ${soon} due soon` : ''}`);
+  cell.setAttribute('aria-label', `${calLongDate(d)}, ${list.length ? plural(list.length, 'task') : 'no tasks'}${completion}${overdue ? `, ${overdue} overdue` : ''}${soon ? `, ${soon} due soon` : ''}`);
   num.setAttribute('aria-hidden', 'true');
   if (picker) {
     cell.setAttribute('role', 'button');
@@ -169,13 +180,29 @@ function calLabelCell(cell, num, { d, key, list, picker, current }) {
   }
 }
 
+// Every calendar day a task covers, capped at 60 so a mistyped end date cannot paint a year of dots.
+function calDayKeys(t) {
+  const keys = [toInputValue(t.dueDate)];
+  if (t.endDate) {
+    for (let i = 1; i < 60 && keys.length < 60; i++) {
+      const d = new Date(t.dueDate.getFullYear(), t.dueDate.getMonth(), t.dueDate.getDate() + i);
+      if (toInputValue(d) > toInputValue(t.endDate)) break;
+      keys.push(toInputValue(d));
+    }
+  }
+  return keys;
+}
+
 export function renderCalendar() {
   const grid = document.querySelector('#cal-grid');
   if (!grid) return;
   const { start, days } = calRange();
   const dated = recordSource().filter((t) => t.dueDate);
   const byDay = new Map();
-  dated.forEach((t) => { const k = toInputValue(t.dueDate); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(t); });
+  dated.forEach((t) => calDayKeys(t).forEach((k) => {
+    if (!byDay.has(k)) byDay.set(k, []);
+    byDay.get(k).push(t);
+  }));
   const short = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   document.querySelector('#cal-title').textContent = state.calMode === 'week'
     ? `${short(start)} – ${short(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6))}`

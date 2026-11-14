@@ -121,12 +121,12 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 
 .page-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; }
 .page-supporting-copy { margin: 0; color: var(--mu); font-size: 14px; line-height: 24px; max-width: 60ch; text-wrap: pretty; }
-.page-actions { display: flex; align-items: center; gap: 12px; }
+.page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
 /* The intro takes the space the controls leave and wraps, so search and Board/List stay on its row, on the right
    edge, in both views. If the column is too narrow even for that, the controls drop to their own line, still on the right. */
 /* lint-allow:px 280px -- the intro's wrap floor; the mockup has no page-heading baseline */
 #page-my-tasks .page-heading > :first-child, #page-class-tasks .page-heading > :first-child { flex: 1 1 280px; min-width: 0; }
-#page-my-tasks .page-actions, #page-class-tasks .page-actions { flex: none; margin-left: auto; }
+#page-my-tasks .page-actions, #page-class-tasks .page-actions { flex: 0 1 auto; margin-left: auto; min-width: 0; }
 .utility-page .page-heading { margin-bottom: 24px; }
 /* Wide pages (board, calendar) and reading pages (lists, Done, Past) keep their own widths, all centred. */
 #page-my-tasks, #page-class-tasks, #page-calendar { width: 100%; max-width: 1120px; margin-inline: auto; }
@@ -154,7 +154,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .text-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: var(--ac); font-size: 14px; font-weight: 600; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .text-button:hover { color: var(--acd); }
 
-.icon-button { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); cursor: pointer; }
+.icon-button { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); cursor: pointer; }
 .icon-button:hover, .icon-button:active { border-color: var(--ac); color: var(--tx); }
 .icon-button svg { width: 18px; height: 18px; stroke-width: 2; }
 .icon-dark { display: none; }
@@ -171,6 +171,13 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .search svg { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 2; }
 .search input { width: 200px; min-height: 40px; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 14px; line-height: 20px; }
 .search input::placeholder { color: var(--mu); opacity: 1; }
+
+.class-filters { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.class-filters select, #preset-select { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
+.class-filters select:focus-visible, #preset-select:focus-visible { border-color: var(--ac); }
+@media (min-width: 720px) {
+  #page-class-tasks[data-view="board"] .class-filters { display: none; }
+}
 
 .text-input { width: 100%; height: 44px; padding: 0 12px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 14px; line-height: 20px; }
 .text-input:focus { border-color: var(--ac); }
@@ -194,7 +201,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
   .admin-actions { justify-content: flex-end; }
   .admin-group { justify-content: flex-end; }
 }
-.admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .admin-actions .text-button:hover, .history-item .text-button:hover, .file-item .text-button:hover { border-color: var(--ac); background: var(--sf2); color: var(--tx); }
 /* Three groups, one divider each: quiet tools, then the draft pair, then Publish standing alone. */
 .admin-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -213,6 +220,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 #page-my-tasks.is-blank .empty-state { display: flex; }
 #page-my-tasks.is-blank .summary, #page-my-tasks.is-blank .kanban-board, #page-my-tasks.is-blank .task-list { display: none; }
 .list-empty { margin: 0; padding: 24px 12px; color: var(--mu); font-size: 14px; }
+.list-empty .text-button { margin-left: 4px; }
 /* [[/section:banners]] */
 
 /* [[section:announcements]] */
@@ -225,11 +233,13 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .announce-header h2::after { content: ''; flex: 1; height: 2px; background: var(--ln); }
 .announce-header h2 svg { width: 16px; height: 16px; color: var(--mu); stroke-width: 2; }
 .announce-form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; padding: 12px; border: 2px solid var(--ln); background: var(--sf2); }
-.announce-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.announce-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+#subject-panel .announce-actions { margin-top: 12px; }
+#preset-select { flex: 1 1 auto; min-width: 0; }
 .announce-count { margin-right: auto; padding: 0 6px; min-width: 20px; color: var(--mu); background: var(--sf2); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
 .announce-count.is-low { color: var(--er); }
 .announce-toolbar { display: inline-flex; align-self: flex-start; border: 2px solid var(--mu); background: var(--sf); }
-.announce-tool { display: grid; place-content: center; min-width: 40px; height: 40px; padding: 0 12px; border: 0; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.announce-tool { display: grid; place-content: center; min-width: 44px; height: 44px; padding: 0 12px; border: 0; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
 .announce-tool + .announce-tool { border-left: 2px solid var(--mu); }
 .announce-tool:hover { background: var(--sf2); color: var(--tx); }
 .announce-tool[aria-pressed="true"] { background: var(--acs); color: var(--tx); box-shadow: inset 0 -3px 0 var(--ac); }
@@ -251,6 +261,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .announce-text { margin: 0; font-size: 14px; line-height: 20px; white-space: pre-wrap; word-break: break-word; }
 .announce-date { color: var(--mu); font-size: 12px; font-weight: 500; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #announce-public.is-collapsed .announce-item:nth-child(n+2) { display: none; }
+#announce-public.is-empty { display: none; }
 .announce-empty { margin: 0; padding-top: 12px; border-top: 1px solid var(--ln); color: var(--mu); font-size: 14px; line-height: 20px; }
 /* Phones: the pinned block shows one announcement, two lines tall, until the reader opens it, so the
    first task row stays on screen. With nothing pinned the block is gone, not an empty box. */
@@ -321,7 +332,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 
 /* [[section:palette]] */
 /* Subject tags */
-.subject-tag { display: inline-flex; align-items: center; width: fit-content; height: 24px; padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; white-space: nowrap; }
+.subject-tag { display: inline-flex; align-items: center; width: fit-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; height: 24px; padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; white-space: nowrap; }
 /* Subject palette (D8/D11): the mockup's ten subject colours from its own table (mockup/app.js line 1),
    one class per course code, in lowercase. This is one of the two documented places raw hex lives (the
    other is the token blocks above); --tag-ink is the mockup's constant chip ink, used verbatim by its
@@ -411,7 +422,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
   /* lint-allow:px 160px -- the same due-date column when the empty delete slot is dropped */
   .task-row:has(> :nth-child(5):empty) { grid-template-columns: 24px minmax(0, 1fr) 104px 160px; }
   .task-row:has(> :nth-child(5):empty) > :nth-child(5) { display: none; }
-  .task-row .task-row-due { text-align: right; }
+  .task-row .task-row-due { text-align: right; white-space: normal; }
 }
 /* The archive's single-line row only exists where the five tracks actually fit. With content-sized
    actions it needs ~760px of track, so the breakpoint is 1100 - below it the row is a card
@@ -431,7 +442,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 /* The archive is the one list whose row is also the only place the task name appears at a glance;
    a two-line clamp replaces the single-line ellipsis that used to hide it. */
 .done-row .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
-.done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .done-row .text-button:hover { border-color: var(--ac); background: var(--sf2); }
 .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
 /* [[/section:list]] */
@@ -448,9 +459,9 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .status-option:focus-visible { outline: 2px solid var(--ac); outline-offset: -2px; }
 
 /* lint-allow:px 0px -- env() safe-area fallback: a calc with no fallback is dropped entirely */
-.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; z-index: 200; display: flex; align-items: center; gap: 16px; max-width: calc(100% - 24px); padding: 4px 8px 4px 16px; color: var(--bg); background: var(--tx); border: 2px solid var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 14px; font-weight: 600; line-height: 20px; transform: translateX(-50%); }
-/* Undo is the control a mis-tap sends you to, so it takes the full 44px target; the 4px toast padding room makes the toast 52px, not 64px. */
-.toast-action { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--bg); font-size: 14px; font-weight: 700; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; z-index: 200; display: flex; align-items: center; gap: 16px; width: max-content; max-width: calc(100% - 24px); padding: 10px 12px 10px 16px; color: var(--bg); background: var(--tx); border: 2px solid var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 14px; font-weight: 600; line-height: 20px; transform: translateX(-50%); }
+#toast-message { min-width: 0; overflow-wrap: anywhere; }
+.toast-action { flex: none; min-height: 44px; padding: 8px; border: 0; background: transparent; color: var(--bg); font-size: 14px; font-weight: 700; line-height: 20px; white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 /* [[/section:popovers]] */
 
 /* [[section:dialogs]] */
@@ -467,7 +478,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .dialog-title-input { display: block; flex: 1; min-width: 0; max-height: 120px; padding: 2px 0; border: 0; outline: 0; background: transparent; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; overflow-wrap: anywhere; overflow-y: auto; resize: none; }
 .dialog-title-input::placeholder { color: var(--mu); opacity: 1; }
 .dialog-heading { flex: 1; padding: 2px 0; font-size: 16px; font-weight: 600; line-height: 24px; }
-.panel-close { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
+.panel-close { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
 .panel-close:hover { border-color: var(--ac); color: var(--tx); }
 .panel-close i, .panel-close svg { width: 18px; height: 18px; stroke-width: 2; }
 .dialog-body { display: grid; gap: 16px; padding: 16px; overflow-y: auto; }
@@ -480,12 +491,12 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .due-hint:not(:empty)::before { content: '· '; }
 .due-hint.is-overdue { color: var(--er); }
 .due-controls { display: flex; align-items: center; gap: 4px; }
-.prop-value { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 12px; font-weight: 600; line-height: 16px; cursor: pointer; }
+.prop-value { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 12px; font-weight: 600; line-height: 16px; cursor: pointer; }
 .prop-value:hover { border-color: var(--ac); background: var(--sf2); }
 .prop-value.empty-value { color: var(--mu); }
-.prop-value:disabled { cursor: default; }
-.prop-value:disabled:hover { background: var(--sf); border-color: var(--mu); }
-.prop-clear { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
+.prop-value:disabled { cursor: default; border-color: var(--ln); background: var(--sf2); }
+.prop-value:disabled:hover { background: var(--sf2); border-color: var(--ln); }
+.prop-clear { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); cursor: pointer; }
 .prop-clear:hover { border-color: var(--ac); color: var(--tx); }
 .prop-clear-icon { width: 16px; height: 16px; stroke-width: 2.5; }
 /* lint-allow:px 160px -- the task dialog's notes area has no mockup counterpart; the mockup's own note input is textarea.in at min-height 80px (mockup 104), and this is a contenteditable block, not an input */
@@ -497,7 +508,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .dialog-doc img { display: block; max-width: 100%; height: auto; margin: 8px 0; cursor: default; }
 .dialog-doc img::selection { background: transparent; }
 .note-toolbar { display: flex; gap: 4px; margin-bottom: 8px; }
-.note-tool { display: grid; place-content: center; width: 40px; height: 44px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 14px; line-height: 20px; cursor: pointer; }
+.note-tool { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); font-size: 14px; line-height: 20px; cursor: pointer; }
 .note-tool:hover { border-color: var(--ac); }
 .note-tool[aria-pressed="true"] { border-color: var(--ac); background: var(--acs); color: var(--tx); box-shadow: inset 0 -3px 0 var(--ac); }
 .note-tool svg { width: 16px; height: 16px; stroke-width: 2; }
@@ -508,7 +519,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .dialog-footer { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 12px 16px; border-top: 2px solid var(--ln); }
 .save-state { margin-right: auto; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; }
 .task-dialog.is-readonly .dialog-title-input { cursor: default; }
-.task-dialog.is-readonly .dialog-doc { min-height: 48px; }
+.task-dialog.is-readonly .dialog-doc { min-height: 48px; border-color: var(--ln); background: var(--sf2); }
 /* [[/section:dialogs]] */
 
 /* [[section:quick-add]] */
@@ -523,7 +534,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .quick-field-label { color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; text-transform: uppercase; }
 .quick-field-value { display: flex; align-items: center; min-height: 24px; min-width: 0; overflow-wrap: anywhere; }
 .quick-field-value.is-empty { color: var(--mu); }
-.quick-field-value.is-changed { animation: field-in 140ms steps(3); }
+.quick-field-value.is-changed { animation: field-in 140ms ease-out; }
 .quick-title { color: var(--tx); font-weight: 600; }
 .quick-due { display: flex; flex-wrap: wrap; gap: 4px; }
 .quick-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; }
@@ -545,14 +556,15 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* [[section:due-picker]] */
 /* ---------- Due picker ---------- */
-.due-picker { position: fixed; z-index: 210; width: 300px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); transform-origin: top left; }
+.due-picker { position: fixed; z-index: 210; width: 300px; max-width: calc(100% - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); transform-origin: top left; }
 .dp-fields { display: grid; grid-template-columns: 1fr 120px; gap: 8px; }
-.dp-input { min-width: 0; height: 36px; padding: 0 8px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 12px; }
+.dp-input { min-width: 0; height: 44px; padding: 0 8px; border: 2px solid var(--mu); outline: 0; color: var(--tx); background: var(--oa); font-size: 12px; }
 .dp-input::placeholder { color: var(--mu); opacity: 1; }
 .dp-input:focus { border-color: var(--ac); }
+.dp-input.is-active { border-color: var(--acd); box-shadow: inset 0 0 0 1px var(--acd); }
 .dp-head { display: flex; align-items: center; gap: 4px; margin: 12px 0 8px; }
-.dp-month { flex: 1; font-size: 14px; font-weight: 700; line-height: 20px; text-transform: uppercase; }
-.dp-nav { display: grid; place-content: center; min-width: 36px; height: 36px; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); font-size: 12px; font-weight: 600; cursor: pointer; }
+.dp-month { flex: 1; font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; text-transform: uppercase; }
+.dp-nav { display: grid; place-content: center; min-width: 44px; height: 44px; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); font-size: 12px; font-weight: 600; cursor: pointer; }
 .dp-nav:hover { border-color: var(--ac); color: var(--tx); }
 .dp-nav svg { width: 16px; height: 16px; stroke-width: 2; }
 .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
@@ -561,14 +573,25 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .dp-day:hover { background: var(--sf2); }
 .dp-day.is-outside { background: none; color: var(--mu); opacity: 1; }
 .dp-day.is-today { box-shadow: inset 0 0 0 2px var(--ac); }
+.dp-day.is-in-range { background: var(--acs); box-shadow: inset 0 2px 0 var(--ac), inset 0 -2px 0 var(--ac); color: var(--tx); }
 .dp-day.is-selected { background: var(--ac); color: var(--onac); opacity: 1; }
-.dp-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 8px; border-top: 2px solid var(--ln); }
+.dp-day.is-range-start { box-shadow: inset 2px 0 0 var(--onac); }
+.dp-day.is-range-end { box-shadow: inset -2px 0 0 var(--onac); }
+.dp-options { margin-top: 8px; padding-top: 8px; border-top: 2px solid var(--ln); }
+.dp-toggle { display: flex; align-items: center; justify-content: space-between; min-height: 44px; cursor: pointer; font-size: 12px; color: var(--tx); position: relative; }
+.dp-end-toggle { position: absolute; opacity: 0; width: 0; height: 0; }
+.dp-switch { position: relative; width: 36px; height: 20px; border: 2px solid var(--mu); background: var(--oa); flex-shrink: 0; }
+.dp-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; background: var(--mu); }
+.dp-end-toggle:checked + .dp-switch { border-color: var(--ac); background: var(--ac); }
+.dp-end-toggle:checked + .dp-switch::after { left: 18px; background: var(--onac); }
+.dp-end-toggle:focus-visible + .dp-switch { outline: 2px solid var(--ac); outline-offset: 2px; }
+.dp-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 2px solid var(--ln); }
 .dp-hint { color: var(--mu); font-size: 12px; }
 /* [[/section:due-picker]] */
 
 /* [[section:history]] */
 /* ---------- History ---------- */
-.history-bar { display: flex; justify-content: flex-end; }
+.history-bar { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .history-list, .history-detail { margin: 0; padding: 0; list-style: none; }
 .history-item { padding: 12px 0; border-top: 1px solid var(--ln); }
 .history-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -598,7 +621,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
 .cal-day.is-outside .cal-num { color: var(--mu); }
-.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-weight: 700; font-size: 14px; line-height: 20px; }
+.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 20px; }
 .cal-day.is-today .cal-num { background: var(--ac); color: var(--onac); }
 /* the mockup's .stub box (2px --ln on --sf2) with the status spine on the left border */
 .cal-chip { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 4px 8px; border: 2px solid var(--ln); border-left: 3px solid var(--edge, var(--mu)); color: var(--tx); background: var(--sf2); font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
@@ -606,7 +629,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-chip[data-status="in_progress"] { --edge: var(--ac); }
 .cal-chip[data-status="done"] { --edge: var(--ok); color: var(--mu); }
 .cal-chip[data-status="done"] .cal-chip-title { text-decoration: line-through; }
-.cal-chip.is-overdue .cal-time { padding: 0 4px; color: var(--er); background: var(--erb); font-weight: 600; }
+/* The overdue pill's red on the cell's wash measured 4.4:1; the same red on --sf2 is 5.2:1, so the
+   time keeps the weight and colour but not the wash behind it. */
+.cal-chip.is-overdue .cal-time { color: var(--er); font-weight: 600; }
 .cal-time { flex: none; color: var(--mu); font-weight: 500; font-variant-numeric: tabular-nums; }
 .cal-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 /* the mockup's dot ring: outline 1px var(--pl) (mockup 135/316), which its dark --pl makes invisible */
@@ -615,7 +640,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-more:hover { color: var(--tx); }
 
 /* Phone month view: day cells are tap targets that show dots; the picked day's tasks list below the grid. */
-.cal-day.is-tappable { justify-items: center; align-content: start; gap: 4px; min-height: 56px; padding: 4px; cursor: pointer; }
+.cal-day.is-tappable { position: relative; justify-items: center; align-content: start; gap: 4px; min-height: 56px; padding: 4px; cursor: pointer; }
 .cal-day.is-tappable .cal-num { justify-self: center; }
 @media (hover: hover) {
   .cal-day.is-tappable:hover { background: var(--sf2); }
@@ -623,12 +648,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 }
 .cal-day.is-tappable.is-selected, .cal-day.is-tappable.is-selected:hover { background: var(--acs); box-shadow: inset 0 0 0 2px var(--ac), 0 2px 0 var(--ac); }
 .cal-day.is-tappable:focus-visible { outline-offset: -2px; }
-.cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; min-height: 8px; }
-.cal-dots .cal-dot[data-status="done"] { background: transparent; }
-.cal-dots .cal-dot.is-overdue { outline: 2px solid var(--er); outline-offset: 1px; }
-.cal-dots .cal-dot.is-due-soon { outline: 1px solid var(--wn); outline-offset: 1px; }
-/* The "+3" remainder sits on the dot row, small enough to fit a 52px phone day cell. */
-.cal-dot-more { color: var(--mu); font-size: 12px; font-weight: 700; line-height: 8px; font-variant-numeric: tabular-nums; }
+.cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; width: 100%; min-height: 8px; }
+.cal-plus { position: absolute; right: 4px; bottom: 4px; color: var(--tx); font-size: 12px; font-weight: 700; line-height: 12px; }
 .cal-agenda { margin-top: 16px; }
 /* the mockup's .sec strip: heading, then the rule that fills the row */
 .cal-agenda-title { display: flex; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 8px; color: var(--mu); font-size: 14px; font-weight: 700; line-height: 20px; }
@@ -647,36 +668,28 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 @keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes fade-in { from { opacity: 0.4; } to { opacity: 1; } }
-@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes quick-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes quick-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-6px); } }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes card-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes field-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: no-preference) {
-  .announce-form:not([hidden]) { animation: pop-in 140ms steps(3); }
-  .task-dialog-overlay:not([hidden]), .quick-overlay:not([hidden]), .tour-overlay:not([hidden]) { animation: fade-in 140ms steps(3); }
-  .task-dialog-overlay:not([hidden]) .task-dialog, .quick-add { animation: quick-in 140ms steps(3); }
-  .task-dialog-overlay.is-closing, .quick-overlay.is-closing, .tour-overlay.is-closing { animation: fade-out 140ms steps(3) forwards; }
-  .task-dialog-overlay.is-closing .task-dialog, .quick-overlay.is-closing .quick-add { animation: quick-out 140ms steps(3) forwards; }
-  .toast { animation: toast-in 140ms steps(3); }
-  .due-picker, .status-dropdown:not([hidden]) { animation: pop-in 140ms steps(3); }
+  .announce-form:not([hidden]) { animation: pop-in 140ms ease-out; }
+  .toast { animation: toast-in 140ms ease-out; }
+  .due-picker, .status-dropdown:not([hidden]) { animation: pop-in 140ms ease-out; }
 }
+/* A closing overlay is logically gone: its fade must not intercept the next action. */
+.task-dialog-overlay.is-closing, .quick-overlay.is-closing, .tour-overlay.is-closing { pointer-events: none; }
 /* Only a newly created task arrives. Status changes are moved by js/motion.js. */
 @media (prefers-reduced-motion: no-preference) {
-  .task-card.is-entering, .task-row.is-entering { animation: card-in 140ms steps(3) backwards; }
+  .task-card.is-entering, .task-row.is-entering { animation: card-in 140ms ease-out backwards; }
 }
 /* Completion ghost (js/motion.js): a disposable copy of the row that folds into the Done tab. */
 .motion-ghost { position: fixed; z-index: 250; margin: 0; box-sizing: border-box; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); transform-origin: 0 0; pointer-events: none; will-change: transform, opacity; overflow: hidden; }
 /* Reduced motion: the Done tab takes a short static highlight instead of the ghost. */
 .tn.is-received { background: var(--acs); border-color: var(--ac); color: var(--tx); }
 .is-swapping .kanban-board, .is-swapping .task-list { animation: page-in 120ms ease-out; }
-::view-transition-old(root) { animation: fade-out 140ms steps(3) both; }
-::view-transition-new(root) { animation: page-in 140ms steps(3) both; }
 /* [[/section:loading]] */
 
 /* [[section:responsive]] */
@@ -687,10 +700,14 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (max-width: 719px) {
   .tb { position: fixed; top: auto; right: 0; bottom: 0; left: 0; height: auto; align-items: flex-end; padding: 8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-bottom: 0; border-top: 2px solid var(--ln); }
   .tb .brand { display: none; }
-  .brand-m { display: flex; align-self: flex-start; height: 44px; padding: 0; }
+  .brand-m { position: sticky; top: 0; z-index: 5; display: flex; align-self: stretch; height: 52px; margin: -8px -16px 0; padding: 8px 56px 0 16px; background: var(--bg); border-bottom: 2px solid var(--ln); }
   .brand-m b { display: block; }
   .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }
+  /* The current tab is a filled block with its accent bar along the bottom (the base rule's
+     `0 2px 0` shadow), not an outlined box: on a phone the box's 2px side and top strokes read as
+     stray vertical lines beside Calendar and Past. */
+  .tn.is-active { border-color: transparent; }
   .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; font: 600 12px/16px 'Plus Jakarta Sans', system-ui, sans-serif; white-space: nowrap; }
   .tn.adm { max-width: 72px; height: 56px; transform: none; box-shadow: inset 0 -3px 0 var(--acd); }
   .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
@@ -713,6 +730,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 @media (max-width: 719px) {
   .panel-close, .prop-clear, .icon-button { width: 44px; height: 44px; }
+  /* Phone text entry is 16px so iOS does not zoom on focus. The transfer row's 12px rule comes
+     later in the sheet, so the body prefix keeps this scoped rule winning by specificity. */
+  .search input, .text-input, body .transfer-link-row .text-input, .class-filters select, #preset-select, .announce-editor, .dp-input { font-size: 16px; }
   /* Task dialog on a phone: facts sit in an even grid (Status | Subject, Due across), every value is a 44px
      target at 14px, and values the student cannot change (disabled) drop to a sunk, quiet surface so only
      what responds to a tap looks like a button. The grid stacks by itself when two columns do not fit (320px). */
@@ -722,8 +742,6 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .dialog-controls .field-due { grid-column: 1 / -1; }
   .dialog-controls .prop-value { width: 100%; min-height: 44px; padding: 0 12px; justify-content: flex-start; font-size: 14px; line-height: 20px; }
   .due-controls .prop-value { flex: 1; min-width: 0; }
-  .dialog-controls .prop-value:disabled { border-color: var(--ln); background: var(--sf2); }
-  .task-dialog.is-readonly .dialog-doc { border-color: var(--ln); background: var(--sf2); }
   .task-row .task-delete-btn, .announce-item .task-delete-btn { width: 44px; height: 44px; }
   .task-card .task-delete-btn { width: 44px; height: 44px; margin: -12px -8px -12px 0; }
   .announce-item { grid-template-columns: minmax(0, 1fr) auto 44px; }
@@ -734,15 +752,24 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .page-actions { width: 100%; flex-wrap: wrap; }
   .search { flex: 1 1 100%; }
   .search input { width: 100%; }
+  .class-filters { flex: 1 1 100%; }
+  .class-filters select { flex: 1 1 0; min-width: 0; }
   .kanban-board { grid-template-columns: 1fr; }
   .kanban-column { min-height: 240px; }
   /* v5.9 phones: Tasks is List-only under the tab bar and its rows are the mockup's cards (mockup
      268-269). A phone can be left on Board view - that preference is shared with the desktop - so the
      list has to win, and [hidden] is !important, which is why display carries it too. */
+  #page-class-tasks > .page-heading .page-supporting-copy { display: none; }
   #page-class-tasks .view-tabs, #class-board { display: none; }
   #page-class-tasks #class-task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
   #class-task-list .task-row { padding: 12px; border: 2px solid var(--ed); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
-  #class-task-list .task-row-title { font-size: 16px; line-height: 24px; }
+  #class-task-list .task-row-title { font-size: 16px; line-height: 24px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; max-height: 48px; }
+  /* Admin follows the same phone rule: one list, no Board/List switch. The saved view is left alone,
+     so resizing back to desktop restores it. */
+  #page-my-tasks .view-tabs { display: none; }
+  #page-my-tasks .kanban-board { display: none; }
+  #page-my-tasks #task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
+  #page-my-tasks.is-blank #task-list { display: none !important; }
   .cal-day { min-height: 80px; padding: 4px; border: 2px solid var(--ed); box-shadow: 0 2px 0 var(--sh); }
   /* Each day is its own block with a 2px edge and a gap between, not a cell in one ruled sheet. */
   .cal { gap: 12px 8px; border: 0; background: none; overflow: visible; }
@@ -758,6 +785,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #page-calendar .view-tabs { grid-area: 2 / 1; justify-self: start; }
   #page-calendar #cal-today { grid-area: 2 / 2; justify-self: end; align-self: stretch; }
   .cal[data-mode="month"] .cal-day.is-tappable { min-height: 52px; }
+  .cal[data-mode="month"] .cal-day.is-tappable:has(.cal-plus) { min-height: 72px; }
   .cal[data-mode="month"] .cal-dow { padding: 8px 0; text-align: center; }
   .cal .cal-time { display: none; }
   /* Week view on phones: one full-width row per day instead of seven ~45px columns. */
@@ -770,7 +798,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .cal[data-mode="week"] .cal-time { display: inline; }
   .cal[data-mode="week"] .cal-chip-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
   .cal[data-mode="week"] .cal-day:not(:has(.cal-chip))::after { content: 'No tasks'; grid-column: 2; grid-row: 1; color: var(--mu); font-size: 12px; line-height: 16px; }
-  .task-row, .done-row { grid-template-columns: 24px auto minmax(0, 1fr) auto; row-gap: 4px; }
+  .task-row, .done-row { grid-template-columns: 24px minmax(0, 1fr) auto auto; row-gap: 4px; }
   .task-row > :nth-child(1), .done-row > :nth-child(1) { grid-column: 1; grid-row: 1; }
   .task-row > :nth-child(2), .done-row > :nth-child(2) { grid-column: 2 / 4; grid-row: 1; }
   .task-row > :nth-child(5), .done-row > :nth-child(5) { grid-column: 4; grid-row: 1; }
@@ -794,8 +822,9 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* lint-allow:px 1099px -- one pixel below the 1100 breakpoint where the archive row stops fitting */
 @media (max-width: 1099px) {
   /* Done and Past below 1100px: one card per row, because the five-track row cannot carry a readable
-     title and three actions before then. The name owns its own line; single actions sit beside the
-     metadata, while multiple admin actions wrap below at 44px. */
+     title and three actions before then. Every card is three rows - the name, the metadata line
+     (subject left, date or status right), then the actions at 44px - so a card never re-arranges
+     itself because one task happens to have a subject, a date, or a second admin action. */
   #done-list, #past-list { display: flex; flex-direction: column; gap: 8px; border: 0; background: none; }
   #done-list .done-row, #past-list .done-row { grid-template-columns: 24px minmax(0, 1fr) auto; padding: 12px; background: var(--sf); border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); row-gap: 8px; }
   #done-list .done-row .task-row-title, #past-list .done-row .task-row-title { font-size: 16px; line-height: 24px; }
@@ -803,13 +832,21 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #done-list .done-row > :nth-child(2), #past-list .done-row > :nth-child(2) { grid-column: 2 / 4; grid-row: 1; }
   #done-list .done-row > :nth-child(3), #past-list .done-row > :nth-child(3) { grid-column: 2; grid-row: 2; align-self: center; }
   #done-list .done-row > :nth-child(4), #past-list .done-row > :nth-child(4) { grid-column: 3; grid-row: 2; justify-self: end; align-self: center; text-align: right; white-space: nowrap; }
+  /* The actions own the third row, right-aligned and free to wrap: the delete confirm's longer label
+     ("Confirm deleting this task") must never push a button past the card edge at 320px. The cell
+     stays shrink-to-fit, so a Done row's lone button keeps its own width instead of becoming a
+     full-card invisible tap target. */
   #done-list .done-row > :nth-child(5), #past-list .done-row > :nth-child(5) { grid-column: 1 / -1; grid-row: 3; justify-self: end; max-width: 100%; flex-wrap: wrap; }
-  /* A single action shares the metadata's height, never the title's width. Admin actions keep wrapping below. */
-  :is(#done-list, #past-list) .done-row:has(> .text-button:last-child, > :last-child > .text-button:only-child) > :nth-child(3) { min-width: 0; max-width: 100%; height: auto; min-height: 24px; white-space: normal; overflow-wrap: anywhere; }
-  :is(#done-list, #past-list) .done-row:has(> .text-button:last-child, > :last-child > .text-button:only-child) > :nth-child(4) { grid-column: 2; grid-row: 3; justify-self: start; text-align: left; white-space: normal; }
-  :is(#done-list, #past-list) .done-row:has(> .text-button:last-child, > :last-child > .text-button:only-child) > :nth-child(5) { grid-column: 3; grid-row: 2 / 4; align-self: center; }
   #done-list .done-row .text-button, #past-list .done-row .text-button { min-height: 44px; padding: 0 8px; border-color: transparent; background: none; box-shadow: none; color: var(--ac); }
   #done-list .done-row .text-button[data-armed], #past-list .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
+  /* Tablets have the width for the actions to sit on the metadata line, so the card keeps two rows
+     there; the phone keeps the third row. */
+/* lint-allow:px 720px -- the app's own tablet breakpoint */
+  @media (min-width: 720px) {
+    #done-list .done-row, #past-list .done-row { grid-template-columns: 24px minmax(0, 1fr) auto auto; }
+    #done-list .done-row > :nth-child(2), #past-list .done-row > :nth-child(2) { grid-column: 2 / 5; }
+    #done-list .done-row > :nth-child(5), #past-list .done-row > :nth-child(5) { grid-column: 4; grid-row: 2; align-self: center; }
+  }
 }
 /* lint-allow:px 480px -- the app's own narrow-phone breakpoint for the two-column quick preview; the mockup has no 480 boundary */
 @media (max-width: 480px) { .quick-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -817,7 +854,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* [[section:a11y]] */
 /* ---------- Accessibility ---------- */
-[data-motion=reduce] * { animation: none !important; transition: none !important; }
+[data-motion=reduce], [data-motion=reduce] *, [data-motion=reduce]::before, [data-motion=reduce]::after, [data-motion=reduce] *::before, [data-motion=reduce] *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
@@ -825,6 +862,15 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (prefers-contrast: more) {
   body { --ln: var(--mu); --ed: var(--mu); }
 }
+/* Night: --acd darkens toward the page, so --onac text on a --acd fill (4.0:1) and --acd text on
+   --sf2 (3.2:1) both fall under AA. Hover keeps --ac and marks itself with the 2px edge instead. */
+:root[data-theme="dark"] .primary-button:hover,
+:root[data-theme="dark"] .primary-button:active { background: var(--ac); border-color: var(--ac); }
+:root[data-theme="dark"] .primary-button:hover { box-shadow: inset 0 0 0 2px var(--tx), 0 2px 0 var(--sh); }
+:root[data-theme="dark"] .text-button:hover,
+:root[data-theme="dark"] .announce-text a:hover,
+:root[data-theme="dark"] .dialog-doc a:hover,
+:root[data-theme="dark"] .file-item a:hover { color: var(--ac); }
 /* [[/section:a11y]] */
 
 /* Admin actions are one flat row of buttons: no menu to open, so Preview, History and Discard are one
@@ -834,6 +880,15 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .admin-actions .text-button, .history-item .text-button, .file-item .text-button { height: 44px; }
   /* On a phone the bar wraps, so a group rule would open a line as a stray tick; the wrap already separates. */
   .admin-group + .admin-group { padding-left: 0; border-left: 0; }
+}
+
+/* Phones: every text button, chip and picker control reaches the 44px floor, including the ones that
+   are bare links at 20px on desktop. The classes keep their own look; only the hit box grows. */
+@media (max-width: 719px) {
+  .text-button { display: inline-flex; align-items: center; min-height: 44px; }
+  .history-item .text-button, .file-item .text-button { height: 44px; }
+  .quick-chip-btn { min-height: 44px; }
+  .dp-nav, .dp-input { height: 44px; }
 }
 
 /* Forced colors: sprite colors are not ours to control there, so labels carry every tab and the
@@ -866,7 +921,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .settings-row + .settings-row { margin-top: -2px; }
 .settings-row > div:not(.view-tabs) { flex: 1 1 auto; min-width: 0; }
 .settings-row > .view-tabs { flex: none; }
-.settings-row > .secondary-button, .settings-row > .danger-button { flex: none; min-width: 88px; height: 36px; padding: 0 12px; font-size: 12px; line-height: 16px; }
+.settings-row > .secondary-button, .settings-row > .danger-button { flex: none; min-width: 88px; height: 44px; padding: 0 12px; font-size: 12px; line-height: 16px; }
 .settings-title { margin: 0; color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; }
 /* The mockup's .sub (mockup 54), the second line of a settings row. */
 .settings-desc { margin: 4px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }
@@ -876,11 +931,11 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* The mockup's .acts with the .subp variant (mockup 198/225): the panel's actions wrap and sit right. */
 .settings-confirm-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 /* Cancel is the mockup's plain .btn.sm (mockup 86-89), not the app's underlined text link. */
-.settings-confirm .text-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.settings-confirm .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .settings-confirm .text-button:hover { color: var(--tx); border-color: var(--ac); background: var(--sf2); }
 /* The mockup's danger button is .btn.dng (mockup 195): --er text and edge on --sf, never a filled
    red button. Only the armed confirm step fills it, the way .btn.dng.pri does (mockup 196). */
-.danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 12px; border: 2px solid var(--er); color: var(--er); background: var(--sf); font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
+.danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 12px; border: 2px solid var(--er); color: var(--er); background: var(--sf); font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
 .danger-button:hover { background: var(--erb); }
 .danger-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .danger-button:disabled:hover { background: var(--sf); }
@@ -893,6 +948,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 }
 /* lint-allow:px 480px -- a phone viewport boundary where the settings row wraps; a breakpoint, not a design-scale value. */
 @media (max-width: 480px) {
+  #preset-select { flex-basis: 100%; width: 100%; }
   .settings-row:has(> .view-tabs) { flex-wrap: wrap; }
   .settings-row:has(> .view-tabs) > div:not(.view-tabs) { flex: 1 1 100%; }
   /* Phones: the segmented control spans the row in equal thirds. */
@@ -914,7 +970,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* ---------- First-time tutorial ---------- */
 .tour-overlay { position: fixed; inset: 0; z-index: 300; }
 .tour-overlay.is-centered { background: color-mix(in srgb, var(--tx) 48%, transparent); }
-.tour-spot { position: fixed; border-radius: 0; pointer-events: none; box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--tx) 48%, transparent), 0 0 0 2px var(--ac); transition: top 120ms steps(3), left 120ms steps(3), width 120ms steps(3), height 120ms steps(3); }
+.tour-spot { position: fixed; border-radius: 0; pointer-events: none; box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--tx) 48%, transparent), 0 0 0 2px var(--ac); }
 
 /* Night: the page is nearly black, so a darkening scrim cannot separate layers at all - pure black over
    --bg #0F1226 tops out at 1.13:1. The ink lightens instead, which is the same colour decision as paper,
@@ -958,6 +1014,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* Picker: single combined field */
 .due-picker .dp-fields { display: block; }
 .due-picker .dp-fields .dp-input { width: 100%; box-sizing: border-box; }
+.due-picker .dp-fields.is-range { display: grid; grid-template-columns: 1fr; gap: 8px; }
 
 /* Quick add buttons */
 .quick-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
@@ -1001,34 +1058,27 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .confirm-dialog .dialog-footer button { width: 100%; min-height: 44px; }
 /* [[/section:confirm]] */
 }
-/* ---------- Motion: arrivals, press, landed (all transform/opacity; reduced motion gets none of it) ---------- */
-@keyframes enter-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes landed { 0% { opacity: 0; transform: translateY(-12px); } 35% { opacity: 1; transform: translateY(0); } }
-@keyframes landed-edge { from { box-shadow: inset 4px 0 0 var(--ac), 0 2px 0 var(--sh); } to { box-shadow: inset 0 0 0 var(--ac), 0 2px 0 var(--sh); } }
+/* ---------- Motion: page, press, landed (all transform/opacity; reduced motion gets none of it) ---------- */
 @media (prefers-reduced-motion: no-preference) {
-  /* Page switch: the page steps up into place. */
-  .page:not([hidden]) { animation: enter-up 160ms steps(4); }
-  /* Lists and board cards arrive in a short staggered run, only while body[data-enter] is set (about 0.7s). */
-  body[data-enter] .task-list > .task-row, body[data-enter] .column-content > .task-card, body[data-enter] .announce-item { animation: enter-up 180ms steps(4) backwards; }
-  body[data-enter] .task-list > :nth-child(2), body[data-enter] .column-content > :nth-child(2) { animation-delay: 30ms; }
-  body[data-enter] .task-list > :nth-child(3), body[data-enter] .column-content > :nth-child(3) { animation-delay: 60ms; }
-  body[data-enter] .task-list > :nth-child(4), body[data-enter] .column-content > :nth-child(4) { animation-delay: 90ms; }
-  body[data-enter] .task-list > :nth-child(5), body[data-enter] .column-content > :nth-child(5) { animation-delay: 120ms; }
-  body[data-enter] .task-list > :nth-child(6), body[data-enter] .column-content > :nth-child(6) { animation-delay: 150ms; }
-  body[data-enter] .task-list > :nth-child(7), body[data-enter] .column-content > :nth-child(7) { animation-delay: 180ms; }
-  body[data-enter] .task-list > :nth-child(n+8), body[data-enter] .column-content > :nth-child(n+8) { animation-delay: 210ms; }
+  /* Page switch: one local, opacity-only fade; lists do not stagger. */
+  .page:not([hidden]) { animation: page-in 140ms ease-out; }
   /* Press: buttons and cards sink 2px into their hard shadow, like a stamped key. */
-  .primary-button, .secondary-button, .icon-button, .tn, .view-tab, .quick-chip-btn { transition: transform 60ms steps(2); }
+  .primary-button, .secondary-button, .icon-button, .tn, .view-tab, .quick-chip-btn { transition: transform 60ms ease-out; }
   .primary-button:active, .secondary-button:active, .icon-button:active, .tn:active, .view-tab:active, .quick-chip-btn:active { transform: translateY(2px); }
-  .task-card, #class-task-list .task-row { transition: transform 80ms steps(2); }
+  .task-card, #class-task-list .task-row { transition: transform 80ms ease-out; }
   .task-card:active, #class-task-list .task-row:active { transform: translateY(2px); }
-  .status-check { transition: transform 60ms steps(2); }
-  .status-check:active { transform: scale(0.82); }
+  .status-check { transition: transform 60ms ease-out; }
+  .status-check:active { transform: scale(0.94); }
   @media (hover: hover) {
     .task-card:hover { transform: translateY(-2px); }
   }
-  /* A task you just finished lands on the Done page and keeps a blue edge for a moment. */
-  #done-list .done-row.is-landed { animation: landed 420ms steps(5), landed-edge 1600ms steps(8) 200ms backwards; }
+}
+/* A task you just finished keeps a static blue edge while it lands; the shadow never animates. */
+#done-list .done-row.is-landed { box-shadow: inset 4px 0 0 var(--ac); }
+/* lint-allow:px 1099px -- matches the existing archive-card breakpoint */
+@media (max-width: 1099px) {
+  /* The archive card still carries its pixel ledge while the blue edge marks the landing. */
+  #done-list .done-row.is-landed { box-shadow: inset 4px 0 0 var(--ac), 0 2px 0 var(--sh); }
 }
 
 

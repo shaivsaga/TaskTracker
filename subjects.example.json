@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "subjects": [
+    { "code": "SUBJ1", "name": "Subject One", "color": "#58affc", "active": true },
+    { "code": "SUBJ2", "name": "Subject Two", "color": "#8fe3a8", "active": true },
+    { "code": "SUBJ3", "name": "Subject Three", "color": "#f7cd54", "active": true },
+    { "code": "SUBJ4", "name": "Subject Four", "color": "#c9a6e0", "active": false }
+  ]
+}

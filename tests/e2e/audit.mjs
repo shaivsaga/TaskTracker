@@ -39,6 +39,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runClassFilterChecks } from './class-filters.mjs';
+import { createHash, randomBytes } from 'node:crypto';
+import net from 'node:net';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BOOLEAN_ARGS = new Set(['require-browser']);
@@ -53,9 +56,14 @@ for (let i = 2; i < process.argv.length; i++) {
 }
 const ROOT = path.resolve(args.root || path.join(HERE, '..', '..'));
 const FIXTURE = path.resolve(args.fixture || path.join(HERE, 'fixture-board.json'));
-const PORT = Number(args.port || 8110);
+let PORT = Number(args.port || 8110);
+// Optional: run every scenario against a REAL PHP endpoint set in a throwaway docroot, instead of the
+// fixture stub. `--require-browser --php C:/xampp/php/php.exe` is the functional gate; without it the
+// run stays a geometry/a11y gate whose `/api/*` answers `200 {}`.
+const PHP_EXE = args.php ? String(args.php) : null;
+let ADMIN_COOKIE = null;
 const REQUIRE_BROWSER = !!args['require-browser'] || process.env.AUDIT_REQUIRE_BROWSER === '1';
-const WIDTHS = [320, 375, 640, 768, 1280];
+const WIDTHS = [320, 375, 640, 720, 768, 1280];
 
 // The fixture's dates cluster around this day. Freezing the browser clock here keeps the seeded
 // progress ordering and the calendar's "today" identical on every machine and every run.
@@ -106,6 +114,10 @@ export function createAuditServer({ root = ROOT, fixturePath = FIXTURE } = {}) {
     let decoded;
     try { decoded = decodeURIComponent(rawPath); } catch (e) { fail(400, 'bad request'); return; }
     if (decoded === '/data/current.json') { res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache' }); res.end(fixture); return; }
+    // Mirrors the deployed nginx rule: only current.json is public under data/. The harness serves
+    // the app, so it must not hand out history, sessions, the private bin or pending state either -
+    // otherwise a passing browser run would prove nothing about those paths.
+    if (decoded === '/data' || decoded.startsWith('/data/')) { fail(404, 'not found'); return; }
     if (decoded.startsWith('/api/')) { res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-store' }); res.end('{}'); return; }
     const file = path.resolve(servedRoot, '.' + decoded);
     if (!contained(servedRoot, file)) { fail(404, 'not found'); return; }
@@ -417,6 +429,7 @@ async function settle(cdp, ms = 900) {
 async function boot(cdp, width, opts = {}) {
   const url = 'http://127.0.0.1:' + PORT + '/index.html' + (opts.admin ? '?admin=1' : '') + (opts.hash ? '#' + opts.hash : '');
   await cdp.setMetrics(width, opts.height || (width <= 480 ? 640 : 900));
+  await setSessionCookie(cdp, !!opts.admin);
   await cdp.navigate('http://127.0.0.1:' + PORT + '/index.html');
   await sleep(250);
   // Isolation: every scenario starts from this app's keys only, so a student boot cannot inherit
@@ -463,6 +476,73 @@ async function pressKey(cdp, key, code, windowsVirtualKeyCode) {
 const focusOk = (a, taskId) => !a.body && a.visible && !a.hiddenAncestor && !a.popover
   && a.name.length > 0 && (taskId === undefined || a.taskId === taskId);
 
+// --- optional real-PHP origin -----------------------------------------------------------------
+// A copy of the app plus a synthetic data/ directory, served by PHP's built-in server. Nothing here
+// touches the repository's own data/: the board, the session and every write live in a temp dir that
+// is deleted afterwards. Only the session file and the schema-2 board are seeded.
+const PHP_APP_FILES = ['index.html', 'styles.css', 'app.js', 'logic.js', 'attachments.js', 'qr-draw.js', 'qrcode.js', 'transfer.php', 'favicon.ico', 'favicon.svg', 'apple-touch-icon.png'];
+const PHP_APP_DIRS = ['js', 'assets', 'api'];
+
+function phpSandbox(fixture) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tt-audit-php-'));
+  for (const f of PHP_APP_FILES) {
+    const src = path.join(ROOT, f);
+    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(root, f));
+  }
+  for (const d of PHP_APP_DIRS) {
+    const src = path.join(ROOT, d);
+    if (fs.existsSync(src)) fs.cpSync(src, path.join(root, d), { recursive: true });
+  }
+  const token = randomBytes(32).toString('hex');
+  fs.mkdirSync(path.join(root, 'data', 'sessions'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'data', 'admin'), { recursive: true });
+  const now = Math.floor(Date.now() / 1000);
+  fs.writeFileSync(path.join(root, 'data', 'sessions', createHash('sha256').update(token).digest('hex') + '.json'),
+    JSON.stringify({ created: now, lastSeen: now, expires: now + 3600 }));
+  fs.writeFileSync(path.join(root, 'data', 'current.json'), JSON.stringify({
+    schemaVersion: 2,
+    revision: 1,
+    operationId: '0'.repeat(32),
+    publishedAt: Math.floor(FIXTURE_INSTANT / 1000),
+    tasks: fixture.tasks,
+    announcements: fixture.announcements,
+    subjects: Array.isArray(fixture.subjects) ? fixture.subjects : [],
+    deletedTasks: [],
+  }));
+  return { root, token };
+}
+
+async function startPhpServer(exe, sandbox) {
+  const log = fs.openSync(path.join(sandbox.root, 'server.log'), 'a');
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const port = 20000 + Math.floor(Math.random() * 30000);
+    const proc = spawn(exe, ['-S', '127.0.0.1:' + port, '-t', sandbox.root], { stdio: ['ignore', log, log] });
+    for (let i = 0; i < 100; i++) {
+      const up = await new Promise((resolve) => {
+        const sock = net.connect(port, '127.0.0.1');
+        sock.once('connect', () => { sock.destroy(); resolve(true); });
+        sock.once('error', () => resolve(false));
+      });
+      if (up) return { proc, port };
+      await sleep(100);
+    }
+    try { proc.kill(); } catch (e) {}
+  }
+  throw new Error('PHP built-in server did not start');
+}
+
+// The admin cookie is the only session this run has; a student scenario deletes it, so the two modes
+// can never leak into each other.
+async function setSessionCookie(cdp, admin) {
+  if (!PHP_EXE) return;
+  await cdp.send('Network.enable');
+  if (admin) {
+    await cdp.send('Network.setCookie', { name: 'tt_admin', value: ADMIN_COOKIE, domain: '127.0.0.1', path: '/', httpOnly: true });
+  } else {
+    await cdp.send('Network.deleteCookies', { name: 'tt_admin', domain: '127.0.0.1', path: '/' });
+  }
+}
+
 async function main() {
   // Launch before the server: a missing/broken browser is decided without opening a port, and the
   // exit code is part of the contract (optional local SKIP vs required/failed CI failure).
@@ -482,7 +562,16 @@ async function main() {
   const fixture = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
   const draft = JSON.stringify({ tasks: fixture.tasks, announcements: fixture.announcements });
   const progress = deriveProgress(fixture);
-  const server = await listen(createAuditServer());
+  let php = null;
+  if (PHP_EXE) {
+    const sandbox = phpSandbox(fixture);
+    php = await startPhpServer(PHP_EXE, sandbox);
+    ADMIN_COOKIE = sandbox.token;
+    PORT = php.port;
+    php.root = sandbox.root;
+    console.log('origin: real PHP sandbox on 127.0.0.1:' + PORT);
+  }
+  const server = php ? null : await listen(createAuditServer());
   const { cdp } = browser;
   try {
     // 0. the harness itself: the browser clock is frozen (the injection lands on the next document,
@@ -693,13 +782,49 @@ async function main() {
       && newStatus === 'not_started' && focusOk(popAccepted, doneCard.taskId) && /task-title-open|task-row-title|status-check/.test(popAccepted.cls),
       'task ' + (doneCard && doneCard.taskId) + ' -> ' + newStatus + '; focus ' + popAccepted.tag + '.' + popAccepted.cls + ' "' + popAccepted.name + '"');
 
+    // 5e. subject dropdown keyboard: Enter/ArrowDown opens and focuses the selected option,
+    // Home/End/ArrowDown navigate, Escape closes the dropdown without closing the task dialog,
+    // and Enter selects an option and returns focus to #dialog-subject-btn.
+    await click(cdp, '#page-my-tasks .task-card .task-title-open');
+    await sleep(250);
+    await cdp.evaluate(`document.getElementById('dialog-subject-btn').focus()`);
+    await pressEnter(cdp);
+    const subjOpened = await cdp.evaluate(`(() => {
+      const dd = document.getElementById('dialog-subject-dropdown');
+      const a = document.activeElement;
+      return { open: !dd.hidden, inside: dd.contains(a), ariaSelected: a && a.getAttribute('aria-selected') };
+    })()`);
+    await pressKey(cdp, 'Escape', 'Escape', 27);
+    const subjEscClosed = await cdp.evaluate(`(() => ({
+      ddHidden: document.getElementById('dialog-subject-dropdown').hidden,
+      dlgOpen: !document.getElementById('task-dialog-overlay').hidden,
+      activeId: document.activeElement && document.activeElement.id,
+    }))()`);
+    await pressKey(cdp, 'ArrowDown', 'ArrowDown', 40);
+    await pressKey(cdp, 'Home', 'Home', 36);
+    await pressKey(cdp, 'ArrowDown', 'ArrowDown', 40);
+    const pickedSubjCode = await cdp.evaluate(`document.activeElement && document.activeElement.dataset.subject`);
+    await pressEnter(cdp);
+    const subjPicked = await cdp.evaluate(`(() => ({
+      ddHidden: document.getElementById('dialog-subject-dropdown').hidden,
+      activeId: document.activeElement && document.activeElement.id,
+      btnText: document.getElementById('dialog-subject-btn').textContent.trim(),
+    }))()`);
+    await pressKey(cdp, 'Escape', 'Escape', 27);
+    check('subject dropdown keyboard', subjOpened.open && subjOpened.inside && subjOpened.ariaSelected === 'true'
+      && subjEscClosed.ddHidden && subjEscClosed.dlgOpen && subjEscClosed.activeId === 'dialog-subject-btn'
+      && !!pickedSubjCode && subjPicked.ddHidden && subjPicked.activeId === 'dialog-subject-btn' && subjPicked.btnText === pickedSubjCode,
+      'open=' + subjOpened.open + ' inside=' + subjOpened.inside + ' esc=' + subjEscClosed.activeId + ' picked=' + pickedSubjCode + '/' + subjPicked.btnText);
+
     // 6. pinned announcements: all on desktop, one on the phone
     for (const width of [1280, 375]) {
       await boot(cdp, width);
       const a = await cdp.evaluate(READ_ANNOUNCE);
       const ok = width > 719
         ? a.total > 1 && a.shown === a.total && a.toggleHidden
-        : a.total > 1 && a.shown === 1 && !a.toggleHidden && /Show all/.test(a.toggleText);
+        : a.total > 1 && a.shown === 1 && !a.toggleHidden
+          // The collapsed label must name the rows it still hides, not the total ("Show 2 more").
+          && a.toggleText.includes(String(a.total - a.shown));
       check('announce ' + width, ok, 'total ' + a.total + ' shown ' + a.shown + ' toggleHidden ' + a.toggleHidden + ' "' + a.toggleText + '"');
     }
 
@@ -761,13 +886,25 @@ async function main() {
       return { text: del.textContent.trim(), rows: document.querySelectorAll('#past-list .done-row').length };
     })()`);
     const armed = clicked && clicked.text === 'Confirm?' && clicked.rows === before;
-    const deleted = await cdp.evaluate(`(() => {
+    // Deletion archives first, so the row disappears one network turn later: poll for the effect
+    // instead of sampling synchronously.
+    await cdp.evaluate(`(() => {
       const row = document.querySelector('#past-list .done-row');
       const del = [...row.querySelectorAll('button')].find((b) => /Confirm\\?/.test(b.textContent));
-      if (!del) return null;
-      del.click();
-      return { rows: document.querySelectorAll('#past-list .done-row').length, toast: !document.getElementById('toast').hidden, message: document.getElementById('toast-message').textContent, undo: !document.getElementById('toast-action').hidden };
+      if (del) del.click();
+      return true;
     })()`);
+    let deleted = null;
+    for (let i = 0; i < 40; i++) {
+      deleted = await cdp.evaluate(`(() => ({
+        rows: document.querySelectorAll('#past-list .done-row').length,
+        toast: !document.getElementById('toast').hidden,
+        message: document.getElementById('toast-message').textContent,
+        undo: !document.getElementById('toast-action').hidden,
+      }))()`);
+      if (deleted.rows === before - 1 && deleted.toast) break;
+      await sleep(50);
+    }
     const gone = deleted && deleted.rows === before - 1 && deleted.toast && deleted.undo;
     await sleep(200);
     await click(cdp, '#toast-action');
@@ -775,6 +912,9 @@ async function main() {
     const after = await cdp.evaluate(`document.querySelectorAll('#past-list .done-row').length`);
     check('delete arms + undo', !!armed && !!gone && after === before,
       'rows ' + before + ' -> armed ' + (clicked && clicked.text) + ' -> ' + (deleted && deleted.rows) + ' -> undo ' + after + ' (toast "' + (deleted && deleted.message) + '")');
+
+    // 7b. class List/Board filters and their status transitions, through the same isolated boot
+    await runClassFilterChecks({ cdp, boot, check, click, sleep, pressKey, pressEnter, fixture, FIXTURE_INSTANT });
 
     // 8. both themes render from the stored choice
     const bg = {};
@@ -788,7 +928,11 @@ async function main() {
     check('console clean', cdp.errors.length === 0, cdp.errors.slice(0, 3).join(' | '));
   } finally {
     await browser.close();
-    await new Promise((resolve) => server.close(resolve));
+    if (server) await new Promise((resolve) => server.close(resolve));
+    if (php) {
+      try { php.proc.kill(); } catch (e) {}
+      fs.rmSync(php.root, { recursive: true, force: true });
+    }
   }
   const passed = results.filter((r) => r.ok).length;
   console.log('audit: ' + passed + ' passed, ' + (results.length - passed) + ' failed');

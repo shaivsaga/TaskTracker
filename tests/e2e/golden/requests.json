@@ -56,6 +56,22 @@
     "credentials": "same-origin"
   },
   {
+    "snapshot": "06-admin.html",
+    "method": "GET",
+    "url": "api/versions.php?view=admin",
+    "cache": "no-store",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
+    "snapshot": "06-admin.html",
+    "method": "GET",
+    "url": "api/versions.php?view=admin",
+    "cache": "no-store",
+    "body": null,
+    "credentials": "same-origin"
+  },
+  {
     "snapshot": "07-dialog.html",
     "method": "GET",
     "url": "data/current.json",

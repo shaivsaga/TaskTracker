@@ -73,6 +73,30 @@ function fakeStorage(entries) {
   };
 }
 
+test('only data/current.json is served under data/, mirroring the deployed rule', async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'tt-audit-private-'));
+  const root = path.join(base, 'site');
+  fs.mkdirSync(path.join(root, 'data', 'admin'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'data', 'versions'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'data', 'admin', 'state.json'), '{"bin":["PRIVATE-BIN"]}');
+  fs.writeFileSync(path.join(root, 'data', 'admin', 'pending.json'), '{"PRIVATE-PENDING":1}');
+  fs.writeFileSync(path.join(root, 'data', 'versions', '1.json'), '{"PRIVATE-HISTORY":1}');
+  fs.writeFileSync(path.join(root, 'data', 'current.json'), '{"tasks":[]}');
+  try {
+    await withServer(root, async (origin) => {
+      const live = await get(origin, '/data/current.json');
+      assert.equal(live.status, 200, 'the public board stays public');
+      for (const p of ['/data/admin/state.json', '/data/admin/pending.json', '/data/versions/1.json', '/data/', '/data']) {
+        const res = await get(origin, p);
+        assert.equal(res.status, 404, p + ' must not be served');
+        assert.doesNotMatch(res.body, /PRIVATE-/, p + ' leaked private content');
+      }
+    });
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
 test('safe requests are served from the audit root', async () => {
   await withServer(ROOT, async (base) => {
     const res = await get(base, '/index.html');

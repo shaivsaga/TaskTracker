@@ -104,6 +104,19 @@
                   <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
                   <input type="search" id="class-task-search" placeholder="Search tasks" aria-label="Search class tasks" autocomplete="off">
                 </label>
+                <div class="class-filters">
+                  <label class="sr-only" for="class-subject-filter">Subject</label>
+                  <select id="class-subject-filter">
+                    <option value="">Subject: All</option>
+                  </select>
+                  <label class="sr-only" for="class-status-filter">Status</label>
+                  <select id="class-status-filter">
+                    <option value="">Status: All</option>
+                    <option value="not_started">To do</option>
+                    <option value="in_progress">In progress</option>
+                    <option value="done">Done</option>
+                  </select>
+                </div>
                 <div class="view-tabs" role="group" aria-label="View">
                   <button type="button" class="view-tab is-active" data-view="board" aria-pressed="true">Board</button>
                   <button type="button" class="view-tab" data-view="list" aria-pressed="false">List</button>
@@ -146,6 +159,12 @@
                 <div class="column-content is-empty"><p class="column-empty">Nothing done yet.</p></div>
               </div>
             </div>
+            <p class="summary" id="class-summary" aria-label="Task summary">
+              <span id="csum-open">0 open</span>
+              <span id="csum-today" hidden>0 due today</span>
+              <span id="csum-overdue" class="is-alert" hidden>0 overdue</span>
+              <span id="csum-done">0 done here</span>
+            </p>
           </section>
 
           <section class="page" id="page-my-tasks" data-page-view="my-tasks" aria-label="Admin" hidden>
@@ -239,6 +258,42 @@
                 <div class="column-content is-empty"><p class="column-empty">Done tasks land here.</p></div>
               </div>
             </div>
+            <section class="announcements" id="bin-panel" aria-label="Recycle bin">
+              <div class="announce-header">
+                <h2>Recycle bin</h2>
+                <button class="text-button" type="button" id="bin-refresh" hidden>Refresh</button>
+                <button class="text-button" type="button" id="bin-toggle" aria-expanded="false" aria-controls="bin-body">Show recycle bin</button>
+              </div>
+              <div id="bin-body" hidden>
+                <p class="page-supporting-copy">Deleted drafts and every task removed from the class board are kept here. Restoring puts a copy back in your draft; it stays private until you publish.</p>
+                <p class="summary" id="bin-status" role="status"></p>
+                <ul class="history-list" id="bin-list"></ul>
+              </div>
+            </section>
+            <section class="announcements" id="subject-panel" aria-label="Subjects">
+              <div class="announce-header">
+                <h2>Subjects</h2>
+                <button class="text-button" type="button" id="subject-add" hidden>Add subject</button>
+                <button class="text-button" type="button" id="subject-toggle" aria-expanded="false" aria-controls="subject-body">Manage subjects</button>
+              </div>
+              <div id="subject-body" hidden>
+                <p class="page-supporting-copy">Rename or recolour any subject here. A code never changes, so no task is re-tagged; retiring a subject removes it from new choices but keeps it on the tasks that already use it.</p>
+                <ul class="history-list" id="subject-list"></ul>
+                <div class="announce-actions">
+                  <label class="sr-only" for="preset-select">Saved presets</label>
+                  <select id="preset-select"></select>
+                  <button class="text-button" type="button" id="preset-apply">Apply</button>
+                  <button class="text-button" type="button" id="preset-delete">Delete</button>
+                </div>
+                <div class="announce-actions">
+                  <label class="search" for="preset-name">
+                    <input id="preset-name" type="text" maxlength="100" placeholder="Preset name" aria-label="New preset name">
+                  </label>
+                  <button class="secondary-button" type="button" id="preset-save">Save as preset</button>
+                </div>
+                <p class="summary" id="subject-status" role="status"></p>
+              </div>
+            </section>
           </section>
 
           <section class="page utility-page" id="page-done" data-page-view="done" aria-label="Done" hidden>
@@ -359,6 +414,10 @@
             <input class="text-input" id="publish-clear-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="publish-clear-warning">
           </div>
           <p class="form-error" id="publish-error" role="alert" hidden></p>
+          <div class="field" id="publish-conflict" hidden>
+            <p class="form-error" id="publish-conflict-text" role="alert"></p>
+            <button class="secondary-button" type="button" id="publish-rebase">Adopt the newer board, keep my draft</button>
+          </div>
         </div>
         <div class="dialog-footer">
           <button class="text-button" type="button" id="publish-cancel">Cancel</button>

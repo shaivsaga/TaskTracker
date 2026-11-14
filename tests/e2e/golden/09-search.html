@@ -11,6 +11,29 @@
         </svg>
         <input type="search" id="class-task-search" placeholder="Search tasks" aria-label="Search class tasks" autocomplete="off" value="statistical">
       </label>
+      <div class="class-filters">
+        <label class="sr-only" for="class-subject-filter">Subject</label>
+        <select id="class-subject-filter" value="">
+          <option value="">Subject: All</option>
+          <option value="CP104">CP104</option>
+          <option value="EFFCOM">EFFCOM</option>
+          <option value="FINMATH101">FINMATH101</option>
+          <option value="GENMATH">GENMATH</option>
+          <option value="GENSCI">GENSCI</option>
+          <option value="MABKOM">MABKOM</option>
+          <option value="PE">PE</option>
+          <option value="PERDEV">PERDEV</option>
+          <option value="PKLP">PKLP</option>
+          <option value="THEOLOGY">THEOLOGY</option>
+        </select>
+        <label class="sr-only" for="class-status-filter">Status</label>
+        <select id="class-status-filter" value="">
+          <option value="">Status: All</option>
+          <option value="not_started">To do</option>
+          <option value="in_progress">In progress</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
       <div class="view-tabs" role="group" aria-label="View">
         <button type="button" class="view-tab" data-view="board" aria-pressed="false">Board</button>
         <button type="button" class="view-tab is-active" data-view="list" aria-pressed="true">List</button>
@@ -30,7 +53,7 @@
         </svg>
         Pinned
       </h2>
-      <button class="text-button announce-toggle" type="button" id="announce-toggle" aria-expanded="true" aria-controls="announce-list-public" hidden="">Show all 3</button>
+      <button class="text-button announce-toggle" type="button" id="announce-toggle" aria-expanded="true" aria-controls="announce-list-public" hidden="">Show 2 more</button>
     </div>
     <ul class="announce-list" id="announce-list-public">
       <li class="announce-item">
@@ -135,4 +158,10 @@
       </div>
     </div>
   </div>
+  <p class="summary" id="class-summary" aria-label="Task summary">
+    <span id="csum-open">21 open</span>
+    <span id="csum-today">3 due today</span>
+    <span id="csum-overdue" class="is-alert">4 overdue</span>
+    <span id="csum-done">0 of 21 done here</span>
+  </p>
 </section>

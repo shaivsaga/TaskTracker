@@ -17,6 +17,11 @@ import * as publish from './js/publish.js';
 import * as tasks from './js/tasks.js';
 import * as motion from './js/motion.js';
 import * as noteImages from './js/note-images.js';
+import * as recovery from './js/recovery.js';
+import * as bin from './js/bin.js';
+import * as subjects from './js/subjects.js';
+import * as subjectsEditor from './js/subjects-editor.js';
+import { selectNoticeChanges } from './js/update-notice.js';
 
 // --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
 // Every top-level mutable variable moved to the single `state` object. Deleting the declarations
@@ -30,6 +35,8 @@ state.calAnchor = todayDate();
 // top-level `const` lookups that used to live in app.js are gone on purpose: a missed site now
 // throws instead of quietly re-querying, and js/dom.js touches no DOM while it is evaluated.
 cacheDom();
+// Preferences are watched once here, at startup, so a slow or failed board fetch cannot delay them.
+motion.init();
 
 // --- Admin access: Basic Auth signs in once (api/login.php), then an HttpOnly session cookie does the rest ---
 const ADMIN_KEY = 'class_tasks_admin';
@@ -72,9 +79,65 @@ const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.inclu
 // listener is registered inside it in source order, so the order of the page listeners - including
 // the dialog/popover Escape chain and the due-picker capture handler - is unchanged. The hub
 // functions the other modules receive are passed on from here as tasks.<name>.
+// --- Private recycle bin: the client side of the archive-first deletion -----------------------
+// Every call carries one intent id and the admin revision it decided from. A stale base is
+// answered with the current revision, so the intent is retried once with the same operation id
+// rather than duplicated; a conflict on the id itself is reported, never retried blindly.
+const newOperationId = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''));
+
+// The catalogue definition a bin record keeps so the archived task still reads correctly.
+// A code with no configured definition keeps a neutral retired one; the task is never re-tagged.
+function subjectDef(code) {
+  if (!code) return [];
+  return [{ code: String(code), name: String(code), color: '#c3c7d6', active: false }];
+}
+
+async function adminPost(payload) {
+  const res = await fetch(API.versions, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    cache: 'no-store',
+  });
+  const data = await res.json().catch(() => null);
+  if (typeof data?.adminRevision === 'number') state.adminRevision = data.adminRevision;
+  return { ok: res.ok, status: res.status, code: data && data.code, data };
+}
+
+async function adminAction(action, fields) {
+  const operationId = newOperationId();
+  const send = (base) => adminPost({ action, operationId, baseAdminRevision: base, ...fields });
+  let out = await send(state.adminRevision);
+  if (!out.ok && out.code === 'stale_admin_base') {
+    // Learn the current private revision, then retry the SAME intent once.
+    const summary = await fetch(`${API.versions}?view=admin`, { cache: 'no-store' });
+    const data = await summary.json().catch(() => null);
+    if (typeof data?.adminRevision === 'number') state.adminRevision = data.adminRevision;
+    out = await send(state.adminRevision);
+  }
+  return out;
+}
+
+const recoveryApi = {
+  async archive(task) {
+    const definition = task && typeof task.toJSON === 'function' ? task.toJSON() : task;
+    try {
+      const out = await adminAction('bin-archive', { task: definition, subjects: subjectDef(task && task.subject) });
+      return out.ok ? { ok: true, binId: out.data && out.data.binId } : { ok: false, status: out.status, code: out.code };
+    } catch (e) {
+      return { ok: false, reason: 'offline' };
+    }
+  },
+  // Authority is checked when the user acts, not when the toast was created.
+  mustRecoverAsNewId(id) {
+    return state.verifiedDeletedIds.includes(String(id));
+  },
+};
+
 tasks.init({
   Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, sanitizeDoc, clampPopoverPosition, myTasks,
   isEditable, hideAnimated, createSubjectTag, startNewTask, TTFiles, openDuePicker, calendar, publish,
+  recovery: recoveryApi,
 });
 
 // Returns a clean { tasks, announcements } or null when the data is not a usable board.
@@ -94,22 +157,34 @@ function setPublished(data) {
   state.publishedTasks = board.tasks.map((o) => Task.fromJSON(o));
   state.publishedAnnouncements = board.announcements;
   tasks.applyProgress(state.publishedTasks);
+  // Students render the published catalogue; an admin edits a draft copy that is only sent on Publish.
+  if (!state.isAdmin) syncCatalog(Array.isArray(board.subjects) ? board.subjects : []);
+  else if (!state.draftSubjects.length) {
+    // A legacy draft carries no catalogue: it starts from the published one, never from a reset.
+    state.draftSubjects = (Array.isArray(board.subjects) ? board.subjects : []).map((s) => ({ ...s }));
+    syncCatalog(state.draftSubjects);
+    subjectsEditor.render();
+  }
 }
 
 // --- Update notice: one popup per visit listing tasks that are new or changed since this device last saw the Board ---
 const SEEN_KEY = 'class_tasks_seen';
+const noticeStamp = (value) => (Number.isFinite(value) && value > 0 ? value : 0);
+const isSeenMap = (seen) => !!seen && typeof seen === 'object' && !Array.isArray(seen);
 
 function checkUpdateNotice(board) {
   if (!board || state.isAdmin || state.previewing || state.noticeShown || !board.tasks.length) return;
   if (!dom.tourOverlay.hidden || !dom.importOverlay.hidden || !dom.dialogOverlay.hidden) return;
+  // Raw authoritative-board stamps stay outside Task.fromJSON; Task never carries changedAt.
   const stamps = {};
-  board.tasks.forEach((t) => { stamps[String(t.id)] = Number.isFinite(t.changedAt) ? t.changedAt : 0; });
+  board.tasks.forEach((t) => { stamps[String(t.id)] = noticeStamp(t.changedAt); });
   const seen = readJSON(SEEN_KEY, null);
-  if (!seen || typeof seen !== 'object' || Array.isArray(seen)) { writeJSON(SEEN_KEY, stamps); return; }  // first visit: start quietly
-  const fresh = board.tasks.filter((t) => { const id = String(t.id); return !Object.hasOwn(seen, id) || (seen[id] > 0 && stamps[id] > seen[id]); });
-  if (!fresh.length) { writeJSON(SEEN_KEY, stamps); return; }
+  if (!isSeenMap(seen)) { writeJSON(SEEN_KEY, stamps); return; }  // first visit: start quietly
+  const fresh = selectNoticeChanges(board.tasks, seen);
+  if (!fresh.length) return;
+  const byId = new Map(board.tasks.map((t) => [String(t.id), t]));
   state.noticeShown = true;
-  showUpdateNotice(fresh.map((t) => ({ isNew: !Object.hasOwn(seen, String(t.id)), task: Task.fromJSON(t) })), () => writeJSON(SEEN_KEY, stamps));
+  showUpdateNotice(fresh.map(({ id, isNew }) => ({ isNew, task: Task.fromJSON(byId.get(id)) })), () => writeJSON(SEEN_KEY, stamps));
 }
 
 function showUpdateNotice(items, onDismiss) {
@@ -132,7 +207,7 @@ function showUpdateNotice(items, onDismiss) {
   body.appendChild(el('p', 'dialog-summary', items.length === 1 ? '1 task is new or changed since your last visit.' : `${items.length} tasks are new or changed since your last visit.`));
   const list = el('ul', 'import-summary');
   items.slice(0, 8).forEach(({ isNew, task }) => {
-    list.appendChild(el('li', '', `${isNew ? 'New' : 'Updated'}: ${task.subject ? task.subject + ' · ' : ''}${task.title} · ${task.getDueShort()}`));
+    list.appendChild(el('li', '', `${isNew ? 'New' : 'Updated'}: ${task.subject ? subjects.subjectDisplayName(state.catalog, task.subject) + ' · ' : ''}${task.title} · ${task.getDueShort()}`));
   });
   if (items.length > 8) list.appendChild(el('li', '', `and ${items.length - 8} more`));
   body.appendChild(list);
@@ -142,6 +217,8 @@ function showUpdateNotice(items, onDismiss) {
   foot.appendChild(ok);
   box.append(head, body, foot);
   overlay.appendChild(box);
+  // Start hidden before it enters the document, so the native entrance samples 0, not 1.
+  overlay.hidden = true;
   document.body.appendChild(overlay);
   const close = () => {
     document.removeEventListener('keydown', onKey);
@@ -155,13 +232,43 @@ function showUpdateNotice(items, onDismiss) {
   x.addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   overlay._returnFocus = document.activeElement;
+  motion.openOverlay(overlay);
   ok.focus();
 }
 
-let firstBoardPaint = false;
+// --- Deletion authority -----------------------------------------------------------------------
+// Only a validated successful schema-2 response proves a permanent deletion. A cache, a 404, a
+// truncated body or an offline fallback prove nothing, so nothing is erased from those.
+function acceptAuthoritativeBoard(board) {
+  const next = recovery.nextAuthority(
+    { revision: state.verifiedRevision, deletedIds: state.verifiedDeletedIds },
+    board,
+  );
+  if (!next) return false;
+  state.verifiedRevision = next.revision;
+  state.verifiedDeletedIds = next.deletedIds;
+  return true;
+}
+
+// Erase exactly the progress the server proved deleted - even when the board has no tasks, and
+// before any early return for an open dialog. Absence alone never erases an entry.
+function applyDeletionAuthority() {
+  const before = state.progress;
+  const filtered = recovery.filterDeletedProgress(before, state.verifiedDeletedIds);
+  if (!filtered.removed.length) return true;
+  state.progress = filtered.progress;
+  if (!writeJSON(KEYS.progress, state.progress)) {
+    state.progress = before;   // never claim a cleanup that did not persist
+    tasks.showToast('Could not update saved progress on this device.');
+    return false;
+  }
+  return true;
+}
+
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
   let board = null;
+  let authoritative = false;
   try {
     // S2: a unique ?t= URL can never match a cache entry, and no-store forbids the
     // conditional request as well, so every visit downloaded the whole 1.70 MB board.
@@ -174,6 +281,8 @@ async function loadPublished() {
     else throw new Error(String(res.status));
     board = normalizeBoard(data);
     if (!board) throw new Error('Invalid board data');
+    // A 404 body is not a board: it proves nothing, so it never becomes authority.
+    authoritative = res.ok && acceptAuthoritativeBoard(board);
     writeJSON(KEYS.cache, board);
     note.hidden = true;
     state.liveBoard = board;
@@ -182,11 +291,12 @@ async function loadPublished() {
     note.hidden = false;
     state.liveBoard = null;
   }
+  // Server-proved deletions are applied first, even for an empty board and even while a task
+  // dialog is open: a pending overlay must not postpone erasing progress the server forbade.
+  if (authoritative && applyDeletionAuthority()) tasks.applyProgress(state.publishedTasks);
   if (state.currentTask) return;
   setPublished(board);
   checkUpdateNotice(state.liveBoard);
-  tasks.pruneProgress(state.liveBoard);
-  if (!firstBoardPaint) { firstBoardPaint = true; motion.init(); motion.enter(); }   // the board arrives once
   tasks.renderAllTasks();
   announcements.renderAnnouncements();
 }
@@ -246,15 +356,10 @@ setInterval(queueMine, 60000);
 
 // --- Toast and autosave feedback (hideAnimated); skeletons moved to js/tasks.js (slice 2.6) ---
 
-// Plays the CSS exit animation, then hides. Skips the wait for reduced motion.
+// Hands the logical close to the shared overlay owner, then restores focus to the opener.
 function hideAnimated(el, ms = 180) {
-  if (el._returnFocus && el._returnFocus.isConnected) el._returnFocus.focus();
-  el._returnFocus = null;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.hidden = true; return; }
-  el.classList.add('is-closing');
-  setTimeout(() => {
-    if (el.classList.contains('is-closing')) { el.hidden = true; el.classList.remove('is-closing'); }
-  }, ms);
+  const returnFocus = motion.hideOverlay(el, ms);
+  if (returnFocus && returnFocus.isConnected) returnFocus.focus();
 }
 
 // --- Calendar: js/calendar.js (slice 2.3) -------------------------------------------------------
@@ -277,6 +382,16 @@ document.querySelector('#class-task-search').addEventListener('input', (e) => {
   state.classSearchQuery = e.target.value;
   tasks.renderClassTasks();
   
+});
+
+// Class filters: the Board stays search-only; the List combines search, subject and status.
+document.querySelector('#class-subject-filter').addEventListener('change', (e) => {
+  state.classSubjectFilter = e.target.value;
+  tasks.renderClassTasks();
+});
+document.querySelector('#class-status-filter').addEventListener('change', (e) => {
+  state.classStatusFilter = e.target.value;
+  tasks.renderClassTasks();
 });
 
 // --- New task, theme, and view switch ---
@@ -311,10 +426,9 @@ function applyView(scope, view) {
 
 function setView(scope, view, animate = true) {
   try { localStorage.setItem(VIEW_KEYS[scope], view); } catch (e) {}
-  const run = () => applyView(scope, view);
-  if (!animate) { run(); return; }
-  if (document.startViewTransition) { document.startViewTransition(run); return; }
-  run();
+  applyView(scope, view);
+  // OS or data-motion reduced changes the view synchronously; only the local CSS fade is used.
+  if (!animate || motion.isReducedMotion()) return;
   const page = document.querySelector(SCOPES[scope].page);
   page.classList.remove('is-swapping');
   void page.offsetWidth;
@@ -333,9 +447,34 @@ const STATUS_CODES = {
 
 function createSubjectTag(code) {
   const tag = document.createElement('span');
-  tag.className = `subject-tag ${tasks.SUBJECTS[code] || ''}`;
+  const def = subjects.subjectFor(state.catalog, code);
+  if (def) {
+    // A palette colour keeps its shipped class, so an unchanged subject renders byte-identically;
+    // a custom colour gets validated custom properties instead of any class or CSS string.
+    const cls = subjects.classForColor(def.color);
+    tag.className = `subject-tag ${cls}`.trim();
+    if (!cls) {
+      tag.style.setProperty('--tag', def.color);
+      tag.style.setProperty('--tag-ink', subjects.subjectTextColor(def.color));
+    }
+    tag.textContent = def.name || def.code;
+    return tag;
+  }
+  // No catalogue yet (or an unknown legacy code): a neutral retired chip, never a silent recolour.
+  const retired = subjects.retiredSubject(code);
+  tag.className = 'subject-tag';
+  tag.style.setProperty('--tag', retired.color);
+  tag.style.setProperty('--tag-ink', subjects.subjectTextColor(retired.color));
   tag.textContent = code;
   return tag;
+}
+
+// One place a catalogue change becomes visible: rendering, the pickers and the calendar cache.
+function syncCatalog(list) {
+  state.catalog = Array.isArray(list) ? list : [];
+  tasks.syncSubjectMap(state.catalog);
+  tasks.refreshSubjectChoices();
+  state.calAgendaSig = '';   // a rename or recolour must repaint the calendar
 }
 
 // --- Quick add: "GENMATH worksheet ip 10/5" ---
@@ -353,7 +492,7 @@ function quickWords(text) {
 }
 
 function parseQuickAdd(text) {
-  const out = { subject: '', status: null, typedStatus: false, dueDate: undefined, dueTime: undefined, title: '' };
+  const out = { subject: '', status: null, typedStatus: false, dueDate: undefined, endDate: undefined, dueTime: undefined, title: '' };
   const rest = [];
   const now = new Date();
   quickWords(text).forEach((word) => {
@@ -380,8 +519,8 @@ function parseQuickAdd(text) {
       rest.push(word);
     }
   });
-  if (state.quickPicked.date) { out.dueDate = state.quickPicked.date; out.dueTime = state.quickPicked.time || undefined; }   // picker wins
-  if (!out.dueDate) out.dueTime = undefined;              // time needs a date
+  if (state.quickPicked.date) { out.dueDate = state.quickPicked.date; out.endDate = state.quickPicked.endDate || undefined; out.dueTime = state.quickPicked.time || undefined; }   // picker wins
+  if (!out.dueDate) { out.endDate = undefined; out.dueTime = undefined; }              // time and end date need a start date
   out.status = out.status || 'not_started';
   out.title = (rest.join(' ') || (out.subject ? `${out.subject} task` : 'New Task')).slice(0, 500);
   return out;
@@ -437,14 +576,17 @@ function closeDuePicker(reason) {
   if (done && (reason === 'esc' || reason === 'done')) done();
 }
 
-// opts: { anchor, focus: 'date'|'time', date, time, onChange({date, time}), onDone }
+// opts: { anchor, focus: 'date'|'time', date, endDate, time, onChange({date, endDate, time}), onDone }
 function openDuePicker(opts) {
   if (state.dpEl && state.dpState.anchor === opts.anchor && state.dpState.focus === opts.focus) { closeDuePicker(); return; }
   closeDuePicker();
 
   const s = {
     anchor: opts.anchor, focus: opts.focus, onChange: opts.onChange, onDone: opts.onDone,
-    date: opts.date || null, time: opts.time || null, view: null,
+    date: opts.date || null, endDate: opts.endDate || null, time: opts.time || null,
+    rangeMode: !!(opts.date && opts.endDate && opts.endDate.getTime() >= opts.date.getTime()),
+    activeField: 'start',
+    view: null,
   };
   const seed = s.date || todayDate();
   s.view = new Date(seed.getFullYear(), seed.getMonth(), 1);
@@ -454,8 +596,9 @@ function openDuePicker(opts) {
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', 'Due date and time');
   el.innerHTML = `
-    <div class="dp-fields">
-      <input class="dp-input dp-date" type="text" placeholder="Date &amp; time" aria-label="Date and time, time optional" autocomplete="off" spellcheck="false" enterkeyhint="done">
+    <div class="dp-fields${s.rangeMode ? ' is-range' : ''}">
+      <input class="dp-input dp-date" type="text" placeholder="${s.rangeMode ? 'Start date' : 'Date &amp; time'}" aria-label="${s.rangeMode ? 'Start date' : 'Date and time, time optional'}" autocomplete="off" spellcheck="false" enterkeyhint="done">
+      <input class="dp-input dp-end-date" type="text" placeholder="End date" aria-label="End date" autocomplete="off" spellcheck="false" enterkeyhint="done"${s.rangeMode ? '' : ' hidden'}>
     </div>
     <div class="dp-head">
       <span class="dp-month"></span>
@@ -464,19 +607,39 @@ function openDuePicker(opts) {
       <button type="button" class="dp-nav dp-next" aria-label="Next month"><svg class="i" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
     </div>
     <div class="dp-grid" role="grid"></div>
+    <div class="dp-options">
+      <label class="dp-toggle">
+        <span class="dp-toggle-label">Add an end date</span>
+        <input type="checkbox" role="switch" class="dp-end-toggle"${s.rangeMode ? ' checked' : ''}>
+        <span class="dp-switch" aria-hidden="true"></span>
+      </label>
+    </div>
     <div class="dp-foot">
       <span class="dp-hint">Time is optional · e.g. fri 3pm</span>
       <button type="button" class="text-button dp-clear">Clear</button>
     </div>`;
 
   const $ = (sel) => el.querySelector(sel);
+  const fieldsEl = $('.dp-fields');
   const dateIn = $('.dp-date');
+  const endIn = $('.dp-end-date');
+  const endToggle = $('.dp-end-toggle');
   const grid = $('.dp-grid');
   const monthEl = $('.dp-month');
 
-  const emit = () => s.onChange({ date: s.date, time: s.time });
+  const emit = () => s.onChange({ date: s.date, endDate: s.rangeMode ? s.endDate : null, time: s.time });
   const syncFields = () => {
     dateIn.value = s.date ? formatDateText(s.date) + (s.time ? ' ' + formatTime(s.time) : '') : '';
+    endIn.value = s.endDate ? formatDateText(s.endDate) : '';
+    fieldsEl.classList.toggle('is-range', s.rangeMode);
+    dateIn.placeholder = s.rangeMode ? 'Start date' : 'Date & time';
+    dateIn.setAttribute('aria-label', s.rangeMode ? 'Start date' : 'Date and time, time optional');
+    endIn.hidden = !s.rangeMode;
+    endToggle.checked = s.rangeMode;
+    // Which endpoint the next day tap moves, since the caret only shows after a field is focused.
+    dateIn.classList.toggle('is-active', s.activeField === 'start');
+    endIn.classList.toggle('is-active', s.activeField === 'end');
+    $('.dp-hint').textContent = s.rangeMode ? 'Time is optional on the start · e.g. thu 3pm' : 'Time is optional · e.g. fri 3pm';
   };
   const gotoMonth = (d) => { s.view = new Date(d.getFullYear(), d.getMonth(), 1); renderGrid(); };
 
@@ -493,7 +656,13 @@ function openDuePicker(opts) {
     for (let i = 0; i < 42; i++) {
       const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
       const b = document.createElement('button');
-      const selected = !!s.date && d.getTime() === s.date.getTime();
+      const t = d.getTime();
+      const sTime = s.date ? s.date.getTime() : null;
+      const eTime = s.rangeMode && s.endDate ? s.endDate.getTime() : null;
+      const isStart = sTime !== null && t === sTime;
+      const isEnd = eTime !== null && t === eTime;
+      const selected = isStart || isEnd;
+      const inRange = sTime !== null && eTime !== null && t > sTime && t < eTime;
       b.type = 'button';
       b.className = 'dp-day';
       b.textContent = d.getDate();
@@ -501,8 +670,26 @@ function openDuePicker(opts) {
       b.setAttribute('aria-pressed', String(selected));
       if (d.getMonth() !== s.view.getMonth()) b.classList.add('is-outside');
       if (dayDiff(d) === 0) b.classList.add('is-today');
+      if (isStart) b.classList.add('is-range-start');
+      if (isEnd) b.classList.add('is-range-end');
+      if (inRange) b.classList.add('is-in-range');
       if (selected) b.classList.add('is-selected');
-      b.addEventListener('click', () => { s.date = d; syncFields(); renderGrid(); emit(); });
+      b.addEventListener('click', () => {
+        if (!s.rangeMode) {
+          s.date = d;
+          s.endDate = null;
+        } else if (s.activeField === 'end' && s.date) {
+          if (t < s.date.getTime()) { s.endDate = s.date; s.date = d; }
+          else { s.endDate = d; }
+        } else {
+          s.date = d;
+          if (s.endDate && t > s.endDate.getTime()) s.endDate = null;
+          s.activeField = 'end';
+        }
+        syncFields();
+        renderGrid();
+        emit();
+      });
       grid.appendChild(b);
     }
   }
@@ -533,23 +720,55 @@ function openDuePicker(opts) {
     if (changed) { renderGrid(); emit(); }
   });
 
+  dateIn.addEventListener('focus', () => { s.activeField = 'start'; });
+  endIn.addEventListener('focus', () => { s.activeField = 'end'; });
+
+  // shortcut: the end field is date-only — a time typed here is dropped on blur, when the field
+  // re-renders from state. Upgrade when a range needs its own end time.
+  endIn.addEventListener('input', () => {
+    const r = parseDateField(endIn.value);
+    if (r.empty || !r.date) return;
+    if (!s.date) { s.date = r.date; s.endDate = r.date; }
+    else if (r.date.getTime() < s.date.getTime()) { s.endDate = s.date; s.date = r.date; }
+    else { s.endDate = r.date; }
+    gotoMonth(r.date);
+    renderGrid();
+    emit();
+  });
+
   const commitDate = () => {
-    if (!dateIn.value.trim() && s.date) { s.date = null; s.time = null; renderGrid(); emit(); }
+    if (!dateIn.value.trim() && s.date) { s.date = null; s.endDate = null; s.time = null; renderGrid(); emit(); }
+    if (s.rangeMode && !endIn.value.trim() && s.endDate) { s.endDate = null; renderGrid(); emit(); }
     syncFields();
   };
   dateIn.addEventListener('blur', commitDate);
-  dateIn.addEventListener('keydown', (e) => {
+  endIn.addEventListener('blur', commitDate);
+  const onEnter = (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     e.stopPropagation();
     commitDate();
     closeDuePicker('done');
+  };
+  dateIn.addEventListener('keydown', onEnter);
+  endIn.addEventListener('keydown', onEnter);
+
+  endToggle.addEventListener('change', () => {
+    s.rangeMode = endToggle.checked;
+    // Switching off only stops emitting the end date; keeping it in state means switching back on
+    // restores it, so one mis-tap no longer destroys a picked date.
+    if (s.rangeMode && s.endDate && s.date && s.endDate.getTime() < s.date.getTime()) s.endDate = null;
+    s.activeField = s.rangeMode && s.date ? 'end' : 'start';
+    syncFields();
+    renderGrid();
+    if (s.date) emit();
+    if (s.rangeMode) endIn.focus();
   });
 
   $('.dp-prev').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() - 1, 1)));
   $('.dp-next').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() + 1, 1)));
-  $('.dp-today').addEventListener('click', () => { s.date = todayDate(); gotoMonth(s.date); syncFields(); emit(); });
-  $('.dp-clear').addEventListener('click', () => { s.date = null; s.time = null; emit(); closeDuePicker(); });
+  $('.dp-today').addEventListener('click', () => { s.date = todayDate(); if (s.endDate && s.endDate.getTime() < s.date.getTime()) s.endDate = null; gotoMonth(s.date); syncFields(); emit(); });
+  $('.dp-clear').addEventListener('click', () => { s.date = null; s.endDate = null; s.time = null; emit(); closeDuePicker(); });
 
   document.body.appendChild(el);
   state.dpEl = el;
@@ -563,7 +782,7 @@ function openDuePicker(opts) {
   let top = r.bottom + 6;
   if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
   el.style.top = `${top}px`;
-  el.style.left = `${Math.min(Math.max(8, r.left), window.innerWidth - w - 8)}px`;
+  el.style.left = `${Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8))}px`;
 
   dateIn.focus();
   dateIn.select();
@@ -578,7 +797,7 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 document.addEventListener('click', (e) => {
-  if (state.dpEl && !state.dpEl.contains(e.target) && !state.dpState.anchor.contains(e.target)) closeDuePicker();
+  if (state.dpEl && !e.composedPath().includes(state.dpEl) && !state.dpState.anchor.contains(e.target)) closeDuePicker();
 });
 
 // --- Navigation and routing: js/nav.js (slice 2.4) ----------------------------------------------
@@ -607,6 +826,29 @@ publish.init({
   $, myTasks, showToast: tasks.showToast, hideAnimated, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks,
   renderAnnouncements: announcements.renderAnnouncements, applyProgress: tasks.applyProgress,
   normalizeBoard, setPublished, Task, setPage: nav.setPage,
+  acceptAuthority: (board) => { if (acceptAuthoritativeBoard(board)) applyDeletionAuthority(); },
+  archive: (task) => recoveryApi.archive(task),
+  syncCatalog,
+  catalog: {
+    newOperationId,
+    // The draft catalogue is what Publish sends; a legacy install with no draft keeps the published
+    // definitions. A definition is never invented for an unknown code (see unknownFor below).
+    forPublish: () => (state.draftSubjects.length
+      ? state.draftSubjects
+      : (state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [])),
+    unknownFor: (draftTasks) => {
+      const source = state.draftSubjects.length
+        ? state.draftSubjects
+        : (state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : []);
+      const known = new Set(source.map((s) => s && s.code).filter(Boolean));
+      const missing = new Set();
+      for (const t of Array.isArray(draftTasks) ? draftTasks : []) {
+        const code = t && t.subject;
+        if (typeof code === 'string' && code !== '' && !known.has(code)) missing.add(code);
+      }
+      return [...missing];
+    },
+  },
   adoptInlineImages: noteImages.adoptInlineImages, rewriteNotes: noteImages.rewriteNotes, files: window.TTFiles,
 });
 
@@ -657,6 +899,7 @@ transfer.init({
   $, hideAnimated, showToast: tasks.showToast, closeSettings: settings.closeSettings,
   myTasks, applyProgress: tasks.applyProgress, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks, renderAnnouncements: announcements.renderAnnouncements,
   snapshot: publish.snapshot, restoreDraft: publish.restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER: tasks.STATUS_ORDER,
+  syncCatalog,
 });
 
 // --- Focus trap: Tab stays inside the open dialog ---
@@ -692,6 +935,7 @@ function initSkipLink() {
 function init() {
   initSkipLink();
   tasks.loadTasks();
+  if (state.isAdmin && state.draftSubjects.length) syncCatalog(state.draftSubjects);
   announcements.renderAnnouncements();
   ['class', 'admin'].forEach((scope) => {
     let v = null;
@@ -705,7 +949,23 @@ function init() {
 
   nav.setPage(pageFromHash(window.location.hash, nav.NAV_PAGES, state.isAdmin), false);
   if (INCOMING_TRANSFER) transfer.checkIncomingTransfer(INCOMING_TRANSFER);
-  else if (!tour.tourSeen()) setTimeout(tour.startTour, 800);
+  else if (!tour.tourSeen()) {
+    // First visit: let the board answer "what is due" before anything covers it. The tour opens
+    // once the visitor scrolls past the third row or opens a task, with a 25s fallback so it is
+    // not lost. Settings > Replay tour still opens it on demand.
+    let fallback = 0;
+    const onScroll = () => { if (window.scrollY > 320) start(); };
+    const onClick = (e) => { if (e.target instanceof Element && e.target.closest('.task-row, .task-card')) start(); };
+    const start = () => {
+      window.removeEventListener('scroll', onScroll, true);
+      document.removeEventListener('click', onClick, true);
+      clearTimeout(fallback);
+      tour.startTour();
+    };
+    window.addEventListener('scroll', onScroll, true);
+    document.addEventListener('click', onClick, true);
+    fallback = setTimeout(start, 25000);
+  }
 
   // Time-based overdue: re-render each minute unless something is open
   setInterval(() => {
@@ -719,6 +979,38 @@ async function start() {
   state.isAdmin = await checkAdmin();
   document.querySelector('#nav-admin').hidden = !state.isAdmin;
   init();
+  bin.init({
+    myTasks,
+    Task,
+    saveTasks: tasks.saveTasks,
+    renderAllTasks: tasks.renderAllTasks,
+    adminAction,
+    archive: (task) => recoveryApi.archive(task),
+    newId: () => (crypto.randomUUID ? crypto.randomUUID() : newOperationId()),
+    acceptAuthority: (board) => { if (acceptAuthoritativeBoard(board)) applyDeletionAuthority(); },
+  });
+  // The bin and the catalogue are server state, so they load when the Admin page is opened.
+  const loadAdminPanels = () => {
+    if (!state.isAdmin || document.querySelector('#page-my-tasks').hidden) return;
+    bin.load();
+    subjectsEditor.render();
+    subjectsEditor.loadPresets();
+  };
+  subjectsEditor.init({
+    syncCatalog,
+    saveTasks: tasks.saveTasks,
+    referencedCodes: () => [...new Set(
+      [...myTasks, ...state.publishedTasks].map((t) => t && t.subject).filter(Boolean),
+    )],
+    adminAction,
+    apiVersions: API.versions,
+    confirm: (message) => new Promise((resolve) => tasks.confirmDialog({
+      title: 'Apply subject preset?', message, okLabel: 'Apply preset',
+      onConfirm: () => resolve(true), onCancel: () => resolve(false),
+    })),
+  });
+  window.addEventListener('hashchange', loadAdminPanels);
+  if (state.isAdmin) setTimeout(loadAdminPanels, 0);
 }
 
 if (document.readyState === 'loading') {

@@ -23,6 +23,7 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { formatTime } from './util.js';
+import { openOverlay } from './motion.js';
 
 let quickWords = null;        // app.js's tokenizer (the parser that stays there uses it)
 let parseQuickAdd = null;     // the natural-language parser, kept in app.js and passed in
@@ -71,10 +72,11 @@ function openQuickPicker(kind) {
     anchor: chip || dom.quickInput,
     focus: kind,
     date: p.dueDate || null,
+    endDate: p.endDate || null,
     time: p.dueTime || null,
-    onChange: ({ date, time }) => {
+    onChange: ({ date, endDate, time }) => {
       if (!date) { clearQuickDue(false); return; }
-      state.quickPicked = { date, time };
+      state.quickPicked = { date, endDate: endDate || null, time };
       renderQuickPreview();
     },
     onDone: () => dom.quickInput.focus(),
@@ -82,7 +84,7 @@ function openQuickPicker(kind) {
 }
 
 function clearQuickDue(refocus = true) {
-  state.quickPicked = { date: null, time: null };
+  state.quickPicked = { date: null, endDate: null, time: null };
   const kept = quickWords(dom.quickInput.value).filter((w) => !isDateWord(w) && !parseTimeWord(w));
   dom.quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
   closeDuePicker();
@@ -114,15 +116,17 @@ function renderQuickPreview() {
   const next = {
     subject: p ? p.subject : '',
     status: p && p.typedStatus ? p.status : '',
-    due: p && p.dueDate ? toInputValue(p.dueDate) + (p.dueTime || '') : '',
+    due: p && p.dueDate ? toInputValue(p.dueDate) + (p.endDate ? '→' + toInputValue(p.endDate) : '') + (p.dueTime || '') : '',
   };
   const changed = (k) => next[k] !== '' && next[k] !== state.quickPrev[k];
   let dueNode = null;
   if (p && p.dueDate) {
     dueNode = document.createElement('span');
     dueNode.className = 'quick-due';
+    const startStr = p.dueDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    const endStr = p.endDate ? p.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
     dueNode.appendChild(quickText(
-      p.dueDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
+      endStr ? `${startStr} → ${endStr}` : startStr,
       'quick-chip is-mono'
     ));
     if (p.dueTime) dueNode.appendChild(quickText(formatTime(p.dueTime), 'quick-chip is-mono'));
@@ -251,8 +255,7 @@ export function openQuickAdd() {
   quickSubjectOpen = false;
   renderQuickChips();
   renderQuickPreview();
-  dom.quickOverlay.classList.remove('is-closing');
-  dom.quickOverlay.hidden = false;
+  openOverlay(dom.quickOverlay);
   dom.quickInput.focus();
 }
 
@@ -265,7 +268,7 @@ function closeQuickAdd() {
 function submitQuickAdd(openDetails) {
   if (!dom.quickInput.value.trim()) return;
   const p = parseQuickAdd(dom.quickInput.value);
-  const task = new Task({ title: p.title, subject: p.subject, dueDate: p.dueDate, dueTime: p.dueTime });
+  const task = new Task({ title: p.title, subject: p.subject, dueDate: p.dueDate, endDate: p.endDate, dueTime: p.dueTime });
   myTasks.push(task);
   if (p.status !== 'not_started') setStatus(task, p.status);
   else saveTasks();

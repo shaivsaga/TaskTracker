@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 // Shared validators. Loaded by api/publish.php and transfer.php, and by tests/php/run.php.
+// The catalogue rules live in _board.php; it is required once here and everywhere else uses
+// require_once, so a function is never declared twice in one request.
+require_once __DIR__ . '/_board.php';
 
 // Announcement formatting: only <b> <i> <ul> <li> <br>, no attributes, balanced, text escaped as &amp; &lt; &gt; only. Anything else is rejected, never rewritten.
 function announce_html_ok($h) {
@@ -56,6 +59,8 @@ function clean_payload($p) {
             foreach (['notes', 'subject'] as $k) if (isset($t[$k]) && !is_string($t[$k])) return null;
             if (isset($t['subject']) && strlen($t['subject']) > 32) return null;
             if (isset($t['dueDate']) && (!is_string($t['dueDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['dueDate']))) return null;
+            if (isset($t['endDate']) && (!is_string($t['endDate']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $t['endDate']))) return null;
+            if (isset($t['endDate']) && (!isset($t['dueDate']) || $t['endDate'] < $t['dueDate'])) return null;
             if (isset($t['dueTime']) && (!is_string($t['dueTime']) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/D', $t['dueTime']))) return null;
             if (isset($t['files'])) {
                 if (!is_array($t['files']) || count($t['files']) > 10) return null;
@@ -69,7 +74,20 @@ function clean_payload($p) {
             if (!is_array($a) || !is_string($a['text'] ?? null) || mb_strlen($a['text']) > 500 || !is_numeric($a['createdAt'] ?? null)) return null;
             if (isset($a['html']) && !announce_html_ok($a['html'])) return null;
         }
-        $clean['draft'] = ['tasks' => array_values($tasks), 'announcements' => array_values($ann)];
+        // A schema-2 draft carries its catalogue. It is validated with the same rules as publishing
+        // and preserved; deletion authority, private state and a sender's base revision never travel.
+        $draftOut = ['tasks' => array_values($tasks), 'announcements' => array_values($ann)];
+        $schema = $d['schemaVersion'] ?? null;
+        if ($schema !== null) {
+            if ($schema !== 2) return null;
+            $draftOut['schemaVersion'] = 2;
+        }
+        if (array_key_exists('subjects', $d)) {
+            [$subs, $subjErr] = tt_subject_validate($d['subjects']);
+            if ($subjErr !== null) return null;
+            $draftOut['subjects'] = $subs;
+        }
+        $clean['draft'] = $draftOut;
     }
     return $clean;
 }

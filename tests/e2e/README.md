@@ -87,12 +87,24 @@ DevTools protocol (Node 22+'s global `WebSocket`), so still no dependency and no
 node tests/e2e/audit.mjs [--root <dir>] [--fixture <file>] [--edge <exe>] [--port 8110] [--require-browser]
 ```
 
+A run may instead use a real endpoint set: `--php C:/xampp/php/php.exe`. A throwaway docroot is copied
+from the repo, `data/current.json` is seeded with a schema-2 board, one admin session file is written,
+and PHP's built-in server serves the app on a random port. Admin scenarios receive that session cookie
+through CDP and student scenarios delete it, so the two modes cannot leak into each other; the temp
+directory is deleted afterwards and the repository's own `data/` is never touched. Without `--php`,
+`/api/*` answers a `200 {}` stub and the run is a geometry, keyboard and accessibility gate only.
+
+Neither mode is a deployment proof: the built-in server is not nginx, so real routing and `data/`
+denial stay `tests/nginx-conf.test.js` (rules) plus an operator check on the host. The harness server
+itself refuses everything under `data/` except `current.json`, pinned by
+`tests/audit-harness.test.js` with planted private content.
+
 Each scenario clears the app's own `class_tasks_*` keys before seeding, so no scenario inherits the
 previous one's admin flag or progress, and the requested admin/student mode is asserted after boot. The
 browser clock is frozen to the fixture instant (`FIXTURE_INSTANT`), so seeded progress timestamps and
 the calendar's "today" are identical on every machine.
 
-It boots the real app at 320, 375, 640, 768 and 1280 CSS px (640 is 200% zoom of a 1280 window), in
+It boots the real app at 320, 375, 640, 720, 768 and 1280 CSS px (640 is 200% zoom of a 1280 window), in
 both themes where the width is a phone, and checks the things a CSS-less judge cannot see:
 
 - **overflow** - no element crosses the viewport edge on any deep-linkable route (Tasks, Done, Past,
@@ -113,6 +125,19 @@ both themes where the width is a phone, and checks the things a CSS-less judge c
 - **delete** - archive Delete arms to "Confirm?" first, then deletes, then Undo restores the row;
 - **themes** - light and dark both come from the stored choice, and no console error appears.
 
+The audit also invokes `class-filters.mjs` through the same isolated boots and CDP helpers:
+
+- **filters** - search, subject and status combine on List without changing Board's search-only results;
+  options stay independent, switching retains selections, reload resets All, and Clear resets all three;
+- **filter focus** - regular status changes and confirmed reopens remove nonmatching rows, announce why,
+  and focus Status; Undo restores the row and progress; open dialogs retain focus until closed;
+- **refresh/offline** - no-subject tasks appear under All, a vanished subject resets All, cached tasks
+  still filter offline, progress stays unchanged, and an empty board has no pointless Clear action;
+- **responsive visibility** - phones show class filters despite a saved Board preference, Admin stays
+  list-only, resizing back restores its desktop preference, and empty public announcements disappear
+  without removing admin announcement controls.
+
+
 A missing browser is an optional local `SKIP` (exit 0), so a checkout without one still passes; the CI
 job runs the audit with `--require-browser` (or `AUDIT_REQUIRE_BROWSER=1`), which turns a missing
 browser into a failure. A browser that exists but cannot launch always fails, so an installed-but-broken
@@ -121,7 +146,34 @@ covers. It is not named `*.test.js` for the same reason as the goldens: it needs
 `tests/audit-harness.test.js` covers the server and launch boundaries (containment, malformed escapes,
 isolation, the frozen clock, missing/required/broken browser) in `node --test`, without a browser.
 
+## Uncoached classmate walkthrough (not run)
+
+No participant results are available. Use a sample board containing at least one in-progress task;
+give only these goals, without naming the controls or showing the path:
+
+1. Find one subject's in-progress tasks.
+2. Return to all tasks.
+3. Change a task's status, then explain what happened to it.
+
+Record whether the classmate finds the controls unaided, can undo narrowing, and understands a
+status-filtered task's disappearance. Keep those observations separate from the automated functional
+checks; no usability claim follows from a passing browser audit.
+
 ## label-in-name (`label-in-name.mjs`)
 Static WCAG 2.5.3 sweep: for every widget carrying `aria-label`, the element's own visible text must be
 contained in that label. axe-core does not implement 2.5.3, so this is the committed check for it.
 `node tests/e2e/label-in-name.mjs [index.html]`; exit 1 on any violation.
+
+## Targeted calendar and preset regressions
+
+Both use the existing external jsdom harness; set `TT_HARNESS` to override its location.
+
+```
+node tests/e2e/calendar-indicators.mjs
+node tests/e2e/preset-confirmation.mjs
+```
+
+The calendar check covers marker packing, overflow and unfinished/completed counts, including
+an all-completed day. The preset check boots the real application and verifies that preview,
+Escape and Cancel leave the draft unchanged; explicit Apply changes the catalogue without
+retagging tasks. It also checks Cancel-first focus, Tab navigation and focus restoration.

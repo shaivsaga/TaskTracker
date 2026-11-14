@@ -34,6 +34,7 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { KEYS } from './util.js';
+import { openOverlay } from './motion.js';
 
 let $ = null;                 // app.js's querySelector shorthand, used by the panel's rows
 let hideAnimated = null;      // app.js: closeSettings and the reset flow hide the overlay animated
@@ -90,8 +91,7 @@ function openSettings() {
   paintThemeChoice();
   $('#settings-logout-row').hidden = !state.isAdmin;
   $('#settings-login-row').hidden = state.isAdmin || !adminHint();
-  dom.settingsOverlay.classList.remove('is-closing');
-  dom.settingsOverlay.hidden = false;
+  openOverlay(dom.settingsOverlay);
   $('#settings-close').focus();
   document.getElementById('reset-admin-note').hidden = !state.isAdmin;
 }
