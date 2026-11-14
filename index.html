@@ -72,10 +72,10 @@
         <a class="tn nav-item" href="#past" data-page="past" title="Past" aria-label="Past">
           <span class="sp x2" style="--i:3" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Past</span>
         </a>
-        <button class="tn nav-item" type="button" id="settings-open" title="Settings" aria-label="Settings">
-          <span class="sp x2" style="--i:5" aria-hidden="true"></span><span class="lbl" aria-hidden="true">Settings</span>
-        </button>
       </nav>
+      <button class="ib" type="button" id="settings-open" title="Settings" aria-label="Settings">
+        <span class="sp x2" style="--i:5" aria-hidden="true"></span>
+      </button>
       <button class="ib" type="button" id="theme-toggle" aria-label="Switch to dark mode">
         <span class="sp x2 icon-light" style="--i:11" aria-hidden="true"></span>
         <span class="sp x2 icon-dark" style="--i:10" aria-hidden="true"></span>
@@ -88,6 +88,13 @@
       </a>
           <h1 class="px ttl" id="breadcrumb-current">Tasks</h1>
           <section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Tasks">
+            <div class="mine" id="mine" aria-label="Your progress" aria-live="polite" aria-atomic="true" hidden>
+              <p class="mine-n" id="mine-n">0</p>
+              <div class="mine-t">
+                <p class="mine-l" id="mine-l"></p>
+                <p class="mine-next" id="mine-next"></p>
+              </div>
+            </div>
             <div class="page-heading">
               <div>
                 <p class="page-supporting-copy">Tasks posted for the class. Your progress is saved on this device only.</p>
@@ -182,11 +189,17 @@
             <div class="admin-bar" id="admin-bar">
               <span class="admin-status" id="admin-status" role="status"></span>
               <div class="admin-actions">
-                <button class="text-button" type="button" id="btn-preview">Preview as student</button>
-                <button class="text-button" type="button" id="btn-history">History</button>
-                <button class="text-button" type="button" id="btn-discard">Discard changes</button>
-                <button class="secondary-button" type="button" id="btn-save">Save</button>
-                <button class="primary-button" type="button" id="btn-apply">Publish</button>
+                <span class="admin-group admin-tools" role="group" aria-label="Draft tools">
+                  <button class="text-button" type="button" id="btn-preview">Preview as student</button>
+                  <button class="text-button" type="button" id="btn-history">History</button>
+                </span>
+                <span class="admin-group admin-draft" role="group" aria-label="Draft">
+                  <button class="text-button" type="button" id="btn-discard">Discard changes</button>
+                  <button class="secondary-button" type="button" id="btn-save">Save</button>
+                </span>
+                <span class="admin-group admin-release" role="group" aria-label="Release">
+                  <button class="primary-button" type="button" id="btn-apply">Publish</button>
+                </span>
               </div>
             </div>
             <section class="announcements" id="announce-admin" aria-label="Announcements">
@@ -337,21 +350,21 @@
           <div class="dialog-body">
             <div class="dialog-controls">
               <div class="field">
-                <span class="field-label">Status</span>
-                <button class="prop-value status-value is-not-started" type="button" id="dialog-status-btn">
+                <span class="field-label" id="dialog-status-field">Status</span>
+                <button class="prop-value status-value is-not-started" type="button" id="dialog-status-btn" aria-labelledby="dialog-status-field dialog-status-label">
                   <span class="status-dot" id="dialog-status-dot"></span>
                   <span id="dialog-status-label">Not started</span>
                 </button>
               </div>
               <div class="field">
-                <span class="field-label">Subject</span>
-                <button class="prop-value empty-value" type="button" id="dialog-subject-btn" aria-haspopup="listbox" aria-expanded="false">Add subject</button>
+                <span class="field-label" id="dialog-subject-field">Subject</span>
+                <button class="prop-value empty-value" type="button" id="dialog-subject-btn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="dialog-subject-field dialog-subject-btn">Add subject</button>
                 <div class="status-dropdown subject-dropdown" id="dialog-subject-dropdown" role="listbox" aria-label="Subject" hidden></div>
               </div>
               <div class="field field-due">
-                <span class="field-label">Due<span class="due-hint" id="dialog-due-hint"></span></span>
+                <span class="field-label" id="dialog-due-field">Due<span class="due-hint" id="dialog-due-hint"></span></span>
                 <div class="due-controls">
-                  <button class="prop-value empty-value" type="button" id="dialog-date-btn">Add due date</button>
+                  <button class="prop-value empty-value" type="button" id="dialog-date-btn" aria-labelledby="dialog-due-field dialog-date-btn">Add due date</button>
                   <button class="prop-clear" type="button" id="dialog-due-clear" hidden aria-label="Clear due date">
                     <svg class="i prop-clear-icon" aria-hidden="true"><use href="#i-x"/></svg>
                   </button>

@@ -302,6 +302,58 @@ async function loadPublished() {
 }
 
 
+// --- Personal strip: how many tasks are left for this student, and what is next -----------------
+// Reads the published tasks with this device's progress already applied. Re-renders when the class
+// list or board changes (status taps, search, publish) and once a minute for the clock.
+const mineEl = document.querySelector('#mine');
+function mineDue(t) {
+  if (!t.dueDate) return null;
+  const d = t.dueDate instanceof Date ? new Date(t.dueDate) : new Date(String(t.dueDate).length <= 10 ? `${t.dueDate}T00:00` : t.dueDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const m = /^(\d{1,2}):(\d{2})/.exec(t.dueTime || '');
+  d.setHours(m ? +m[1] : 23, m ? +m[2] : 59, 0, 0);
+  return d;
+}
+function mineWhen(t, d) {
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const n = Math.round((day - new Date(new Date().setHours(0, 0, 0, 0))) / 864e5);
+  const label = n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return t.dueTime ? `${label}, ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : label;
+}
+let lastMineSig = '';
+function renderMine() {
+  if (!mineEl) return;
+  const all = state.publishedTasks || [];
+  const now = Date.now();
+  const unfinished = all.filter((t) => t.status !== 'done' && !t.closedAt).map((t) => ({ t, d: mineDue(t) }));
+  const open = unfinished.filter((x) => !x.d || now - x.d.getTime() <= 7 * 864e5);   // 7+ days overdue lives in Past
+  const olderOverdue = unfinished.length - open.length;
+  const dated = open.filter((x) => x.d).sort((a, b) => a.d - b.d);
+  const next = dated.find((x) => x.d.getTime() >= now) || dated[0];
+  const labelText = open.length ? 'left for you' : "left. You're caught up.";
+  let nextText = '';
+  if (!open.length) {
+    nextText = olderOverdue > 0 ? `${olderOverdue} older overdue in Past.` : 'Counts active tasks and the last 7 days.';
+  } else {
+    const base = !next
+      ? 'No due dates on what is left.'
+      : next.d.getTime() >= now ? `Next: ${next.t.title} · ${mineWhen(next.t, next.d)}` : `${next.t.title} was due ${mineWhen(next.t, next.d)}`;
+    nextText = olderOverdue > 0 ? `${base} · ${olderOverdue} older in Past` : base;
+  }
+  const sig = `${!all.length ? 1 : 0}|${open.length}|${labelText}|${nextText}`;
+  if (sig === lastMineSig) return;
+  lastMineSig = sig;
+  mineEl.hidden = !all.length;
+  mineEl.classList.toggle('is-clear', !open.length);
+  document.querySelector('#mine-n').textContent = String(open.length);
+  document.querySelector('#mine-l').textContent = labelText;
+  document.querySelector('#mine-next').textContent = nextText;
+}
+let mineQueued = false;
+const queueMine = () => { if (mineQueued) return; mineQueued = true; requestAnimationFrame(() => { mineQueued = false; renderMine(); }); };
+['#class-board', '#class-task-list'].forEach((s) => { const el = document.querySelector(s); if (el) new MutationObserver(queueMine).observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-status', 'class'] }); });
+setInterval(queueMine, 60000);
+
 // --- Toast and autosave feedback (hideAnimated); skeletons moved to js/tasks.js (slice 2.6) ---
 
 // Hands the logical close to the shared overlay owner, then restores focus to the opener.

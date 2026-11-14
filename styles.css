@@ -56,8 +56,10 @@ main[tabindex="-1"]:focus { outline: 0; }
    every overlay (the dialog overlay is 100, the toast 200). */
 .tb { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 4px; height: 64px; padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left)); background: var(--sf); border-bottom: 2px solid var(--ln); }
 .ib { margin-left: auto; width: 40px; height: 44px; flex: none; display: grid; place-items: center; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); }
+/* Only the first trailing icon pushes the pair right; otherwise both take an auto margin and open a hole between them. */
+.ib + .ib { margin-left: 0; }
 .ib:hover { border-color: var(--ac); }
-.brand { display: flex; align-items: center; gap: 10px; flex: none; padding: 0 4px; }
+.brand { display: flex; align-items: center; gap: 10px; flex: none; min-height: 44px; padding: 0 4px; }
 .brand b { display: none; font: 400 12px/20px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
 /* Phone-only logo row at the top of the page; the header brand is hidden there because the header is the bottom tab bar. */
 .brand-m { display: none; }
@@ -68,7 +70,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 .tn.is-active { background: var(--acs); border-color: var(--ac); color: var(--tx); box-shadow: 0 2px 0 var(--ac); }
 .tn.is-active .sp, .tn.adm .sp { filter: none; }
 .tn .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
-.tn.adm { background: var(--ac); border-color: var(--ac); color: var(--onac); transform: translateY(-4px); box-shadow: inset 0 -3px 0 var(--acd), 0 4px 0 var(--sh); }
+.tn.adm { background: var(--ac); border-color: var(--ac); color: var(--onac); box-shadow: inset 0 -3px 0 var(--acd); }
 .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
 .bd { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 3px; display: grid; place-items: center; font: 400 12px/12px 'Press Start 2P', monospace; background: var(--ac); color: var(--onac); }
 .bd.er { background: var(--er); color: var(--oa); }
@@ -86,6 +88,8 @@ h1.ttl { margin-bottom: -8px; }
 }
 @media (min-width: 720px) {
   .tb { padding: 0 40px; gap: 8px; }
+  /* Icon-only from 720 to 1099: the wordmark starts at 1100, so the link needs its own 44px floor. */
+  .brand { min-width: 44px; }
   .ib { width: 44px; }
   .nav { gap: 4px; }
   .tn { padding: 0 12px; }
@@ -101,12 +105,6 @@ h1.ttl { margin-bottom: -8px; }
   .tb { gap: 4px; padding: 0 16px; }
   .nav { gap: 2px; }
   .tn { gap: 6px; padding: 0 8px; }
-  /* Settings keeps its icon only here; its label returns at 820px, where there is room. */
-  .tb #settings-open .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
-}
-/* lint-allow:px 820px -- the Settings label returns here, one pixel after the 819 band */
-@media (min-width: 820px) {
-  .tb #settings-open .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
 }
 @media (min-width: 1100px) {
   .brand b { display: block; }
@@ -139,9 +137,13 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 #page-done, #page-past { width: 100%; max-width: 880px; margin-inline: auto; }
 /* lint-allow:px 880px -- List views reuse that same reading column */
 #page-my-tasks[data-view="list"], #page-class-tasks[data-view="list"] { max-width: 880px; }
-/* The shared page title sits above the sections, so it takes the narrow column's width whenever a narrow page is showing. */
+/* The shared page title sits above the sections, so it takes the narrow column's width whenever a narrow page is showing.
+   Desktop only: on phones the title is off-canvas (see the phone-fold section), and a stretched 100% box made the
+   absolutely positioned title 320px wide inside a 288px column, which scrolled the page 16px sideways. */
 /* lint-allow:px 880px -- the title tracks the reading column above so its edge lines up */
-main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: auto; }
+@media (min-width: 720px) {
+  main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: auto; }
+}
 /* [[/section:shell]] */
 
 /* [[section:controls]] */
@@ -156,7 +158,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .primary-button:disabled, .secondary-button:disabled, .text-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .primary-button.is-loading::after, .secondary-button.is-loading::after, .danger-button.is-loading::after { content: ''; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; animation: spin 700ms linear infinite; }
 
-.text-button { padding: 0; border: 0; background: transparent; color: var(--ac); font-size: 14px; font-weight: 600; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.text-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: var(--ac); font-size: 14px; font-weight: 600; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .text-button:hover { color: var(--acd); }
 
 .icon-button { display: grid; place-content: center; width: 44px; height: 44px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); cursor: pointer; }
@@ -165,8 +167,8 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .icon-dark { display: none; }
 :root[data-theme="dark"] .icon-dark { display: block; }
 :root[data-theme="dark"] .icon-light { display: none; }
-.view-tabs { display: inline-flex; align-items: stretch; border: 2px solid var(--mu); background: var(--sf); }
-.view-tab { display: flex; align-items: center; justify-content: center; height: 44px; min-width: 0; padding: 0 16px; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.view-tabs { display: inline-flex; align-items: stretch; gap: 2px; padding: 2px; border: 2px solid var(--mu); background: var(--sf); }
+.view-tab { display: flex; align-items: center; justify-content: center; min-height: 44px; min-width: 0; padding: 0 16px; background: transparent; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
 .view-tab + .view-tab { border-left: 2px solid var(--mu); }
 .view-tab:hover { color: var(--tx); background: var(--sf2); }
 .view-tab.is-active { color: var(--tx); background: var(--acs); box-shadow: inset 0 -3px 0 var(--ac); font-weight: 600; }
@@ -174,7 +176,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .search { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid var(--mu); color: var(--mu); background: var(--oa); }
 .search:focus-within { border-color: var(--ac); }
 .search svg { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 2; }
-.search input { width: 200px; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 14px; line-height: 20px; }
+.search input { width: 200px; min-height: 40px; border: 0; outline: 0; color: var(--tx); background: transparent; font-size: 14px; line-height: 20px; }
 .search input::placeholder { color: var(--mu); opacity: 1; }
 
 .class-filters { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
@@ -197,11 +199,35 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 
 /* The admin bar is the mockup's quiet row (.srow: 2px var(--ln) on var(--sf), 64px tall, 8px 12px of
    padding) with .acts' 8px gap, and its link actions wear the same 36px sm button as the Done rows. */
-.admin-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; min-height: 64px; margin-top: 16px; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf); }
+.admin-bar { display: grid; gap: 8px; min-height: 64px; margin-top: 16px; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf); }
 .admin-status { color: var(--mu); font-size: 12px; line-height: 16px; }
 .admin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* From 720px the status keeps the left edge and the three groups sit on the right of one line. */
+@media (min-width: 720px) {
+  .admin-bar { grid-template-columns: auto 1fr; align-items: center; gap: 8px 16px; }
+  .admin-actions { justify-content: flex-end; }
+  .admin-group { justify-content: flex-end; }
+}
 .admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .admin-actions .text-button:hover, .history-item .text-button:hover, .file-item .text-button:hover { border-color: var(--ac); background: var(--sf2); color: var(--tx); }
+/* Three groups, one divider each: quiet tools, then the draft pair, then Publish standing alone. */
+.admin-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.admin-group + .admin-group { padding-left: 8px; border-left: 2px solid var(--ln); }
+/* The tools read as links, Save keeps its frame, Publish keeps the fill: weight descends left to right. */
+.admin-actions .admin-tools .text-button { border-color: transparent; background: none; box-shadow: none; color: var(--mu); }
+.admin-actions .admin-tools .text-button:hover { border-color: transparent; background: none; color: var(--tx); }
+/* One size per role inside the bar. Before this, "Discard changes" (12px) sat between "Preview as
+   student" (12px) and "Save" (14px) in the same row, so the row had no type logic. The two tools stay at
+   the label size and lose their button padding, because they read as links, not as framed actions. */
+#admin-bar .admin-group .text-button,
+#admin-bar .admin-group .secondary-button,
+#admin-bar .admin-group .primary-button { font-size: 14px; line-height: 20px; }
+#admin-bar .admin-tools .text-button { font-size: 12px; line-height: 16px; padding: 0 4px; }
+/* Phones: one group per row. At 14px the three groups no longer share 343px, and a bar that reflows at
+   375 but not at 320 reads as a bug rather than as breakpoint behaviour. */
+@media (max-width: 719px) {
+  #admin-bar .admin-actions { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 8px; }
+}
 
 .summary { display: flex; flex-wrap: wrap; align-items: center; margin: 16px 0 0; color: var(--mu); font-size: 12px; line-height: 20px; }
 .summary span:first-child { color: var(--tx); font-weight: 500; }
@@ -315,7 +341,9 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .task-card[data-status="done"] .task-card-title { color: var(--mu); text-decoration: line-through; }
 .is-changed .task-card-title::after, .is-changed .task-row-title::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; background: var(--ac); vertical-align: middle; }
 
-.task-delete-btn { display: grid; place-content: center; width: 28px; height: 28px; color: var(--mu); background: transparent; cursor: pointer; opacity: 0; }
+.task-delete-btn { position: relative; display: grid; place-content: center; width: 28px; height: 28px; color: var(--mu); background: transparent; cursor: pointer; opacity: 0; }
+/* lint-allow:px -8px -- the 44px touch target around a 28px mark, same device as .status-check */
+.task-delete-btn::after { content: ''; position: absolute; inset: -8px; }
 .task-card:hover .task-delete-btn, .task-card:focus-within .task-delete-btn, .task-row:hover .task-delete-btn, .task-row:focus-within .task-delete-btn { opacity: 1; }
 .task-delete-btn:hover { color: var(--er); background: var(--erb); }
 .task-delete-btn:focus-visible { opacity: 1; }
@@ -368,7 +396,8 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 
 /* Checkbox: [ ] not started, [-] in progress, [x] done */
 .status-check { position: relative; display: grid; place-content: center; width: 22px; height: 22px; margin: 0; padding: 0; border: 2px solid var(--mu); background: var(--oa); color: var(--onac); cursor: pointer; }
-.status-check::after { content: ''; position: absolute; inset: -12px; }
+/* lint-allow:px -13px -- the 44px touch target around the 22px box, not a visual dimension (18px padding box + 26px) */
+.status-check::after { content: ''; position: absolute; inset: -13px; }
 .status-check:hover { border-color: var(--tx); }
 .status-check:active { background: var(--sf2); }
 .status-check svg { width: 12px; height: 12px; stroke-width: 3; }
@@ -530,15 +559,17 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 .quick-title { color: var(--tx); font-weight: 600; }
 .quick-due { display: flex; flex-wrap: wrap; gap: 4px; }
 .quick-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; }
-.quick-chips { display: grid; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 2px solid var(--ln); }
+.quick-chips { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--ln); }
 .quick-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .quick-group-label { flex: 0 0 56px; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; text-transform: uppercase; }
-.quick-chip-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.quick-chip-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
 .quick-chip-btn.is-subject { padding: 0 8px; color: var(--tag-ink, var(--tx)); background: var(--tag, var(--sf2)); box-shadow: inset 0 -2px 0 rgba(20, 24, 58, 0.28); }
 .quick-chip-btn.is-subject.is-selected { color: var(--tag-ink, var(--tx)); background: var(--tag, var(--acs)); box-shadow: inset 0 0 0 2px var(--ac), inset 0 -2px 0 rgba(20, 24, 58, 0.28); }
 .quick-chip-btn:hover, .quick-chip-btn:active { border-color: var(--ac); color: var(--tx); background: var(--sf2); }
 .quick-chip-btn.is-selected { border-color: var(--ac); background: var(--acs); color: var(--tx); box-shadow: inset 0 -3px 0 var(--ac); }
 .quick-chip-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* The Change chip is an action among value chips: underlined, never filled like a subject. */
+.quick-chip-btn.is-change { text-decoration: underline; text-underline-offset: 3px; }
 .quick-code { color: var(--mu); font-size: 12px; }
 .quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; }
 kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; background: var(--sf); font-size: 12px; }
@@ -607,7 +638,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* mockup .cd.we (265): the weekend sits a shade back. calRange() always starts on a Sunday and the
    seven .cal-dow cells are children 1-7, so Sunday is child 7n+8 and Saturday 7n+14. */
 .cal > .cal-day:nth-child(7n+8), .cal > .cal-day:nth-child(7n+14) { background: var(--sf2); }
-.cal-day { display: grid; align-content: start; gap: 4px; min-width: 0; min-height: 104px; padding: 6px; }
+.cal-day { display: grid; position: relative; align-content: start; gap: 4px; min-width: 0; min-height: 104px; padding: 6px; }
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
 .cal-day.is-outside .cal-num { color: var(--mu); }
@@ -699,22 +730,19 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
      stray vertical lines beside Calendar and Past. */
   .tn.is-active { border-color: transparent; }
   .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; font: 600 12px/16px 'Plus Jakarta Sans', system-ui, sans-serif; white-space: nowrap; }
-  .tn.adm { max-width: 72px; height: 56px; transform: none; border-color: transparent; background: none; box-shadow: none; color: var(--mu); }
-  /* The Admin tab keeps the mockup's filled block on wider screens; on a phone its solid edge is the
-     second stray line (beside Calendar), so the shield and the count badge carry it instead. */
-  .tn.adm.is-active { background: var(--acs); box-shadow: 0 2px 0 var(--ac); color: var(--tx); }
-  .bd { top: -8px; right: 0; }
+  .tn.adm { max-width: 72px; height: 56px; transform: none; box-shadow: inset 0 -3px 0 var(--acd); }
+  .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
+  .bd { top: 0; right: 2px; }
   /* Phone tab order: Tasks, Calendar, Admin (centre, president only), Done, Past. */
   .tn[data-page="class-tasks"] { order: 1; }
   .tn[data-page="calendar"] { order: 2; }
   .tn[data-page="my-tasks"] { order: 3; }
   .tn[data-page="done"] { order: 4; }
   .tn[data-page="past"] { order: 5; }
-  /* No theme toggle in the phone bar; Appearance lives in Settings. */
-  .tb .ib { display: none; }
+  /* No theme toggle in the phone bar; Appearance lives in Settings. Settings itself stays, fixed. */
+  .tb .ib:not(#settings-open) { display: none; }
   /* Settings moves to the top right corner. */
-  .tb #settings-open { position: fixed; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); z-index: 31; width: 44px; height: 44px; min-width: 44px; max-width: 44px; flex: none; padding: 0; background: var(--sf); border: 2px solid var(--mu); box-shadow: 0 2px 0 var(--sh); }
-  .tb #settings-open .lbl { display: none; }
+  .tb #settings-open { display: grid; place-content: center; position: fixed; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); z-index: 31; width: 44px; height: 44px; min-width: 44px; max-width: 44px; flex: none; padding: 0; background: var(--sf); border: 2px solid var(--mu); box-shadow: 0 2px 0 var(--sh); }
   h1.ttl { padding-right: 56px; margin-bottom: -12px; }
   main.page-container { padding: max(8px, env(safe-area-inset-top)) 16px calc(104px + env(safe-area-inset-bottom)); gap: 12px; }
 /* lint-allow:px 0px -- env() safe-area fallback: a calc with no fallback is dropped entirely */
@@ -868,7 +896,12 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* Admin actions are one flat row of buttons: no menu to open, so Preview, History and Discard are one
    press away. The row wraps inside the bar and the phone gets 44px targets. */
-@media (max-width: 719px) { .admin-actions .text-button { height: 44px; } }
+/* lint-allow:px 719px -- the phone/desktop boundary the app already uses, not a design-scale value */
+@media (max-width: 719px) {
+  .admin-actions .text-button, .history-item .text-button, .file-item .text-button { height: 44px; }
+  /* On a phone the bar wraps, so a group rule would open a line as a stray tick; the wrap already separates. */
+  .admin-group + .admin-group { padding-left: 0; border-left: 0; }
+}
 
 /* Phones: every text button, chip and picker control reaches the 44px floor, including the ones that
    are bare links at 20px on desktop. The classes keep their own look; only the hit box grows. */
@@ -1068,3 +1101,36 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   /* The archive card still carries its pixel ledge while the blue edge marks the landing. */
   #done-list .done-row.is-landed { box-shadow: inset 4px 0 0 var(--ac), 0 2px 0 var(--sh); }
 }
+
+
+/* [[section:mine]] */
+/* What is left for this student: one pixel numeral and the next deadline. No frame, no comparison. */
+.mine { display: flex; align-items: baseline; gap: 10px; padding: 4px 0 8px; }
+.mine-n { margin: 0; color: var(--ac); font: 400 32px/32px 'Press Start 2P', monospace; font-variant-numeric: normal; }
+.mine.is-clear .mine-n { color: var(--ok); }
+.mine-t { display: grid; gap: 2px; min-width: 0; }
+.mine-l { margin: 0; color: var(--tx); font-size: 16px; font-weight: 700; line-height: 24px; }
+.mine-next { margin: 0; overflow-wrap: anywhere; color: var(--mu); font-size: 14px; line-height: 20px; }
+/* [[/section:mine]] */
+
+/* [[section:phone-fold]] */
+/* Phones: the tab bar's active label already names the page, so the pixel title stops taking a row, and the
+   strip tightens to two small lines. Measured at 320x568 this lifts the first task card from 465px to ~375px,
+   which is the difference between "under the fixed tab bar" and "one whole row above it". */
+@media (max-width: 719px) {
+  #breadcrumb-current { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .mine { gap: 8px; padding: 2px 0 6px; }
+  /* The count is the product's one number: it keeps its 32px Pixel Display size so each font pixel is a
+     whole 2 CSS px (crisp at any DPR). At 24px it fell to 1.5x and read as a soft, cropped glyph next to
+     its own label. The strip is 62px this way, shorter than the 70px it measured at 24px. */
+  .mine-n { font-size: 32px; line-height: 32px; }
+  .mine-l { font-size: 14px; line-height: 20px; }
+  .mine-next { font-size: 12px; line-height: 16px; }
+}
+/* Below 375 the announcement's two clamped lines are the last 20px standing between the header and the
+   first task, and a one-line clamp still shows it exists. Above 374 the two-line clamp stays (this
+   announcement already fits one line at 375, so the visible difference is at 320). */
+@media (max-width: 374px) {
+  #announce-public.is-collapsed .announce-text { -webkit-line-clamp: 1; max-height: 20px; }
+}
+/* [[/section:phone-fold]] */
