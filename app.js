@@ -557,7 +557,7 @@ function openDuePicker(opts) {
     <div class="dp-grid" role="grid"></div>
     <div class="dp-options">
       <label class="dp-toggle">
-        <span class="dp-toggle-label">End date</span>
+        <span class="dp-toggle-label">Add an end date</span>
         <input type="checkbox" role="switch" class="dp-end-toggle"${s.rangeMode ? ' checked' : ''}>
         <span class="dp-switch" aria-hidden="true"></span>
       </label>
@@ -584,6 +584,10 @@ function openDuePicker(opts) {
     dateIn.setAttribute('aria-label', s.rangeMode ? 'Start date' : 'Date and time, time optional');
     endIn.hidden = !s.rangeMode;
     endToggle.checked = s.rangeMode;
+    // Which endpoint the next day tap moves, since the caret only shows after a field is focused.
+    dateIn.classList.toggle('is-active', s.activeField === 'start');
+    endIn.classList.toggle('is-active', s.activeField === 'end');
+    $('.dp-hint').textContent = s.rangeMode ? 'Time is optional on the start · e.g. thu 3pm' : 'Time is optional · e.g. fri 3pm';
   };
   const gotoMonth = (d) => { s.view = new Date(d.getFullYear(), d.getMonth(), 1); renderGrid(); };
 
@@ -667,6 +671,8 @@ function openDuePicker(opts) {
   dateIn.addEventListener('focus', () => { s.activeField = 'start'; });
   endIn.addEventListener('focus', () => { s.activeField = 'end'; });
 
+  // shortcut: the end field is date-only — a time typed here is dropped on blur, when the field
+  // re-renders from state. Upgrade when a range needs its own end time.
   endIn.addEventListener('input', () => {
     const r = parseDateField(endIn.value);
     if (r.empty || !r.date) return;
@@ -697,12 +703,10 @@ function openDuePicker(opts) {
 
   endToggle.addEventListener('change', () => {
     s.rangeMode = endToggle.checked;
-    if (!s.rangeMode) {
-      s.endDate = null;
-      s.activeField = 'start';
-    } else {
-      s.activeField = s.date ? 'end' : 'start';
-    }
+    // Switching off only stops emitting the end date; keeping it in state means switching back on
+    // restores it, so one mis-tap no longer destroys a picked date.
+    if (s.rangeMode && s.endDate && s.date && s.endDate.getTime() < s.date.getTime()) s.endDate = null;
+    s.activeField = s.rangeMode && s.date ? 'end' : 'start';
     syncFields();
     renderGrid();
     if (s.date) emit();
@@ -893,7 +897,23 @@ function init() {
 
   nav.setPage(pageFromHash(window.location.hash, nav.NAV_PAGES, state.isAdmin), false);
   if (INCOMING_TRANSFER) transfer.checkIncomingTransfer(INCOMING_TRANSFER);
-  else if (!tour.tourSeen()) setTimeout(tour.startTour, 800);
+  else if (!tour.tourSeen()) {
+    // First visit: let the board answer "what is due" before anything covers it. The tour opens
+    // once the visitor scrolls past the third row or opens a task, with a 25s fallback so it is
+    // not lost. Settings > Replay tour still opens it on demand.
+    let fallback = 0;
+    const onScroll = () => { if (window.scrollY > 320) start(); };
+    const onClick = (e) => { if (e.target instanceof Element && e.target.closest('.task-row, .task-card')) start(); };
+    const start = () => {
+      window.removeEventListener('scroll', onScroll, true);
+      document.removeEventListener('click', onClick, true);
+      clearTimeout(fallback);
+      tour.startTour();
+    };
+    window.addEventListener('scroll', onScroll, true);
+    document.addEventListener('click', onClick, true);
+    fallback = setTimeout(start, 25000);
+  }
 
   // Time-based overdue: re-render each minute unless something is open
   setInterval(() => {

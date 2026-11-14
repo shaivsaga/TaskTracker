@@ -73,7 +73,8 @@ function syncPinned() {
   const clipped = collapsed && !!text && (measurable ? text.scrollHeight > text.clientHeight + 1 : true);
   toggle.hidden = !items.length || !phone || (collapsed && items.length < 2 && !clipped);
   toggle.setAttribute('aria-expanded', String(collapsed ? 'false' : 'true'));
-  toggle.textContent = pinnedOpen ? 'Show less' : (items.length > 1 ? `Show all ${items.length}` : 'Show more');
+  // Collapsed, one item is already visible, so the count names the remainder, not the total.
+  toggle.textContent = pinnedOpen ? 'Show less' : (items.length > 2 ? `Show ${items.length - 1} more` : 'Show more');
 }
 
 function renderPublicAnnouncements() {
