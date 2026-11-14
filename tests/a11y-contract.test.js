@@ -102,7 +102,7 @@ test('read-only dialog values look sunk, are named, and stay out of the tab orde
   assert.match(TASKS, /dialogStatusBtn\.setAttribute\('aria-label', `Status: \$\{s\.label\}`\)/, 'the status control must name its field and value');
   assert.match(TASKS, /dialogDateBtn\.setAttribute\('aria-label', empty \? 'Due: no due date' : `Due: \$\{task\.getDueShort\(\)\}`\)/,
     'the due control must name its field and value');
-  assert.match(HTML, /<span class="field-label">Status<\/span>/, 'field labels must not be <label> elements with no control');
+  assert.match(HTML, /<span class="field-label"[^>]*>Status<\/span>/, 'field labels must not be <label> elements with no control');
 });
 
 test('AA-safe dark hovers, overdue time contrast, and mobile 44px targets', () => {

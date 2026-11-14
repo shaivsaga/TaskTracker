@@ -617,7 +617,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* mockup .cd.we (265): the weekend sits a shade back. calRange() always starts on a Sunday and the
    seven .cal-dow cells are children 1-7, so Sunday is child 7n+8 and Saturday 7n+14. */
 .cal > .cal-day:nth-child(7n+8), .cal > .cal-day:nth-child(7n+14) { background: var(--sf2); }
-.cal-day { display: grid; align-content: start; gap: 4px; min-width: 0; min-height: 104px; padding: 6px; }
+.cal-day { display: grid; position: relative; align-content: start; gap: 4px; min-width: 0; min-height: 104px; padding: 6px; }
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
 .cal-day.is-outside .cal-num { color: var(--mu); }
