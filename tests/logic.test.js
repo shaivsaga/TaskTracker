@@ -24,6 +24,20 @@ const dateOffset = (days) => {
   return date;
 };
 
+// Run fn with Date frozen at an ISO instant. logic.js and the Task methods read Date.now()
+// and new Date() at call time, so both go through the replacement. The stand-in shares
+// Date.prototype, so ordinary Date instances still pass `instanceof Date`.
+const withFrozenNow = (iso, fn) => {
+  const RealDate = Date;
+  const frozen = new RealDate(iso).getTime();
+  function FrozenDate(...args) { return args.length ? new RealDate(...args) : new RealDate(frozen); }
+  Object.setPrototypeOf(FrozenDate, RealDate);
+  FrozenDate.now = () => frozen;
+  FrozenDate.prototype = RealDate.prototype;
+  globalThis.Date = FrozenDate;
+  try { return fn(); } finally { globalThis.Date = RealDate; }
+};
+
 test('dayDiff handles today, past, and future calendar days', () => {
   assert.equal(dayDiff(dateOffset(0)), 0);
   assert.equal(dayDiff(dateOffset(-3)), -3);
@@ -227,4 +241,33 @@ test('Task endDate serializes, validates ordering, and formats range with arrow'
 
   const orphan = new Task({ title: 'No start', endDate: end });
   assert.equal(orphan.endDate, undefined);
+
+  // The range's last day is the deadline: the window is open on Nov 19, overdue on Nov 21.
+  const open = () => new Task({ title: 'Open', dueDate: start, endDate: new Date(2026, 10, 20) });
+  withFrozenNow('2026-11-19T12:00:00', () => {
+    const task = open();
+    assert.equal(task.isOverdue(), false);
+    assert.equal(task.getDueTimestamp().getTime(), new Date(2026, 10, 20, 23, 59, 59, 999).getTime());
+    assert.equal(task.getDueHint(), 'tomorrow');
+    const label = task.getDueLabel();
+    assert.match(label, /Nov 13[–-]20/);  // both endpoints, month collapsed (item 5's format)
+    assert.doesNotMatch(label, /overdue/i);
+
+    const sameMonth = new Task({ dueDate: new Date(2026, 10, 19), endDate: new Date(2026, 10, 20) });
+    assert.match(sameMonth.getDueLabel(), /Nov 19–20/);
+
+    const acrossMonths = new Task({ dueDate: new Date(2026, 10, 19), endDate: new Date(2026, 11, 3) });
+    assert.match(acrossMonths.getDueLabel(), /Nov 19 – Dec 3/);
+
+    const acrossYears = new Task({ dueDate: new Date(2026, 11, 30), endDate: new Date(2027, 0, 3) });
+    assert.match(acrossYears.getDueLabel(), /Dec 30, 2026 – Jan 3, 2027/);
+  });
+  withFrozenNow('2026-11-19T12:00:00', () => {
+    const timed = new Task({ title: 'Timed', dueDate: start, endDate: new Date(2026, 10, 20), dueTime: '08:30' });
+    assert.equal(timed.getDueTimestamp().getTime(), new Date(2026, 10, 20, 8, 30).getTime());
+    assert.ok(timed.getDueDateDisplay().includes(timed.getTimeLabel()));
+  });
+  withFrozenNow('2026-11-21T12:00:00', () => {
+    assert.equal(open().isOverdue(), true);
+  });
 });

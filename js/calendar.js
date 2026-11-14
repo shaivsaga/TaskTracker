@@ -158,13 +158,29 @@ function syncCalTabs() {
   });
 }
 
+// Every calendar day a task covers, capped at 60 so a mistyped end date cannot paint a year of dots.
+function calDayKeys(t) {
+  const keys = [toInputValue(t.dueDate)];
+  if (t.endDate) {
+    for (let i = 1; i < 60 && keys.length < 60; i++) {
+      const d = new Date(t.dueDate.getFullYear(), t.dueDate.getMonth(), t.dueDate.getDate() + i);
+      if (toInputValue(d) > toInputValue(t.endDate)) break;
+      keys.push(toInputValue(d));
+    }
+  }
+  return keys;
+}
+
 export function renderCalendar() {
   const grid = document.querySelector('#cal-grid');
   if (!grid) return;
   const { start, days } = calRange();
   const dated = recordSource().filter((t) => t.dueDate);
   const byDay = new Map();
-  dated.forEach((t) => { const k = toInputValue(t.dueDate); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(t); });
+  dated.forEach((t) => calDayKeys(t).forEach((k) => {
+    if (!byDay.has(k)) byDay.set(k, []);
+    byDay.get(k).push(t);
+  }));
   const short = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   document.querySelector('#cal-title').textContent = state.calMode === 'week'
     ? `${short(start)} – ${short(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6))}`
