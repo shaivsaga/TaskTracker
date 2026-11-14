@@ -5,7 +5,7 @@
 @font-face { font-family: 'Plus Jakarta Sans'; font-weight: 200 800; font-display: swap; src: url(assets/fonts/plus-jakarta-sans.woff2) format('woff2'); }
 @font-face { font-family: 'Press Start 2P'; font-weight: 400; font-display: swap; src: url(assets/fonts/press-start-2p.woff2) format('woff2'); }
 :root {
-  --sheet: url(assets/sprites-light.svg);
+  --sheet: url(assets/sprites.svg);
   --bg: #F4EFE2; --sf: #FFFBF0; --sf2: #EBE4D0; --ln: #CFC4A6; --tx: #1A1D3D; --mu: #585C84;
   --ac: #2E4FB3; --acd: #1F3A8A; --acs: #DDE5FF; --onac: #FFFFFF;
   --ok: #1F7A49; --wn: #8A5A00; --er: #B3261E; --sh: #CFC4A6; --oa: #FFFFFF;
@@ -15,7 +15,6 @@
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --sheet: url(assets/sprites-dark.svg);
   --bg: #0F1226; --sf: #181C3A; --sf2: #20254A; --ln: #434C8F; --tx: #EEF0FF; --mu: #A3ABDF;
   --ac: #7C9BFF; --acd: #4F6FD6; --acs: #262F66; --onac: #0F1226;
   --ok: #5BD08A; --wn: #F7CD54; --er: #FF8F85; --sh: #434C8F; --oa: #0F1226;
