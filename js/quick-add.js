@@ -48,15 +48,15 @@ let renderAllTasks = null;    // app.js
 let openTaskDialog = null;    // app.js
 let showToast = null;         // app.js
 
-// The subject row shows the parser's own guess plus one Change chip. The full list appears only when
-// there is nothing to guess from, or after Change is pressed, and stays revealed until the overlay
-// closes so the list cannot collapse under a finger mid-choice.
+// The subject row shows the parser's own guess plus one Change chip, or a single Add subject chip when the
+// input names no subject yet. The full list appears only after that chip is pressed, and stays revealed
+// until the overlay closes so the list cannot collapse under a finger mid-choice.
 let quickSubjectOpen = false;
 let quickSubjectSig = '';
 
 const subjectItems = (p) => {
   const guess = p && p.subject ? p.subject : '';
-  if (guess && !quickSubjectOpen) return [{ type: 'subject', code: guess }, { type: 'change' }];
+  if (!quickSubjectOpen) return guess ? [{ type: 'subject', code: guess }, { type: 'change' }] : [{ type: 'change' }];
   return Object.keys(subjects()).map((code) => ({ type: 'subject', code }));
 };
 
@@ -176,7 +176,8 @@ function renderQuickChips(p) {
       btn.title = type === 'subject' ? code : shown ? `Shortcut: ${shown}` : label;
       btn.setAttribute('aria-pressed', 'false');
       if (type === 'change') {
-        btn.textContent = 'Change subject';
+        const guessed = !!(p && p.subject);
+        btn.textContent = guessed ? 'Change subject' : 'Add subject';
         btn.title = 'Show every subject';
         btn.addEventListener('click', () => { quickSubjectOpen = true; renderQuickPreview(); });
       } else if (type === 'subject') {
