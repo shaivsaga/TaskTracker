@@ -288,19 +288,19 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
    status square, heading, the .n count chip, then the .sec rule that fills the rest of the row. */
 .kanban-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; align-items: flex-start; }
 @media (min-width: 720px) { .kanban-board { gap: 24px; } }
-.kanban-column { display: flex; min-width: 0; min-height: 320px; flex-direction: column; padding: 12px; border: 2px solid transparent; background: var(--sf2); }
+.kanban-column { display: flex; min-width: 0; min-height: 320px; flex-direction: column; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
 .column-header { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .column-header > div { display: flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 8px; }
 .column-header h2 { color: var(--tx); font-size: 14px; font-weight: 700; line-height: 20px; }
 .column-header::after { content: ''; flex: 1; height: 2px; background: var(--ln); }
-.column-count { padding: 0 6px; min-width: 20px; color: var(--mu); background: var(--sf); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
+.column-count { padding: 0 6px; min-width: 20px; color: var(--mu); background: var(--sf2); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
 .column-marker { order: -1; width: 8px; height: 8px; flex-shrink: 0; outline: 1px solid var(--ln); }
 .marker-todo { background: var(--mu); }
 .marker-progress { background: var(--ac); }
 .marker-done { background: var(--ok); }
 .column-content { display: grid; flex: 1; align-content: start; gap: 12px; padding: 12px 0 0; }
 .column-content.is-empty { place-items: center; align-content: center; }
-.column-empty { margin: 0; padding: 24px 16px; border: 2px dashed var(--ln); background: transparent; color: var(--mu); font-size: 12px; line-height: 16px; text-align: center; }
+.column-empty { margin: 0; padding: 24px 16px; border: 2px dashed var(--ln); background: var(--sf2); color: var(--mu); font-size: 12px; line-height: 16px; text-align: center; }
 .kanban-column.drag-over { border-color: var(--ac); }
 .kanban-column.drag-over .column-content { outline: 2px dashed var(--ac); outline-offset: 4px; background: var(--acs); }
 .drop-placeholder { display: grid; place-content: center; height: 56px; border: 2px dashed var(--ac); background: var(--acs); color: var(--ac); font-size: 12px; font-weight: 600; }
@@ -311,7 +311,7 @@ main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidd
 /* The mockup's .card: 2px var(--ln) on var(--sf) with the same 2px offset shadow, 12px padding, and the
    title over its .mt meta row at the mockup's 8px. The status square, subject chip and due badge are
    3.1d's components, composed here, not restyled. */
-.task-card { display: grid; gap: 8px; padding: 12px; border: 2px solid var(--ed); background: var(--sf); box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
+.task-card { display: grid; gap: 8px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); cursor: pointer; }
 .task-card:hover { border-color: var(--ac); }
 .task-card:active { background: var(--sf2); }
 .task-card.is-dragging { opacity: 0.35; }
