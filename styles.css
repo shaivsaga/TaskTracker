@@ -5,7 +5,7 @@
 @font-face { font-family: 'Plus Jakarta Sans'; font-weight: 200 800; font-display: swap; src: url(assets/fonts/plus-jakarta-sans.woff2) format('woff2'); }
 @font-face { font-family: 'Press Start 2P'; font-weight: 400; font-display: swap; src: url(assets/fonts/press-start-2p.woff2) format('woff2'); }
 :root {
-  --sheet: url(assets/sprites-light.svg);
+  --brand: url(assets/brand-light.svg);
   --bg: #F4EFE2; --sf: #FFFBF0; --sf2: #EBE4D0; --ln: #CFC4A6; --tx: #1A1D3D; --mu: #585C84;
   --ac: #2E4FB3; --acd: #1F3A8A; --acs: #DDE5FF; --onac: #FFFFFF;
   --ok: #1F7A49; --wn: #8A5A00; --er: #B3261E; --sh: #CFC4A6; --oa: #FFFFFF;
@@ -14,7 +14,7 @@
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --sheet: url(assets/sprites-dark.svg);
+  --brand: url(assets/brand-dark.svg);
   --bg: #0F1226; --sf: #181C3A; --sf2: #20254A; --ln: #434C8F; --tx: #EEF0FF; --mu: #A3ABDF;
   --ac: #7C9BFF; --acd: #4F6FD6; --acs: #262F66; --onac: #0F1226;
   --ok: #5BD08A; --wn: #F7CD54; --er: #FF8F85; --sh: #434C8F; --oa: #0F1226;
@@ -48,7 +48,9 @@ main[tabindex="-1"]:focus { outline: 0; }
 /* [[section:shell]] */
 /* ---------- Shell: the mockup top bar (slice 3.1e) ---------- */
 /* Sprite icons (mockup styles.css 17-43): 20 icons per sheet row, --i picks one, --s the scale. */
-.sp { display: inline-block; flex: none; width: calc(16px * var(--s)); height: calc(16px * var(--s)); background: var(--sheet) no-repeat; background-size: calc(16px * var(--s) * 20) calc(16px * var(--s)); background-position: calc(-16px * var(--i) * var(--s)) 0; image-rendering: pixelated; }
+.sp { display: inline-block; flex: none; width: calc(16px * var(--s)); height: calc(16px * var(--s)); background: currentColor; mask: url(assets/sprites-mask.svg) no-repeat; mask-size: calc(16px * var(--s) * 8) calc(16px * var(--s)); mask-position: calc(-16px * var(--i) * var(--s)) 0; image-rendering: pixelated; }
+/* The TaskTracker mark keeps its own colours and is not part of the single-colour sheet. */
+.brand-mark { display: inline-block; flex: none; width: 32px; height: 32px; background: var(--brand) no-repeat 0 0 / 100% 100%; image-rendering: pixelated; }
 .x1 { --s: 1; }
 .x2 { --s: 2; }
 
@@ -65,10 +67,8 @@ main[tabindex="-1"]:focus { outline: 0; }
 .brand-m { display: none; }
 .nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .tn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; min-width: 40px; padding: 0 3px; border: 2px solid transparent; color: var(--mu); font: 600 14px/20px 'Plus Jakarta Sans', system-ui, sans-serif; }
-.tn .sp { filter: saturate(.7); }
 .tn:hover { color: var(--tx); background: var(--sf2); }
 .tn.is-active { background: var(--acs); border-color: var(--ac); color: var(--tx); box-shadow: 0 2px 0 var(--ac); }
-.tn.is-active .sp, .tn.adm .sp { filter: none; }
 .tn .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 .tn.adm { background: var(--ac); border-color: var(--ac); color: var(--onac); box-shadow: inset 0 -3px 0 var(--acd); }
 .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
@@ -460,6 +460,13 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 /* The mockup's done title is muted, not struck through (mockup 169): the app's line-through and
    its 600 weight go, and the secondary line stays the app's own --mu. */
 .done-row .task-row-title.is-done { font-weight: 500; text-decoration: none; }
+/* The Past row has no status column: it only says why the task is archived. Declared after the
+   .task-row and .done-row track lists above so it replaces them at every width. */
+.past-row { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+@media (min-width: 1100px) {
+  /* lint-allow:px 200px -- the title floor, as .done-row; 112px is the label column that fits 'Expired' and 'Closed' */
+  .past-row { grid-template-columns: minmax(200px, 1fr) 104px 112px auto; }
+}
 /* The archive is the one list whose row is also the only place the task name appears at a glance;
    a two-line clamp replaces the single-line ellipsis that used to hide it. */
 .done-row .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
@@ -918,7 +925,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
   .tn, .ib, .secondary-button, .primary-button, .text-button { border-color: ButtonText; }
   .tn.is-active { border-color: Highlight; outline: 2px solid Highlight; }
-  .tn .sp { filter: none; }
+  .sp { background-color: CanvasText; forced-color-adjust: none; }
+  .tn.is-active .sp { background-color: Highlight; }
 }
 
 /* [[section:utilities]] */
