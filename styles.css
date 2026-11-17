@@ -641,6 +641,17 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-day { display: grid; position: relative; align-content: start; gap: 4px; min-width: 0; min-height: 104px; padding: 6px; }
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
+/* Desktop: ruled with borders, not a 1px gap over a --ln backdrop, so the lines no longer depend on a
+   gap track surviving fractional zoom. Every day row is one fixed height, so a busy day
+   (3 chips + "+N more") clips instead of stretching its row. Week is a single row. */
+@media (min-width: 721px) {
+  /* lint-allow:px 152px -- 3 chips + the "+N more" row + the day number */
+  .cal { gap: 0; border: 0; border-top: 1px solid var(--ln); border-left: 1px solid var(--ln); background: none; overflow: visible; grid-template-rows: auto; grid-auto-rows: 152px; }
+  .cal[data-mode="week"] { grid-auto-rows: auto; }
+  .cal-dow, .cal-day { border-right: 1px solid var(--ln); border-bottom: 1px solid var(--ln); }
+  .cal[data-mode="month"] .cal-day { min-height: 0; overflow: hidden; }
+}
+
 .cal-day.is-outside .cal-num { color: var(--mu); }
 .cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 16px; }
 .cal-day.is-today .cal-num { background: var(--ac); color: var(--onac); }
