@@ -492,9 +492,11 @@ export function renderPastPage() {
   const host = document.querySelector('#past-list');
   if (!host) return;
   host.replaceChildren();
-  // Finished tasks first, so the tab opens on wins before leftovers.
-  const past = sortTasks(recordSource().filter((t) => t.isPast()))
-    .sort((a, b) => (b.status === 'done') - (a.status === 'done'));
+  // The archive says only why a task is here, never whether you finished it, so it sorts by due date alone
+  // (newest first). The shared sortTasks puts done tasks last, which would reveal the same thing.
+  const dueAt = (t) => { const d = t.getDueTimestamp(); return d ? d.getTime() : -Infinity; };
+  const past = recordSource().filter((t) => t.isPast())
+    .sort((a, b) => (dueAt(b) - dueAt(a)) || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
   if (!past.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
@@ -515,28 +517,19 @@ export function renderPastPage() {
     return b;
   };
   past.forEach((task) => {
-    const isDone = task.status === 'done';
     const row = document.createElement('div');
-    row.className = 'task-row done-row';
+    row.className = 'task-row done-row past-row';
     row.dataset.taskId = task.id;
     row.setAttribute('role', 'listitem');
-    const dot = createStatusCheck(task);
     const title = document.createElement('button');
     title.type = 'button';
-    title.className = 'task-row-title' + (isDone ? ' is-done' : '');
+    title.className = 'task-row-title';
     title.textContent = task.title;
     const tag = document.createElement('span');
     tag.className = 'task-row-due';
-    tag.textContent = isDone ? 'Done' : task.getPastLabel();
+    tag.textContent = task.getPastLabel();
     const actions = document.createElement('span');
     actions.style.cssText = 'display:flex;gap:12px;justify-content:flex-end';
-    if (isDone) {
-      const reopen = mkBtn('Mark not done', () => {});
-      reopenWithConfirm(reopen, task);
-      actions.appendChild(reopen);
-    } else {
-      actions.appendChild(mkBtn('Mark done', () => { setStatus(task, 'done'); renderAllTasks(); }));
-    }
     if (canEdit) {
       actions.appendChild(mkBtn('Restore', () => {
         task.closedAt = 0;
@@ -552,7 +545,7 @@ export function renderPastPage() {
       actions.appendChild(mkBtn('Delete', () => deleteTask(task), 'Confirm deleting this task'));
     }
     row.addEventListener('click', () => openTaskDialog(task));
-    row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
+    row.append(title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
     host.appendChild(row);
   });
 }

@@ -460,6 +460,13 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 /* The mockup's done title is muted, not struck through (mockup 169): the app's line-through and
    its 600 weight go, and the secondary line stays the app's own --mu. */
 .done-row .task-row-title.is-done { font-weight: 500; text-decoration: none; }
+/* The Past row has no status column: it only says why the task is archived. Declared after the
+   .task-row and .done-row track lists above so it replaces them at every width. */
+.past-row { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+@media (min-width: 1100px) {
+  /* lint-allow:px 200px -- the title floor, as .done-row; 112px is the label column that fits 'Expired' and 'Closed' */
+  .past-row { grid-template-columns: minmax(200px, 1fr) 104px 112px auto; }
+}
 /* The archive is the one list whose row is also the only place the task name appears at a glance;
    a two-line clamp replaces the single-line ellipsis that used to hide it. */
 .done-row .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
@@ -879,6 +886,20 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
     #done-list .done-row > :nth-child(2), #past-list .done-row > :nth-child(2) { grid-column: 2 / 5; }
     #done-list .done-row > :nth-child(5), #past-list .done-row > :nth-child(5) { grid-column: 4; grid-row: 2; align-self: center; }
   }
+  /* The Past card has no status box, so its children are title, subject, label, actions - one fewer than the
+     Done card the rules above place. Re-seat them, or the title lands in the 24px checkbox track. Phone: name,
+     then subject left and label right, then the actions on their own row (hidden when a viewer has none). */
+  #past-list .past-row { grid-template-columns: minmax(0, 1fr) auto; }
+  #past-list .past-row > :nth-child(1) { grid-column: 1 / -1; grid-row: 1; }
+  #past-list .past-row > :nth-child(2) { grid-column: 1; grid-row: 2; align-self: center; }
+  #past-list .past-row > :nth-child(3) { grid-column: 2; grid-row: 2; justify-self: end; align-self: center; text-align: right; white-space: nowrap; }
+  #past-list .past-row > :nth-child(4) { grid-column: 1 / -1; grid-row: 3; justify-self: end; max-width: 100%; flex-wrap: wrap; }
+  #past-list .past-row > :nth-child(4):empty { display: none; }
+/* lint-allow:px 720px -- the app's own tablet breakpoint */
+  @media (min-width: 720px) {
+    #past-list .past-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+    #past-list .past-row > :nth-child(4) { grid-column: 3; grid-row: 2; align-self: center; }
+  }
 }
 /* lint-allow:px 480px -- the app's own narrow-phone breakpoint for the two-column quick preview; the mockup has no 480 boundary */
 @media (max-width: 480px) { .quick-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -929,7 +950,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
   .tn, .ib, .secondary-button, .primary-button, .text-button { border-color: ButtonText; }
   .tn.is-active { border-color: Highlight; outline: 2px solid Highlight; }
-  .tn .sp { filter: none; }
+  .sp { background-color: CanvasText; forced-color-adjust: none; }
+  .tn.is-active .sp { background-color: Highlight; }
 }
 
 /* [[section:utilities]] */
