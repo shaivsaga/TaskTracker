@@ -40,25 +40,28 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { plural } from './util.js';
-import { validateSubjects } from './subjects.js';
-import { openOverlay } from './motion.js';
+import { openOverlay, hideOverlay } from './motion.js';
+import { filterDeletedProgress } from './recovery.js';
 
 let $ = null;                    // app.js's querySelector shorthand (declared above the init call site)
-let hideAnimated = null;         // app.js: closeTransfer / closeImport hide their overlay animated
-let showToast = null;            // app.js: every failure message, the merge toast and its Undo label
-let closeSettings = null;        // app.js: openTransfer closes Settings before it opens (settings.closeSettings)
-let myTasks = null;              // app.js: buildTransferPayload sends the draft; applyImport replaces it
-let applyProgress = null;        // app.js: the merged statuses are re-applied to the drafts
-let saveTasks = null;            // app.js: persists progress and draft after a merge and after Undo
-let renderAllTasks = null;       // app.js: re-renders the board after a merge and after Undo
-let renderAnnouncements = null;  // app.js: a replaced draft carries its own announcements
-let snapshot = null;             // app.js: applyImport snapshots this device before it merges
-let restoreDraft = null;         // app.js: the same Undo path puts the snapshot back
-let mergeProgress = null;
-let syncCatalog = null;      // app.js: a received catalogue must repaint tags and pickers
+let showToast = null;            // js/tasks.js: every failure message, the merge toast and its Undo label
+let closeSettings = null;        // js/settings.js: openTransfer closes Settings before it opens
+let myTasks = null;              // app.js: buildTransferPayload sends the draft
+let applyProgress = null;        // js/tasks.js: the merged statuses are re-applied to the drafts
+let saveTasks = null;            // js/tasks.js: persists progress and draft after a merge and after Undo
+let renderAllTasks = null;       // js/tasks.js: re-renders the board after a merge and after Undo
+let snapshot = null;             // js/publish.js: applyImport snapshots this device before it merges
+let restoreDraft = null;         // js/publish.js: ADR-0007 archive-first + labelled recovery draft replacement
+let mergeProgress = null;        // logic.js
 let Task = null;                 // logic.js: validateTransfer rebuilds a received draft through Task.fromJSON
 let taskIdOk = null;             // logic.js: the id guard on received progress and draft tasks
-let STATUS_ORDER = null;         // app.js: openImport looks up where each task sits on the board
+let STATUS_ORDER = null;         // js/tasks.js: openImport looks up where each task sits on the board
+
+let activeTransfer = null;       // { token, expiresAt } on this device's clock
+let transferTimer = null;
+let transferBusy = false;
+let transferQrOk = false;
+let pendingImport = null;
 
 // --- Phase 7: transfer by QR code and link ---
 const TRANSFER_API = 'transfer.php';
@@ -104,14 +107,14 @@ function transferUrl(token) {
 
 function setTransferView(view, message) {
   const ready = view === 'ready';
-  $('#transfer-qr-frame').hidden = !ready || !state.transferQrOk;
+  $('#transfer-qr-frame').hidden = !ready || !transferQrOk;
   $('#transfer-link-row').hidden = !ready;
   $('#transfer-cancel-link').hidden = !ready;
   $('#transfer-new').hidden = !(view === 'expired' || view === 'cancelled' || view === 'error');
   $('#transfer-error').hidden = view !== 'error';
   if (view === 'error') $('#transfer-error').textContent = message || 'Something went wrong.';
   $('#transfer-intro').textContent = ready
-    ? (state.transferQrOk
+    ? (transferQrOk
       ? 'Scan this code or open the link on your other device. It works for 10 minutes.'
       : 'The QR code could not be drawn. Open the link on your other device. It works for 10 minutes.')
     : view === 'loading' ? 'Creating a link for your progress.'
@@ -123,12 +126,12 @@ function setTransferView(view, message) {
 }
 
 function tickTransfer() {
-  if (!state.activeTransfer) return;
-  const left = Math.max(0, Math.ceil((state.activeTransfer.expiresAt - Date.now()) / 1000));
+  if (!activeTransfer) return;
+  const left = Math.max(0, Math.ceil((activeTransfer.expiresAt - Date.now()) / 1000));
   if (left === 0) {
-    clearInterval(state.transferTimer);
-    state.transferTimer = null;
-    state.activeTransfer = null;
+    clearInterval(transferTimer);
+    transferTimer = null;
+    activeTransfer = null;
     setTransferView('expired');
     dom.actionFeedback.textContent = 'Transfer link expired.';
     return;
@@ -137,18 +140,18 @@ function tickTransfer() {
 }
 
 function showTransferLink() {
-  const url = transferUrl(state.activeTransfer.token);
+  const url = transferUrl(activeTransfer.token);
   $('#transfer-link').value = url;
-  state.transferQrOk = typeof window.drawTransferQR === 'function' && window.drawTransferQR($('#transfer-qr'), url, { size: 240 });
+  transferQrOk = typeof window.drawTransferQR === 'function' && window.drawTransferQR($('#transfer-qr'), url, { size: 240 });
   setTransferView('ready');
   tickTransfer();
-  clearInterval(state.transferTimer);
-  state.transferTimer = setInterval(tickTransfer, 1000);
+  clearInterval(transferTimer);
+  transferTimer = setInterval(tickTransfer, 1000);
 }
 
 async function createTransfer() {
-  if (state.transferBusy) return;
-  state.transferBusy = true;
+  if (transferBusy) return;
+  transferBusy = true;
   setTransferView('loading');
   try {
     const res = await fetch(TRANSFER_API, {
@@ -158,31 +161,31 @@ async function createTransfer() {
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || 'Could not create the link.');
     if (!TRANSFER_TOKEN_RE.test(out.token || '') || !Number.isFinite(out.expiresIn)) throw new Error('Unexpected response from the server.');
-    state.activeTransfer = { token: out.token, expiresAt: Date.now() + out.expiresIn * 1000 };
+    activeTransfer = { token: out.token, expiresAt: Date.now() + out.expiresIn * 1000 };
     if (!dom.transferOverlay.hidden) showTransferLink();
   } catch (ex) {
     setTransferView('error', ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message);
-  } finally { state.transferBusy = false; }
+  } finally { transferBusy = false; }
 }
 
 async function cancelTransfer() {
-  if (!state.activeTransfer || state.transferBusy) return;
-  const token = state.activeTransfer.token;
+  if (!activeTransfer || transferBusy) return;
+  const token = activeTransfer.token;
   const btn = $('#transfer-cancel-link');
-  state.transferBusy = true;
+  transferBusy = true;
   btn.disabled = true;
   try {
     const res = await fetch(TRANSFER_API, { method: 'POST', headers: transferHeaders, body: JSON.stringify({ cancel: token }) });
     if (!res.ok) throw new Error();
-    clearInterval(state.transferTimer);
-    state.transferTimer = null;
-    state.activeTransfer = null;
+    clearInterval(transferTimer);
+    transferTimer = null;
+    activeTransfer = null;
     setTransferView('cancelled');
     dom.actionFeedback.textContent = 'Transfer link cancelled.';
     $('#transfer-new').focus();
   } catch (ex) {
     showToast('Could not cancel the link. It still expires on its own.');
-  } finally { state.transferBusy = false; btn.disabled = false; }
+  } finally { transferBusy = false; btn.disabled = false; }
 }
 
 async function copyTransferLink() {
@@ -203,14 +206,14 @@ function openTransfer() {
   dom.transferOverlay._returnFocus = document.activeElement;
   openOverlay(dom.transferOverlay);
   $('#transfer-close').focus();
-  if (state.activeTransfer && state.activeTransfer.expiresAt > Date.now()) showTransferLink();
-  else { state.activeTransfer = null; createTransfer(); }
+  if (activeTransfer && activeTransfer.expiresAt > Date.now()) showTransferLink();
+  else { activeTransfer = null; createTransfer(); }
 }
 
 function closeTransfer() {
-  clearInterval(state.transferTimer);
-  state.transferTimer = null;
-  hideAnimated(dom.transferOverlay);
+  clearInterval(transferTimer);
+  transferTimer = null;
+  hideOverlay(dom.transferOverlay);
 }
 
 // ---- Receiving ----
@@ -247,13 +250,14 @@ function validateTransfer(p) {
           html: typeof a.html === 'string' && a.html.length <= 8000 ? a.html : '',
           createdAt: a.createdAt,
         })),
+      ...(Array.isArray(d.subjects) ? { subjects: d.subjects } : {}),
     };
   }
   return { progress: clean, draft };
 }
 
 function openImport(data) {
-  state.pendingImport = data;
+  pendingImport = data;
   const r = mergeProgress(state.progress, data.progress);
   const list = $('#import-summary');
   list.replaceChildren();
@@ -274,42 +278,41 @@ function openImport(data) {
 }
 
 function closeImport() {
-  state.pendingImport = null;
-  hideAnimated(dom.importOverlay);
+  pendingImport = null;
+  hideOverlay(dom.importOverlay);
 }
 
-function applyImport() {
-  if (!state.pendingImport) return;
-  const data = state.pendingImport;
+async function applyImport() {
+  if (!pendingImport) return;
+  const data = pendingImport;
   const before = { progress: JSON.parse(JSON.stringify(state.progress)), draft: state.isAdmin ? snapshot() : null };
-  state.progress = mergeProgress(state.progress, data.progress).merged;
+  const merged = mergeProgress(state.progress, data.progress).merged;
+  state.progress = filterDeletedProgress(merged, state.verifiedDeletedIds).progress;
   applyProgress(myTasks);
   applyProgress(state.publishedTasks);
   const withDraft = !!(data.draft && state.isAdmin && $('#import-draft-check').checked);
+  let saved = true;
   if (withDraft) {
-    myTasks.length = 0;
-    data.draft.tasks.forEach((o) => myTasks.push(Task.fromJSON(o)));
-    state.announcements = data.draft.announcements.map((a) => ({ ...a }));
-    // A schema-2 sender carries a catalogue; a legacy sender carries none, so the receiving
-    // catalogue is kept instead of being reset to a generic one.
-    if (Array.isArray(data.draft.subjects) && data.draft.subjects.length) {
-      const checked = validateSubjects(data.draft.subjects);
-      if (!checked.error) { state.draftSubjects = checked.subjects; syncCatalog(checked.subjects); }
+    // Route draft replacement through the one ADR-0007 path: archive displaced draft-only tasks
+    // first, and turn permanently deleted ids into labelled new copies.
+    const replaced = await restoreDraft(data.draft);
+    if (!replaced) {
+      state.progress = before.progress;
+      applyProgress(myTasks);
+      applyProgress(state.publishedTasks);
+      return;
     }
-    applyProgress(myTasks);
+  } else {
+    saved = saveTasks();
+    renderAllTasks();
   }
-  // A partial write is reported, never rounded up to success: the merge is already in memory and
-  // the filtered progress must not be silently reverted.
-  const saved = saveTasks();
-  renderAllTasks();
-  renderAnnouncements();
   closeImport();
   if (!saved) showToast('Merged progress could not be saved on this device. Storage may be full.');
-  else showToast(withDraft ? 'Progress merged and draft replaced' : 'Progress merged', 'Undo', () => {
-    state.progress = before.progress;
+  else showToast(withDraft ? 'Progress merged and draft replaced' : 'Progress merged', 'Undo', async () => {
+    state.progress = filterDeletedProgress(before.progress, state.verifiedDeletedIds).progress;
     applyProgress(myTasks);
     applyProgress(state.publishedTasks);
-    if (before.draft) restoreDraft(before.draft);
+    if (withDraft && before.draft) await restoreDraft(before.draft);
     else { saveTasks(); renderAllTasks(); }
   });
 }
@@ -331,12 +334,11 @@ export async function checkIncomingTransfer(token) {
 }
 
 export function init(deps) {
-  $ = deps.$; hideAnimated = deps.hideAnimated; showToast = deps.showToast; closeSettings = deps.closeSettings;
+  $ = deps.$; showToast = deps.showToast; closeSettings = deps.closeSettings;
   myTasks = deps.myTasks; applyProgress = deps.applyProgress; saveTasks = deps.saveTasks;
-  renderAllTasks = deps.renderAllTasks; renderAnnouncements = deps.renderAnnouncements;
+  renderAllTasks = deps.renderAllTasks;
   snapshot = deps.snapshot; restoreDraft = deps.restoreDraft; mergeProgress = deps.mergeProgress;
   Task = deps.Task; taskIdOk = deps.taskIdOk; STATUS_ORDER = deps.STATUS_ORDER;
-  syncCatalog = deps.syncCatalog;
 
   // The moved listeners, in the order they registered in app.js (the Escape chain depends on it).
 $('#settings-transfer').addEventListener('click', openTransfer);

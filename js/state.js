@@ -1,12 +1,7 @@
-// js/state.js - the app's one mutable module state (app.js split, slice 2.1).
+// js/state.js - the app's cross-module mutable state.
 //
-// Every field below was a top-level `let`/`var` in app.js. Those declarations are deleted there on
-// purpose: app.js is an ES module, so a reference that was missed throws a ReferenceError instead of
-// silently reading a second copy of the state.
-//
-// Initial values stay literals or constructors only. `calAnchor` needs todayDate(), so it starts null
-// here and app.js assigns it in one marked block at the top of the file, at module-eval time, before
-// anything reads it.
+// Only fields genuinely shared across multiple modules live here. Single-module timers, handles,
+// and UI flags stay private inside their owning module.
 //
 // D6: this module imports nothing (never logic.js) and touches no DOM, no localStorage and no window at
 // evaluation time, so `await import('./js/state.js')` is safe under plain Node.
@@ -17,53 +12,18 @@ export const state = {
   publishedAnnouncements: [],
   progress: {},                   // taskId -> { status, movedAt }, per browser
   previewing: false,
-  changedIds: new Set(),
-  confirmOverlayEl: null,
   currentTask: null,
   liveBoard: null,                // set only after a successful live load of the Board
-  noticeShown: false,
-  dialogReturn: null,
-  dialogCloseBtn: null,
-  draggedCard: null,
-  docTimer: null,
-  toastTimer: null,
-  saveTimer: null,
-  calMode: 'month',
-  calAnchor: null,                // set by app.js: state.calAnchor = todayDate()
-  calSelected: null,
-  calByDay: new Map(),
-  calAgendaSig: '',
   searchQuery: '',
   classSearchQuery: '',
   classSubjectFilter: '',
   classStatusFilter: '',
   justChangedId: null,
   statusPopoverEl: null,
-  statusPopoverTask: null,
-  statusPopoverIndex: 0,
-  quickReturnFocus: null,
-  quickPicked: { date: null, endDate: null, time: null },
-  quickPrev: { subject: '', status: '', due: '' },
-  quickChipEls: [],
   announcements: [],
-  dpEl: null,
-  dpState: null,
-  lastSavedAt: null,
-  serverVersions: [],
-  clearTimer: null,
-  tourIndex: -1,
-  tourTimer: null,
-  tourSampleStatus: 'not_started',
-  activeTransfer: null,           // { token, expiresAt } on this device's clock
-  transferTimer: null,
-  transferBusy: false,
-  transferQrOk: false,
-  pendingImport: null,
   verifiedRevision: 0,            // highest public revision this session proved with a real response
   verifiedDeletedIds: [],         // ids the server proved permanently deleted; grow-only
   adminRevision: 0,               // last private revision the server reported
   catalog: [],                    // the subject definitions this view renders with
   draftSubjects: [],              // admin: the catalogue being edited (published only on Publish)
-  presets: [],                    // admin: named catalogues from the private store
-  conflictBoard: null,            // admin: the newer board a refused stale publish returned
 };

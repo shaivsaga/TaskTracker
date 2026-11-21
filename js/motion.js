@@ -234,7 +234,7 @@ export function openOverlay(el) {
   focusOverlay(el);
 }
 
-// Logical close: block input now, release focus, and hide only once the fade is done.
+// Logical close: block input now, release and restore focus, and hide only once the fade is done.
 export function hideOverlay(el, ms = OVERLAY_MS) {
   if (!el || el.hidden || el.classList.contains('is-closing')) return null;
   const from = presentationOpacity(el);
@@ -245,10 +245,11 @@ export function hideOverlay(el, ms = OVERLAY_MS) {
   el._returnFocus = null;
   if (isReducedMotion() || typeof el.animate !== 'function') {
     completeHide(el, record);
-    return returnFocus;
+  } else {
+    const anim = fade(el, from, 0, ms);
+    record.anim = anim;
+    anim.onfinish = () => completeHide(el, record);
   }
-  const anim = fade(el, from, 0, ms);
-  record.anim = anim;
-  anim.onfinish = () => completeHide(el, record);
+  if (returnFocus && returnFocus.isConnected && typeof returnFocus.focus === 'function') returnFocus.focus();
   return returnFocus;
 }

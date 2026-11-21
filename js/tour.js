@@ -21,16 +21,19 @@
 
 import { state } from './state.js';
 import { dom } from './dom.js';
-import { openOverlay } from './motion.js';
+import { openOverlay, hideOverlay } from './motion.js';
 
 let $ = null;                 // app.js's querySelector shorthand, used by the steps and the overlay
 let STATUS_LABELS = null;     // logic.js
-let STATUS_ORDER = null;      // app.js: the three statuses the sample picker offers
+let STATUS_ORDER = null;      // js/tasks.js: the three statuses the sample picker offers
 let createSubjectTag = null;  // app.js: the sample card's subject chip
-let setPreview = null;        // app.js: startTour leaves admin preview
-let setPage = null;           // app.js: startTour switches to the class tasks page
-let hideAnimated = null;      // app.js: endTour hides the overlay
-let closeSettings = null;     // app.js: the Settings replay button closes Settings first
+let setPreview = null;        // js/publish.js: startTour leaves admin preview
+let setPage = null;           // js/nav.js: startTour switches to the class tasks page
+let closeSettings = null;     // js/settings.js: the Settings replay button closes Settings first
+
+let tourIndex = -1;
+let tourTimer = null;
+let tourSampleStatus = 'not_started';
 // --- Phase 5: first-time tutorial. Sample content lives only inside the overlay: never in progress, the draft or the board. ---
 const TOUR_KEY = 'class_tasks_tour_seen';
 const tourVisible = (el) => (el && el.getClientRects().length ? el : null);
@@ -52,7 +55,7 @@ export function tourSeen() { try { return localStorage.getItem(TOUR_KEY) === '1'
 // Phones have no Board/List switch, so omit desktop-only steps rather than showing an untargeted card.
 const tourIsPhone = () => window.matchMedia('(max-width: 719px)').matches;
 const activeSteps = () => TOUR_STEPS.filter((s) => !(s.desktopOnly && tourIsPhone()));
-const tourTarget = () => { const s = activeSteps()[state.tourIndex]; return s && s.target ? s.target() : null; };
+const tourTarget = () => { const s = activeSteps()[tourIndex]; return s && s.target ? s.target() : null; };
 const tourBody = (step) => (step.phoneBody && tourIsPhone() ? step.phoneBody : step.body);
 
 function hideTourCue() {
@@ -66,7 +69,7 @@ export function showTourCue() {
 }
 
 function renderTourSample() {
-  const s = state.tourSampleStatus;
+  const s = tourSampleStatus;
   const card = document.createElement('article');
   card.className = 'task-card tour-sample-card';
   card.dataset.status = s;
@@ -107,7 +110,7 @@ function renderTourSample() {
       opt.innerHTML = `<span class="status-dot dot-${st.replace(/_/g, '-')}"></span> ${STATUS_LABELS[st]}`;
       opt.addEventListener('click', () => {
         closeMenu(false);
-        state.tourSampleStatus = st;
+        tourSampleStatus = st;
         renderTourSample();
         dom.tourSample.querySelector('.status-check').focus();
       });
@@ -169,14 +172,14 @@ function placeTour(el) {
 function showTourStep(i) {
   const steps = activeSteps();
   const idx = Math.max(0, Math.min(i, steps.length - 1));
-  state.tourIndex = idx;
+  tourIndex = idx;
   const step = steps[idx];
   const last = idx === steps.length - 1;
   $('#tour-step').textContent = `Step ${idx + 1} of ${steps.length}`;
   $('#tour-title').textContent = step.title;
   $('#tour-body').textContent = tourBody(step);
   dom.tourSample.hidden = !step.sample;
-  if (step.sample) { state.tourSampleStatus = 'not_started'; renderTourSample(); }
+  if (step.sample) { tourSampleStatus = 'not_started'; renderTourSample(); }
   $('#tour-back').hidden = idx === 0;
   $('#tour-skip').hidden = last;
   $('#tour-next').textContent = last ? 'Done' : 'Next';
@@ -196,18 +199,18 @@ export function startTour() {
   document.body.style.overflow = 'hidden';
   showTourStep(0);
   // Layout can shift while the board loads, so keep the spotlight on its target.
-  clearInterval(state.tourTimer);
-  state.tourTimer = setInterval(() => { if (state.tourIndex >= 0) placeTour(tourTarget()); }, 400);
+  clearInterval(tourTimer);
+  tourTimer = setInterval(() => { if (tourIndex >= 0) placeTour(tourTarget()); }, 400);
 }
 
 function endTour() {
   if (dom.tourOverlay.hidden || dom.tourOverlay.classList.contains('is-closing')) return;
   try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) {}
-  clearInterval(state.tourTimer);
-  state.tourTimer = null;
-  state.tourIndex = -1;
+  clearInterval(tourTimer);
+  tourTimer = null;
+  tourIndex = -1;
   document.body.style.overflow = '';
-  hideAnimated(dom.tourOverlay);
+  hideOverlay(dom.tourOverlay);
 }
 
 // Called once by app.js, at the spot the listeners below used to occupy, after cacheDom(). The
@@ -220,12 +223,11 @@ export function init(deps) {
   createSubjectTag = deps.createSubjectTag;
   setPreview = deps.setPreview;
   setPage = deps.setPage;
-  hideAnimated = deps.hideAnimated;
   closeSettings = deps.closeSettings;
 $('#tour-next').addEventListener('click', () => {
-  if (state.tourIndex >= activeSteps().length - 1) endTour(); else showTourStep(state.tourIndex + 1);
+  if (tourIndex >= activeSteps().length - 1) endTour(); else showTourStep(tourIndex + 1);
 });
-$('#tour-back').addEventListener('click', () => { if (state.tourIndex > 0) showTourStep(state.tourIndex - 1); });
+$('#tour-back').addEventListener('click', () => { if (tourIndex > 0) showTourStep(tourIndex - 1); });
 $('#tour-skip').addEventListener('click', endTour);
 $('#tour-cue-start')?.addEventListener('click', () => startTour());
 $('#tour-cue-dismiss')?.addEventListener('click', () => {
@@ -233,7 +235,7 @@ $('#tour-cue-dismiss')?.addEventListener('click', () => {
   hideTourCue();
 });
 $('#settings-replay').addEventListener('click', () => { closeSettings(); startTour(); });
-window.addEventListener('resize', () => { if (state.tourIndex >= 0) placeTour(tourTarget()); });
+window.addEventListener('resize', () => { if (tourIndex >= 0) placeTour(tourTarget()); });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !dom.tourOverlay.hidden && !dom.tourOverlay.classList.contains('is-closing')) endTour();
 });

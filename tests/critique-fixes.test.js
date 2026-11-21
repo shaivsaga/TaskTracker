@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Task } from '../logic.js';
+import { summarizeMine } from '../js/tasks.js';
 
 const ROOT = path.resolve(path.join(path.dirname(fileURLToPath(import.meta.url)), '..'));
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -34,11 +36,25 @@ test('Board view keeps subject filtering, List view adds bucket headings, and in
 });
 
 test('Done rows unify reopen to one control and .mine respects previewing + range deadlines', () => {
-  const doneBody = TASKS.slice(TASKS.indexOf('export function renderDonePage()'), TASKS.indexOf('function subjectCodesMatching'));
+  const doneBody = TASKS.slice(TASKS.indexOf('function renderDonePage()'), TASKS.indexOf('function subjectCodesMatching'));
   assert.doesNotMatch(doneBody, /createStatusCheck\(task\)/, 'Done rows must not render a second interactive status-check reopen trigger');
   assert.match(doneBody, /status-check is-done is-static/, 'Done rows keep a static green check icon beside Mark not done');
-  assert.match(APP, /const all = \(state\.previewing \? myTasks : state\.publishedTasks\)/, 'renderMine must reflect previewed draft tasks');
-  assert.match(APP, /typeof t\.getDeadline === 'function' \? t\.getDeadline\(\) : t\.dueDate/, 'mineDue must read range end dates via getDeadline()');
+
+  // Behavioral tests for the personal strip summary (replaces brittle regex on app.js).
+  const now = new Date(2026, 10, 21, 12, 0, 0).getTime();
+  assert.equal(summarizeMine([], now).hidden, true, 'empty board hides the personal strip');
+
+  const closed = new Task({ id: 'c1', title: 'Closed', dueDate: new Date(2026, 10, 22), closedAt: now - 1000 });
+  const done = new Task({ id: 'd1', title: 'Done', dueDate: new Date(2026, 10, 22), status: 'done' });
+  const expired = new Task({ id: 'e1', title: 'Old', dueDate: new Date(2026, 10, 1) });
+  // Range started 10 days ago but ends tomorrow: deadline is endDate, so it is active, not overdue/expired.
+  const range = new Task({ id: 'r1', title: 'Range task', dueDate: new Date(2026, 10, 11), endDate: new Date(2026, 10, 22) });
+  const summary = summarizeMine([closed, done, expired, range], now);
+  assert.equal(summary.hidden, false);
+  assert.equal(summary.count, 1, 'closed, done, and 7+ day expired tasks are excluded');
+  assert.equal(summary.olderOverdue, 1, '7+ day expired task is counted in Past');
+  assert.match(summary.nextText, /Next: Range task · Tomorrow/, 'range task deadline uses endDate');
+  assert.match(summary.nextText, /1 older in Past/);
 });
 
 test('keyboard focus outlines, student / shortcut, read-only dialog footer, and admin delete confirmations are guarded', () => {

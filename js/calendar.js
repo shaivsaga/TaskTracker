@@ -28,6 +28,15 @@ let toInputValue = null;
 let dayDiff = null;
 let subjects = null;        // () => app.js's SUBJECTS map, read at call time (see the header)
 let calPhone = null;        // window.matchMedia('(max-width: 719px)'), created in init()
+let calMode = 'month';
+let calAnchor = null;
+let calSelected = null;
+let calByDay = new Map();
+let calAgendaSig = '';
+
+export function invalidateAgenda() {
+  calAgendaSig = '';
+}
 
 // --- Calendar ---
 const calSort = (a, b) => (a.dueTime || '').localeCompare(b.dueTime || '');
@@ -36,14 +45,14 @@ const calSameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth
 
 // Phone month view: the day picked in the grid, defaulting to today (or the 1st) of the shown month.
 function calPickDay() {
-  if (state.calSelected && calSameMonth(state.calSelected, state.calAnchor)) return state.calSelected;
+  if (calSelected && calSameMonth(calSelected, calAnchor)) return calSelected;
   const t = todayDate();
-  return calSameMonth(t, state.calAnchor) ? t : new Date(state.calAnchor.getFullYear(), state.calAnchor.getMonth(), 1);
+  return calSameMonth(t, calAnchor) ? t : new Date(calAnchor.getFullYear(), calAnchor.getMonth(), 1);
 }
 
 function calRange() {
-  const a = state.calAnchor;
-  if (state.calMode === 'week') return { start: new Date(a.getFullYear(), a.getMonth(), a.getDate() - a.getDay()), days: 7 };
+  const a = calAnchor;
+  if (calMode === 'week') return { start: new Date(a.getFullYear(), a.getMonth(), a.getDate() - a.getDay()), days: 7 };
   const first = new Date(a.getFullYear(), a.getMonth(), 1);
   const last = new Date(a.getFullYear(), a.getMonth() + 1, 0);
   return { start: new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay()), days: Math.ceil((first.getDay() + last.getDate()) / 7) * 7 };
@@ -102,15 +111,15 @@ function createCalDots(list) {
 function renderCalAgenda() {
   const box = document.querySelector('#cal-agenda');
   if (!box) return;
-  const on = calPhone.matches && state.calMode === 'month';
+  const on = calPhone.matches && calMode === 'month';
   box.hidden = !on;
-  if (!on) { state.calAgendaSig = ''; return; }
+  if (!on) { calAgendaSig = ''; return; }
   const d = calPickDay();
-  const tasks = (state.calByDay.get(toInputValue(d)) || []).slice().sort(calSort);
+  const tasks = (calByDay.get(toInputValue(d)) || []).slice().sort(calSort);
   // The page re-renders every minute; only touch the live region when the day's content really changed.
   const sig = `${toInputValue(d)}|${tasks.map((t) => `${t.id}:${t.status}:${t.title}:${t.dueTime || ''}:${t.isOverdue() ? 1 : 0}`).join(',')}`;
-  if (sig === state.calAgendaSig) return;
-  state.calAgendaSig = sig;
+  if (sig === calAgendaSig) return;
+  calAgendaSig = sig;
   document.querySelector('#cal-agenda-title').textContent = calLongDate(d);
   const out = document.querySelector('#cal-agenda-list');
   out.replaceChildren();
@@ -127,10 +136,10 @@ function renderCalAgenda() {
 const calFocus = (key) => document.querySelector(`#cal-grid [data-date="${key}"]`)?.focus({ preventScroll: true });
 
 function calSelect(d, focus) {
-  state.calSelected = d;
+  calSelected = d;
   const key = toInputValue(d);
-  if (!calSameMonth(d, state.calAnchor)) {
-    state.calAnchor = new Date(d.getFullYear(), d.getMonth(), 1);
+  if (!calSameMonth(d, calAnchor)) {
+    calAnchor = new Date(d.getFullYear(), d.getMonth(), 1);
     renderCalendar();
   } else {
     document.querySelectorAll('#cal-grid .cal-day.is-tappable').forEach((c) => {
@@ -153,7 +162,7 @@ function calKey(e, d) {
 
 function syncCalTabs() {
   document.querySelectorAll('[data-cal-mode]').forEach((b) => {
-    const on = b.dataset.calMode === state.calMode;
+    const on = b.dataset.calMode === calMode;
     b.classList.toggle('is-active', on);
     b.setAttribute('aria-pressed', String(on));
   });
@@ -204,14 +213,14 @@ export function renderCalendar() {
     byDay.get(k).push(t);
   }));
   const short = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  document.querySelector('#cal-title').textContent = state.calMode === 'week'
+  document.querySelector('#cal-title').textContent = calMode === 'week'
     ? `${short(start)} – ${short(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6))}`
-    : state.calAnchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    : calAnchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   // The arrows move a month or a week; say which, instead of a bare "Previous"/"Next".
-  const period = state.calMode === 'week' ? 'week' : 'month';
+  const period = calMode === 'week' ? 'week' : 'month';
   document.querySelector('#cal-prev').setAttribute('aria-label', `Previous ${period}`);
   document.querySelector('#cal-next').setAttribute('aria-label', `Next ${period}`);
-  grid.dataset.mode = state.calMode;
+  grid.dataset.mode = calMode;
   grid.setAttribute('role', 'region');
   grid.setAttribute('aria-labelledby', 'cal-title');
   const focusedDay = grid.contains(document.activeElement) ? document.activeElement.dataset.date : '';
@@ -223,17 +232,17 @@ export function renderCalendar() {
     h.textContent = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i).toLocaleDateString(undefined, { weekday: 'short' });
     grid.appendChild(h);
   }
-  const max = state.calMode === 'week' ? 12 : 3;
-  const phoneMonth = calPhone.matches && state.calMode === 'month';
+  const max = calMode === 'week' ? 12 : 3;
+  const phoneMonth = calPhone.matches && calMode === 'month';
   const picked = phoneMonth ? toInputValue(calPickDay()) : '';
-  state.calByDay = byDay;
+  calByDay = byDay;
   for (let i = 0; i < days; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const key = toInputValue(d);
     const list = (byDay.get(key) || []).slice().sort(calSort);
     const cell = document.createElement('div');
-    cell.className = 'cal-day' + (state.calMode === 'month' && d.getMonth() !== state.calAnchor.getMonth() ? ' is-outside' : '') + (dayDiff(d) === 0 ? ' is-today' : '');
-    if (state.calMode === 'week') cell.dataset.dow = d.toLocaleDateString(undefined, { weekday: 'short' });
+    cell.className = 'cal-day' + (calMode === 'month' && d.getMonth() !== calAnchor.getMonth() ? ' is-outside' : '') + (dayDiff(d) === 0 ? ' is-today' : '');
+    if (calMode === 'week') cell.dataset.dow = d.toLocaleDateString(undefined, { weekday: 'short' });
     const num = document.createElement('span');
     num.className = 'cal-num';
     num.textContent = d.getDate();
@@ -255,7 +264,7 @@ export function renderCalendar() {
       more.type = 'button';
       more.className = 'cal-more';
       more.textContent = `+${list.length - max} more`;
-      more.addEventListener('click', () => { state.calAnchor = d; state.calMode = 'week'; syncCalTabs(); renderCalendar(); });
+      more.addEventListener('click', () => { calAnchor = d; calMode = 'week'; syncCalTabs(); renderCalendar(); });
       cell.appendChild(more);
     }
     grid.appendChild(cell);
@@ -266,9 +275,9 @@ export function renderCalendar() {
 }
 
 function calStep(dir) {
-  state.calAnchor = state.calMode === 'week'
-    ? new Date(state.calAnchor.getFullYear(), state.calAnchor.getMonth(), state.calAnchor.getDate() + dir * 7)
-    : new Date(state.calAnchor.getFullYear(), state.calAnchor.getMonth() + dir, 1);
+  calAnchor = calMode === 'week'
+    ? new Date(calAnchor.getFullYear(), calAnchor.getMonth(), calAnchor.getDate() + dir * 7)
+    : new Date(calAnchor.getFullYear(), calAnchor.getMonth() + dir, 1);
   renderCalendar();
 }
 
@@ -281,10 +290,14 @@ export function init(deps) {
   toInputValue = deps.toInputValue;
   dayDiff = deps.dayDiff;
   subjects = deps.subjects;
+  calMode = 'month';
+  calAnchor = todayDate();
+  calSelected = null;
+  calAgendaSig = '';
   calPhone = window.matchMedia('(max-width: 719px)');
   document.querySelector('#cal-prev').addEventListener('click', () => calStep(-1));
   document.querySelector('#cal-next').addEventListener('click', () => calStep(1));
-  document.querySelector('#cal-today').addEventListener('click', () => { state.calAnchor = todayDate(); state.calSelected = state.calAnchor; renderCalendar(); });
+  document.querySelector('#cal-today').addEventListener('click', () => { calAnchor = todayDate(); calSelected = calAnchor; renderCalendar(); });
   calPhone.addEventListener('change', renderCalendar);
-  document.querySelectorAll('[data-cal-mode]').forEach((b) => b.addEventListener('click', () => { state.calMode = b.dataset.calMode; syncCalTabs(); renderCalendar(); }));
+  document.querySelectorAll('[data-cal-mode]').forEach((b) => b.addEventListener('click', () => { calMode = b.dataset.calMode; syncCalTabs(); renderCalendar(); }));
 }

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { state } from '../../js/state.js';
 import { init, renderCalendar } from '../../js/calendar.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -22,10 +21,6 @@ let tasks = ['GENSCI', 'MABKOM', 'PE'].map((subject, n) => ({
   id: String(n), title: subject, subject, dueDate, status: 'not_started',
   isOverdue: () => false,
 }));
-state.calMode = 'month';
-state.calAnchor = dueDate;
-state.calSelected = dueDate;
-state.calAgendaSig = '';
 const toInputValue = (d) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
 init({ recordSource: () => tasks, openTaskDialog() {}, todayDate: () => dueDate,
   toInputValue, dayDiff: () => 5, subjects: () => subjects });

@@ -79,8 +79,8 @@ test('student class view prioritises due today/tomorrow, preserves scroll on sta
 });
 
 test('task dialog subject dropdown supports keyboard navigation, aria-selected, Tab trap, and Escape dismissal', () => {
-  assert.match(TASKS, /export function openSubjectDropdown\(\)/, 'tasks.js must define openSubjectDropdown');
-  assert.match(TASKS, /export function closeSubjectDropdown\(refocus = false\)/, 'tasks.js must define closeSubjectDropdown');
+  assert.match(TASKS, /\bfunction openSubjectDropdown\(\)/, 'tasks.js must define openSubjectDropdown');
+  assert.match(TASKS, /\bfunction closeSubjectDropdown\(refocus = false\)/, 'tasks.js must define closeSubjectDropdown');
   assert.match(TASKS, /opt\.setAttribute\('aria-selected',\s*String\(opt\.dataset\.subject === cur\)\)/,
     'subject options must set aria-selected to reflect the current subject');
   assert.match(TASKS, /e\.key === 'Home'/, 'subject dropdown must support Home key');

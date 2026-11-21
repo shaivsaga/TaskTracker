@@ -20,12 +20,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.join(path.dirname(fileURLToPath(import.meta.url)), '..'));
-const APP = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-const LINES = APP.split(/\r?\n/);
-const FETCH_LINE = LINES.find((l) => l.includes('fetch(') && l.includes('API.current'));
+const STORE = fs.readFileSync(path.join(ROOT, 'js', 'store.js'), 'utf8');
+const LINES = STORE.split(/\r?\n/);
+const FETCH_LINE = LINES.find((l) => l.includes('fetchFn(') && l.includes('api.current'));
 
 test('the Board is fetched at a stable URL', () => {
-  assert.ok(FETCH_LINE, 'app.js no longer fetches API.current at all');
+  assert.ok(FETCH_LINE, 'js/store.js no longer fetches api.current at all');
   assert.doesNotMatch(FETCH_LINE, /\?t=/, 'the Board fetch carries a per-load ?t= query, so it can never be revalidated');
   assert.doesNotMatch(FETCH_LINE, /Date\.now\(\)/, 'the Board URL changes on every load');
 });
@@ -39,7 +39,14 @@ test('the Board fetch keeps its abort timeout', () => {
   assert.match(FETCH_LINE, /AbortSignal\.timeout\(\s*\d+\s*\)/, 'the Board fetch lost its AbortSignal timeout');
 });
 
-test('the Board is fetched from exactly one place', () => {
-  const hits = LINES.filter((l) => l.includes('API.current'));
-  assert.equal(hits.length, 1, 'API.current is referenced on ' + hits.length + ' lines: ' + hits.map((l) => l.trim()).join(' | '));
+test('the Board is fetched from exactly one place across app.js and js/*.js', () => {
+  const files = ['app.js', ...fs.readdirSync(path.join(ROOT, 'js')).filter((f) => f.endsWith('.js')).map((f) => path.join('js', f))];
+  const hits = [];
+  for (const rel of files) {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    src.split(/\r?\n/).forEach((line, i) => {
+      if (/\b(?:API|api)\.current\b/.test(line)) hits.push(`${rel}:${i + 1}: ${line.trim()}`);
+    });
+  }
+  assert.equal(hits.length, 1, 'Board fetch reference appeared on ' + hits.length + ' lines:\n' + hits.join('\n'));
 });

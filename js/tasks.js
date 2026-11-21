@@ -39,6 +39,7 @@ import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, STATUS_TO_COLUMN, COLUMN_TO_STATUS } from './util.js';
 import * as motion from './motion.js';   // leaf helper: imports nothing, reads the DOM only
 import { classForColor, subjectDisplayName } from './subjects.js';   // pure: colour -> shipped class, code -> display name
+import { store } from './store.js';
 
 // --- Values app.js passes in through init(deps) ------------------------------------------------
 let Task = null;
@@ -50,14 +51,25 @@ let sanitizeDoc = null;
 let clampPopoverPosition = null;
 let myTasks = null;
 let isEditable = null;
-let hideAnimated = null;
 let createSubjectTag = null;
 let startNewTask = null;
 let TTFiles = null;
 let openDuePicker = null;
 let calendar = null;
 let publish = null;
-let recovery = null;
+
+// Module-private UI state (formerly leaked through js/state.js).
+let changedIds = new Set();
+let confirmOverlayEl = null;
+let dialogReturn = null;
+let dialogCloseBtn = null;
+let draggedCard = null;
+let docTimer = null;
+let toastTimer = null;
+let saveTimer = null;
+let statusPopoverTask = null;
+let statusPopoverIndex = 0;
+let lastMineSig = '';
 
 // --- Moved verbatim from app.js ----------------------------------------------------------------
 const findTask = (id) => [...myTasks, ...state.publishedTasks].find((t) => t.id === id);
@@ -109,7 +121,7 @@ export function setStatus(task, status) {
   saveTasks();
 }
 function ensureConfirmDialog() {
-  if (state.confirmOverlayEl) return state.confirmOverlayEl;
+  if (confirmOverlayEl) return confirmOverlayEl;
   const overlay = document.createElement('div');
   overlay.className = 'task-dialog-overlay confirm-overlay';
   overlay.hidden = true;
@@ -123,7 +135,7 @@ function ensureConfirmDialog() {
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  state.confirmOverlayEl = overlay;
+  confirmOverlayEl = overlay;
   return overlay;
 }
 // Both preset application and reopening use the same keyboard and overlay lifecycle.
@@ -143,7 +155,7 @@ export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, op
     overlay.removeEventListener('click', onBackdrop);
     okBtn.onclick = null;
     cancelBtn.onclick = null;
-    hideAnimated(overlay);
+    motion.hideOverlay(overlay);
     if (accept) onConfirm();   // rebuilds the page first: the opener may not survive it
     else onCancel?.();
     // The option that opened this confirm may be a hidden popover item; only a laid-out control counts.
@@ -231,7 +243,7 @@ export function loadTasks() {
 // Progress is erased only by an authority the server proved (see app.js applyDeletionAuthority):
 // a task merely absent from this board, or a failed/empty/offline load, never erases anything.
 // --- Task Card Creation ---
-export function createTaskCard(task) {
+function createTaskCard(task) {
   const article = document.createElement('article');
   article.className = 'task-card';
   article.dataset.taskId = task.id;
@@ -258,7 +270,7 @@ export function createTaskCard(task) {
   });
 
   if (task.id === state.justChangedId) article.classList.add('is-entering');
-  if (isEditable(task) && state.changedIds.has(task.id)) article.classList.add('is-changed');
+  if (isEditable(task) && changedIds.has(task.id)) article.classList.add('is-changed');
   header.append(createStatusCheck(task), titleEl);
 
   // Delete button
@@ -309,10 +321,10 @@ export function createTaskCard(task) {
 // --- Delete Task ---
 // Archive first, then remove locally. If the archive fails, nothing is deleted and the draft keeps
 // the task: the server copy is the only durable recovery, so it cannot be skipped.
-export async function deleteTask(task) {
+async function deleteTask(task) {
   const index = myTasks.indexOf(task);
   if (index === -1) return false;
-  const archive = recovery && state.isAdmin && !state.previewing ? await recovery.archive(task) : { ok: true };
+  const archive = state.isAdmin && !state.previewing ? await store.archiveTask(task) : { ok: true };
   if (!archive.ok) {
     showToast('Could not save this task to the recycle bin. It was not deleted.');
     return false;
@@ -334,7 +346,7 @@ export async function deleteTask(task) {
 // Undo re-checks authority at click time: a deletion proved after the toast appeared wins over the
 // older snapshot, and the old id is then offered as a labelled copy instead of silently returning.
 function undoDelete(task, index) {
-  if (recovery.mustRecoverAsNewId(String(task.id))) {
+  if (store.mustRecoverAsNewId(String(task.id))) {
     showToast('That task was permanently deleted. Recover it as a new copy from the recycle bin.');
     return;
   }
@@ -347,8 +359,8 @@ function undoDelete(task, index) {
   }
   renderAllTasks();
 }
-export function hideToast() {
-  clearTimeout(state.toastTimer);
+function hideToast() {
+  clearTimeout(toastTimer);
   dom.toastEl.hidden = true;
 }
 export function showToast(message, actionLabel, onAction) {
@@ -357,15 +369,15 @@ export function showToast(message, actionLabel, onAction) {
   dom.toastAction.hidden = !actionLabel;
   dom.toastAction.onclick = () => { hideToast(); if (onAction) onAction(); };
   dom.toastEl.hidden = false;
-  clearTimeout(state.toastTimer);
-  state.toastTimer = setTimeout(hideToast, actionLabel ? 8000 : 5000);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, actionLabel ? 8000 : 5000);
   dom.actionFeedback.textContent = '';
   setTimeout(() => { dom.actionFeedback.textContent = message + (actionLabel ? `. ${actionLabel} available.` : ''); }, 60);
 }
-export function flashSaved() {
+function flashSaved() {
   dom.saveState.textContent = 'Saved';
-  clearTimeout(state.saveTimer);
-  state.saveTimer = setTimeout(() => { dom.saveState.textContent = ''; }, 1600);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { dom.saveState.textContent = ''; }, 1600);
 }
 export function showSkeletons() {
   document.querySelectorAll('.column-content').forEach((content) => {
@@ -505,7 +517,7 @@ export function renderClassTasks() {
 }
 // --- Completed tasks page ---
 export const recordSource = () => ((state.isAdmin || state.previewing) ? myTasks : state.publishedTasks);
-export function renderPastPage() {
+function renderPastPage() {
   const host = document.querySelector('#past-list');
   if (!host) return;
   host.replaceChildren();
@@ -573,10 +585,10 @@ function doneMessage() {
   const open = recordSource().filter((x) => !x.isPast());
   return open.length && open.every((x) => x.status === 'done') ? 'All caught up' : statusChangeMessage('done');
 }
-export function restoreProgress(taskId, prev) {
+function restoreProgress(taskId, prev) {
   // A deletion proved after this toast was created wins over the older snapshot: the id must not
   // come back into device progress at all, whatever the captured entry said.
-  if (recovery && recovery.mustRecoverAsNewId(String(taskId))) {
+  if (store.mustRecoverAsNewId(String(taskId))) {
     showToast('That task was permanently deleted. Its progress cannot be restored.');
     renderAllTasks();
     return;
@@ -622,7 +634,7 @@ export function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
   });
 }
 // Reopening a done task replaces its completed time, so ask first and offer Undo.
-export function reopenWithConfirm(btn, task) {
+function reopenWithConfirm(btn, task) {
   armInlineConfirm(btn, btn.textContent, 'Confirm marking this task not done', () => {
     const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
     setStatus(task, 'not_started');
@@ -633,7 +645,7 @@ export function reopenWithConfirm(btn, task) {
     showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
   });
 }
-export function renderDonePage() {
+function renderDonePage() {
   const host = document.querySelector('#done-list');
   const done = sortTasks(recordSource().filter((t) => t.status === 'done'));
   host.replaceChildren();
@@ -689,7 +701,7 @@ function subjectCodesMatching(q) {
   return out;
 }
 
-export function getVisibleTasks() {
+function getVisibleTasks() {
   const q = state.searchQuery.trim().toLowerCase();
   const active = myTasks.filter((t) => !t.isPast());
   return sortTasks(q
@@ -699,7 +711,57 @@ export function getVisibleTasks() {
     })
     : active);
 }
-export function updateOverview() {
+function formatMineWhen(task, d, dayDiffFn) {
+  const n = dayDiffFn(d);
+  const label = n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return task.dueTime ? `${label}, ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : label;
+}
+// Pure personal-strip summary: uses Task.getDueTimestamp() (range end date) and the same 7-day
+// expiry rule as Task.isPast() so the strip and class overview can never drift apart.
+export function summarizeMine(allTasks, nowMs = Date.now(), dayDiffFn = dayDiff) {
+  const all = Array.isArray(allTasks) ? allTasks : [];
+  const diffFn = dayDiffFn || ((d) => {
+    const start = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+    return Math.round((start(d) - start(new Date(nowMs))) / 86400000);
+  });
+  const unfinished = all.filter((t) => t.status !== 'done' && !t.closedAt);
+  const open = [];
+  let olderOverdue = 0;
+  for (const t of unfinished) {
+    const d = typeof t.getDueTimestamp === 'function' ? t.getDueTimestamp() : null;
+    if (d && nowMs - d.getTime() > 7 * 86400000) olderOverdue++;
+    else open.push({ t, d });
+  }
+  const dated = open.filter((x) => x.d).sort((a, b) => a.d - b.d);
+  const next = dated.find((x) => x.d.getTime() >= nowMs) || dated[0] || null;
+  const labelText = open.length ? 'left for you' : "left. You're caught up.";
+  let nextText = '';
+  if (!open.length) {
+    nextText = olderOverdue > 0 ? `${olderOverdue} older overdue in Past.` : 'Counts active tasks and the last 7 days.';
+  } else {
+    const base = !next
+      ? 'No due dates on what is left.'
+      : next.d.getTime() >= nowMs
+        ? `Next: ${next.t.title} · ${formatMineWhen(next.t, next.d, diffFn)}`
+        : `${next.t.title} was due ${formatMineWhen(next.t, next.d, diffFn)}`;
+    nextText = olderOverdue > 0 ? `${base} · ${olderOverdue} older in Past` : base;
+  }
+  return { hidden: !all.length, clear: !open.length, count: open.length, olderOverdue, labelText, nextText };
+}
+function renderMine(all) {
+  const mineEl = document.querySelector('#mine');
+  if (!mineEl) return;
+  const s = summarizeMine(all);
+  const sig = `${state.previewing ? 1 : 0}|${s.hidden ? 1 : 0}|${s.count}|${s.labelText}|${s.nextText}`;
+  if (sig === lastMineSig) return;
+  lastMineSig = sig;
+  mineEl.hidden = s.hidden;
+  mineEl.classList.toggle('is-clear', s.clear);
+  document.querySelector('#mine-n').textContent = String(s.count);
+  document.querySelector('#mine-l').textContent = s.labelText;
+  document.querySelector('#mine-next').textContent = s.nextText;
+}
+function updateOverview() {
   const open = myTasks.filter((t) => t.status !== 'done' && !t.isPast());
   const dueToday = open.filter((t) => t.dueDate && dayDiff(t.getDeadline()) === 0).length;
   const overdue = open.filter((t) => t.dueDate && t.isOverdue()).length;
@@ -714,7 +776,9 @@ export function updateOverview() {
   sumOverdue.hidden = overdue === 0;
   // The class page shows the same answer for the board the class sees, plus what is already done on
   // this device. Same source as renderClassTasks, so preview and student views agree.
-  const classTasks = (state.previewing ? myTasks : state.publishedTasks).filter((t) => !t.isPast());
+  const classAll = (state.previewing ? myTasks : state.publishedTasks) || [];
+  renderMine(classAll);
+  const classTasks = classAll.filter((t) => !t.isPast());
   const classOpen = classTasks.filter((t) => t.status !== 'done');
   const classDueToday = classOpen.filter((t) => t.dueDate && dayDiff(t.getDeadline()) === 0).length;
   const classOverdue = classOpen.filter((t) => t.dueDate && t.isOverdue()).length;
@@ -750,7 +814,7 @@ function matchesClassSearch(task, q) {
   return task.title.toLowerCase().includes(q) || task.subject.toLowerCase().includes(q)
     || subjectCodesMatching(q).has(task.subject) || plainNotes(task).includes(q);
 }
-export function createTaskRow(task) {
+function createTaskRow(task) {
   const row = document.createElement('div');
   row.className = 'task-row';
   row.dataset.taskId = task.id;
@@ -759,7 +823,7 @@ export function createTaskRow(task) {
   // Checkbox: empty = not started, minus = in progress, check = done
   const check = createStatusCheck(task);
   if (task.id === state.justChangedId) row.classList.add('is-entering');
-  if (isEditable(task) && state.changedIds.has(task.id)) row.classList.add('is-changed');
+  if (isEditable(task) && changedIds.has(task.id)) row.classList.add('is-changed');
 
   // The row itself is no longer a tab stop: a focusable div with no role announced nothing. The title
   // is the row's control and the click still opens from anywhere in the row (the click bubbles).
@@ -800,7 +864,7 @@ export function createTaskRow(task) {
   row.addEventListener('click', () => openTaskDialog(task, null, false));
   return row;
 }
-export function renderTaskList() {
+function renderTaskList() {
   dom.taskListEl.innerHTML = '';
   const visible = getVisibleTasks();
   visible.forEach((task) => dom.taskListEl.appendChild(createTaskRow(task)));
@@ -820,7 +884,7 @@ export function renderTaskList() {
 export function renderAllTasks() {
   if (state.isAdmin) {
     const diff = publish.diffDraft();
-    state.changedIds = diff.changed;
+    changedIds = diff.changed;
     publish.updateAdminBar(diff);
   }
   document.querySelectorAll('#page-my-tasks .column-content').forEach((content) => {
@@ -839,14 +903,13 @@ export function renderAllTasks() {
   updateOverview();
   state.justChangedId = null;
   motion.play();
-  
 }
 // Title is a one-line-looking textarea that grows with its content
-export function fitDialogTitle() {
+function fitDialogTitle() {
   dom.dialogTitleInput.style.height = 'auto';
   dom.dialogTitleInput.style.height = dom.dialogTitleInput.scrollHeight + 'px';
 }
-export function updateDialogDue(task) {
+function updateDialogDue(task) {
   const editable = isEditable(task);
   const empty = !task.dueDate;
   dom.dialogDateBtn.textContent = empty ? (editable ? 'Add due date' : 'No due date') : task.getDueShort();
@@ -856,7 +919,7 @@ export function updateDialogDue(task) {
   dom.dialogDateBtn.setAttribute('aria-label', empty ? 'Due: no due date' : `Due: ${task.getDueShort()}`);
   dom.dialogDueClear.hidden = empty || !editable;
 }
-export function updateDialogStatus(task) {
+function updateDialogStatus(task) {
   const map = {
     not_started: { label: 'Not started', dot: 'dot-not-started', cls: 'is-not-started' },
     in_progress: { label: 'In progress', dot: 'dot-in-progress', cls: 'is-in-progress' },
@@ -870,7 +933,7 @@ export function updateDialogStatus(task) {
 }
 // --- Links in notes: made at render time, never stored. sanitizeDoc flattens <a> back to its text on save. ---
 const URL_RE = /https?:\/\/[^\s<>"']+/gi;
-export function unlinkify(root) {
+function unlinkify(root) {
   root.querySelectorAll('a').forEach((a) => a.replaceWith(document.createTextNode(a.textContent)));
   root.normalize();
 }
@@ -904,14 +967,14 @@ export function linkify(root) {
     if (frag) { frag.append(text.slice(last)); node.replaceWith(frag); }
   });
 }
-export function refreshLinks(root) { unlinkify(root); linkify(root); }
-export function getCloseBtn() {
-  if (state.dialogCloseBtn) return state.dialogCloseBtn;
-  state.dialogCloseBtn = document.createElement('button');
-  state.dialogCloseBtn.type = 'button';
-  state.dialogCloseBtn.className = dom.dialogDelete.className;
-  state.dialogCloseBtn.textContent = 'Close for class';
-  state.dialogCloseBtn.addEventListener('click', () => {
+function refreshLinks(root) { unlinkify(root); linkify(root); }
+function getCloseBtn() {
+  if (dialogCloseBtn) return dialogCloseBtn;
+  dialogCloseBtn = document.createElement('button');
+  dialogCloseBtn.type = 'button';
+  dialogCloseBtn.className = dom.dialogDelete.className;
+  dialogCloseBtn.textContent = 'Close for class';
+  dialogCloseBtn.addEventListener('click', () => {
     const task = state.currentTask;
     if (!task || !isEditable(task)) return;
     task.closedAt = Date.now();
@@ -920,11 +983,11 @@ export function getCloseBtn() {
     renderAllTasks();
     showToast('Moved to Past tasks', 'Undo', () => { task.closedAt = 0; saveTasks(); renderAllTasks(); });
   });
-  dom.dialogDelete.insertAdjacentElement('beforebegin', state.dialogCloseBtn);
-  return state.dialogCloseBtn;
+  dom.dialogDelete.insertAdjacentElement('beforebegin', dialogCloseBtn);
+  return dialogCloseBtn;
 }
 export function openTaskDialog(task) {
-  state.dialogReturn = { el: document.activeElement, id: task.id };
+  dialogReturn = { el: document.activeElement, id: task.id };
   state.currentTask = task;
   const ro = !isEditable(task);
   dom.dialog.classList.toggle('is-readonly', ro);
@@ -960,14 +1023,14 @@ export function closeTaskDialog() {
   }
   state.currentTask = null;
   closeStatusPopover();
-  hideAnimated(dom.dialogOverlay);
+  motion.hideOverlay(dom.dialogOverlay);
   dom.dialogOverlay.setAttribute('aria-hidden', 'true');
   dom.dialogSubjectDropdown.hidden = true;
   dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
   document.body.style.overflow = '';
   renderAllTasks();
-  const back = state.dialogReturn;
-  state.dialogReturn = null;
+  const back = dialogReturn;
+  dialogReturn = null;
   if (back) {
     // The page was just rebuilt: keep the same control if it survived, otherwise focus the task's
     // replacement title/status control. The old row fallback was not a tab stop, so focus fell to body.
@@ -975,7 +1038,7 @@ export function closeTaskDialog() {
     else if (!focusTaskControl(back.id)) focusFallbackControl();
   }
 }
-export function openDialogDuePicker(anchor, focus) {
+function openDialogDuePicker(anchor, focus) {
   if (!state.currentTask) return;
   openDuePicker({
     anchor,
@@ -993,7 +1056,7 @@ export function openDialogDuePicker(anchor, focus) {
     },
   });
 }
-export function fileToDataUrl(file) {
+function fileToDataUrl(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -1016,7 +1079,7 @@ export function fileToDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
-export function insertDocImage(src) {
+function insertDocImage(src) {
   const img = document.createElement('img');
   img.src = src;
   img.alt = '';
@@ -1036,7 +1099,7 @@ export function insertDocImage(src) {
   sel.removeAllRanges();
   sel.addRange(range);
 }
-export async function insertDocImages(files) {
+async function insertDocImages(files) {
   for (const file of files) {
     let src = null;
     try {
@@ -1051,7 +1114,7 @@ export async function insertDocImages(files) {
   }
   autosave();
 }
-export async function attachFiles(files) {
+async function attachFiles(files) {
   const task = state.currentTask;
   if (!task || !isEditable(task)) return;
   let added = 0;
@@ -1072,7 +1135,7 @@ export async function attachFiles(files) {
   }
   if (added) { flashSaved(); showToast(added === 1 ? 'File attached' : `${added} files attached`); }
 }
-export function renderDialogFiles(task) {
+function renderDialogFiles(task) {
   const editable = isEditable(task);
   dom.dialogFilesField.hidden = !editable && !task.files.length;
   dom.dialogAttachBtn.hidden = !editable;
@@ -1112,7 +1175,7 @@ export function renderDialogFiles(task) {
     dom.dialogFiles.append(li);
   });
 }
-export function rangeFromPoint(x, y) {
+function rangeFromPoint(x, y) {
   if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
   const pos = document.caretPositionFromPoint?.(x, y);
   if (!pos) return null;
@@ -1121,7 +1184,7 @@ export function rangeFromPoint(x, y) {
   r.collapse(true);
   return r;
 }
-export function syncNoteTools() {
+function syncNoteTools() {
   dom.noteTools.forEach((b) => {
     let on = false;
     try { on = document.activeElement === dom.dialogDoc && document.queryCommandState(b.dataset.cmd); } catch (e) {}
@@ -1130,7 +1193,7 @@ export function syncNoteTools() {
 }
 export const dropHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 // Saves the task being edited in the panel and confirms it.
-export function autosave() {
+function autosave() {
   if (!state.currentTask || !isEditable(state.currentTask)) return;
   state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
   saveTasks();
@@ -1138,7 +1201,7 @@ export function autosave() {
 }
 // Leaving Done needs an explicit yes. Returns true when the change may proceed.
 const isReopen = (task, status) => task.status === 'done' && status !== 'done';
-export function updateColumn(columnEl) {
+function updateColumn(columnEl) {
   const n = columnEl.querySelectorAll('.task-card').length;
   columnEl.querySelector('.column-count').textContent = `(${n})`;
   const contentEl = columnEl.querySelector('.column-content');
@@ -1155,25 +1218,25 @@ export function updateColumn(columnEl) {
 }
 // --- Drag & Drop ---
 
-export function handleDragStart(e) {
-  state.draggedCard = e.target.closest('.task-card');
-  if (!state.draggedCard) return;
-  state.draggedCard.classList.add('is-dragging');
+function handleDragStart(e) {
+  draggedCard = e.target.closest('.task-card');
+  if (!draggedCard) return;
+  draggedCard.classList.add('is-dragging');
   e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', state.draggedCard.dataset.taskId);
+  e.dataTransfer.setData('text/plain', draggedCard.dataset.taskId);
 }
-export function clearDropPlaceholder() {
+function clearDropPlaceholder() {
   document.querySelectorAll('.drop-placeholder').forEach((p) => p.remove());
 }
-export function handleDragEnd(e) {
+function handleDragEnd(e) {
   clearDropPlaceholder();
-  if (state.draggedCard) {
-    state.draggedCard.classList.remove('is-dragging');
-    state.draggedCard = null;
+  if (draggedCard) {
+    draggedCard.classList.remove('is-dragging');
+    draggedCard = null;
   }
   document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
 }
-export function handleDragOver(e) {
+function handleDragOver(e) {
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
   const columnEl = e.target.closest('.kanban-column');
@@ -1181,7 +1244,7 @@ export function handleDragOver(e) {
     document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
     columnEl.classList.add('drag-over');
     const content = columnEl.querySelector('.column-content');
-    const sameColumn = state.draggedCard && state.draggedCard.dataset.status === COLUMN_TO_STATUS[columnEl.dataset.status];
+    const sameColumn = draggedCard && draggedCard.dataset.status === COLUMN_TO_STATUS[columnEl.dataset.status];
     if (!sameColumn && !content.querySelector('.drop-placeholder')) {
       clearDropPlaceholder();
       const ph = document.createElement('div');
@@ -1192,12 +1255,12 @@ export function handleDragOver(e) {
     }
   }
 }
-export function handleDrop(e) {
+function handleDrop(e) {
   e.preventDefault();
   const columnEl = e.target.closest('.kanban-column');
-  if (!columnEl || !state.draggedCard) return;
+  if (!columnEl || !draggedCard) return;
 
-  const taskId = state.draggedCard.dataset.taskId;
+  const taskId = draggedCard.dataset.taskId;
   const task = findTask(taskId);
   if (!task) return;
 
@@ -1248,7 +1311,7 @@ function paintSubjectDropdown() {
     opt.setAttribute('aria-selected', String(opt.dataset.subject === cur));
   });
 }
-export function closeSubjectDropdown(refocus = false) {
+function closeSubjectDropdown(refocus = false) {
   if (!dom.dialogSubjectDropdown) return;
   dom.dialogSubjectDropdown.hidden = true;
   if (dom.dialogSubjectBtn) dom.dialogSubjectBtn.setAttribute('aria-expanded', 'false');
@@ -1256,7 +1319,7 @@ export function closeSubjectDropdown(refocus = false) {
     dom.dialogSubjectBtn.focus();
   }
 }
-export function openSubjectDropdown() {
+function openSubjectDropdown() {
   if (!dom.dialogSubjectDropdown || !dom.dialogSubjectBtn || dom.dialogSubjectBtn.disabled) return;
   closeStatusPopover();
   const opts = [...dom.dialogSubjectDropdown.children];
@@ -1291,7 +1354,7 @@ export function refreshSubjectChoices() {
   });
   paintSubjectDropdown();
 }
-export function ensureStatusPopover() {
+function ensureStatusPopover() {
   if (state.statusPopoverEl) return state.statusPopoverEl;
   const el = document.createElement('div');
   el.className = 'status-dropdown status-popover';
@@ -1306,8 +1369,8 @@ export function ensureStatusPopover() {
     opt.dataset.status = status;
     opt.innerHTML = `<span class="status-dot dot-${status.replace(/_/g, '-')}"></span> ${STATUS_LABELS[status]}`;
     opt.addEventListener('click', () => {
-      if (!state.statusPopoverTask) return;
-      const picked = state.statusPopoverTask;
+      if (!statusPopoverTask) return;
+      const picked = statusPopoverTask;
       const next = opt.dataset.status;
       const pickedFrom = statusPopoverAnchor;
       if (isReopen(picked, next)) {
@@ -1347,9 +1410,9 @@ export function ensureStatusPopover() {
 // The control that opened the popover. Kept here so closing can reset aria-expanded and hand focus back.
 let statusPopoverAnchor = null;
 function paintStatusPopover() {
-  const task = state.statusPopoverTask;
+  const task = statusPopoverTask;
   [...state.statusPopoverEl.children].forEach((opt, i) => {
-    opt.classList.toggle('is-active', i === state.statusPopoverIndex);
+    opt.classList.toggle('is-active', i === statusPopoverIndex);
     opt.setAttribute('aria-selected', String(!!task && opt.dataset.status === task.status));
   });
 }
@@ -1363,19 +1426,19 @@ function focusStatusTrigger(task, anchor) {
     if (select) select.focus({ preventScroll: true });
   }
 }
-export function closeStatusPopover(refocus = false) {
+function closeStatusPopover(refocus = false) {
   if (!state.statusPopoverEl) return;
   const anchor = statusPopoverAnchor;
   state.statusPopoverEl.hidden = true;
-  state.statusPopoverTask = null;
+  statusPopoverTask = null;
   statusPopoverAnchor = null;
   if (anchor) anchor.setAttribute('aria-expanded', 'false');
   if (refocus && anchor && anchor.isConnected) anchor.focus();
 }
-export function openStatusPopover(task, anchorEl) {
+function openStatusPopover(task, anchorEl) {
   const el = ensureStatusPopover();
-  state.statusPopoverTask = task;
-  state.statusPopoverIndex = STATUS_ORDER.indexOf(task.status);
+  statusPopoverTask = task;
+  statusPopoverIndex = STATUS_ORDER.indexOf(task.status);
   statusPopoverAnchor = anchorEl;
   anchorEl.setAttribute('aria-haspopup', 'listbox');
   anchorEl.setAttribute('aria-expanded', 'true');
@@ -1386,9 +1449,9 @@ export function openStatusPopover(task, anchorEl) {
   el.style.top = `${top}px`;
   el.style.left = `${left}px`;
   // Real focus moves into the list, so a screen reader announces the option and its selected state.
-  el.children[state.statusPopoverIndex].focus();
+  el.children[statusPopoverIndex].focus();
 }
-export function createStatusCheck(task) {
+function createStatusCheck(task) {
   const check = document.createElement('button');
   check.type = 'button';
   check.className = `status-check is-${task.status.replace(/_/g, '-')}` + '';
@@ -1400,12 +1463,12 @@ export function createStatusCheck(task) {
     : task.status === 'in_progress' ? '<svg class="i" aria-hidden="true"><use href="#i-minus"/></svg>' : '';
   check.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (state.statusPopoverTask === task && state.statusPopoverEl && !state.statusPopoverEl.hidden) { closeStatusPopover(); return; }
+    if (statusPopoverTask === task && state.statusPopoverEl && !state.statusPopoverEl.hidden) { closeStatusPopover(); return; }
     openStatusPopover(task, check);
   });
   return check;
 }
-export function updateDialogSubject(task) {
+function updateDialogSubject(task) {
   dom.dialogSubjectBtn.innerHTML = '';
   dom.dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
   if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
@@ -1416,7 +1479,7 @@ export function updateDialogSubject(task) {
   closeSubjectDropdown(false);
   paintSubjectDropdown();
 }
-export function selectSubject(code, refocus = false) {
+function selectSubject(code, refocus = false) {
   if (!state.currentTask) return;
   state.currentTask.subject = code;
   updateDialogSubject(state.currentTask);
@@ -1435,17 +1498,15 @@ export function init(deps) {
   clampPopoverPosition = deps.clampPopoverPosition;
   myTasks = deps.myTasks;
   isEditable = deps.isEditable;
-  hideAnimated = deps.hideAnimated;
   createSubjectTag = deps.createSubjectTag;
   startNewTask = deps.startNewTask;
   TTFiles = deps.TTFiles;
   openDuePicker = deps.openDuePicker;
   calendar = deps.calendar;
   publish = deps.publish;
-  recovery = deps.recovery;
 // Don't dismiss the toast while someone is tabbing to its Undo button
-dom.toastEl.addEventListener('focusin', () => clearTimeout(state.toastTimer));
-dom.toastEl.addEventListener('focusout', () => { clearTimeout(state.toastTimer); state.toastTimer = setTimeout(hideToast, 3000); });
+dom.toastEl.addEventListener('focusin', () => clearTimeout(toastTimer));
+dom.toastEl.addEventListener('focusout', () => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 3000); });
 dom.dialogFileInput.accept = TTFiles.ACCEPT;
 dom.dialogAttachBtn.addEventListener('click', () => dom.dialogFileInput.click());
 dom.dialogFileInput.addEventListener('change', () => {
@@ -1482,8 +1543,8 @@ dom.dialogDueClear.addEventListener('click', (e) => {
 });
 dom.dialogDoc.addEventListener('input', () => {
   if (/^(<div>)?<br>(<\/div>)?$/.test(dom.dialogDoc.innerHTML)) dom.dialogDoc.innerHTML = '';
-  clearTimeout(state.docTimer);
-  state.docTimer = setTimeout(autosave, 500);
+  clearTimeout(docTimer);
+  docTimer = setTimeout(autosave, 500);
 });
 
 dom.dialogDoc.addEventListener('paste', (e) => {
@@ -1553,7 +1614,7 @@ dom.dialogDelete.addEventListener('click', () => {
   if (!state.currentTask) return;
   const task = state.currentTask;
   closeStatusPopover();
-  hideAnimated(dom.dialogOverlay);
+  motion.hideOverlay(dom.dialogOverlay);
   document.body.style.overflow = '';
   const idx = myTasks.indexOf(task);
   if (idx !== -1) deleteTask(task); else closeTaskDialog();
@@ -1581,12 +1642,12 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { closeStatusPopover(true); return; }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
-    state.statusPopoverIndex = (state.statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
+    statusPopoverIndex = (statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
     paintStatusPopover();
-    state.statusPopoverEl.children[state.statusPopoverIndex].focus();
+    state.statusPopoverEl.children[statusPopoverIndex].focus();
   }
   // A focused option activates itself on Enter; only click from here when focus is elsewhere.
-  if (e.key === 'Enter' && !state.statusPopoverEl.contains(document.activeElement)) { state.statusPopoverEl.children[state.statusPopoverIndex].click(); }
+  if (e.key === 'Enter' && !state.statusPopoverEl.contains(document.activeElement)) { state.statusPopoverEl.children[statusPopoverIndex].click(); }
 });
 refreshSubjectChoices();
 // Lives on <body> (same as the status menu) so the dialog's scroll area can't clip it
