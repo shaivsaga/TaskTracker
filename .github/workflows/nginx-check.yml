@@ -36,3 +36,43 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq nginx
       - name: nginx -t
         run: bash deploy/check-nginx.sh
+      - name: Live nginx container execution test
+        run: |
+          TMP_ROOT=$(mktemp -d)
+          TMP_SEC=$(mktemp -d)
+          TMP_CONF=$(mktemp -d)
+          trap 'docker rm -f tt-nginx-ci >/dev/null 2>&1 || true; rm -rf "$TMP_ROOT" "$TMP_SEC" "$TMP_CONF"' EXIT
+
+          cp -a . "$TMP_ROOT/wwwroot"
+          mkdir -p "$TMP_ROOT/wwwroot/data" "$TMP_ROOT/wwwroot/tests/php"
+          echo '{"publishedAt":1700000000,"tasks":[],"announcements":[]}' > "$TMP_ROOT/wwwroot/data/current.json"
+          touch "$TMP_ROOT/wwwroot/tests/php/run.php"
+          printf 'admin:$apr1$testtest$abcdefghijklmnopqrstuv\n' > "$TMP_SEC/htpasswd"
+
+          cat > "$TMP_CONF/nginx.conf" <<'EOF'
+          pid /tmp/nginx.pid;
+          events {}
+          http {
+            access_log off;
+            gzip on;
+            include /etc/nginx/mime.types;
+            include /etc/nginx/conf.d/nginx-default.conf;
+          }
+          EOF
+
+          docker run -d --name tt-nginx-ci \
+            -p 127.0.0.1:8080:8080 \
+            -v "$TMP_CONF/nginx.conf:/etc/nginx/nginx.conf:ro" \
+            -v "$PWD/deploy/nginx-default.conf:/etc/nginx/conf.d/nginx-default.conf:ro" \
+            -v "$TMP_ROOT/wwwroot:/home/site/wwwroot:ro" \
+            -v "$TMP_SEC/htpasswd:/home/site/secure/htpasswd:ro" \
+            nginx:alpine
+
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null 2>&1; then break; fi
+            sleep 0.5
+          done
+
+          node deploy/verify-hardening.mjs http://127.0.0.1:8080
+          JS_CC=$(curl -sI http://127.0.0.1:8080/js/tasks.js | awk -F': ' 'tolower($1)=="cache-control"{print $2}' | tr -d '\r')
+          test "$JS_CC" = "no-cache"
