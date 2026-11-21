@@ -451,6 +451,7 @@ function orderClassTasks(list) {
   const sorted = sortTasks(list);
   return sorted.slice().sort((a, b) => classUrgencyBucket(a) - classUrgencyBucket(b));
 }
+const CLASS_BUCKET_LABELS = ['Due today & tomorrow', 'Overdue this week', 'Upcoming', 'Done'];
 export function renderClassTasks() {
   const board = document.querySelector('#class-board');
   board.querySelectorAll('.column-content').forEach((c) => {
@@ -461,14 +462,30 @@ export function renderClassTasks() {
   syncClassSubjectOptions(all);
   document.querySelector('#class-status-filter').value = state.classStatusFilter;
   const searched = orderClassTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
+  const boardTasks = state.classSubjectFilter ? searched.filter((t) => t.subject === state.classSubjectFilter) : searched;
   const visible = searched.filter(matchesClassFilters);
-  searched.forEach((task) => {
+  boardTasks.forEach((task) => {
     const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
     if (col) col.appendChild(createTaskCard(task));
   });
   board.querySelectorAll('.kanban-column').forEach(updateColumn);
 
-  dom.classListEl.replaceChildren(...visible.map(createTaskRow));
+  const buckets = new Set(visible.map(classUrgencyBucket));
+  const nodes = [];
+  let lastBucket = -1;
+  visible.forEach((task) => {
+    const b = classUrgencyBucket(task);
+    if (buckets.size > 1 && b !== lastBucket) {
+      const h = document.createElement('div');
+      h.className = 'list-bucket';
+      h.setAttribute('role', 'presentation');
+      h.textContent = CLASS_BUCKET_LABELS[b] || '';
+      nodes.push(h);
+      lastBucket = b;
+    }
+    nodes.push(createTaskRow(task));
+  });
+  dom.classListEl.replaceChildren(...nodes);
   if (!visible.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
@@ -589,7 +606,7 @@ export function restoreProgress(taskId, prev) {
   }
 }
 // The app's inline destructive confirm: the first press arms the button for 4s, the second runs it.
-function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
+export function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
   let timer = null;
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -638,7 +655,11 @@ export function renderDonePage() {
     row.className = 'task-row done-row' + (task.movedAt && Date.now() - task.movedAt < 8000 ? ' is-landed' : '');
     row.dataset.taskId = task.id;
     row.setAttribute('role', 'listitem');
-    const dot = createStatusCheck(task);
+    // Done rows reopen through the single "Mark not done" action so the row has one consistent confirm flow.
+    const dot = document.createElement('span');
+    dot.className = 'status-check is-done is-static';
+    dot.setAttribute('aria-hidden', 'true');
+    dot.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>';
     const title = document.createElement('button');
     title.type = 'button';
     title.className = 'task-row-title is-done';
@@ -829,9 +850,8 @@ export function updateDialogDue(task) {
   const editable = isEditable(task);
   const empty = !task.dueDate;
   dom.dialogDateBtn.textContent = empty ? (editable ? 'Add due date' : 'No due date') : task.getDueShort();
-  const quiet = task.status === 'done' || task.isPast();
-  dom.dialogDueHint.textContent = quiet ? '' : task.getDueHint();
-  dom.dialogDueHint.classList.toggle('is-overdue', !quiet && task.isOverdue());
+  dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
+  dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
   dom.dialogDateBtn.classList.toggle('empty-value', empty);
   dom.dialogDateBtn.setAttribute('aria-label', empty ? 'Due: no due date' : `Due: ${task.getDueShort()}`);
   dom.dialogDueClear.hidden = empty || !editable;
@@ -908,6 +928,7 @@ export function openTaskDialog(task) {
   state.currentTask = task;
   const ro = !isEditable(task);
   dom.dialog.classList.toggle('is-readonly', ro);
+  dom.dialog.setAttribute('aria-label', task.title && task.title !== 'New Task' ? task.title : 'Task details');
   dom.dialogTitleInput.readOnly = ro;
   dom.dialogTitleInput.setAttribute('tabindex', ro ? '-1' : '0');
   dom.dialogDoc.contentEditable = ro ? 'false' : 'true';

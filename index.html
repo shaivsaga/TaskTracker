@@ -118,8 +118,8 @@
                   </select>
                 </div>
                 <div class="view-tabs" role="group" aria-label="View">
-                  <button type="button" class="view-tab is-active" data-view="board" aria-pressed="true">Board</button>
-                  <button type="button" class="view-tab" data-view="list" aria-pressed="false">List</button>
+                  <button type="button" class="view-tab" data-view="board" aria-pressed="false">Board</button>
+                  <button type="button" class="view-tab is-active" data-view="list" aria-pressed="true">List</button>
                 </div>
               </div>
             </div>
@@ -128,6 +128,13 @@
               <span>Previewing as a student. Showing your unpublished draft.</span>
               <button class="text-button" type="button" id="preview-exit">Exit preview</button>
             </div>
+            <div class="preview-banner tour-cue" id="tour-cue" hidden>
+              <span>New here? Your progress stays private on this device.</span>
+              <span class="tour-cue-actions">
+                <button class="text-button" type="button" id="tour-cue-start">Take a quick tour</button>
+                <button class="text-button" type="button" id="tour-cue-dismiss">Dismiss</button>
+              </span>
+            </div>
             <section class="announcements" id="announce-public" aria-label="Pinned announcements">
               <div class="announce-header">
                 <h2><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg> Pinned</h2>
@@ -135,8 +142,8 @@
               </div>
               <ul class="announce-list" id="announce-list-public"></ul>
             </section>
-            <div class="task-list" id="class-task-list" role="list" aria-label="Class task list" hidden></div>
-            <div class="kanban-board" id="class-board" aria-label="Class task board">
+            <div class="task-list" id="class-task-list" role="list" aria-label="Class task list"></div>
+            <div class="kanban-board" id="class-board" aria-label="Class task board" hidden>
               <div class="kanban-column" data-status="todo">
                 <div class="column-header">
                   <div><h2>To Do</h2><span class="column-count">(0)</span></div>
@@ -396,7 +403,6 @@
           </div>
         </div>
       </div>
-    </div>
 
     <div class="task-dialog-overlay" id="publish-overlay" hidden>
       <form class="task-dialog" id="publish-form" role="dialog" aria-modal="true" aria-labelledby="publish-title">

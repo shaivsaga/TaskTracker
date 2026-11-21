@@ -43,16 +43,27 @@ const TOUR_STEPS = [
   { title: 'Search', body: 'Search by title, subject code or words inside the notes.',
     target: () => tourVisible($('#page-class-tasks .search')) },
   { title: 'List or board', body: 'Switch between a simple list and a three-column board. The app remembers your choice.',
-    phoneBody: 'On a phone, tasks stay in one simple list. On a bigger screen you can switch to a three-column board.',
+    desktopOnly: true,
     target: () => tourVisible($('#page-class-tasks .view-tabs')) },
   { title: 'You are set', body: 'Your progress is saved in this browser only. Calendar, Done and Past are in the navigation bar. You can replay this tour from Settings.' },
 ];
 
 export function tourSeen() { try { return localStorage.getItem(TOUR_KEY) === '1'; } catch (e) { return true; } }
-const tourTarget = () => { const s = TOUR_STEPS[state.tourIndex]; return s && s.target ? s.target() : null; };
-// A step may carry its own phone copy; phones get a single list and no Board/List switch.
+// Phones have no Board/List switch, so omit desktop-only steps rather than showing an untargeted card.
 const tourIsPhone = () => window.matchMedia('(max-width: 719px)').matches;
+const activeSteps = () => TOUR_STEPS.filter((s) => !(s.desktopOnly && tourIsPhone()));
+const tourTarget = () => { const s = activeSteps()[state.tourIndex]; return s && s.target ? s.target() : null; };
 const tourBody = (step) => (step.phoneBody && tourIsPhone() ? step.phoneBody : step.body);
+
+function hideTourCue() {
+  const cue = $('#tour-cue');
+  if (cue) cue.hidden = true;
+}
+
+export function showTourCue() {
+  const cue = $('#tour-cue');
+  if (cue) cue.hidden = false;
+}
 
 function renderTourSample() {
   const s = state.tourSampleStatus;
@@ -156,15 +167,17 @@ function placeTour(el) {
 }
 
 function showTourStep(i) {
-  state.tourIndex = i;
-  const step = TOUR_STEPS[i];
-  const last = i === TOUR_STEPS.length - 1;
-  $('#tour-step').textContent = `Step ${i + 1} of ${TOUR_STEPS.length}`;
+  const steps = activeSteps();
+  const idx = Math.max(0, Math.min(i, steps.length - 1));
+  state.tourIndex = idx;
+  const step = steps[idx];
+  const last = idx === steps.length - 1;
+  $('#tour-step').textContent = `Step ${idx + 1} of ${steps.length}`;
   $('#tour-title').textContent = step.title;
   $('#tour-body').textContent = tourBody(step);
   dom.tourSample.hidden = !step.sample;
   if (step.sample) { state.tourSampleStatus = 'not_started'; renderTourSample(); }
-  $('#tour-back').hidden = i === 0;
+  $('#tour-back').hidden = idx === 0;
   $('#tour-skip').hidden = last;
   $('#tour-next').textContent = last ? 'Done' : 'Next';
   const el = tourTarget();
@@ -175,6 +188,7 @@ function showTourStep(i) {
 
 export function startTour() {
   if (!dom.tourOverlay.hidden) return;
+  hideTourCue();
   if (state.previewing) setPreview(false);
   setPage('class-tasks');
   dom.tourOverlay._returnFocus = document.activeElement;
@@ -209,10 +223,15 @@ export function init(deps) {
   hideAnimated = deps.hideAnimated;
   closeSettings = deps.closeSettings;
 $('#tour-next').addEventListener('click', () => {
-  if (state.tourIndex >= TOUR_STEPS.length - 1) endTour(); else showTourStep(state.tourIndex + 1);
+  if (state.tourIndex >= activeSteps().length - 1) endTour(); else showTourStep(state.tourIndex + 1);
 });
 $('#tour-back').addEventListener('click', () => { if (state.tourIndex > 0) showTourStep(state.tourIndex - 1); });
 $('#tour-skip').addEventListener('click', endTour);
+$('#tour-cue-start')?.addEventListener('click', () => startTour());
+$('#tour-cue-dismiss')?.addEventListener('click', () => {
+  try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) {}
+  hideTourCue();
+});
 $('#settings-replay').addEventListener('click', () => { closeSettings(); startTour(); });
 window.addEventListener('resize', () => { if (state.tourIndex >= 0) placeTour(tourTarget()); });
 document.addEventListener('keydown', (e) => {

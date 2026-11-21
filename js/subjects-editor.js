@@ -49,7 +49,8 @@ export function init(d) {
   dom.subjectList.addEventListener('input', onListInput);
   dom.subjectList.addEventListener('keydown', onListKeydown);
   dom.presetApply.addEventListener('click', applySelectedPreset);
-  dom.presetDelete.addEventListener('click', deleteSelectedPreset);
+  if (d.armInlineConfirm) d.armInlineConfirm(dom.presetDelete, 'Delete', 'Confirm deleting this preset', deleteSelectedPreset);
+  else dom.presetDelete.addEventListener('click', deleteSelectedPreset);
   dom.presetSave.addEventListener('click', savePreset);
 }
 
@@ -289,7 +290,7 @@ export function render() {
 
     li.appendChild(head);
     if (pendingNew.error) {
-      const errP = el('p', 'history-detail', pendingNew.error);
+      const errP = el('p', 'form-error', pendingNew.error);
       errP.setAttribute('role', 'alert');
       li.appendChild(errP);
     }
@@ -297,7 +298,7 @@ export function render() {
   }
 
   for (const s of state.draftSubjects) {
-    const li = el('li', 'history-item');
+    const li = el('li', 'history-item subject-row');
     const head = el('div', 'history-head');
     head.appendChild(el('span', 'history-label', s.code));
 
@@ -356,12 +357,9 @@ export function render() {
     swatches.setAttribute('role', 'group');
     swatches.setAttribute('aria-label', `Palette for ${s.code}`);
     for (const color of PALETTE) {
-      const b = el('button', 'text-button', '');
+      const b = el('button', 'subject-swatch', '');
       b.type = 'button';
-      b.style.width = '24px';
-      b.style.height = '24px';
       b.style.background = color;
-      b.style.border = '2px solid var(--mu)';
       b.dataset.act = 'swatch';
       b.dataset.code = s.code;
       b.dataset.color = color;
@@ -390,7 +388,7 @@ export function render() {
     li.appendChild(head);
     const err = rowError.get(s.code);
     if (err) {
-      const p = el('p', 'history-detail', err);
+      const p = el('p', 'form-error', err);
       p.setAttribute('role', 'alert');
       li.appendChild(p);
     }

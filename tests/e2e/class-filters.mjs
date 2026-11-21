@@ -106,7 +106,7 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
     'rows ' + r.rows + ' board ' + r.board + ' subject options ' + r.subjectOptions);
   await setValue(cdp, sleep, 'class-subject-filter', 'GENSCI', 'change');
   r = await read(cdp);
-  check('class subject filter', r.rows === 3 && r.board === 20 && r.subjectOptions === 11,
+  check('class subject filter', r.rows === 3 && r.board === 3 && r.subjectOptions === 11,
     'rows ' + r.rows + ' board ' + r.board + ' subject options ' + r.subjectOptions);
   await setValue(cdp, sleep, 'class-status-filter', 'done', 'change');
   r = await read(cdp);
@@ -130,19 +130,22 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
   check('class filters reset on reload', reloaded && r.subject === '' && r.status === '' && r.search === '' && r.progress === beforeReload,
     'rows ' + r.rows + ' subject "' + r.subject + '" status "' + r.status + '" progress unchanged ' + (r.progress === beforeReload));
 
-  // Desktop Board hides and ignores the selects; search still filters it, and List keeps the values.
+  // Desktop Board hides only the Status select; Subject and search filter both views, and List keeps both values.
   await boot(cdp, 1280, { storage: { class_tasks_view_class: 'board', class_tasks_progress: done } });
   r = await read(cdp);
-  check('class board hides filters', r.filtersDisplay === 'none' && r.boardVisible && !r.listVisible,
-    'filters ' + r.filtersDisplay + ' board ' + r.boardVisible + ' list ' + r.listVisible);
+  const statusHiddenOnBoard = await cdp.evaluate(`getComputedStyle(document.getElementById('class-status-filter')).display === 'none'`);
+  check('class board hides status filter only', r.filtersDisplay !== 'none' && statusHiddenOnBoard && r.boardVisible && !r.listVisible,
+    'filters ' + r.filtersDisplay + ' statusHidden ' + statusHiddenOnBoard + ' board ' + r.boardVisible + ' list ' + r.listVisible);
   await setValue(cdp, sleep, 'class-subject-filter', 'GENSCI', 'change');
   await setValue(cdp, sleep, 'class-status-filter', 'not_started', 'change');
   r = await read(cdp);
-  check('class board ignores filters', r.board === 20, 'board ' + r.board + ' subject "' + r.subject + '" status "' + r.status + '"');
+  check('class board applies subject filter and ignores status', r.board === 3, 'board ' + r.board + ' subject "' + r.subject + '" status "' + r.status + '"');
+  await setValue(cdp, sleep, 'class-subject-filter', '', 'change');
   await setValue(cdp, sleep, 'class-task-search', 'statistical', 'input');
   r = await read(cdp);
   check('class board still searches', r.board === 1, 'board cards ' + r.board + ' for "statistical"');
   await setValue(cdp, sleep, 'class-task-search', '', 'input');
+  await setValue(cdp, sleep, 'class-subject-filter', 'GENSCI', 'change');
   await click(cdp, '#page-class-tasks .view-tab[data-view="list"]');
   await tick(sleep);
   r = await read(cdp);

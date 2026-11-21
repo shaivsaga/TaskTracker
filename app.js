@@ -307,8 +307,9 @@ async function loadPublished() {
 // list or board changes (status taps, search, publish) and once a minute for the clock.
 const mineEl = document.querySelector('#mine');
 function mineDue(t) {
-  if (!t.dueDate) return null;
-  const d = t.dueDate instanceof Date ? new Date(t.dueDate) : new Date(String(t.dueDate).length <= 10 ? `${t.dueDate}T00:00` : t.dueDate);
+  const raw = typeof t.getDeadline === 'function' ? t.getDeadline() : t.dueDate;
+  if (!raw) return null;
+  const d = raw instanceof Date ? new Date(raw) : new Date(String(raw).length <= 10 ? `${raw}T00:00` : raw);
   if (Number.isNaN(d.getTime())) return null;
   const m = /^(\d{1,2}):(\d{2})/.exec(t.dueTime || '');
   d.setHours(m ? +m[1] : 23, m ? +m[2] : 59, 0, 0);
@@ -323,7 +324,7 @@ function mineWhen(t, d) {
 let lastMineSig = '';
 function renderMine() {
   if (!mineEl) return;
-  const all = state.publishedTasks || [];
+  const all = (state.previewing ? myTasks : state.publishedTasks) || [];
   const now = Date.now();
   const unfinished = all.filter((t) => t.status !== 'done' && !t.closedAt).map((t) => ({ t, d: mineDue(t) }));
   const open = unfinished.filter((x) => !x.d || now - x.d.getTime() <= 7 * 864e5);   // 7+ days overdue lives in Past
@@ -340,7 +341,7 @@ function renderMine() {
       : next.d.getTime() >= now ? `Next: ${next.t.title} · ${mineWhen(next.t, next.d)}` : `${next.t.title} was due ${mineWhen(next.t, next.d)}`;
     nextText = olderOverdue > 0 ? `${base} · ${olderOverdue} older in Past` : base;
   }
-  const sig = `${!all.length ? 1 : 0}|${open.length}|${labelText}|${nextText}`;
+  const sig = `${state.previewing ? 1 : 0}|${!all.length ? 1 : 0}|${open.length}|${labelText}|${nextText}`;
   if (sig === lastMineSig) return;
   lastMineSig = sig;
   mineEl.hidden = !all.length;
@@ -550,14 +551,22 @@ announcements.init({
   lookup, linkify: tasks.linkify, dropHasFiles: tasks.dropHasFiles, showToast: tasks.showToast, saveTasks: tasks.saveTasks, updateAdminBar: publish.updateAdminBar, diffDraft: publish.diffDraft,
 });
 
-// --- Keyboard shortcuts: N = new task, / = search ---
+// --- Keyboard shortcuts: N = new task (admin), / = search ---
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target;
   if (t instanceof Element && t.closest('input, textarea, select, [contenteditable]')) return;
-  if (!state.isAdmin || !dom.dialogOverlay.hidden || !dom.quickOverlay.hidden || !dom.tourOverlay.hidden) return;
+  if (!dom.dialogOverlay.hidden || !dom.quickOverlay.hidden || !dom.tourOverlay.hidden) return;
+  if (e.key === '/') {
+    e.preventDefault();
+    const onAdmin = state.isAdmin && !document.querySelector('#page-my-tasks').hidden;
+    if (onAdmin) { document.querySelector('#task-search').focus(); return; }
+    nav.setPage('class-tasks');
+    document.querySelector('#class-task-search').focus();
+    return;
+  }
+  if (!state.isAdmin) return;
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); quickAdd.openQuickAdd(); }
-  if (e.key === '/') { e.preventDefault(); nav.setPage('my-tasks'); document.querySelector('#task-search').focus(); }
 });
 
 // --- Due date picker (shared by task dialog and quick add) ---
@@ -850,6 +859,7 @@ publish.init({
     },
   },
   adoptInlineImages: noteImages.adoptInlineImages, rewriteNotes: noteImages.rewriteNotes, files: window.TTFiles,
+  armInlineConfirm: tasks.armInlineConfirm,
 });
 
 // Duplicate (task dialog)
@@ -949,23 +959,7 @@ function init() {
 
   nav.setPage(pageFromHash(window.location.hash, nav.NAV_PAGES, state.isAdmin), false);
   if (INCOMING_TRANSFER) transfer.checkIncomingTransfer(INCOMING_TRANSFER);
-  else if (!tour.tourSeen()) {
-    // First visit: let the board answer "what is due" before anything covers it. The tour opens
-    // once the visitor scrolls past the third row or opens a task, with a 25s fallback so it is
-    // not lost. Settings > Replay tour still opens it on demand.
-    let fallback = 0;
-    const onScroll = () => { if (window.scrollY > 320) start(); };
-    const onClick = (e) => { if (e.target instanceof Element && e.target.closest('.task-row, .task-card')) start(); };
-    const start = () => {
-      window.removeEventListener('scroll', onScroll, true);
-      document.removeEventListener('click', onClick, true);
-      clearTimeout(fallback);
-      tour.startTour();
-    };
-    window.addEventListener('scroll', onScroll, true);
-    document.addEventListener('click', onClick, true);
-    fallback = setTimeout(start, 25000);
-  }
+  else if (!tour.tourSeen()) tour.showTourCue();
 
   // Time-based overdue: re-render each minute unless something is open
   setInterval(() => {
@@ -1008,6 +1002,7 @@ async function start() {
       title: 'Apply subject preset?', message, okLabel: 'Apply preset',
       onConfirm: () => resolve(true), onCancel: () => resolve(false),
     })),
+    armInlineConfirm: tasks.armInlineConfirm,
   });
   window.addEventListener('hashchange', loadAdminPanels);
   if (state.isAdmin) setTimeout(loadAdminPanels, 0);
