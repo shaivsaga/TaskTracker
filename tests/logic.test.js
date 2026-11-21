@@ -271,3 +271,19 @@ test('Task endDate serializes, validates ordering, and formats range with arrow'
     assert.equal(open().isOverdue(), true);
   });
 });
+
+test('getPastLabel shows the due date (or Closed when undated)', () => {
+  withFrozenNow('2026-11-21T12:00:00', () => {
+    const dated = new Task({ title: 'Essay', dueDate: new Date(2026, 10, 11) });
+    assert.equal(dated.getPastLabel(), 'Nov 11');
+
+    const closedDated = new Task({ title: 'Quiz', dueDate: new Date(2026, 10, 11), closedAt: Date.now() });
+    assert.equal(closedDated.getPastLabel(), 'Nov 11');
+
+    const ranged = new Task({ title: 'Lab', dueDate: new Date(2026, 10, 19), endDate: new Date(2026, 11, 3) });
+    assert.equal(ranged.getPastLabel(), 'Nov 19 – Dec 3');
+
+    const undatedClosed = new Task({ title: 'Someday task', closedAt: Date.now() });
+    assert.equal(undatedClosed.getPastLabel(), 'Closed');
+  });
+});
