@@ -207,7 +207,7 @@ The PHP suite runs with `php tests/php/run.php` (with XAMPP, `C:\xampp\php\php.e
 - [x] File uploads for PDFs and images on tasks
 - [x] Automated tests for the core logic
 - [ ] Soon: optional personal to-do list, kept on the device
-- [ ] A written, repeatable backup of the board and uploads
+- [x] A written, repeatable backup of the board and uploads ([docs/backup-restore.md](docs/backup-restore.md), [deploy/backup.sh](deploy/backup.sh))
 - [ ] Optimizing board: move big note bodies out of the board file (future)
 - [ ] Second section support: plan first, build later — see [`docs/multi-section-plan.md`](docs/multi-section-plan.md)
 - [ ] Longer term: reminders and insights, designed with privacy first
