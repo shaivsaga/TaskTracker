@@ -829,8 +829,9 @@ export function updateDialogDue(task) {
   const editable = isEditable(task);
   const empty = !task.dueDate;
   dom.dialogDateBtn.textContent = empty ? (editable ? 'Add due date' : 'No due date') : task.getDueShort();
-  dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
-  dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
+  const quiet = task.status === 'done' || task.isPast();
+  dom.dialogDueHint.textContent = quiet ? '' : task.getDueHint();
+  dom.dialogDueHint.classList.toggle('is-overdue', !quiet && task.isOverdue());
   dom.dialogDateBtn.classList.toggle('empty-value', empty);
   dom.dialogDateBtn.setAttribute('aria-label', empty ? 'Due: no due date' : `Due: ${task.getDueShort()}`);
   dom.dialogDueClear.hidden = empty || !editable;

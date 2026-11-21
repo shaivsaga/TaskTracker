@@ -147,7 +147,7 @@ class Task {
 
   isPast() { return this.closedAt > 0 || this.isExpired(); }
 
-  getPastLabel() { return this.closedAt > 0 ? 'Closed' : 'Expired'; }
+  getPastLabel() { return this.dueDate ? this.getRangeLabel() : 'Closed'; }
 
   getDueShort() {
     if (!this.dueDate) return 'Someday';
