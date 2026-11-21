@@ -111,7 +111,8 @@ const ANNOUNCE_MAX = 280;
 
 function updateAnnounceCount() {
   const left = ANNOUNCE_MAX - cleanAnnounce(dom.announceInput).text.length;
-  dom.announceCount.textContent = (left < 0 ? `${-left} over` : `${left} left`) + ' · Ctrl+Enter to pin';
+  const touch = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches;
+  dom.announceCount.textContent = (left < 0 ? `${-left} over` : `${left} left`) + (touch ? '' : ' · Ctrl+Enter to pin');
   dom.announceCount.classList.toggle('is-low', left <= 20);
 }
 // Rich announcements: a separate whitelist from sanitizeDoc. Stored as b, i, ul, li, br only.

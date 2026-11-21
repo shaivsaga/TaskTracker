@@ -53,6 +53,7 @@ import { openOverlay } from './motion.js';
 let $ = null;                   // app.js: its querySelector shorthand
 let myTasks = null;             // app.js: the live draft array, mutated in place by restoreDraft
 let showToast = null;           // app.js: every message, the 'Undo' label and its action
+let armInlineConfirm = null;    // js/tasks.js: shared 4s inline destructive confirm
 let hideAnimated = null;        // app.js: the publish and history overlays close animated
 let saveTasks = null;           // app.js: persists progress and the draft after a restore
 let renderAllTasks = null;      // app.js: re-renders the board after a preview, restore or publish
@@ -265,7 +266,7 @@ function renderHistory() {
     del.type = 'button';
     del.className = 'text-button';
     del.textContent = 'Delete';
-    del.addEventListener('click', async () => {
+    const runDelete = async () => {
       if (it.kind === 'Checkpoint') {
         writeJSON(KEYS.checkpoints, readJSON(KEYS.checkpoints, []).filter((c) => c.at !== it.at));
       } else {
@@ -276,7 +277,9 @@ function renderHistory() {
         } catch (ex) { showToast('Could not delete that version'); return; }
       }
       renderHistory();
-    });
+    };
+    if (armInlineConfirm) armInlineConfirm(del, 'Delete', 'Confirm deleting this version', runDelete);
+    else del.addEventListener('click', runDelete);
     head.append(label, count, preview, restore, del);
     li.append(head, detail);
     list.appendChild(li);
@@ -320,6 +323,7 @@ export function init(deps) {
   adoptInlineImages = deps.adoptInlineImages;
   rewriteNotes = deps.rewriteNotes;
   files = deps.files;
+  armInlineConfirm = deps.armInlineConfirm || null;
 $('#publish-clear-input').addEventListener('input', syncPublishClear);
 // Explicit review step for a refused stale publish: adopting the newer board is the admin's
 // decision, and it only moves the publishing base - it never edits or replaces the draft.
