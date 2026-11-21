@@ -197,7 +197,7 @@ export function renderCalendar() {
   const grid = document.querySelector('#cal-grid');
   if (!grid) return;
   const { start, days } = calRange();
-  const dated = recordSource().filter((t) => t.dueDate);
+  const dated = recordSource().filter((t) => t.dueDate && !t.isPast());  // closed and expired tasks are archived, not scheduled
   const byDay = new Map();
   dated.forEach((t) => calDayKeys(t).forEach((k) => {
     if (!byDay.has(k)) byDay.set(k, []);
