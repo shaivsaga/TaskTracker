@@ -15,9 +15,9 @@
 
 import { state } from './state.js';
 import { dom } from './dom.js';
-import { API } from './util.js';
-import { RECOVERED_PREFIX } from './recovery.js';
+import { prepareRecoveredDraft } from './recovery.js';
 import { subjectDisplayName } from './subjects.js';
+import { store, newOperationId } from './store.js';
 
 let deps = null;
 let rows = [];
@@ -75,16 +75,13 @@ const label = (r) => `${r.subject ? subjectDisplayName(state.catalog, r.subject)
 export async function load() {
   if (!state.isAdmin) return;
   say('Loading…');
-  try {
-    const res = await fetch(`${API.versions}?view=admin`, { cache: 'no-store' });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data) throw new Error('unavailable');
-    if (typeof data.adminRevision === 'number') state.adminRevision = data.adminRevision;
-    rows = Array.isArray(data.binSummaries) ? data.binSummaries : [];
-    render(data);
-  } catch (e) {
+  const out = await store.fetchAdminState();
+  if (!out.ok || !out.data) {
     say('The recycle bin cannot be loaded right now.');
+    return;
   }
+  rows = Array.isArray(out.data.binSummaries) ? out.data.binSummaries : [];
+  render(out.data);
 }
 
 function render(data) {
@@ -145,17 +142,17 @@ async function onAction(action, binId, btn) {
 async function restore(binId, btn) {
   busy = true;
   try {
-    const out = await deps.adminAction('bin-restore', { binId });
+    const out = await store.adminAction('bin-restore', { binId });
     if (!out.ok) { say(out.status === 404 ? 'That copy is no longer in the recycle bin.' : 'Could not load that copy.'); return; }
     const record = out.data || {};
     let task = record.task;
     const subjects = Array.isArray(record.subjects) ? record.subjects : [];
     if (!task || typeof task.id !== 'string') { say('That copy is unreadable.'); return; }
 
-    if (record.requiresNewId) {
-      task = { ...task, id: deps.newId(), title: RECOVERED_PREFIX + String(task.title || task.id).slice(0, 500 - RECOVERED_PREFIX.length) };
-      delete task.closedAt;
-      delete task.changedAt;
+    const forbidden = record.requiresNewId ? [...state.verifiedDeletedIds, task.id] : state.verifiedDeletedIds;
+    const prepared = prepareRecoveredDraft({ tasks: [task] }, forbidden, newOperationId);
+    task = prepared.content.tasks[0];
+    if (prepared.recovered.length) {
       say('Restored as a new copy: the original id was permanently deleted, so its old progress does not carry over.');
     }
 
@@ -168,7 +165,7 @@ async function restore(binId, btn) {
         say('A draft task already uses this id. Press again to replace it; the current draft version is archived first.');
         return;
       }
-      const archived = await deps.archive(collision);
+      const archived = await store.archiveTask(collision);
       if (!archived.ok) { say('Could not archive the draft task, so nothing was replaced.'); return; }
       const at = deps.myTasks.indexOf(collision);
       if (at !== -1) deps.myTasks.splice(at, 1);
@@ -191,7 +188,7 @@ async function restore(binId, btn) {
 async function permanentDelete(binId, btn) {
   busy = true;
   try {
-    const out = await deps.adminAction('bin-permanent-delete', {
+    const out = await store.adminAction('bin-permanent-delete', {
       binId,
       confirm: 'DELETE PERMANENTLY',
       baseRevision: state.verifiedRevision,
@@ -206,7 +203,7 @@ async function permanentDelete(binId, btn) {
       return;
     }
     const board = out.data && out.data.current;
-    if (board && deps.acceptAuthority) deps.acceptAuthority(board);
+    if (board) store.adoptAuthoritativeBoard(board);
     await load();
     say('Deleted for good. The id stays reserved, and uploaded files or older history copies are untouched.');
     dom.binRefresh.focus();

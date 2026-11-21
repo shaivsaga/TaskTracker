@@ -159,6 +159,19 @@ test('hideOverlay releases focus at logical close and hides only at finish', () 
   assert.equal(el.classList.contains('is-closing'), false);
 });
 
+test('hideOverlay restores focus to a connected opener and skips disconnected ones', () => {
+  let focused = 0;
+  const el = makeEl({ hidden: false, opacity: 1 });
+  el._returnFocus = { isConnected: true, focus() { focused++; } };
+  hideOverlay(el);
+  assert.equal(focused, 1);
+
+  const el2 = makeEl({ hidden: false, opacity: 1 });
+  el2._returnFocus = { isConnected: false, focus() { focused++; } };
+  hideOverlay(el2);
+  assert.equal(focused, 1);
+});
+
 test('hideOverlay honours a custom duration on the same fade path', () => {
   const el = makeEl({ hidden: false, opacity: 1 });
   hideOverlay(el, 240);

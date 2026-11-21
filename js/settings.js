@@ -34,10 +34,9 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { KEYS } from './util.js';
-import { openOverlay } from './motion.js';
+import { openOverlay, hideOverlay } from './motion.js';
 
 let $ = null;                 // app.js's querySelector shorthand, used by the panel's rows
-let hideAnimated = null;      // app.js: closeSettings and the reset flow hide the overlay animated
 let adminHint = null;         // app.js: openSettings offers the sign-in row only when a hint is stored
 let signIn = null;            // app.js: the sign-in row's Basic Auth login
 let showToast = null;         // app.js: the logout, login and reset failure messages
@@ -48,7 +47,7 @@ let SIGNED_OUT_KEY = null;    // app.js: the deliberate-logout key the reset kee
 // Theme. The saved choice is 'light', 'dark' or nothing (= System). The head script in index.html
 // sets the first paint; after that the top-bar toggle and Settings > Appearance both go through here.
 const THEME_COLOR = { light: '#F4EFE2', dark: '#0F1226' };
-const systemQuery = window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
+const systemQuery = typeof window !== 'undefined' && window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
 function savedChoice() {
   try { const v = localStorage.getItem('class_tasks_theme'); return v === 'light' || v === 'dark' ? v : 'system'; } catch (e) { return 'system'; }
 }
@@ -97,7 +96,7 @@ function openSettings() {
 }
 
 export function closeSettings() {
-  hideAnimated(dom.settingsOverlay);
+  hideOverlay(dom.settingsOverlay);
   dom.settingsOpen.focus();
 }
 
@@ -139,7 +138,6 @@ async function logoutAdmin() {
 // register in their original source order: the theme toggle first, then the settings panel.
 export function init(deps) {
   $ = deps.$;                                 // the panel's rows
-  hideAnimated = deps.hideAnimated;           // closeSettings and the reset flow hide the overlay
   adminHint = deps.adminHint;                 // openSettings decides whether to offer sign-in
   signIn = deps.signIn;                       // the sign-in row
   showToast = deps.showToast;                 // logout, login and reset failure messages

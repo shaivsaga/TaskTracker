@@ -23,10 +23,8 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { formatTime } from './util.js';
-import { openOverlay } from './motion.js';
+import { openOverlay, hideOverlay } from './motion.js';
 
-let quickWords = null;        // app.js's tokenizer (the parser that stays there uses it)
-let parseQuickAdd = null;     // the natural-language parser, kept in app.js and passed in
 let lookup = null;            // logic.js
 let parseTimeWord = null;     // logic.js
 let WEEKDAYS = null;          // logic.js
@@ -35,18 +33,82 @@ let toInputValue = null;      // logic.js
 let STATUS_LABELS = null;     // logic.js
 let Task = null;              // logic.js
 let subjects = null;          // the SUBJECTS map, read at call time (never captured)
-let statusCodes = null;       // the STATUS_CODES map, read at call time
 let createSubjectTag = null;  // app.js (Subject chip and preview tag)
 let openDuePicker = null;     // app.js, the picker shared with the task dialog
 let closeDuePicker = null;    // app.js, the picker shared with the task dialog
-let hideAnimated = null;      // app.js
 let myTasks = null;           // app.js's draft list: one stable array, only ever mutated in place
-let setStatus = null;         // app.js
-let saveTasks = null;         // app.js
-let setPage = null;           // app.js
-let renderAllTasks = null;    // app.js
-let openTaskDialog = null;    // app.js
-let showToast = null;         // app.js
+let setStatus = null;         // js/tasks.js
+let saveTasks = null;         // js/tasks.js
+let setPage = null;           // js/nav.js
+let renderAllTasks = null;    // js/tasks.js
+let openTaskDialog = null;    // js/tasks.js
+let showToast = null;         // js/tasks.js
+
+export const STATUS_CODES = {
+  ns: 'not_started', todo: 'not_started', 'not started': 'not_started',
+  ip: 'in_progress', started: 'in_progress', doing: 'in_progress', 'in progress': 'in_progress',
+  dn: 'done', done: 'done',
+};
+
+// Module-private quick-add state (formerly leaked through js/state.js).
+let quickReturnFocus = null;
+let quickPicked = { date: null, endDate: null, time: null };
+let quickPrev = { subject: '', status: '', due: '' };
+let quickChipEls = [];
+
+// Splits on spaces but keeps "not started" and "in progress" as one word.
+export function quickWords(text) {
+  const raw = String(text || '').trim().split(/\s+/).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const pair = (raw[i] + ' ' + (raw[i + 1] || '')).toLowerCase();
+    if (pair === 'not started' || pair === 'in progress') { out.push(raw[i] + ' ' + raw[i + 1]); i++; }
+    else out.push(raw[i]);
+  }
+  return out;
+}
+
+// Pure natural-language parser: "GENMATH worksheet ip 10/5 3pm".
+// Callers in Node tests pass { subjects, picked, now, parseTimeWord, lookup, weekdays }.
+export function parseQuickAdd(text, opts = {}) {
+  const subjectMap = opts.subjects ?? (subjects ? subjects() : {});
+  const picked = opts.picked ?? quickPicked;
+  const now = opts.now ?? new Date();
+  const timeFn = opts.parseTimeWord ?? parseTimeWord;
+  const lookupFn = opts.lookup ?? lookup;
+  const weekdaysMap = opts.weekdays ?? WEEKDAYS;
+  const out = { subject: '', status: null, typedStatus: false, dueDate: undefined, endDate: undefined, dueTime: undefined, title: '' };
+  const rest = [];
+  quickWords(text).forEach((word) => {
+    const lower = word.toLowerCase();
+    const md = /^(\d{1,2})[\/-](\d{1,2})$/.exec(word);
+    const time = timeFn(word);
+    const weekday = lookupFn(weekdaysMap, lower);
+    if (!out.subject && lookupFn(subjectMap, word.toUpperCase()) !== undefined) {
+      out.subject = word.toUpperCase();
+    } else if (!out.status && lookupFn(STATUS_CODES, lower)) {
+      out.status = lookupFn(STATUS_CODES, lower);
+      out.typedStatus = true;
+    } else if (!out.dueDate && md) {
+      const d = new Date(now.getFullYear(), +md[1] - 1, +md[2]);
+      if (d.getMonth() === +md[1] - 1) out.dueDate = d; else rest.push(word);
+    } else if (!out.dueDate && (lower === 'today' || lower === 'tmr' || lower === 'tomorrow')) {
+      out.dueDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (lower === 'today' ? 0 : 1));
+    } else if (!out.dueDate && weekday !== undefined) {
+      const ahead = ((weekday - now.getDay() + 7) % 7) || 7;
+      out.dueDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ahead);
+    } else if (!out.dueTime && time) {
+      out.dueTime = time;
+    } else {
+      rest.push(word);
+    }
+  });
+  if (picked && picked.date) { out.dueDate = picked.date; out.endDate = picked.endDate || undefined; out.dueTime = picked.time || undefined; }   // picker wins
+  if (!out.dueDate) { out.endDate = undefined; out.dueTime = undefined; }              // time and end date need a start date
+  out.status = out.status || 'not_started';
+  out.title = (rest.join(' ') || (out.subject ? `${out.subject} task` : 'New Task')).slice(0, 500);
+  return out;
+}
 
 // The subject row shows the parser's own guess plus one Change chip, or a single Add subject chip when the
 // input names no subject yet. The full list appears only after that chip is pressed, and stays revealed
@@ -67,7 +129,7 @@ function isDateWord(w) {
 
 function openQuickPicker(kind) {
   const p = parseQuickAdd(dom.quickInput.value);
-  const chip = state.quickChipEls.find((c) => c.dataset.type === (kind === 'time' ? 'time' : 'pick'));
+  const chip = quickChipEls.find((c) => c.dataset.type === (kind === 'time' ? 'time' : 'pick'));
   openDuePicker({
     anchor: chip || dom.quickInput,
     focus: kind,
@@ -76,7 +138,7 @@ function openQuickPicker(kind) {
     time: p.dueTime || null,
     onChange: ({ date, endDate, time }) => {
       if (!date) { clearQuickDue(false); return; }
-      state.quickPicked = { date, endDate: endDate || null, time };
+      quickPicked = { date, endDate: endDate || null, time };
       renderQuickPreview();
     },
     onDone: () => dom.quickInput.focus(),
@@ -84,7 +146,7 @@ function openQuickPicker(kind) {
 }
 
 function clearQuickDue(refocus = true) {
-  state.quickPicked = { date: null, endDate: null, time: null };
+  quickPicked = { date: null, endDate: null, time: null };
   const kept = quickWords(dom.quickInput.value).filter((w) => !isDateWord(w) && !parseTimeWord(w));
   dom.quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
   closeDuePicker();
@@ -112,13 +174,13 @@ function quickField(label, content, changed) {
 
 function renderQuickPreview() {
   dom.quickPreview.replaceChildren();
-  const p = (dom.quickInput.value.trim() || state.quickPicked.date) ? parseQuickAdd(dom.quickInput.value) : null;
+  const p = (dom.quickInput.value.trim() || quickPicked.date) ? parseQuickAdd(dom.quickInput.value) : null;
   const next = {
     subject: p ? p.subject : '',
     status: p && p.typedStatus ? p.status : '',
     due: p && p.dueDate ? toInputValue(p.dueDate) + (p.endDate ? '→' + toInputValue(p.endDate) : '') + (p.dueTime || '') : '',
   };
-  const changed = (k) => next[k] !== '' && next[k] !== state.quickPrev[k];
+  const changed = (k) => next[k] !== '' && next[k] !== quickPrev[k];
   let dueNode = null;
   if (p && p.dueDate) {
     dueNode = document.createElement('span');
@@ -137,7 +199,7 @@ function renderQuickPreview() {
     quickField('Status', p ? quickText(STATUS_LABELS[p.status], 'quick-chip') : null, changed('status')),
     quickField('Due', dueNode, changed('due'))
   );
-  state.quickPrev = next;
+  quickPrev = next;
   syncQuickChips(p);
   const hasText = !!dom.quickInput.value.trim();
   document.querySelector('#quick-add-btn').disabled = !hasText;
@@ -147,7 +209,7 @@ function renderQuickPreview() {
 function renderQuickChips(p) {
   const host = document.querySelector('#quick-chips');
   host.replaceChildren();
-  state.quickChipEls = [];
+  quickChipEls = [];
   quickSubjectSig = `${(p && p.subject) || ''}|${quickSubjectOpen}`;
   const groups = [
     ['Subject', 'subject', subjectItems(p)],
@@ -191,7 +253,7 @@ function renderQuickChips(p) {
       }
       if (type === 'change') btn.classList.add('is-change');
       group.appendChild(btn);
-      state.quickChipEls.push(btn);
+      quickChipEls.push(btn);
     });
     host.appendChild(group);
   });
@@ -211,14 +273,14 @@ function syncQuickChips(p) {
       if (next) next.focus();
     }
   }
-  state.quickChipEls.forEach((el) => {
+  quickChipEls.forEach((el) => {
     const { type, code } = el.dataset;
     let on = false;
     if (p) {
       if (type === 'subject') on = p.subject === code;
-      else if (type === 'status') on = p.typedStatus && p.status === statusCodes()[code];
-      else if (type === 'date') on = !!p.dueDate && !state.quickPicked.date && dayDiff(p.dueDate) === (code === 'today' ? 0 : 1);
-      else if (type === 'pick') on = !!state.quickPicked.date;
+      else if (type === 'status') on = p.typedStatus && p.status === STATUS_CODES[code];
+      else if (type === 'date') on = !!p.dueDate && !quickPicked.date && dayDiff(p.dueDate) === (code === 'today' ? 0 : 1);
+      else if (type === 'pick') on = !!quickPicked.date;
       else if (type === 'time') on = !!p.dueTime;
     }
     if (type === 'clear') el.hidden = !(p && p.dueDate);
@@ -233,12 +295,12 @@ function applyQuickToken(type, code) {
   if (type === 'time') { openQuickPicker('time'); return; }
   if (type === 'clear') { clearQuickDue(); return; }
   const isToken = {
-    subject: (w) => !!lookup(subjects(), w.toUpperCase()),
-    status: (w) => !!lookup(statusCodes(), w.toLowerCase()),
+    subject: (w) => lookup(subjects(), w.toUpperCase()) !== undefined,
+    status: (w) => !!lookup(STATUS_CODES, w.toLowerCase()),
     date: isDateWord,
   }[type];
-  const wasOn = state.quickChipEls.some((c) => c.dataset.type === type && c.dataset.code === code && c.classList.contains('is-selected'));
-  if (type === 'date') state.quickPicked.date = null;
+  const wasOn = quickChipEls.some((c) => c.dataset.type === type && c.dataset.code === code && c.classList.contains('is-selected'));
+  if (type === 'date') quickPicked.date = null;
   const kept = quickWords(dom.quickInput.value).filter((w) => !isToken(w));
   if (!wasOn) { if (type === 'subject') kept.unshift(code); else kept.push(code); }
   dom.quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
@@ -248,11 +310,11 @@ function applyQuickToken(type, code) {
 
 export function openQuickAdd() {
   if (!dom.dialogOverlay.hidden && !dom.dialogOverlay.classList.contains('is-closing')) return;
-  state.quickReturnFocus = document.activeElement;
+  quickReturnFocus = document.activeElement;
   dom.quickInput.value = '';
-  state.quickPicked = { date: null, time: null };
+  quickPicked = { date: null, endDate: null, time: null };
   closeDuePicker();
-  state.quickPrev = { subject: '', status: '', due: '' };
+  quickPrev = { subject: '', status: '', due: '' };
   quickSubjectOpen = false;
   renderQuickChips();
   renderQuickPreview();
@@ -262,8 +324,8 @@ export function openQuickAdd() {
 
 function closeQuickAdd() {
   closeDuePicker();
-  hideAnimated(dom.quickOverlay, 120);
-  if (state.quickReturnFocus && state.quickReturnFocus.focus) state.quickReturnFocus.focus();
+  hideOverlay(dom.quickOverlay, 120);
+  if (quickReturnFocus && quickReturnFocus.focus) quickReturnFocus.focus();
 }
 
 function submitQuickAdd(openDetails) {
@@ -275,7 +337,7 @@ function submitQuickAdd(openDetails) {
   else saveTasks();
   state.justChangedId = task.id;   // a new task arrives (is-entering); nothing else enters
   closeDuePicker();
-  hideAnimated(dom.quickOverlay, 120);
+  hideOverlay(dom.quickOverlay, 120);
   if (state.searchQuery) { state.searchQuery = ''; document.querySelector('#task-search').value = ''; }
   setPage('my-tasks');
   renderAllTasks();
@@ -283,11 +345,8 @@ function submitQuickAdd(openDetails) {
   else showToast('Task added');
 }
 
-// Called once by app.js, at the spot the moved listeners used to occupy. Every dep is read at call
-// time: the two maps are thunks, so they are not captured while this runs.
+// Called once by app.js, at the spot the moved listeners used to occupy.
 export function init(deps) {
-  quickWords = deps.quickWords;
-  parseQuickAdd = deps.parseQuickAdd;
   lookup = deps.lookup;
   parseTimeWord = deps.parseTimeWord;
   WEEKDAYS = deps.WEEKDAYS;
@@ -296,11 +355,9 @@ export function init(deps) {
   STATUS_LABELS = deps.STATUS_LABELS;
   Task = deps.Task;
   subjects = deps.subjects;
-  statusCodes = deps.statusCodes;
   createSubjectTag = deps.createSubjectTag;
   openDuePicker = deps.openDuePicker;
   closeDuePicker = deps.closeDuePicker;
-  hideAnimated = deps.hideAnimated;
   myTasks = deps.myTasks;
   setStatus = deps.setStatus;
   saveTasks = deps.saveTasks;

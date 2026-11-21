@@ -12,12 +12,14 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { PALETTE, validateSubjects, validateNewSubject, subjectTextColor, codeFromName, MAX_NAME, describePreset } from './subjects.js';
+import { store } from './store.js';
 
 let deps = null;
 const EMPTY = 'No subjects configured yet. Add one, or apply a preset.';
 let rowError = new Map();   // code -> message, shown inline and never stored
 let openPaletteCode = null; // one subject row's swatch strip open at a time
 let pendingNew = null;      // { code, name, color, codeTouched, error } while creating a subject
+let presets = [];           // admin: named catalogues from the private store
 function setExpanded(open) {
   if (!dom.subjectBody || !dom.subjectToggle) return;
   const expanded = Boolean(open);
@@ -400,7 +402,6 @@ export function render() {
 
 function renderPresets() {
   if (!dom.presetSelect) return;
-  const presets = Array.isArray(state.presets) ? state.presets : [];
   const keep = dom.presetSelect.value;
   dom.presetSelect.replaceChildren();
   if (!presets.length) {
@@ -424,22 +425,19 @@ function renderPresets() {
 
 export async function loadPresets() {
   if (!state.isAdmin) return;
-  try {
-    const res = await fetch(`${deps.apiVersions}?view=admin`, { cache: 'no-store' });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data) throw new Error('unavailable');
-    if (typeof data.adminRevision === 'number') state.adminRevision = data.adminRevision;
-    state.presets = Array.isArray(data.presets) ? data.presets : [];
-    render();
-  } catch (e) {
+  const out = await store.fetchAdminState();
+  if (!out.ok || !out.data) {
     dom.subjectStatus.textContent = 'Saved presets cannot be loaded right now.';
+    return;
   }
+  presets = Array.isArray(out.data.presets) ? out.data.presets : [];
+  render();
 }
 
 async function savePreset() {
   const name = (dom.presetName.value || '').trim();
   if (!name) { dom.subjectStatus.textContent = 'Give the preset a name first.'; dom.presetName.focus(); return; }
-  const out = await deps.adminAction('preset-save', { preset: { name, subjects: state.draftSubjects } });
+  const out = await store.adminAction('preset-save', { preset: { name, subjects: state.draftSubjects } });
   if (!out.ok) { dom.subjectStatus.textContent = out.status === 422 ? 'That name is already used by another preset.' : 'Could not save the preset.'; return; }
   dom.presetName.value = '';
   await loadPresets();
@@ -449,7 +447,7 @@ async function savePreset() {
 async function deleteSelectedPreset() {
   const id = dom.presetSelect.value;
   if (!id) return;
-  const out = await deps.adminAction('preset-delete', { presetId: id });
+  const out = await store.adminAction('preset-delete', { presetId: id });
   if (!out.ok) { dom.subjectStatus.textContent = 'Could not delete the preset.'; return; }
   await loadPresets();
   dom.subjectStatus.textContent = 'Preset deleted.';
@@ -458,7 +456,7 @@ async function deleteSelectedPreset() {
 // Applying is local: preview first, then replace the draft's choices. Tasks are never re-tagged.
 async function applySelectedPreset() {
   const id = dom.presetSelect.value;
-  const preset = (state.presets || []).find((p) => p.id === id);
+  const preset = presets.find((p) => p.id === id);
   if (!preset) return;
   const plan = describePreset(state.draftSubjects, preset.subjects, deps.referencedCodes());
   const summary = [

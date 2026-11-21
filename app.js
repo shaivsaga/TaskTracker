@@ -5,7 +5,7 @@ import {
 } from './logic.js?v=5';
 import { state } from './js/state.js';
 import { dom, cacheDom } from './js/dom.js';
-import { readJSON, writeJSON, plural, fmtWhen, formatTime, COLUMN_TO_STATUS, STATUS_TO_COLUMN, KEYS, API } from './js/util.js';
+import { readJSON, writeJSON, formatTime } from './js/util.js';
 import * as calendar from './js/calendar.js';
 import * as quickAdd from './js/quick-add.js';
 import * as tour from './js/tour.js';
@@ -17,23 +17,12 @@ import * as publish from './js/publish.js';
 import * as tasks from './js/tasks.js';
 import * as motion from './js/motion.js';
 import * as noteImages from './js/note-images.js';
-import * as recovery from './js/recovery.js';
+import { store, normalizeBoard } from './js/store.js';
 import * as bin from './js/bin.js';
 import * as subjects from './js/subjects.js';
 import * as subjectsEditor from './js/subjects-editor.js';
 import { selectNoticeChanges } from './js/update-notice.js';
 
-// --- Module state: js/state.js (slice 2.1) ----------------------------------------------------
-// Every top-level mutable variable moved to the single `state` object. Deleting the declarations
-// here is deliberate: a missed site throws a ReferenceError instead of reading a second copy.
-// calAnchor is the only field whose initial value needs a call (todayDate()), so state.js keeps it
-// null and this line sets it at module-eval time, before anything reads it.
-state.calAnchor = todayDate();
-
-// --- Element cache: js/dom.js (slice 2.2) -----------------------------------------------------
-// cacheDom() fills the `dom` object once, here, before the first use of any cached element. The
-// top-level `const` lookups that used to live in app.js are gone on purpose: a missed site now
-// throws instead of quietly re-querying, and js/dom.js touches no DOM while it is evaluated.
 cacheDom();
 // Preferences are watched once here, at startup, so a slow or failed board fetch cannot delay them.
 motion.init();
@@ -74,83 +63,10 @@ const myTasks = [];              // admin draft (definitions only)
 const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.includes(task);
 
 
-// --- Tasks: js/tasks.js (slice 2.6) -------------------------------------------------------------
-// init() runs at the spot where the first dialog listener used to be registered, and every moved
-// listener is registered inside it in source order, so the order of the page listeners - including
-// the dialog/popover Escape chain and the due-picker capture handler - is unchanged. The hub
-// functions the other modules receive are passed on from here as tasks.<name>.
-// --- Private recycle bin: the client side of the archive-first deletion -----------------------
-// Every call carries one intent id and the admin revision it decided from. A stale base is
-// answered with the current revision, so the intent is retried once with the same operation id
-// rather than duplicated; a conflict on the id itself is reported, never retried blindly.
-const newOperationId = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''));
-
-// The catalogue definition a bin record keeps so the archived task still reads correctly.
-// A code with no configured definition keeps a neutral retired one; the task is never re-tagged.
-function subjectDef(code) {
-  if (!code) return [];
-  return [{ code: String(code), name: String(code), color: '#c3c7d6', active: false }];
-}
-
-async function adminPost(payload) {
-  const res = await fetch(API.versions, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    cache: 'no-store',
-  });
-  const data = await res.json().catch(() => null);
-  if (typeof data?.adminRevision === 'number') state.adminRevision = data.adminRevision;
-  return { ok: res.ok, status: res.status, code: data && data.code, data };
-}
-
-async function adminAction(action, fields) {
-  const operationId = newOperationId();
-  const send = (base) => adminPost({ action, operationId, baseAdminRevision: base, ...fields });
-  let out = await send(state.adminRevision);
-  if (!out.ok && out.code === 'stale_admin_base') {
-    // Learn the current private revision, then retry the SAME intent once.
-    const summary = await fetch(`${API.versions}?view=admin`, { cache: 'no-store' });
-    const data = await summary.json().catch(() => null);
-    if (typeof data?.adminRevision === 'number') state.adminRevision = data.adminRevision;
-    out = await send(state.adminRevision);
-  }
-  return out;
-}
-
-const recoveryApi = {
-  async archive(task) {
-    const definition = task && typeof task.toJSON === 'function' ? task.toJSON() : task;
-    try {
-      const out = await adminAction('bin-archive', { task: definition, subjects: subjectDef(task && task.subject) });
-      return out.ok ? { ok: true, binId: out.data && out.data.binId } : { ok: false, status: out.status, code: out.code };
-    } catch (e) {
-      return { ok: false, reason: 'offline' };
-    }
-  },
-  // Authority is checked when the user acts, not when the toast was created.
-  mustRecoverAsNewId(id) {
-    return state.verifiedDeletedIds.includes(String(id));
-  },
-};
-
 tasks.init({
   Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, sanitizeDoc, clampPopoverPosition, myTasks,
-  isEditable, hideAnimated, createSubjectTag, startNewTask, TTFiles, openDuePicker, calendar, publish,
-  recovery: recoveryApi,
+  isEditable, createSubjectTag, startNewTask, TTFiles, openDuePicker, calendar, publish,
 });
-
-// Returns a clean { tasks, announcements } or null when the data is not a usable board.
-function normalizeBoard(data) {
-  if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.tasks)) return null;
-  if (data.announcements != null && !Array.isArray(data.announcements)) return null;
-  const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
-  return {
-    ...data,
-    tasks: data.tasks.filter(isObj),
-    announcements: (data.announcements || []).filter((a) => isObj(a) && typeof a.text === 'string' && Number.isFinite(a.createdAt)),
-  };
-}
 
 function setPublished(data) {
   const board = normalizeBoard(data) || { tasks: [], announcements: [] };
@@ -169,11 +85,12 @@ function setPublished(data) {
 
 // --- Update notice: one popup per visit listing tasks that are new or changed since this device last saw the Board ---
 const SEEN_KEY = 'class_tasks_seen';
+let noticeShown = false;
 const noticeStamp = (value) => (Number.isFinite(value) && value > 0 ? value : 0);
 const isSeenMap = (seen) => !!seen && typeof seen === 'object' && !Array.isArray(seen);
 
 function checkUpdateNotice(board) {
-  if (!board || state.isAdmin || state.previewing || state.noticeShown || !board.tasks.length) return;
+  if (!board || state.isAdmin || state.previewing || noticeShown || !board.tasks.length) return;
   if (!dom.tourOverlay.hidden || !dom.importOverlay.hidden || !dom.dialogOverlay.hidden) return;
   // Raw authoritative-board stamps stay outside Task.fromJSON; Task never carries changedAt.
   const stamps = {};
@@ -183,7 +100,7 @@ function checkUpdateNotice(board) {
   const fresh = selectNoticeChanges(board.tasks, seen);
   if (!fresh.length) return;
   const byId = new Map(board.tasks.map((t) => [String(t.id), t]));
-  state.noticeShown = true;
+  noticeShown = true;
   showUpdateNotice(fresh.map(({ id, isNew }) => ({ isNew, task: Task.fromJSON(byId.get(id)) })), () => writeJSON(SEEN_KEY, stamps));
 }
 
@@ -222,7 +139,7 @@ function showUpdateNotice(items, onDismiss) {
   document.body.appendChild(overlay);
   const close = () => {
     document.removeEventListener('keydown', onKey);
-    hideAnimated(overlay);
+    motion.hideOverlay(overlay);
     setTimeout(() => overlay.remove(), 300);
     onDismiss();
   };
@@ -236,131 +153,20 @@ function showUpdateNotice(items, onDismiss) {
   ok.focus();
 }
 
-// --- Deletion authority -----------------------------------------------------------------------
-// Only a validated successful schema-2 response proves a permanent deletion. A cache, a 404, a
-// truncated body or an offline fallback prove nothing, so nothing is erased from those.
-function acceptAuthoritativeBoard(board) {
-  const next = recovery.nextAuthority(
-    { revision: state.verifiedRevision, deletedIds: state.verifiedDeletedIds },
-    board,
-  );
-  if (!next) return false;
-  state.verifiedRevision = next.revision;
-  state.verifiedDeletedIds = next.deletedIds;
-  return true;
-}
-
-// Erase exactly the progress the server proved deleted - even when the board has no tasks, and
-// before any early return for an open dialog. Absence alone never erases an entry.
-function applyDeletionAuthority() {
-  const before = state.progress;
-  const filtered = recovery.filterDeletedProgress(before, state.verifiedDeletedIds);
-  if (!filtered.removed.length) return true;
-  state.progress = filtered.progress;
-  if (!writeJSON(KEYS.progress, state.progress)) {
-    state.progress = before;   // never claim a cleanup that did not persist
-    tasks.showToast('Could not update saved progress on this device.');
-    return false;
-  }
-  return true;
-}
-
 async function loadPublished() {
   const note = document.querySelector('#sync-note');
-  let board = null;
-  let authoritative = false;
-  try {
-    // S2: a unique ?t= URL can never match a cache entry, and no-store forbids the
-    // conditional request as well, so every visit downloaded the whole 1.70 MB board.
-    // A stable URL plus no-cache lets nginx answer 304 from its ETag; the timeout
-    // still bounds a slow board fetch.
-    const res = await fetch(API.current, { cache: 'no-cache', signal: AbortSignal.timeout(8000) });
-    let data;
-    if (res.status === 404) data = { tasks: [], announcements: [] };
-    else if (res.ok) data = await res.json();
-    else throw new Error(String(res.status));
-    board = normalizeBoard(data);
-    if (!board) throw new Error('Invalid board data');
-    // A 404 body is not a board: it proves nothing, so it never becomes authority.
-    authoritative = res.ok && acceptAuthoritativeBoard(board);
-    writeJSON(KEYS.cache, board);
-    note.hidden = true;
-    state.liveBoard = board;
-  } catch (e) {
-    board = normalizeBoard(readJSON(KEYS.cache, null));
-    note.hidden = false;
-    state.liveBoard = null;
-  }
+  const { board, authoritative, offline, cleaned } = await store.fetchBoard({
+    onPersistError: () => tasks.showToast('Could not update saved progress on this device.'),
+  });
+  note.hidden = !offline;
   // Server-proved deletions are applied first, even for an empty board and even while a task
   // dialog is open: a pending overlay must not postpone erasing progress the server forbade.
-  if (authoritative && applyDeletionAuthority()) tasks.applyProgress(state.publishedTasks);
+  if (authoritative && cleaned) tasks.applyProgress(state.publishedTasks);
   if (state.currentTask) return;
   setPublished(board);
   checkUpdateNotice(state.liveBoard);
   tasks.renderAllTasks();
   announcements.renderAnnouncements();
-}
-
-
-// --- Personal strip: how many tasks are left for this student, and what is next -----------------
-// Reads the published tasks with this device's progress already applied. Re-renders when the class
-// list or board changes (status taps, search, publish) and once a minute for the clock.
-const mineEl = document.querySelector('#mine');
-function mineDue(t) {
-  const raw = typeof t.getDeadline === 'function' ? t.getDeadline() : t.dueDate;
-  if (!raw) return null;
-  const d = raw instanceof Date ? new Date(raw) : new Date(String(raw).length <= 10 ? `${raw}T00:00` : raw);
-  if (Number.isNaN(d.getTime())) return null;
-  const m = /^(\d{1,2}):(\d{2})/.exec(t.dueTime || '');
-  d.setHours(m ? +m[1] : 23, m ? +m[2] : 59, 0, 0);
-  return d;
-}
-function mineWhen(t, d) {
-  const day = new Date(d); day.setHours(0, 0, 0, 0);
-  const n = Math.round((day - new Date(new Date().setHours(0, 0, 0, 0))) / 864e5);
-  const label = n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  return t.dueTime ? `${label}, ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : label;
-}
-let lastMineSig = '';
-function renderMine() {
-  if (!mineEl) return;
-  const all = (state.previewing ? myTasks : state.publishedTasks) || [];
-  const now = Date.now();
-  const unfinished = all.filter((t) => t.status !== 'done' && !t.closedAt).map((t) => ({ t, d: mineDue(t) }));
-  const open = unfinished.filter((x) => !x.d || now - x.d.getTime() <= 7 * 864e5);   // 7+ days overdue lives in Past
-  const olderOverdue = unfinished.length - open.length;
-  const dated = open.filter((x) => x.d).sort((a, b) => a.d - b.d);
-  const next = dated.find((x) => x.d.getTime() >= now) || dated[0];
-  const labelText = open.length ? 'left for you' : "left. You're caught up.";
-  let nextText = '';
-  if (!open.length) {
-    nextText = olderOverdue > 0 ? `${olderOverdue} older overdue in Past.` : 'Counts active tasks and the last 7 days.';
-  } else {
-    const base = !next
-      ? 'No due dates on what is left.'
-      : next.d.getTime() >= now ? `Next: ${next.t.title} · ${mineWhen(next.t, next.d)}` : `${next.t.title} was due ${mineWhen(next.t, next.d)}`;
-    nextText = olderOverdue > 0 ? `${base} · ${olderOverdue} older in Past` : base;
-  }
-  const sig = `${state.previewing ? 1 : 0}|${!all.length ? 1 : 0}|${open.length}|${labelText}|${nextText}`;
-  if (sig === lastMineSig) return;
-  lastMineSig = sig;
-  mineEl.hidden = !all.length;
-  mineEl.classList.toggle('is-clear', !open.length);
-  document.querySelector('#mine-n').textContent = String(open.length);
-  document.querySelector('#mine-l').textContent = labelText;
-  document.querySelector('#mine-next').textContent = nextText;
-}
-let mineQueued = false;
-const queueMine = () => { if (mineQueued) return; mineQueued = true; requestAnimationFrame(() => { mineQueued = false; renderMine(); }); };
-['#class-board', '#class-task-list'].forEach((s) => { const el = document.querySelector(s); if (el) new MutationObserver(queueMine).observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-status', 'class'] }); });
-setInterval(queueMine, 60000);
-
-// --- Toast and autosave feedback (hideAnimated); skeletons moved to js/tasks.js (slice 2.6) ---
-
-// Hands the logical close to the shared overlay owner, then restores focus to the opener.
-function hideAnimated(el, ms = 180) {
-  const returnFocus = motion.hideOverlay(el, ms);
-  if (returnFocus && returnFocus.isConnected) returnFocus.focus();
 }
 
 // --- Calendar: js/calendar.js (slice 2.3) -------------------------------------------------------
@@ -440,12 +246,6 @@ document.querySelectorAll('.view-tab[data-view]').forEach((b) => {
 });
 
 // --- Subjects, quick add, announcements, shortcuts ---
-const STATUS_CODES = {
-  ns: 'not_started', todo: 'not_started', 'not started': 'not_started',
-  ip: 'in_progress', started: 'in_progress', doing: 'in_progress', 'in progress': 'in_progress',
-  dn: 'done', done: 'done',
-};
-
 function createSubjectTag(code) {
   const tag = document.createElement('span');
   const def = subjects.subjectFor(state.catalog, code);
@@ -475,69 +275,15 @@ function syncCatalog(list) {
   state.catalog = Array.isArray(list) ? list : [];
   tasks.syncSubjectMap(state.catalog);
   tasks.refreshSubjectChoices();
-  state.calAgendaSig = '';   // a rename or recolour must repaint the calendar
+  calendar.invalidateAgenda();   // a rename or recolour must repaint the calendar
 }
 
-// --- Quick add: "GENMATH worksheet ip 10/5" ---
-
-// Splits on spaces but keeps "not started" and "in progress" as one word.
-function quickWords(text) {
-  const raw = text.trim().split(/\s+/).filter(Boolean);
-  const out = [];
-  for (let i = 0; i < raw.length; i++) {
-    const pair = (raw[i] + ' ' + (raw[i + 1] || '')).toLowerCase();
-    if (pair === 'not started' || pair === 'in progress') { out.push(raw[i] + ' ' + raw[i + 1]); i++; }
-    else out.push(raw[i]);
-  }
-  return out;
-}
-
-function parseQuickAdd(text) {
-  const out = { subject: '', status: null, typedStatus: false, dueDate: undefined, endDate: undefined, dueTime: undefined, title: '' };
-  const rest = [];
-  const now = new Date();
-  quickWords(text).forEach((word) => {
-    const lower = word.toLowerCase();
-    const md = /^(\d{1,2})[\/-](\d{1,2})$/.exec(word);
-    const time = parseTimeWord(word);
-    const weekday = lookup(WEEKDAYS, lower);
-    if (!out.subject && lookup(tasks.SUBJECTS, word.toUpperCase())) {
-      out.subject = word.toUpperCase();
-    } else if (!out.status && lookup(STATUS_CODES, lower)) {
-      out.status = lookup(STATUS_CODES, lower);
-      out.typedStatus = true;
-    } else if (!out.dueDate && md) {
-      const d = new Date(now.getFullYear(), +md[1] - 1, +md[2]);
-      if (d.getMonth() === +md[1] - 1) out.dueDate = d; else rest.push(word);
-    } else if (!out.dueDate && (lower === 'today' || lower === 'tmr' || lower === 'tomorrow')) {
-      out.dueDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (lower === 'today' ? 0 : 1));
-    } else if (!out.dueDate && weekday !== undefined) {
-      const ahead = ((weekday - now.getDay() + 7) % 7) || 7;
-      out.dueDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ahead);
-    } else if (!out.dueTime && time) {
-      out.dueTime = time;
-    } else {
-      rest.push(word);
-    }
-  });
-  if (state.quickPicked.date) { out.dueDate = state.quickPicked.date; out.endDate = state.quickPicked.endDate || undefined; out.dueTime = state.quickPicked.time || undefined; }   // picker wins
-  if (!out.dueDate) { out.endDate = undefined; out.dueTime = undefined; }              // time and end date need a start date
-  out.status = out.status || 'not_started';
-  out.title = (rest.join(' ') || (out.subject ? `${out.subject} task` : 'New Task')).slice(0, 500);
-  return out;
-}
-
-// --- Quick-add overlay: js/quick-add.js (slice 2.3) ---------------------------------------------
-// The moved listeners register here, exactly where they used to, so their order against the other
-// element listeners on this page is unchanged. quickWords/parseQuickAdd stay above - the brief's
-// natural-language parser has no logic.js home at this tip, so it arrives through init(deps) with the
-// logic.js material. The two maps are thunks: the module reads them while it renders.
+// --- Quick-add overlay: js/quick-add.js ---------------------------------------------------------
 quickAdd.init({
-  quickWords, parseQuickAdd,
   lookup, parseTimeWord, WEEKDAYS, dayDiff, toInputValue, STATUS_LABELS, Task,
-  createSubjectTag, openDuePicker, closeDuePicker, hideAnimated, myTasks,
+  createSubjectTag, openDuePicker, closeDuePicker, myTasks,
   setStatus: tasks.setStatus, saveTasks: tasks.saveTasks, setPage: nav.setPage, renderAllTasks: tasks.renderAllTasks, openTaskDialog: tasks.openTaskDialog, showToast: tasks.showToast,
-  subjects: () => tasks.SUBJECTS, statusCodes: () => STATUS_CODES,
+  subjects: () => tasks.SUBJECTS,
 });
 
 // --- Announcements: js/announcements.js (slice 2.5) ---------------------------------------------
@@ -570,24 +316,26 @@ document.addEventListener('keydown', (e) => {
 });
 
 // --- Due date picker (shared by task dialog and quick add) ---
+let dpEl = null;
+let dpState = null;
 
 function formatDateText(d) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function closeDuePicker(reason) {
-  if (!state.dpEl) return;
-  const done = state.dpState && state.dpState.onDone;
-  const el = state.dpEl;
-  state.dpEl = null;
-  state.dpState = null;
+  if (!dpEl) return;
+  const done = dpState && dpState.onDone;
+  const el = dpEl;
+  dpEl = null;
+  dpState = null;
   el.remove();
   if (done && (reason === 'esc' || reason === 'done')) done();
 }
 
 // opts: { anchor, focus: 'date'|'time', date, endDate, time, onChange({date, endDate, time}), onDone }
 function openDuePicker(opts) {
-  if (state.dpEl && state.dpState.anchor === opts.anchor && state.dpState.focus === opts.focus) { closeDuePicker(); return; }
+  if (dpEl && dpState.anchor === opts.anchor && dpState.focus === opts.focus) { closeDuePicker(); return; }
   closeDuePicker();
 
   const s = {
@@ -780,8 +528,8 @@ function openDuePicker(opts) {
   $('.dp-clear').addEventListener('click', () => { s.date = null; s.endDate = null; s.time = null; emit(); closeDuePicker(); });
 
   document.body.appendChild(el);
-  state.dpEl = el;
-  state.dpState = s;
+  dpEl = el;
+  dpState = s;
   syncFields();
   renderGrid();
   
@@ -799,14 +547,14 @@ function openDuePicker(opts) {
 
 // Esc closes only the picker (capture phase so the dialog / quick add stay open)
 document.addEventListener('keydown', (e) => {
-  if (state.dpEl && e.key === 'Escape') {
+  if (dpEl && e.key === 'Escape') {
     e.preventDefault();
     e.stopPropagation();
     closeDuePicker('esc');
   }
 }, true);
 document.addEventListener('click', (e) => {
-  if (state.dpEl && !e.composedPath().includes(state.dpEl) && !state.dpState.anchor.contains(e.target)) closeDuePicker();
+  if (dpEl && !e.composedPath().includes(dpEl) && !dpState.anchor.contains(e.target)) closeDuePicker();
 });
 
 // --- Navigation and routing: js/nav.js (slice 2.4) ----------------------------------------------
@@ -832,14 +580,11 @@ nav.init({
 const $ = (sel) => document.querySelector(sel);
 
 publish.init({
-  $, myTasks, showToast: tasks.showToast, hideAnimated, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks,
+  $, myTasks, showToast: tasks.showToast, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks,
   renderAnnouncements: announcements.renderAnnouncements, applyProgress: tasks.applyProgress,
-  normalizeBoard, setPublished, Task, setPage: nav.setPage,
-  acceptAuthority: (board) => { if (acceptAuthoritativeBoard(board)) applyDeletionAuthority(); },
-  archive: (task) => recoveryApi.archive(task),
+  setPublished, Task, setPage: nav.setPage,
   syncCatalog,
   catalog: {
-    newOperationId,
     // The draft catalogue is what Publish sends; a legacy install with no draft keeps the published
     // definitions. A definition is never invented for an unknown code (see unknownFor below).
     forPublish: () => (state.draftSubjects.length
@@ -876,40 +621,23 @@ dom.dialogDuplicate.addEventListener('click', () => {
 });
 
 // --- Settings and theme: js/settings.js (slice 2.4) ---------------------------------------------
-// The moved listeners register here, exactly where the settings panel's listeners used to, so their
-// order against the publish/history Escape handler above and the tour listeners below is unchanged.
-// The theme toggle moved here too (its block sat next to the new-task button); it is the only
-// listener on #theme-toggle, so its later registration competes with nothing. Every dep is declared
-// above this point, so it can be passed by value.
 settings.init({
-  $, hideAnimated, adminHint, signIn, showToast: tasks.showToast,
+  $, adminHint, signIn, showToast: tasks.showToast,
   JSON_POST, ADMIN_KEY, SIGNED_OUT_KEY,
 });
 
 // --- Tutorial: js/tour.js (slice 2.3) -----------------------------------------------------------
-// The moved listeners register here, exactly where they used to, so the tour's document keydown
-// handler keeps its place in the Escape chain and its resize handler keeps its order against the
-// other window listeners. `$` is app.js's querySelector shorthand (declared above); the rest are
-// the hub functions the module still calls.
 tour.init({
   $, STATUS_LABELS, STATUS_ORDER: tasks.STATUS_ORDER, createSubjectTag,
-  setPreview: publish.setPreview, setPage: nav.setPage, hideAnimated, closeSettings: settings.closeSettings,
+  setPreview: publish.setPreview, setPage: nav.setPage, closeSettings: settings.closeSettings,
 });
 
 // --- Transfer and import: js/transfer.js (slice 2.4) --------------------------------------------
-// One init() registers the region's listeners here, exactly where the transfer region's first
-// listener used to register, so the page's listener order is unchanged: the publish/history Escape
-// handler, then settings, then tour, then the transfer and import listeners plus their Escape
-// handler, then the focus trap below. The token is still read at module-evaluation time - before
-// start() awaits checkAdmin() - and app.js's bootstrap init() still calls checkIncomingTransfer with
-// it. Every dep is declared (or, for renderAllTasks, hoisted) above this point, so passing them by
-// value is safe; myTasks is the same array instance the draft code mutates.
 const INCOMING_TRANSFER = transfer.takeTransferToken();
 transfer.init({
-  $, hideAnimated, showToast: tasks.showToast, closeSettings: settings.closeSettings,
-  myTasks, applyProgress: tasks.applyProgress, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks, renderAnnouncements: announcements.renderAnnouncements,
+  $, showToast: tasks.showToast, closeSettings: settings.closeSettings,
+  myTasks, applyProgress: tasks.applyProgress, saveTasks: tasks.saveTasks, renderAllTasks: tasks.renderAllTasks,
   snapshot: publish.snapshot, restoreDraft: publish.restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER: tasks.STATUS_ORDER,
-  syncCatalog,
 });
 
 // --- Focus trap: Tab stays inside the open dialog ---
@@ -978,10 +706,6 @@ async function start() {
     Task,
     saveTasks: tasks.saveTasks,
     renderAllTasks: tasks.renderAllTasks,
-    adminAction,
-    archive: (task) => recoveryApi.archive(task),
-    newId: () => (crypto.randomUUID ? crypto.randomUUID() : newOperationId()),
-    acceptAuthority: (board) => { if (acceptAuthoritativeBoard(board)) applyDeletionAuthority(); },
   });
   // The bin and the catalogue are server state, so they load when the Admin page is opened.
   const loadAdminPanels = () => {
@@ -996,8 +720,6 @@ async function start() {
     referencedCodes: () => [...new Set(
       [...myTasks, ...state.publishedTasks].map((t) => t && t.subject).filter(Boolean),
     )],
-    adminAction,
-    apiVersions: API.versions,
     confirm: (message) => new Promise((resolve) => tasks.confirmDialog({
       title: 'Apply subject preset?', message, okLabel: 'Apply preset',
       onConfirm: () => resolve(true), onCancel: () => resolve(false),

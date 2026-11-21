@@ -46,30 +46,31 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, API, fmtWhen } from './util.js';
-import { validateSubjects, catalogSignature, subjectDisplayName } from './subjects.js';
-import { prepareRecoveredDraft } from './recovery.js';
-import { openOverlay } from './motion.js';
+import { catalogSignature, subjectDisplayName } from './subjects.js';
+import { openOverlay, hideOverlay } from './motion.js';
+import { store, normalizeBoard, newOperationId } from './store.js';
 
 let $ = null;                   // app.js: its querySelector shorthand
 let myTasks = null;             // app.js: the live draft array, mutated in place by restoreDraft
-let showToast = null;           // app.js: every message, the 'Undo' label and its action
+let showToast = null;           // js/tasks.js: every message, the 'Undo' label and its action
 let armInlineConfirm = null;    // js/tasks.js: shared 4s inline destructive confirm
-let hideAnimated = null;        // app.js: the publish and history overlays close animated
-let saveTasks = null;           // app.js: persists progress and the draft after a restore
-let renderAllTasks = null;      // app.js: re-renders the board after a preview, restore or publish
+let saveTasks = null;           // js/tasks.js: persists progress and the draft after a restore
+let renderAllTasks = null;      // js/tasks.js: re-renders the board after a preview, restore or publish
 let renderAnnouncements = null; // js/announcements.js: the same, for the announcement list
-let applyProgress = null;       // app.js: restoreDraft re-applies the saved statuses
-let normalizeBoard = null;      // app.js: the publish response is normalised before setPublished
+let applyProgress = null;       // js/tasks.js: restoreDraft re-applies the saved statuses
 let setPublished = null;        // app.js: the live board is replaced after a publish
 let Task = null;                // logic.js: restoreDraft rebuilds each task through Task.fromJSON
-let acceptAuthority = null;     // app.js: adopts a returned board's revision and deletion markers
-let catalog = null;             // app.js: the draft subject catalogue and its operation ids
-let archive = null;             // app.js: archive-first, so a replacement never loses a draft copy
+let catalog = null;             // app.js: the draft subject catalogue helpers
 let syncCatalog = null;         // app.js: a restored catalogue must repaint tags and pickers
-let setPage = null;             // nav.setPage: setPreview(true) switches to the Class tasks page
+let setPage = null;             // js/nav.js: setPreview(true) switches to the Class tasks page
 let adoptInlineImages = null;   // js/note-images.js: publish moves inline note images to uploads/
 let rewriteNotes = null;        // js/note-images.js: the same rewrite for the in-memory draft
 let files = null;               // app.js: window.TTFiles, the upload client
+
+let lastSavedAt = null;
+let serverVersions = [];
+let clearTimer = null;
+let conflictBoard = null;
 // --- Admin: diff, checkpoints, publish, history, import/export, preview ---
 
 // The draft content, including its catalogue, in the one shape checkpoints, restore, discard and
@@ -115,64 +116,25 @@ export function updateAdminBar(diff) {
   if (!state.isAdmin) return;
   $('#admin-status').textContent = [
     diff.total ? `Unpublished changes: ${diff.total}` : 'No unpublished changes',
-    state.lastSavedAt && `Saved ${new Date(state.lastSavedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+    lastSavedAt && `Saved ${new Date(lastSavedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
   ].filter(Boolean).join(' · ');
   $('#btn-apply').disabled = !diff.total;
   $('#btn-discard').disabled = !diff.total;
 }
 
-// One path for history, checkpoints, discard and their Undo. The replacement's own catalogue and
-// base are never adopted: the receiver keeps its publishing base and its authority.
-// Before anything is replaced, a draft-only definition that would otherwise lose its last copy is
-// archived. If that archive fails, the draft is left exactly as it was.
+// One path for history, checkpoints, discard, transfer and their Undo.
 export async function restoreDraft(snap) {
-  const incoming = Array.isArray(snap && snap.tasks) ? snap.tasks : [];
-  const keep = new Set(incoming.map((t) => String(t && t.id)));
-  const publishedIds = new Set(state.publishedTasks.map((t) => String(t.id)));
-  const onlyHere = myTasks.filter((t) => !keep.has(String(t.id)) && !publishedIds.has(String(t.id)));
-  if (onlyHere.length && typeof archive !== 'function') {
-    showToast('The recycle bin is unavailable, so the draft was left unchanged.');
-    return false;
-  }
-  for (const task of onlyHere) {
-    const archived = await archive(task);
-    if (!archived || !archived.ok) {
-      showToast('Could not save a draft-only task to the recycle bin, so the draft was left unchanged.');
-      return false;
-    }
-  }
-
-  // A permanently deleted id may not come back as itself from any source - a checkpoint, a history
-  // version, a transfer or an Undo. It returns as a clearly labelled new copy, with no progress.
-  const prepared = prepareRecoveredDraft(
-    { tasks: incoming },
-    state.verifiedDeletedIds,
-    () => (crypto.randomUUID ? crypto.randomUUID() : newIntentId()),
-  );
-  myTasks.length = 0;
-  prepared.content.tasks.forEach((o) => myTasks.push(Task.fromJSON(o)));
-  if (prepared.recovered.length) {
-    showToast(prepared.recovered.length === 1
-      ? 'Restored one task as a new copy: its old id was permanently deleted.'
-      : `Restored ${prepared.recovered.length} tasks as new copies: their old ids were permanently deleted.`);
-  }
-  state.announcements = snap.announcements ? JSON.parse(JSON.stringify(snap.announcements)) : [];
-  if (Array.isArray(snap.subjects) && snap.subjects.length) {
-    const checked = validateSubjects(snap.subjects);
-    if (!checked.error) { state.draftSubjects = checked.subjects; syncCatalog(checked.subjects); }
-  }
-  applyProgress(myTasks);
-  saveTasks();
-  renderAllTasks();
-  renderAnnouncements();
-  return true;
+  const out = await store.replaceDraft(snap, {
+    myTasks, Task, syncCatalog, applyProgress, saveTasks, renderAllTasks, renderAnnouncements, showToast,
+  });
+  return out.ok;
 }
 
 function saveCheckpoint() {
   const list = readJSON(KEYS.checkpoints, []);
   list.unshift({ at: Date.now(), ...snapshot() });
   if (!writeJSON(KEYS.checkpoints, list.slice(0, 20))) { showToast('Storage is full. Checkpoint not saved.'); return; }
-  state.lastSavedAt = Date.now();
+  lastSavedAt = Date.now();
   updateAdminBar(diffDraft());
   showToast('Checkpoint saved');
 }
@@ -218,7 +180,7 @@ function renderHistory() {
   const list = $('#history-list');
   const items = [
     ...readJSON(KEYS.checkpoints, []).map((c) => ({ kind: 'Checkpoint', at: c.at, snap: c })),
-    ...state.serverVersions.map((v) => ({ kind: 'Published', at: v.publishedAt * 1000, note: v.note, snap: v, id: v.id })),
+    ...serverVersions.map((v) => ({ kind: 'Published', at: v.publishedAt * 1000, note: v.note, snap: v, id: v.id })),
   ].sort((a, b) => b.at - a.at);
   list.replaceChildren();
   if (!items.length) {
@@ -256,10 +218,10 @@ function renderHistory() {
       detail.appendChild(d);
     });
     preview.addEventListener('click', () => { detail.hidden = !detail.hidden; });
-    restore.addEventListener('click', () => {
+    restore.addEventListener('click', async () => {
       const before = snapshot();
-      restoreDraft(it.snap);
-      hideAnimated(dom.historyOverlay);
+      if (!(await restoreDraft(it.snap))) return;
+      hideOverlay(dom.historyOverlay);
       showToast('Restored to draft. Nothing is live until you publish.', 'Undo', () => restoreDraft(before));
     });
     const del = document.createElement('button');
@@ -273,7 +235,7 @@ function renderHistory() {
         try {
           const res = await fetch(API.versions, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) });
           if (!res.ok) throw new Error();
-          state.serverVersions = state.serverVersions.filter((v) => v.id !== it.id);
+          serverVersions = serverVersions.filter((v) => v.id !== it.id);
         } catch (ex) { showToast('Could not delete that version'); return; }
       }
       renderHistory();
@@ -291,33 +253,22 @@ async function loadVersions() {
     const res = await fetch(API.versions, { cache: 'no-store' });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || 'Could not load versions');
-    state.serverVersions = out.versions;
+    serverVersions = out.versions;
   } catch (ex) { showToast(ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message); }
   renderHistory();
 }
-
-// Called once by app.js, at the spot the moved listeners used to occupy.
-// One stable intent id per user action: a transport retry repeats it, so the server can tell a
-// replay from a second edit.
-const newIntentId = () => (crypto.randomUUID
-  ? crypto.randomUUID().replace(/-/g, '')
-  : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''));
 
 export function init(deps) {
   $ = deps.$;
   myTasks = deps.myTasks;
   showToast = deps.showToast;
-  hideAnimated = deps.hideAnimated;
   saveTasks = deps.saveTasks;
   renderAllTasks = deps.renderAllTasks;
   renderAnnouncements = deps.renderAnnouncements;
   applyProgress = deps.applyProgress;
-  normalizeBoard = deps.normalizeBoard;
   setPublished = deps.setPublished;
   Task = deps.Task;
-  acceptAuthority = deps.acceptAuthority || null;
   catalog = deps.catalog || null;
-  archive = deps.archive || null;
   syncCatalog = deps.syncCatalog || null;
   setPage = deps.setPage;
   adoptInlineImages = deps.adoptInlineImages;
@@ -328,25 +279,19 @@ $('#publish-clear-input').addEventListener('input', syncPublishClear);
 // Explicit review step for a refused stale publish: adopting the newer board is the admin's
 // decision, and it only moves the publishing base - it never edits or replaces the draft.
 $('#publish-rebase').addEventListener('click', async () => {
-  const newer = state.conflictBoard;
+  const newer = conflictBoard;
   if (!newer) return;
-  state.conflictBoard = null;
+  conflictBoard = null;
   $('#publish-conflict').hidden = true;
   $('#publish-error').hidden = true;
-  // A refused response is evidence that the write lost, not authority: re-read the board with a
-  // fresh successful request and adopt only that. A failure body could otherwise smuggle markers in.
-  let fresh = null;
-  try {
-    const res = await fetch(API.current, { cache: 'no-cache', signal: AbortSignal.timeout(8000) });
-    if (res.ok) fresh = await res.json();
-  } catch (e) { fresh = null; }
-  const board = normalizeBoard(fresh);
-  if (!board || !acceptAuthority(board)) {
+  // A refused response is evidence that the write lost, not authority: re-read the board through
+  // the single Board fetch seam and adopt only a verified response.
+  const { board, authoritative } = await store.fetchBoard({ fallbackToCache: false });
+  if (!board || !authoritative) {
     $('#publish-error').textContent = 'That newer board could not be adopted. Reload the page.';
     $('#publish-error').hidden = false;
     return;
   }
-  writeJSON(KEYS.cache, board);
   setPublished(board);
   updateAdminBar(diffDraft());
   showToast('Now publishing over the newer board. Review your draft, then publish again.');
@@ -389,7 +334,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
     }
     body = {
       schemaVersion: 2,
-      operationId: catalog && catalog.newOperationId ? catalog.newOperationId() : newIntentId(),
+      operationId: newOperationId(),
       baseRevision: state.verifiedRevision,
       subjects: catalog ? catalog.forPublish(body.tasks) : [],
       ...body,
@@ -407,7 +352,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
       // A stale write is refused, never retried blindly or rebased silently: keep the draft and let
       // the admin review the newer board before publishing over it.
       if (out.code === 'stale_base') {
-        state.conflictBoard = out.current || null;
+        conflictBoard = out.current || null;
         const newer = out.current || {};
         const live = Array.isArray(newer.tasks) ? newer.tasks.length : null;
         $('#publish-conflict-text').textContent =
@@ -423,9 +368,9 @@ $('#publish-form').addEventListener('submit', async (e) => {
     writeJSON(KEYS.cache, board);
     // A successful publish is authoritative: adopt its revision and markers, then erase progress
     // the server proved deleted (a publish may carry a permanent-deletion marker).
-    if (typeof acceptAuthority === 'function') acceptAuthority(board);
+    store.adoptAuthoritativeBoard(board, { onPersistError: () => showToast('Could not update saved progress on this device.') });
     setPublished(board);
-    hideAnimated(dom.publishOverlay);
+    hideOverlay(dom.publishOverlay);
     renderAllTasks();
     renderAnnouncements();
     // Editing while the request was in flight is legitimate; those edits stay unpublished, and the
@@ -454,10 +399,10 @@ $('#history-clear').addEventListener('click', async (e) => {
   if (!btn.dataset.armed) {
     btn.dataset.armed = '1';
     btn.textContent = 'Click again to confirm';
-    state.clearTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Clear all history'; }, 4000);
+    clearTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Clear all history'; }, 4000);
     return;
   }
-  clearTimeout(state.clearTimer);
+  clearTimeout(clearTimer);
   delete btn.dataset.armed;
   btn.textContent = 'Clear all history';
   btn.disabled = true;
@@ -465,7 +410,7 @@ $('#history-clear').addEventListener('click', async (e) => {
   try {
     const res = await fetch(API.versions, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true }) });
     if (!res.ok) throw new Error();
-    state.serverVersions = [];
+    serverVersions = [];
     showToast('History cleared');
   } catch (ex) { showToast('Checkpoints cleared. Server versions could not be.'); }
   btn.disabled = false;
@@ -474,21 +419,21 @@ $('#history-clear').addEventListener('click', async (e) => {
 
 // Wiring
 [[dom.publishOverlay, '#publish-close, #publish-cancel'], [dom.historyOverlay, '#history-close']].forEach(([ov, sel]) => {
-  ov.querySelectorAll(sel).forEach((b) => b.addEventListener('click', () => hideAnimated(ov)));
-  ov.addEventListener('click', (e) => { if (e.target === ov) hideAnimated(ov); });
+  ov.querySelectorAll(sel).forEach((b) => b.addEventListener('click', () => hideOverlay(ov)));
+  ov.addEventListener('click', (e) => { if (e.target === ov) hideOverlay(ov); });
 });
 $('#btn-save').addEventListener('click', saveCheckpoint);
 $('#btn-apply').addEventListener('click', openPublishDialog);
 $('#btn-preview').addEventListener('click', () => setPreview(true));
 $('#preview-exit').addEventListener('click', () => setPreview(false));
-$('#btn-discard').addEventListener('click', () => {
+$('#btn-discard').addEventListener('click', async () => {
   const before = snapshot();
-  restoreDraft({
+  const ok = await restoreDraft({
     tasks: state.publishedTasks.map((t) => t.toJSON()),
     announcements: state.publishedAnnouncements,
     subjects: state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [],
   });
-  showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
+  if (ok) showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
 });
 
 // Shortcuts: Ctrl/Cmd+S = checkpoint, Ctrl/Cmd+Enter = apply
@@ -501,7 +446,7 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!dom.publishOverlay.hidden) hideAnimated(dom.publishOverlay);
-  else if (!dom.historyOverlay.hidden) hideAnimated(dom.historyOverlay);
+  if (!dom.publishOverlay.hidden) hideOverlay(dom.publishOverlay);
+  else if (!dom.historyOverlay.hidden) hideOverlay(dom.historyOverlay);
 });
 }
