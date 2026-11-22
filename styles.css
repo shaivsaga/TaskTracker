@@ -236,8 +236,8 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
   #admin-bar .admin-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   #admin-bar .admin-tools .text-button { width: 100%; padding: 0 8px; }
   #admin-bar .admin-release { order: 1; width: 100%; padding-top: 8px; border-top: 2px solid var(--ln); }
-  #admin-bar .admin-draft { order: 2; width: 100%; }
-  #admin-bar #btn-discard, #admin-bar #btn-apply { width: 100%; }
+  #admin-bar .admin-draft { order: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; width: 100%; }
+  #admin-bar #btn-discard, #admin-bar #btn-apply, #admin-bar #btn-save { width: 100%; }
   #admin-bar.is-clean .admin-draft, #admin-bar.is-clean .admin-release { display: none; }
 }
 

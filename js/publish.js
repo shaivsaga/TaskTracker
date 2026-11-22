@@ -118,8 +118,15 @@ export function updateAdminBar(diff) {
     diff.total ? `Unpublished changes: ${diff.total}` : 'No unpublished changes',
     lastSavedAt && `Saved ${new Date(lastSavedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
   ].filter(Boolean).join(' · ');
+  $('#admin-bar').classList.toggle('is-clean', !diff.total);
   $('#btn-apply').disabled = !diff.total;
-  $('#btn-discard').disabled = !diff.total;
+  const discard = $('#btn-discard');
+  discard.disabled = !diff.total;
+  if (!diff.total && discard.dataset.armed) {
+    delete discard.dataset.armed;
+    discard.textContent = 'Discard changes';
+    discard.removeAttribute('aria-label');
+  }
 }
 
 // One path for history, checkpoints, discard, transfer and their Undo.
