@@ -27,6 +27,22 @@ let serverVersions = [];
 let clearTimer = null;
 let conflictBoard = null;
 
+export function createPublishIntent(makeId = newOperationId) {
+  let pending = null;
+  return {
+    operationIdFor(key) {
+      if (pending && pending.key === key) return pending.operationId;
+      pending = { key, operationId: makeId() };
+      return pending.operationId;
+    },
+    clear() {
+      pending = null;
+    },
+  };
+}
+
+const publishIntent = createPublishIntent();
+
 export const snapshot = () => ({
   schemaVersion: 2,
   tasks: myTasks.map((t) => t.toJSON()),
@@ -244,6 +260,7 @@ $('#publish-rebase').addEventListener('click', async () => {
   const newer = conflictBoard;
   if (!newer) return;
   conflictBoard = null;
+  publishIntent.clear();
   $('#publish-conflict').hidden = true;
   $('#publish-error').hidden = true;
 
@@ -290,11 +307,21 @@ $('#publish-form').addEventListener('submit', async (e) => {
     if (unknown.length) {
       throw new Error(`These subjects are not configured: ${unknown.join(', ')}. Add them to the catalogue before publishing.`);
     }
+    const subjects = catalog ? catalog.forPublish(body.tasks) : [];
+    const baseRevision = state.verifiedRevision;
+    const intentKey = JSON.stringify({
+      baseRevision,
+      tasks: body.tasks,
+      announcements: body.announcements,
+      subjects,
+      note: body.note,
+      clearBoard: body.clearBoard || null,
+    });
     body = {
       schemaVersion: 2,
-      operationId: newOperationId(),
-      baseRevision: state.verifiedRevision,
-      subjects: catalog ? catalog.forPublish(body.tasks) : [],
+      operationId: publishIntent.operationIdFor(intentKey),
+      baseRevision,
+      subjects,
       ...body,
     };
     const sentFingerprint = JSON.stringify(snapshot());
@@ -309,6 +336,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
       if (out.code === 'committed_recovery_pending') throw new Error(out.error || 'Published, but the archive is still settling. Reload.');
 
       if (out.code === 'stale_base') {
+        publishIntent.clear();
         conflictBoard = out.current || null;
         const newer = out.current || {};
         const live = Array.isArray(newer.tasks) ? newer.tasks.length : null;
@@ -320,6 +348,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
       }
       throw new Error(out.error || 'Publish failed');
     }
+    publishIntent.clear();
     const board = normalizeBoard(out.current);
     if (!board) throw new Error('Published, but the response was unreadable. Reload to check.');
     writeJSON(KEYS.cache, board);

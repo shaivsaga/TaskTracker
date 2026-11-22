@@ -1,0 +1,50 @@
+name: Formal verification
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tlc-board-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check BoardSync TLA+ invariants
+        run: bash tests/formal/run-tlc.sh BoardSync.cfg
+      - name: Prove BoardSync model fails on all three bug controls
+        run: |
+          for pair in \
+            "BugDropMarkerCheck:ClientRejectsDroppedMarker" \
+            "BugFreshOpOnRetry:IdempotentPostCommitRetry" \
+            "BugSkipBaseCheck:NoStaleOverwrite"; do
+            flag="${pair%%:*}"
+            inv="${pair##*:}"
+            cfg="BoardSync-${flag}.cfg"
+            sed "s/${flag} = FALSE/${flag} = TRUE/" tests/formal/BoardSync.cfg > "tests/formal/${cfg}"
+            out="$(bash tests/formal/run-tlc.sh "${cfg}" 2>&1 || true)"
+            rm -f "tests/formal/${cfg}"
+            echo "$out" | grep -q "Invariant ${inv} is violated" || {
+              echo "::error::Negative control ${flag} did not violate ${inv}"
+              echo "$out"
+              exit 1
+            }
+            echo "Verified negative control ${flag} violates ${inv}"
+          done
+
+  php-js-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+      - name: Replay TLC traces against real PHP and JS modules
+        env:
+          REQUIRE_PHP: '1'
+        run: node --test tests/board-sync-replay.test.js

@@ -4,6 +4,7 @@
   "scripts": {
     "lint": "node tests/lint.mjs",
     "test": "node --test tests/*.test.js",
-    "audit": "node tests/e2e/audit.mjs"
+    "audit": "node tests/e2e/audit.mjs",
+    "verify:formal": "bash tests/formal/run-tlc.sh"
   }
 }

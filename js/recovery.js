@@ -40,12 +40,13 @@ export function nextAuthority(known, board) {
 
   const fromBoard = markerIds(Array.isArray(board.deletedTasks) ? board.deletedTasks : []);
   if (fromBoard === null) return null;
+  const incoming = new Set(fromBoard);
+  for (const id of knownIds) if (!incoming.has(id)) return null;
   const merged = [...knownIds];
   const seen = new Set(knownIds);
   for (const id of fromBoard) {
     if (!seen.has(id)) { seen.add(id); merged.push(id); }
   }
-  for (const id of knownIds) if (!seen.has(id)) return null;
   return { revision, deletedIds: merged };
 }
 
