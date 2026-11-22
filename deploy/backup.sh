@@ -75,14 +75,14 @@ cmd_backup() {
   trap 'rm -f "$tmp_archive"' EXIT
 
   local -a items=()
-  for name in current.json versions uploads admin; do
+  for name in current.json versions uploads admin sections; do
     if [ -e "$data_dir/$name" ]; then
       items+=("$name")
     fi
   done
 
   if [ "${#items[@]}" -eq 0 ]; then
-    echo "Nothing to back up in $data_dir (no current.json, versions, uploads, or admin)." >&2
+    echo "Nothing to back up in $data_dir (no current.json, versions, uploads, admin, or sections)." >&2
     exit 1
   fi
 
@@ -94,11 +94,11 @@ cmd_backup() {
       echo "Could not acquire publish lock at $data_dir/.publish.lock within 5s" >&2
       exit 1
     fi
-    tar -czf "$tmp_archive" -C "$data_dir" "${items[@]}"
+    tar --exclude='sections/*/sessions' --exclude='sections/*/transfers' -czf "$tmp_archive" -C "$data_dir" "${items[@]}"
     flock -u 9
     exec 9>&-
   else
-    tar -czf "$tmp_archive" -C "$data_dir" "${items[@]}"
+    tar --exclude='sections/*/sessions' --exclude='sections/*/transfers' -czf "$tmp_archive" -C "$data_dir" "${items[@]}"
   fi
 
   mv "$tmp_archive" "$archive"

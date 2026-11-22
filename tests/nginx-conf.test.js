@@ -257,3 +257,49 @@ test('bare js/*.js module URLs reuse the root-asset cache policy and security he
     );
   }
 });
+
+test('multi-section wildcard includes and explicit root TT_SECTION params are in place', () => {
+  const httpIncludeIdx = LINES.findIndex(
+    (l) => l.depth === 0 && l.text === 'include /home/site/secure/sections-http-*.conf;',
+  );
+  assert.ok(httpIncludeIdx >= 0, 'missing top-level include /home/site/secure/sections-http-*.conf;');
+
+  const serverIncludeIdx = LINES.findIndex(
+    (l) => l.depth === 1 && l.text === 'include /home/site/secure/sections-server-*.conf;',
+  );
+  assert.ok(serverIncludeIdx >= 0, 'missing server-level include /home/site/secure/sections-server-*.conf;');
+
+  const sectionGateIdx = LINES.findIndex(
+    (l) => l.depth === 1 && /^location\s+~\*\s+\^\/s\/\s*\{$/.test(l.text),
+  );
+  assert.ok(sectionGateIdx > serverIncludeIdx, 'location ~* ^/s/ 404 gate must sit below sections-server-*.conf include');
+
+  const genericPhpIdx = LINES.findIndex(
+    (l) => l.depth === 1 && /^location\s+~\*\s+\[\^\/\]\\\.php\(\/\|\$\)/.test(l.text),
+  );
+  assert.ok(genericPhpIdx > sectionGateIdx, 'sections-server-*.conf include and ^/s/ gate must sit above generic .php handler');
+
+  const locations = [];
+  for (let i = 0; i < LINES.length; i += 1) {
+    if (LINES[i].depth !== 1 || !/^location\b/.test(LINES[i].text)) continue;
+    const body = [];
+    for (let j = i + 1; j < LINES.length && LINES[j].depth > 1; j += 1) body.push(LINES[j].text);
+    locations.push({ at: LINES[i].text, body });
+  }
+
+  for (const route of ['login', 'logout', 'versions', 'publish', 'upload']) {
+    const loc = locations.find((l) => l.at.startsWith(`location = /api/${route}.php`));
+    assert.ok(loc, `missing exact route /api/${route}.php`);
+    assert.ok(
+      loc.body.includes('fastcgi_param TT_SECTION "";'),
+      `/api/${route}.php must explicitly set fastcgi_param TT_SECTION "";`,
+    );
+  }
+
+  const genericPhp = locations.find((l) => /\[\^\/\]\\\.php/.test(l.at));
+  assert.ok(genericPhp, 'missing generic .php location');
+  assert.ok(
+    genericPhp.body.includes('fastcgi_param TT_SECTION "";'),
+    'generic .php handler must explicitly set fastcgi_param TT_SECTION "";',
+  );
+});
