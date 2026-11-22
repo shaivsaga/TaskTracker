@@ -14,14 +14,42 @@
 // harden the host turns red instead of going quietly green.
 //
 // USAGE
-//   node deploy/verify-hardening.mjs [base-url]        # default https://dsct.dev
+//   node deploy/verify-hardening.mjs [base-url] [--section-url <url>]  # default https://dsct.dev
 //
 // DELIBERATELY NOT CHECKED
 // The login throttle (M1) needs six requests inside a minute, which would 429 the
 // caller's IP for the next minute. Never run that from the owner's network; see
 // POST_DEPLOY_VERIFICATION.md (repo root).
 
-const BASE = (process.argv[2] || process.env.VERIFY_BASE_URL || 'https://dsct.dev').replace(/\/+$/, '');
+function parseArgs(argv) {
+  let baseUrl = '';
+  let sectionUrl = '';
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--section-url') {
+      if (i + 1 >= argv.length || !argv[i + 1]) {
+        console.error('--section-url requires a URL argument');
+        process.exit(2);
+      }
+      sectionUrl = argv[i + 1];
+      i += 1;
+    } else if (arg.startsWith('--section-url=')) {
+      sectionUrl = arg.slice('--section-url='.length);
+      if (!sectionUrl) {
+        console.error('--section-url requires a URL argument');
+        process.exit(2);
+      }
+    } else if (!arg.startsWith('--') && !baseUrl) {
+      baseUrl = arg;
+    }
+  }
+  return {
+    base: (baseUrl || process.env.VERIFY_BASE_URL || 'https://dsct.dev').replace(/\/+$/, ''),
+    sectionUrl: sectionUrl.trim(),
+  };
+}
+
+const { base: BASE, sectionUrl: SECTION_URL } = parseArgs(process.argv.slice(2));
 
 // The header set the config repeats in EVERY location that declares its own
 // add_header (nginx does not inherit add_header into such a location).
@@ -57,8 +85,43 @@ const checks = [
   { path: '/', status: 200, serverTokens: true, why: 'nginx version should not be advertised (M2)', soft: true },
 ];
 
-async function probe(path, extraHeaders = {}) {
-  const res = await fetch(BASE + path, {
+if (SECTION_URL) {
+  let parsed;
+  try {
+    parsed = new URL(SECTION_URL);
+  } catch (err) {
+    console.error(`Invalid --section-url "${SECTION_URL}": ${err.message}`);
+    process.exit(2);
+  }
+  const cleanPath = parsed.pathname.replace(/\/+$/, '');
+  const match = cleanPath.match(/^\/s\/([a-z0-9][a-z0-9_-]{0,31})\/([a-f0-9]{32})$/i);
+  if (!match) {
+    console.error(`--section-url must point to /s/<id>/<32-hex-token>/, got "${SECTION_URL}"`);
+    process.exit(2);
+  }
+  const secOrigin = parsed.origin;
+  const secId = match[1].toLowerCase();
+  const token = match[2].toLowerCase();
+  const mutatedToken = (token[0] === '0' ? '1' : '0') + token.slice(1);
+  const secPrefix = `/s/${secId}/${token}`;
+  const stalePrefix = `/s/${secId}/${mutatedToken}`;
+
+  checks.push(
+    { path: `${secPrefix}/`, url: `${secOrigin}${secPrefix}/`, status: 200, securityHeaders: true, why: 'section entry point must carry the full header set' },
+    { path: `${secPrefix}/data/current.json`, url: `${secOrigin}${secPrefix}/data/current.json`, status: 200, securityHeaders: true, headers: [['cache-control', /no-cache/i]], why: 'section board payload must load with no-cache and security headers' },
+    { path: `${secPrefix}/api/login.php`, url: `${secOrigin}${secPrefix}/api/login.php`, status: 401, headers: [['www-authenticate', /basic/i]], why: 'section admin login must challenge before PHP runs' },
+    { path: `${secPrefix}/Api/login.php`, url: `${secOrigin}${secPrefix}/Api/login.php`, status: 404, why: 'case-varied section API route must not reach PHP' },
+    { path: `${secPrefix}/Api/versions.php`, url: `${secOrigin}${secPrefix}/Api/versions.php`, status: 404, why: 'case-varied section API route must not reach PHP' },
+    { path: `${secPrefix}/Data/current.json`, url: `${secOrigin}${secPrefix}/Data/current.json`, status: 403, why: 'case-varied section data path must be denied' },
+    { path: `${secPrefix}/data/admin/state.json`, url: `${secOrigin}${secPrefix}/data/admin/state.json`, status: 403, why: 'section private admin state must be denied' },
+    { path: `${stalePrefix}/`, url: `${secOrigin}${stalePrefix}/`, status: 404, why: 'stale section token root must return 404' },
+    { path: `${stalePrefix}/data/current.json`, url: `${secOrigin}${stalePrefix}/data/current.json`, status: 404, why: 'stale section token board must return 404' },
+    { path: `${stalePrefix}/api/login.php`, url: `${secOrigin}${stalePrefix}/api/login.php`, status: 404, why: 'stale section token login must return 404' },
+  );
+}
+
+async function probe(target, extraHeaders = {}) {
+  const res = await fetch(target, {
     redirect: 'manual',
     headers: { accept: '*/*', 'user-agent': 'tasktracker-hardening-verify/1', ...extraHeaders },
   });
@@ -71,7 +134,7 @@ for (const check of checks) {
   let soft = Boolean(check.soft);
   let observed = null;
   try {
-    const res = await probe(check.path, check.gzip ? { 'accept-encoding': 'gzip' } : {});
+    const res = await probe(check.url || (BASE + check.path), check.gzip ? { 'accept-encoding': 'gzip' } : {});
     const status = res.status;
     observed = status;
     if (status !== check.status) problems.push(`status ${status}, expected ${check.status}`);
