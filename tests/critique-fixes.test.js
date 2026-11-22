@@ -68,3 +68,14 @@ test('keyboard focus outlines, student / shortcut, read-only dialog footer, and 
   assert.match(SUBJECTS, /el\('p', 'form-error'/, 'Subject editor validation errors must use .form-error');
   assert.match(ANNOUNCE, /matchMedia\('\(hover: none\)'\)/, 'Ctrl+Enter hint must hide on touch devices');
 });
+
+test('class page header pairs supporting copy before #mine and centers .mine-n cleanly', () => {
+  const classSection = HTML.slice(HTML.indexOf('id="page-class-tasks"'), HTML.indexOf('id="page-my-tasks"'));
+  const copyIdx = classSection.indexOf('class="page-supporting-copy"');
+  const mineIdx = classSection.indexOf('id="mine"');
+  const actionsIdx = classSection.indexOf('class="page-actions"');
+  assert.ok(copyIdx > 0 && mineIdx > copyIdx && actionsIdx > mineIdx,
+    '#page-class-tasks must order supporting copy -> #mine -> .page-actions so TASKS pairs with its subtitle');
+  assert.match(CSS, /\.mine\s*\{[^}]*align-items:\s*center;/, '.mine must vertically center .mine-n beside the two-line summary');
+  assert.match(CSS, /\.mine-n\s*\{[^}]*48px\/48px/, 'desktop .mine-n must use 48px/48px to match the two-line stack at 3x pixel grid');
+});

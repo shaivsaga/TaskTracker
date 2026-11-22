@@ -378,6 +378,9 @@ function execute(
   const failDest = { DST: p('etc', 'default'), BAK: p('etc', 'default.bak') }[cpFailDest] || '';
 
   const stub = (name, body) => fs.writeFileSync(p('bin', name), '#!/bin/bash\n' + body + '\n', { mode: 0o755 });
+  // Stub sleep so readiness/shutdown retry loops in deploy/startup.sh run at full speed in tests
+  // without altering production sleep intervals.
+  stub('sleep', 'exit 0');
   // nginx is modelled as a state machine rather than an exit code: `-t` only parses, a successful
   // reload makes it serve whatever is on disk, and a stop leaves it serving nothing. TT_SERVING is
   // what the assertions read, so "which config nginx has loaded" is a transition rather than a guess.

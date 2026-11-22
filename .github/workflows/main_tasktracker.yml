@@ -10,6 +10,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # The JavaScript suite on every pull request. Deliberately a separate job from
   # build: build ends in a production deploy, and a pull request must never reach it.
@@ -21,12 +25,25 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Use Node 22 for the audit
+      - name: Use Node 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Run JavaScript tests
         run: node --test tests/*.test.js
+
+  # Run the browser audit in parallel with js-tests on pull requests.
+  browser-audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node 22 for the audit
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       # The real-browser gate. ubuntu-latest ships Google Chrome; the audit finds it, and
       # --require-browser turns a missing browser into a failure instead of a green SKIP.
       - name: Run browser audit
