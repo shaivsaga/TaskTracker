@@ -32,7 +32,8 @@ It is also a project for my computer science studies, so the design choices belo
 **For classmates**
 - A board of published tasks, as a Kanban board or a list, sorted by due date with overdue tasks first.
 - Set your own status on each task: Not started, In progress, or Done. Drag cards, or use the dropdown.
-- Completed tasks move to their own page and can be reopened at any time.
+- Completed tasks move to the Done page and can be reopened at any time; expired or closed tasks move to Past.
+- Filter by subject or search across tasks.
 - Month and week calendar views. On phones the month shows coloured dots with the selected day's tasks listed underneath, and the week is one row per day.
 - Task notes with bold, italic, bullets, clickable links and images.
 - Open PDF, PPTX, DOCX, JPG and PNG files attached to a task.
@@ -41,9 +42,9 @@ It is also a project for my computer science studies, so the design choices belo
 - Transfer your progress to another device with a QR code or a link.
 
 **For the president**
-- A private admin area to draft tasks and announcements, preview them as a student would see them, and publish.
+- A private admin area to draft tasks and announcements, manage subjects, preview them as a student would see them, and publish.
 - Attach files to a task with a button, by pasting, or by dropping them in. Pasted images are compressed in the browser first.
-- A version history of every publish, so a mistake can be undone.
+- A recycle bin to soft-delete and restore tasks, plus a version history of every publish so a mistake can be undone.
 - A diff of what changed since the last publish.
 
 ## How it works
@@ -58,6 +59,7 @@ Progress is personal and stays on the device. Tasks are shared and come from the
 - **Draft and Board.** The president edits a private Draft. Publishing replaces the public Board with it. Students only ever see the Board.
 - **Status stays local.** Each classmate's progress is saved in their own browser and is never sent to the server, so the president cannot see who has done what.
 - **Transfer** moves progress between devices. Each task keeps the time its status last changed, and when two devices disagree, the most recent change wins.
+- **Sections.** Additional class sections can be provisioned on unlisted `/s/<id>/<token>/` links, each with its own Board, Draft, Subjects, Uploads, History, Recycle Bin, and admin credentials while sharing one codebase.
 
 ## Tech stack
 
@@ -85,7 +87,8 @@ Progress is personal and stays on the device. Tasks are shared and come from the
 - Notes and announcements are sanitized to a small whitelist of tags before they are shown.
 - Uploads are admin only, limited to pdf, pptx, docx, jpg and png, checked by file content and not just the name, size limited, and stored under random names. Word and PowerPoint files always download.
 - Transfer endpoints rebuild every payload from a strict whitelist and are rate limited per IP address. A link is a random 128-bit code that works for anyone who holds it, expires after 10 minutes and can be cancelled early.
-- Secret files, the `data/` folder and the `deploy/` folder are never served to the public. Only `data/current.json` is.
+- Secret files, the `data/` folder and the `deploy/` folder are never served to the public. Only `data/current.json` (and each provisioned section's `current.json` behind its unlisted `/s/<id>/<token>/` link) is.
+- Multi-section isolation is enforced by nginx (`TT_SECTION` via `fastcgi_param` and per-section `htpasswd` + rate-limit zones); bare `/s/` paths return 404, and clients cannot switch sections via query parameters or headers.
 
 ## Getting started locally
 
@@ -105,9 +108,11 @@ The production site runs on Azure App Service with GitHub Actions.
 - Pushing to `main` deploys the code. `data/` is created on the server and is not in git.
 - Azure's PHP images use nginx, which ignores `.htaccess`. The equivalent rules, including the password on `api/login.php`, the exact list of public API routes, and blocking of hidden files and `data/`, are in [`deploy/nginx-default.conf`](deploy/nginx-default.conf).
 - [`deploy/startup.sh`](deploy/startup.sh) copies that config into place at startup, so the rules are re-applied after every restart. The Startup Command must run it; the value on the live app is `/home/site/wwwroot/deploy/startup.sh; php-fpm;`. See [What `startup.sh` does](#what-startupsh-does) for the checks it runs and what it does when one fails.
-- After a deploy, [`deploy/verify-hardening.mjs`](deploy/verify-hardening.mjs) asks the live site whether the rules are actually being applied, because `nginx -t` only proves they parse. [`POST_DEPLOY_VERIFICATION.md`](POST_DEPLOY_VERIFICATION.md) explains the probes and how to read a failure.
+- After a deploy, [`deploy/verify-hardening.mjs`](deploy/verify-hardening.mjs) asks the live site whether the rules are actually being applied (and supports `--section-url` for provisioned sections), because `nginx -t` only proves they parse. [`POST_DEPLOY_VERIFICATION.md`](POST_DEPLOY_VERIFICATION.md) explains the probes and how to read a failure.
 - [`deploy/check-nginx.sh`](deploy/check-nginx.sh) runs `nginx -t` on the config without root. A GitHub Actions workflow runs it on pull requests, and the deploy job runs it before uploading, so an invalid config never ships. Regexes containing `{32}` must be quoted in nginx, or it reads the brace as a block.
-- The deploy stamps `styles.css`, `app.js`, `logic.js`, `qr-draw.js` and `attachments.js` in `index.html` with the commit, so a reload after an update always gets the new files. Stamped files are cached for a year; the page itself and `qrcode.js` are revalidated.
+- [`deploy/section.sh`](deploy/section.sh) provisions (`provision <id>`) and rotates (`rotate <id>`) additional sections using host-only nginx includes under `/home/site/secure/` so tokens and `htpasswd` files stay out of git.
+- [`deploy/backup.sh`](deploy/backup.sh) creates repeatable backups of `data/` and `data/sections/` (see [`docs/backup-restore.md`](docs/backup-restore.md)).
+- The deploy stamps `styles.css`, `app.js`, `logic.js`, `qr-draw.js` and `attachments.js` in `index.html` with the commit, so a reload after an update always gets the new files. Stamped files are cached for a year; the page itself, `qrcode.js`, and `js/*.js` are revalidated.
 - [`deploy/php-uploads.ini`](deploy/php-uploads.ini) raises PHP's upload limits at startup. `deploy/startup.sh` installs it, so the app needs a restart after this change.
 - With XAMPP, serve uploads by adding `Alias /TaskTracker/uploads "C:/xampp/htdocs/TaskTracker/data/uploads"` to Apache.
 - The admin password file is created once on the server, outside the web folder, and is never committed.
@@ -166,8 +171,9 @@ nothing, even if it also did not fail.
 index.html        Markup for every page and dialog, plus the icon sprite
 styles.css        Design tokens, layout and both themes
 app.js            Application behavior: pages, dialogs, rendering, publishing
-js/               Feature modules: state, dom, util, tasks, calendar, nav, settings, tour,
-                  announcements, publish, quick-add, transfer, motion, note-images
+js/               Feature modules: announcements, bin, calendar, dom, motion, nav,
+                  note-images, publish, quick-add, recovery, settings, state, store,
+                  subjects, subjects-editor, tasks, tour, transfer, update-notice, util
 logic.js          Pure logic (dates, Task model, sorting, progress merge, sanitizers)
 attachments.js    File picker, image compression and upload
 qr-draw.js        Draws the transfer QR code
@@ -176,19 +182,27 @@ transfer.php      Temporary transfer links
 api/login.php     Admin sign-in (the only Basic Auth endpoint), starts a session
 api/logout.php    Ends the session
 api/_session.php  Session helpers shared by the admin endpoints
+api/_board.php    Shared board read/write, lock, and section path helpers
+api/_validate.php Server-side board and field validation
+api/config.php    Server tuning (snapshot retention and upload limits)
+api/migrate-subjects.php  One-time subject migration helper (admin session)
 api/publish.php   Publish the Board (admin session)
 api/upload.php    Receive an uploaded file (admin session)
 api/versions.php  Version history (admin session)
-deploy/           nginx rules, startup script, config check and PHP upload limits
-docs/             Architecture diagram and screenshots
-data/             Created at runtime, not in git: board, versions, sessions, uploads
+deploy/           nginx rules, startup script, config check, PHP upload limits,
+                  backup/section provisioning scripts, and hardening verifier
+docs/             Architecture diagram, screenshots, backup/restore guide,
+                  multi-section plan, and decision records (ADRs)
+GLOSSARY.md       Domain terminology (Section, Section ID, Section Link, Owner, Officer)
+DESIGN.md         UI design tokens, layout, and typography notes
+data/             Created at runtime, not in git: board, versions, sessions, uploads, sections
 ```
 
 ## Testing
 
 I test the interface by hand with a checklist: both themes, a 320 px wide screen, touch targets on phones, keyboard-only use, and admin and student sessions.
 
-`npm test` runs the automated tests: the core logic (merging, sorting, due dates, sanitizers), the nginx config rules, the CI workflows, and the startup script. The startup tests run the real script against stubbed `nginx`, `curl` and `cp`, in a sandbox under the system temp directory, and assert what is on disk, what nginx has loaded, whether nginx is still running, the marker state and the exit status — not just the log text.
+`npm test` runs the automated Node test suite (`tests/*.test.js`): core logic (merging, sorting, due dates, sanitizers), board store, quick-add, subjects, recovery, update notices, multi-section scoping, backup and section scripts, nginx config rules, CI workflows, UI/accessibility contracts, and the startup script. The startup tests run the real script against stubbed `nginx`, `curl` and `cp`, in a sandbox under the system temp directory, and assert what is on disk, what nginx has loaded, whether nginx is still running, the marker state and the exit status — not just the log text.
 
 The PHP suite runs with `php tests/php/run.php` (with XAMPP, `C:\xampp\php\php.exe tests/php/run.php`). The jsdom golden check is `node tests/e2e/check.mjs --harness <harness>` and needs the external harness directory. The design lint is `node tests/e2e/design-lint.mjs --root . --mock <mockup>` and needs an external mockup directory. The browser audit is `node tests/e2e/audit.mjs`, which drives a real browser; CI runs it with `--require-browser`, so a missing browser there is a failure rather than a silent skip.
 
@@ -209,7 +223,7 @@ The PHP suite runs with `php tests/php/run.php` (with XAMPP, `C:\xampp\php\php.e
 - [ ] Soon: optional personal to-do list, kept on the device
 - [x] A written, repeatable backup of the board and uploads ([docs/backup-restore.md](docs/backup-restore.md), [deploy/backup.sh](deploy/backup.sh))
 - [ ] Optimizing board: move big note bodies out of the board file (future)
-- [ ] Second section support: plan first, build later — see [`docs/multi-section-plan.md`](docs/multi-section-plan.md)
+- [x] Second section support — see [`docs/multi-section-plan.md`](docs/multi-section-plan.md) and [`docs/adr/0008-multi-section.md`](docs/adr/0008-multi-section.md)
 - [ ] Longer term: reminders and insights, designed with privacy first
 
 ## Decision notes
