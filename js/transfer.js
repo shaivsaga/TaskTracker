@@ -39,7 +39,7 @@
 
 import { state } from './state.js';
 import { dom } from './dom.js';
-import { plural } from './util.js';
+import { plural, currentSection } from './util.js';
 import { openOverlay, hideOverlay } from './motion.js';
 import { filterDeletedProgress } from './recovery.js';
 
@@ -83,9 +83,9 @@ export function takeTransferToken() {
 const transferHeaders = { 'Content-Type': 'application/json' };
 
 // ---- Sending ----
-function buildTransferPayload() {
-  const payload = { v: 1, progress: state.progress };
-  if (state.isAdmin) {
+export function buildTransferPayload(activeSection = currentSection() || 'a') {
+  const payload = { v: 1, section: activeSection, progress: state.progress };
+  if (state.isAdmin && myTasks) {
     // The catalogue travels with the draft so the receiving device can render and publish it. The
     // base revision and every deletion marker stay behind: authority belongs to the server.
     const draft = {
@@ -217,18 +217,37 @@ function closeTransfer() {
 }
 
 // ---- Receiving ----
+export function transferSectionError(p, activeSection = currentSection() || 'a') {
+  if (!p || typeof p !== 'object' || Array.isArray(p) || p.v !== 1) return null;
+  const expected = String(activeSection || 'a').toLowerCase() || 'a';
+  if (p.section === undefined) {
+    return expected === 'a'
+      ? null
+      : `This transfer is from Section A and cannot be imported into Section ${expected.toUpperCase()}.`;
+  }
+  if (typeof p.section !== 'string') return 'The transfer data could not be read.';
+  if (p.section !== expected) {
+    return `This transfer is for Section ${p.section ? p.section.toUpperCase() : '?'} and cannot be imported into Section ${expected.toUpperCase()}.`;
+  }
+  return null;
+}
+
 // Returns { progress, draft } rebuilt from scratch, or null when the data is not usable.
-function validateTransfer(p) {
+export function validateTransfer(p, activeSection = currentSection() || 'a', deps = {}) {
   const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
   if (!isObj(p) || p.v !== 1) return null;
+  if (transferSectionError(p, activeSection)) return null;
+  const checkId = deps.taskIdOk || taskIdOk;
+  const statuses = deps.STATUS_ORDER || STATUS_ORDER;
+  const TaskCtor = deps.Task || Task;
   const raw = Array.isArray(p.progress) && p.progress.length === 0 ? {} : p.progress;
   if (!isObj(raw)) return null;
   const entries = Object.entries(raw);
   if (entries.length > 5000) return null;
   const clean = {};
   for (const [id, e] of entries) {
-    if (!taskIdOk(id)) return null;
-    if (!isObj(e) || !STATUS_ORDER.includes(e.status) || !Number.isFinite(e.movedAt) || e.movedAt < 0) return null;
+    if (!checkId(id)) return null;
+    if (!isObj(e) || !statuses.includes(e.status) || !Number.isFinite(e.movedAt) || e.movedAt < 0) return null;
     clean[id] = { status: e.status, movedAt: e.movedAt };
   }
   let draft = null;
@@ -238,9 +257,9 @@ function validateTransfer(p) {
     if (d.announcements != null && !Array.isArray(d.announcements)) return null;
     const tasks = d.tasks.filter(isObj);
     // Task.fromJSON only does String(opts.id), and that id later lands in a CSS attribute selector.
-    if (!tasks.every((o) => taskIdOk(o.id))) return null;
+    if (!tasks.every((o) => checkId(o.id))) return null;
     draft = {
-      tasks: tasks.map((o) => Task.fromJSON(o).toJSON()),
+      tasks: tasks.map((o) => TaskCtor.fromJSON(o).toJSON()),
       announcements: (d.announcements || [])
         .filter((a) => isObj(a) && typeof a.text === 'string' && Number.isFinite(a.createdAt))
         .slice(0, 200)
@@ -317,19 +336,25 @@ async function applyImport() {
   });
 }
 
-export async function checkIncomingTransfer(token) {
+export async function checkIncomingTransfer(token, opts = {}) {
+  const fetchFn = opts.fetchFn || fetch;
+  const notify = opts.showToast || showToast;
+  const activeSection = opts.activeSection || currentSection() || 'a';
+  const open = opts.openImport || openImport;
   try {
-    const res = await fetch(`${TRANSFER_API}?t=${token}`, { cache: 'no-store' });
+    const res = await fetchFn(`${TRANSFER_API}?t=${token}`, { cache: 'no-store' });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) {
-      showToast(res.status === 429 ? 'Too many attempts. Try again in a few minutes.' : 'This transfer link is not valid or has expired.');
+      notify(res.status === 429 ? 'Too many attempts. Try again in a few minutes.' : 'This transfer link is not valid or has expired.');
       return;
     }
-    const data = validateTransfer(out.payload);
-    if (!data) { showToast('The transfer data could not be read.'); return; }
-    openImport(data);
+    const secErr = transferSectionError(out.payload, activeSection);
+    if (secErr) { notify(secErr); return; }
+    const data = validateTransfer(out.payload, activeSection, opts);
+    if (!data) { notify('The transfer data could not be read.'); return; }
+    open(data);
   } catch (ex) {
-    showToast(ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : 'Could not load the transfer.');
+    notify(ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : 'Could not load the transfer.');
   }
 }
 

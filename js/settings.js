@@ -33,7 +33,7 @@
 
 import { state } from './state.js';
 import { dom } from './dom.js';
-import { KEYS } from './util.js';
+import { KEYS, currentSection, sectionKey, keysForSection } from './util.js';
 import { openOverlay, hideOverlay } from './motion.js';
 
 let $ = null;                 // app.js's querySelector shorthand, used by the panel's rows
@@ -74,8 +74,50 @@ function setChoice(choice) {
 
 // --- Settings and reset ---
 const RESET_PHRASE = 'RESET';
-// Kept on reset: appearance, sign-in state, and the cached copy of the published board.
-let RESET_KEEP = null;   // built in init(): a literal key plus app.js's three storage keys
+const DEVICE_KEEP = [
+  'class_tasks_theme',
+  'class_tasks_sidebar',
+  'class_tasks_view_class',
+  'class_tasks_view_admin',
+  'class_tasks_tour_seen',
+];
+
+function storageKeys(storage) {
+  if (typeof storage.key === 'function' && typeof storage.length === 'number') {
+    const keys = [];
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (k !== null) keys.push(k);
+    }
+    return keys;
+  }
+  return Object.keys(storage);
+}
+
+export function mountSectionBadges(doc = document, section = currentSection()) {
+  if (!section) return;
+  const label = `SECTION ${section.toUpperCase()}`;
+  const makeBadge = () => {
+    const badge = doc.createElement('span');
+    badge.className = 'section-badge';
+    badge.dataset.sectionBadge = section;
+    badge.textContent = label;
+    return badge;
+  };
+  doc.querySelectorAll('.tb .brand, .brand-m').forEach((el) => {
+    if (el.querySelector('[data-section-badge]')) return;
+    el.appendChild(makeBadge());
+    if (el.getAttribute('aria-label') === 'TaskTracker home') {
+      el.setAttribute('aria-label', `TaskTracker ${label} home`);
+    }
+  });
+  const release = doc.querySelector('#admin-bar .admin-release');
+  if (release && !release.querySelector('[data-section-badge]')) {
+    const applyBtn = release.querySelector('#btn-apply');
+    if (applyBtn) release.insertBefore(makeBadge(), applyBtn);
+    else release.appendChild(makeBadge());
+  }
+}
 
 function showResetConfirm(show, focus = true) {
   dom.resetForm.hidden = !show;
@@ -100,13 +142,25 @@ export function closeSettings() {
   dom.settingsOpen.focus();
 }
 
-function resetLocalData() {
+export function resetSectionStorage({
+  storage = localStorage,
+  section = currentSection(),
+  adminKey = ADMIN_KEY || sectionKey('class_tasks_admin', section),
+  signedOutKey = SIGNED_OUT_KEY || sectionKey('class_tasks_signed_out', section),
+  cacheKey = keysForSection(section).cache,
+} = {}) {
+  const prefix = sectionKey('class_tasks_', section);
+  const keep = new Set([...DEVICE_KEEP, adminKey, signedOutKey, cacheKey].filter(Boolean));
   try {
-    Object.keys(localStorage)
-      .filter((k) => k.startsWith('class_tasks_') && !RESET_KEEP.has(k))
-      .forEach((k) => localStorage.removeItem(k));
+    storageKeys(storage)
+      .filter((k) => k.startsWith(prefix) && !keep.has(k))
+      .forEach((k) => storage.removeItem(k));
     return true;
   } catch (e) { return false; }
+}
+
+export function resetLocalData() {
+  return resetSectionStorage();
 }
 
 // Phase 4: client-only logout. Clears the admin flag and reloads into the student view. The draft stays in localStorage.
@@ -144,10 +198,6 @@ export function init(deps) {
   JSON_POST = deps.JSON_POST;                 // the logout request's POST options
   ADMIN_KEY = deps.ADMIN_KEY;                 // the reset's keep-set, and the login row writes it
   SIGNED_OUT_KEY = deps.SIGNED_OUT_KEY;       // the reset's keep-set, and logout writes it
-  // Built here, not at module-eval time: the keep-set needs app.js's three storage keys. The sidebar
-  // key is a literal: its nav.js export was removed with the inline sidebar boot script, but any
-  // legacy value stored under it must still survive a reset.
-  RESET_KEEP = new Set(['class_tasks_theme', 'class_tasks_sidebar', ADMIN_KEY, SIGNED_OUT_KEY, KEYS.cache]);
 applyChoice(savedChoice());
 dom.themeToggle.addEventListener('click', () => {
   setChoice(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');

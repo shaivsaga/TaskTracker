@@ -213,7 +213,8 @@ export function saveTasks() {
   if (steps.length) showToast(`Could not save this device's ${steps.join(' and ')}. Storage may be full.`);
   return progressOk && draftOk;
 }
-function migrateLegacy() {
+export function migrateLegacy(taskCtor = Task) {
+  if (!KEYS.legacy) return;
   try {
     const raw = localStorage.getItem(KEYS.legacy);
     if (!raw || localStorage.getItem(KEYS.draft)) return;
@@ -222,7 +223,7 @@ function migrateLegacy() {
     old.forEach((o) => { if (o.status && o.status !== 'not_started') state.progress[o.id] = { status: o.status, movedAt: 0 }; });
     writeJSON(KEYS.progress, state.progress);
     writeJSON(KEYS.draft, {
-      tasks: old.map((o) => Task.fromJSON(o).toJSON()),
+      tasks: old.map((o) => taskCtor.fromJSON(o).toJSON()),
       announcements: readJSON('class_tasks_announcements', []),
     });
   } catch (e) { console.warn('Migration skipped:', e); }
