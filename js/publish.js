@@ -116,10 +116,22 @@ export function updateAdminBar(diff) {
   if (!state.isAdmin) return;
   $('#admin-status').textContent = [
     diff.total ? `Unpublished changes: ${diff.total}` : 'No unpublished changes',
-    lastSavedAt && `Saved ${new Date(lastSavedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+    lastSavedAt && `Checkpoint ${new Date(lastSavedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
   ].filter(Boolean).join(' · ');
+  $('#admin-bar').classList.toggle('is-clean', !diff.total);
   $('#btn-apply').disabled = !diff.total;
-  $('#btn-discard').disabled = !diff.total;
+  const discard = $('#btn-discard');
+  discard.disabled = !diff.total;
+  if (!diff.total && discard.dataset.armed) {
+    delete discard.dataset.armed;
+    discard.textContent = 'Discard changes';
+    discard.removeAttribute('aria-label');
+  }
+  const badge = $('#nav-badge');
+  badge.textContent = diff.total ? String(diff.total) : '';
+  badge.hidden = !diff.total;
+  // The badge is part of the Admin tile's visible text (WCAG 2.5.3 label in name).
+  $('#nav-admin').setAttribute('aria-label', diff.total ? `Admin, ${diff.total} unpublished ${diff.total === 1 ? 'change' : 'changes'}` : 'Admin');
 }
 
 // One path for history, checkpoints, discard, transfer and their Undo.
@@ -136,6 +148,7 @@ function saveCheckpoint() {
   if (!writeJSON(KEYS.checkpoints, list.slice(0, 20))) { showToast('Storage is full. Checkpoint not saved.'); return; }
   lastSavedAt = Date.now();
   updateAdminBar(diffDraft());
+  if (!dom.historyOverlay.hidden) renderHistory();
   showToast('Checkpoint saved');
 }
 
@@ -226,7 +239,7 @@ function renderHistory() {
     });
     const del = document.createElement('button');
     del.type = 'button';
-    del.className = 'text-button';
+    del.className = 'text-button is-danger';
     del.textContent = 'Delete';
     const runDelete = async () => {
       if (it.kind === 'Checkpoint') {
@@ -242,8 +255,11 @@ function renderHistory() {
     };
     if (armInlineConfirm) armInlineConfirm(del, 'Delete', 'Confirm deleting this version', runDelete);
     else del.addEventListener('click', runDelete);
-    head.append(label, count, preview, restore, del);
-    li.append(head, detail);
+    const actions = document.createElement('div');
+    actions.className = 'history-actions';
+    actions.append(preview, restore, del);
+    head.append(label, count);
+    li.append(head, actions, detail);
     list.appendChild(li);
   });
 }
@@ -426,7 +442,7 @@ $('#btn-save').addEventListener('click', saveCheckpoint);
 $('#btn-apply').addEventListener('click', openPublishDialog);
 $('#btn-preview').addEventListener('click', () => setPreview(true));
 $('#preview-exit').addEventListener('click', () => setPreview(false));
-$('#btn-discard').addEventListener('click', async () => {
+const runDiscard = async () => {
   const before = snapshot();
   const ok = await restoreDraft({
     tasks: state.publishedTasks.map((t) => t.toJSON()),
@@ -434,7 +450,9 @@ $('#btn-discard').addEventListener('click', async () => {
     subjects: state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [],
   });
   if (ok) showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
-});
+};
+if (armInlineConfirm) armInlineConfirm($('#btn-discard'), 'Discard changes', 'Confirm discarding unpublished changes', runDiscard);
+else $('#btn-discard').addEventListener('click', runDiscard);
 
 // Shortcuts: Ctrl/Cmd+S = checkpoint, Ctrl/Cmd+Enter = apply
 document.addEventListener('keydown', (e) => {

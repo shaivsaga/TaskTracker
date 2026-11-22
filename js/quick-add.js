@@ -175,6 +175,14 @@ function quickField(label, content, changed) {
 function renderQuickPreview() {
   dom.quickPreview.replaceChildren();
   const p = (dom.quickInput.value.trim() || quickPicked.date) ? parseQuickAdd(dom.quickInput.value) : null;
+  dom.quickPreview.hidden = !p;
+  if (!p) {
+    quickPrev = { subject: '', status: '', due: '' };
+    syncQuickChips(null);
+    document.querySelector('#quick-add-btn').disabled = true;
+    document.querySelector('#quick-open-btn').disabled = true;
+    return;
+  }
   const next = {
     subject: p ? p.subject : '',
     status: p && p.typedStatus ? p.status : '',
