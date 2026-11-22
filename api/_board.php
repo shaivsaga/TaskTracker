@@ -207,7 +207,26 @@ function tt_board_hash($board) {
 }
 
 // ---- storage ---------------------------------------------------------------------------------
-function tt_data_dir() { return dirname(__DIR__) . '/data'; }
+const TT_SECTION_ID = '/^[a-z0-9][a-z0-9_-]{0,31}$/D';
+
+function tt_section_id_valid($v) {
+    return is_string($v) && preg_match(TT_SECTION_ID, $v) === 1;
+}
+
+function tt_section_id() {
+    $raw = $_SERVER['TT_SECTION'] ?? '';
+    if ($raw === '' || $raw === 'a') return '';
+    if (tt_section_id_valid($raw)) return $raw;
+    http_response_code(400);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Invalid section.']);
+    exit;
+}
+
+function tt_data_dir() {
+    $id = tt_section_id();
+    return $id === '' ? dirname(__DIR__) . '/data' : dirname(__DIR__) . '/data/sections/' . $id;
+}
 function tt_admin_dir() { return tt_data_dir() . '/admin'; }
 
 // Complete-length write to a unique same-directory temp file, flush, close, then rename. A short
@@ -373,6 +392,7 @@ function tt_bin_record($a, $binId) {
 // ---- shared lock and pending recovery --------------------------------------------------------
 // One lock for every writer and every admin reader. Bounded wait, fail closed, never proceed blind.
 function tt_board_lock($dataDir) {
+    if (!is_dir($dataDir) && !@mkdir($dataDir, 0775, true) && !is_dir($dataDir)) return [null, 'lockfile'];
     $fh = @fopen($dataDir . '/.publish.lock', 'c');
     if (!$fh) return [null, 'lockfile'];
     $locked = false;

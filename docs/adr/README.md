@@ -6,6 +6,7 @@ Short records of choices that are hard to reverse. Each says what was decided, w
 2. [Draft and Board are separate](0002-draft-and-board.md)
 3. [Data lives in flat files under data/](0003-data-in-files.md)
 4. [Plain JavaScript, no build step](0004-plain-javascript.md)
-5. [Multi-section design (deferred, not built)](0005-multi-section-deferred.md)
+5. [Multi-section design (superseded by ADR 0008)](0005-multi-section-deferred.md)
 6. [app.js split into ES modules](0006-app-js-module-split.md)
 7. [Deletion authority, recycle bin and migration](0007-subjects-and-recovery.md)
+8. [Multi-section routing, storage, and auth](0008-multi-section.md)

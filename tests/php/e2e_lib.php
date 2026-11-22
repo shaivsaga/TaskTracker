@@ -32,7 +32,7 @@ const TT_E2E_FAULT_SANDBOX = "function tt_fault(\$name) {\n    \$f = dirname(__D
 // owns, and start the built-in server on it. Returns null when the environment cannot host it.
 // $reuseRoot with $reuseToken starts a second process over an existing sandbox: the token is passed
 // in, never guessed, because two sandboxes in one run hold two different sessions.
-function tt_e2e_start(?string $reuseRoot = null, ?string $reuseToken = null): ?array {
+function tt_e2e_start(?string $reuseRoot = null, ?string $reuseToken = null, ?string $router = null): ?array {
     if (!function_exists('proc_open') || !function_exists('proc_terminate') || !ini_get('allow_url_fopen')) return null;
     $src  = dirname(__DIR__, 2) . '/api';
     $root = $reuseRoot ?? rtrim(sys_get_temp_dir(), '/\\') . '/tt-e2e-' . bin2hex(random_bytes(4));
@@ -65,8 +65,10 @@ function tt_e2e_start(?string $reuseRoot = null, ?string $reuseToken = null): ?a
     $log = $root . '/server.log';
     for ($try = 0; $try < 5; $try++) {
         $port = random_int(20000, 60000);
+        $cmd = [PHP_BINARY, '-S', '127.0.0.1:' . $port, '-t', $root];
+        if ($router !== null) $cmd[] = $router;
         $proc = @proc_open(
-            [PHP_BINARY, '-S', '127.0.0.1:' . $port, '-t', $root],
+            $cmd,
             [0 => ['file', $log, 'a'], 1 => ['file', $log, 'a'], 2 => ['file', $log, 'a']],
             $pipes
         );

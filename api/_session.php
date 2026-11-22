@@ -7,6 +7,8 @@ const TT_TTL = 60 * 86400;      // expires after 60 days without use
 const TT_RENEW_AFTER = 86400;   // slide the expiry at most once a day
 
 header('Cache-Control: no-store');
+require_once __DIR__ . '/_board.php';
+tt_section_id();
 
 function tt_json($code, $body) {
   http_response_code($code);
@@ -21,7 +23,7 @@ function tt_require_json_post() {
   if ($ct !== 'application/json') tt_json(415, ['error' => 'Content-Type must be application/json']);
 }
 
-function tt_dir() { return dirname(__DIR__) . '/data/sessions'; }
+function tt_dir() { return tt_data_dir() . '/sessions'; }
 function tt_token_ok($t) { return is_string($t) && preg_match('/^[a-f0-9]{64}$/D', $t) === 1; }
 function tt_file($token) { return tt_dir() . '/' . hash('sha256', $token) . '.json'; }
 function tt_current_token() { $t = $_COOKIE[TT_COOKIE] ?? null; return tt_token_ok($t) ? $t : null; }
