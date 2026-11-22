@@ -1,8 +1,7 @@
-export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, progress, draft }) {
+export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, waitUntil, progress, draft }) {
   // 1. First-visit tour is opt-in (never hijacks task clicks) and skips desktop-only steps on phones.
   await boot(cdp, 1280, { storage: { class_tasks_tour_seen: '' } });
-  await cdp.evaluate(`localStorage.removeItem('class_tasks_tour_seen'); location.reload();`);
-  await new Promise((r) => setTimeout(r, 250));
+  await waitUntil(cdp, `document.getElementById('tour-cue')?.hidden === false && !!document.querySelector('#class-task-list .task-row-title')`);
   const tourFirst = await cdp.evaluate(`(() => {
     const cue = document.getElementById('tour-cue');
     const ov = document.getElementById('tour-overlay');
@@ -14,10 +13,15 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, p
       dialogOpened: !document.getElementById('task-dialog-overlay').hidden,
     };
   })()`);
+  await boot(cdp, 375, { storage: { class_tasks_tour_seen: '' } });
+  await waitUntil(cdp, `document.getElementById('tour-cue')?.hidden === false`);
+  await click(cdp, '#tour-cue-start');
+  await waitUntil(cdp, `document.getElementById('tour-overlay')?.hidden === false`);
+  const phoneTourStep = await cdp.evaluate(`document.getElementById('tour-step').textContent.trim()`);
   check(
-    'opt-in tour cue no hijack',
-    tourFirst.cueVisible && tourFirst.tourHidden && tourFirst.dialogOpened,
-    JSON.stringify(tourFirst),
+    'opt-in tour cue no hijack and phone skips desktop step',
+    tourFirst.cueVisible && tourFirst.tourHidden && tourFirst.dialogOpened && /of 5$/.test(phoneTourStep),
+    JSON.stringify({ ...tourFirst, phoneTourStep }),
   );
 
   // 2. Class page header order, #mine vertical alignment, default List view, buckets, and Board filter visibility.
@@ -140,7 +144,25 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, p
     JSON.stringify(adminPanels),
   );
 
-  // 6. Phone 44px touch target floor on quick-add chips and text buttons.
+  // 6. Admin History single-item Delete arms before deleting, and phone quick-add chips meet 44px floor.
+  await boot(cdp, 1280, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: draft } });
+  await click(cdp, '#btn-save');
+  await click(cdp, '#btn-history');
+  await waitUntil(cdp, `document.getElementById('history-overlay')?.hidden === false && document.querySelectorAll('#history-list .history-item').length > 0`);
+  const historyArm = await cdp.evaluate(`(() => {
+    const before = document.querySelectorAll('#history-list .history-item').length;
+    const del = [...document.querySelectorAll('#history-list .history-item button')].find((b) => b.textContent.trim() === 'Delete');
+    if (!del) return { ok: false, before };
+    del.click();
+    return {
+      ok: del.textContent.trim() === 'Confirm?' && document.querySelectorAll('#history-list .history-item').length === before,
+      text: del.textContent.trim(),
+      before,
+      after: document.querySelectorAll('#history-list .history-item').length,
+    };
+  })()`);
+  check('history delete arms before deleting', !!historyArm.ok, JSON.stringify(historyArm));
+
   await boot(cdp, 375, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: draft } });
   await click(cdp, '#new-task-btn');
   const phoneTargets = await cdp.evaluate(`(() => {
