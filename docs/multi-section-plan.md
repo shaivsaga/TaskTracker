@@ -1,6 +1,6 @@
 # Multi-section plan
 
-**Status.** Design settled in [ADR 0008](adr/0008-multi-section.md) and [GLOSSARY.md](../GLOSSARY.md). Nothing here is built yet.
+**Status.** Shipped (PRs #76–#78; Section B provisioned in production). Design settled in [ADR 0008](adr/0008-multi-section.md) and [GLOSSARY.md](../GLOSSARY.md).
 
 ## Goal
 

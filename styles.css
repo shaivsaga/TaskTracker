@@ -218,8 +218,8 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
   .admin-group { justify-content: flex-end; }
   .admin-group + .admin-group { padding-left: 8px; border-left: 2px solid var(--ln); }
 }
-.admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
-.admin-actions .text-button:hover, .history-item .text-button:hover, .file-item .text-button:hover { border-color: var(--ac); background: var(--sf2); color: var(--tx); }
+.admin-actions .text-button, .history-bar .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
+.admin-actions .text-button:hover, .history-bar .text-button:hover, .history-item .text-button:hover, .file-item .text-button:hover { border-color: var(--ac); background: var(--sf2); color: var(--tx); }
 /* Three groups: quiet underlined tools, then the draft pair, then Publish standing alone. */
 .admin-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 #admin-bar #btn-discard:not(:disabled) { border-color: var(--er); color: var(--er); }
@@ -237,8 +237,8 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
   #admin-bar .admin-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   #admin-bar .admin-tools .text-button { width: 100%; padding: 0 8px; }
   #admin-bar .admin-release { order: 1; width: 100%; padding-top: 8px; border-top: 2px solid var(--ln); }
-  #admin-bar .admin-draft { order: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; width: 100%; }
-  #admin-bar #btn-discard, #admin-bar #btn-apply, #admin-bar #btn-save { width: 100%; }
+  #admin-bar .admin-draft { order: 2; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; width: 100%; }
+  #admin-bar #btn-discard, #admin-bar #btn-apply { width: 100%; }
   #admin-bar.is-clean .admin-draft, #admin-bar.is-clean .admin-release { display: none; }
 }
 
@@ -472,6 +472,9 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
   /* lint-allow:px 160px -- matches .task-row due column */
   .done-row { grid-template-columns: 24px minmax(200px, 1fr) 104px 160px auto; padding: 10px 16px; }
   .done-row.past-row { grid-template-columns: minmax(200px, 1fr) 104px 160px auto; }
+  /* lint-allow:px 200px -- student past row title floor without trailing admin actions column */
+  /* lint-allow:px 160px -- matches .task-row due column */
+  .done-row.past-row:has(> .row-actions[hidden]) { grid-template-columns: minmax(200px, 1fr) 104px 160px; }
   .done-row .task-row-due { text-align: right; }
   /* The three actions never sit beside a differently-labelled button in the same row, so a fixed
      min-width bought no alignment and cost the title 144px of track. */
@@ -640,6 +643,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 .history-actions .is-danger { margin-left: auto; }
 .history-detail { margin-top: 8px; color: var(--mu); font-size: 14px; line-height: 20px; }
+.history-bar .text-button.is-danger, .history-item .text-button.is-danger { border-color: var(--er); color: var(--er); }
+.history-bar .text-button.is-danger:hover, .history-item .text-button.is-danger:hover { border-color: var(--er); background: var(--erb); color: var(--er); }
 .text-button.is-danger[data-armed], #preset-delete[data-armed], #admin-bar #btn-discard[data-armed] { color: var(--oa); background: var(--er); border-color: var(--er); box-shadow: 0 2px 0 var(--sh); text-decoration: none; }
 .text-button.is-danger[data-armed]:hover, #preset-delete[data-armed]:hover, #admin-bar #btn-discard[data-armed]:hover { color: var(--oa); background: var(--er); border-color: var(--er); }
 .subject-row .history-head { gap: 8px 12px; }
@@ -890,6 +895,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .task-row .task-row-due svg { display: block; width: 12px; height: 12px; flex: none; stroke-width: 2; }
   .task-row .task-row-due.is-overdue { padding: 0 8px; background: var(--erb); }
   .task-row .task-row-due.is-due-soon { padding: 0 8px; background: var(--wnb); }
+  .task-row:hover .task-row-due.is-due-soon, .task-row:active .task-row-due.is-due-soon { background: var(--sf); }
   /* Phone fold: the first task row has to be on the first screen with two full rows above the tab bar.
      Same content, tighter rhythm - the supporting copy steps down one size (still 5.6:1), and the page
      gap, the title's negative margin and the pinned block's padding tighten where they are declared. */
@@ -967,7 +973,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 :root[data-theme="dark"] .primary-button:hover,
 :root[data-theme="dark"] .primary-button:active { background: var(--ac); border-color: var(--ac); }
 :root[data-theme="dark"] .primary-button:hover { box-shadow: inset 0 0 0 2px var(--tx), 0 2px 0 var(--sh); }
-:root[data-theme="dark"] .text-button:hover,
+:root[data-theme="dark"] .text-button:not(.is-danger):not([data-armed]):hover,
 :root[data-theme="dark"] .announce-text a:hover,
 :root[data-theme="dark"] .dialog-doc a:hover,
 :root[data-theme="dark"] .file-item a:hover { color: var(--ac); }

@@ -93,7 +93,7 @@ function render(data) {
     restore.dataset.binAction = 'restore';
     restore.dataset.binId = row.binId;
     restore.setAttribute('aria-label', `Restore ${row.title || row.taskId} into the draft`);
-    const remove = el('button', 'text-button', 'Delete permanently');
+    const remove = el('button', 'text-button is-danger', 'Delete permanently');
     remove.type = 'button';
     remove.dataset.binAction = 'delete';
     remove.dataset.binId = row.binId;
@@ -117,6 +117,7 @@ async function onAction(action, binId, btn) {
   if (action === 'delete') {
     if (!armed || armed.binId !== binId) {
       armed = { binId, action };
+      btn.dataset.armed = '1';
       btn.textContent = 'Delete permanently?';
       say('Press again to delete this copy for good. Its id is never reused.');
       btn.focus();

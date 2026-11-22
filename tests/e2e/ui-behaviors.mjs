@@ -102,14 +102,17 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
   await boot(cdp, 1280, { hash: 'past' });
   const pastRows = await cdp.evaluate(`(() => {
     const rows = [...document.querySelectorAll('#past-list .done-row')];
+    const first = rows[0];
+    const cols = first ? getComputedStyle(first).gridTemplateColumns.trim().split(/\\s+/).length : 0;
     return {
       count: rows.length,
       noStatusCheck: rows.every((r) => !r.querySelector('.status-check')),
+      studentCols: cols,
     };
   })()`);
   check(
-    'done static check and past omits status-check',
-    doneRows.count > 0 && doneRows.staticChecks && pastRows.count > 0 && pastRows.noStatusCheck,
+    'done static check and past omits status-check and empty actions track',
+    doneRows.count > 0 && doneRows.staticChecks && pastRows.count > 0 && pastRows.noStatusCheck && pastRows.studentCols === 3,
     JSON.stringify({ doneRows, pastRows }),
   );
 
@@ -175,5 +178,39 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     'phone 44px quick-add chip floor',
     phoneTargets.count > 0 && phoneTargets.minHeight >= 44,
     JSON.stringify(phoneTargets),
+  );
+
+  // 7. 320px Admin Discard matches Publish width with zero arming jump, and History Clear arms with solid danger fill.
+  const dirtyDraft = JSON.stringify({
+    tasks: [
+      ...JSON.parse(draft).tasks,
+      { id: 'draft-extra-1', title: 'Unsaved task', subject: 'GENSCI', dueDate: '2026-11-12', dueTime: '', endDate: '', note: '', attachments: [], closedAt: null },
+    ],
+    announcements: JSON.parse(draft).announcements || [],
+  });
+  await boot(cdp, 320, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: dirtyDraft, class_tasks_theme: 'light' } });
+  const adminBarCheck = await cdp.evaluate(`(() => {
+    const bar = document.getElementById('admin-bar');
+    const applyW = Math.round(document.getElementById('btn-apply').getBoundingClientRect().width);
+    const disc = document.getElementById('btn-discard');
+    const discW = Math.round(disc.getBoundingClientRect().width);
+    const hBefore = Math.round(bar.getBoundingClientRect().height);
+    disc.click();
+    const hAfter = Math.round(bar.getBoundingClientRect().height);
+    return { applyW, discW, widthDelta: Math.abs(applyW - discW), jumpPx: hAfter - hBefore, armed: disc.dataset.armed || null };
+  })()`);
+  await click(cdp, '#btn-history');
+  await waitUntil(cdp, `document.getElementById('history-overlay')?.hidden === false`);
+  const historyClearCheck = await cdp.evaluate(`(() => {
+    const btn = document.getElementById('history-clear');
+    btn.click();
+    const cs = getComputedStyle(btn);
+    return { isDanger: btn.classList.contains('is-danger'), armed: btn.dataset.armed || null, bg: cs.backgroundColor };
+  })()`);
+  check(
+    '320px admin discard full-width no-jump and history clear danger arm',
+    adminBarCheck.widthDelta <= 1 && adminBarCheck.jumpPx === 0 && adminBarCheck.armed === '1'
+      && historyClearCheck.isDanger && historyClearCheck.armed === '1' && historyClearCheck.bg === 'rgb(179, 38, 30)',
+    JSON.stringify({ adminBarCheck, historyClearCheck }),
   );
 }
