@@ -199,8 +199,7 @@
                   <button class="text-button" type="button" id="btn-history">History</button>
                 </span>
                 <span class="admin-group admin-draft" role="group" aria-label="Draft">
-                  <button class="text-button" type="button" id="btn-discard">Discard changes</button>
-                  <button class="secondary-button" type="button" id="btn-save">Save</button>
+                  <button class="text-button is-danger" type="button" id="btn-discard">Discard changes</button>
                 </span>
                 <span class="admin-group admin-release" role="group" aria-label="Release">
                   <button class="primary-button" type="button" id="btn-apply">Publish</button>
@@ -438,6 +437,7 @@
         </div>
         <div class="dialog-body">
           <div class="history-bar">
+            <button class="secondary-button" type="button" id="btn-save">Save checkpoint</button>
             <button class="text-button" type="button" id="history-clear">Clear all history</button>
           </div>
           <ul class="history-list" id="history-list"></ul>
