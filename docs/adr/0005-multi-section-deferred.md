@@ -1,6 +1,6 @@
 # 5. Multi-section design (deferred, not built)
 
-**Status.** Considered and deferred. Nothing here is built yet.
+**Status.** Superseded by [ADR 0008](0008-multi-section.md). Nothing here was built.
 
 **Goal.** A second section (B) with its own board and its own assigner, using the same Subjects, while section A keeps its progress and board.
 
