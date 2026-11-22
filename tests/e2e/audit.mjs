@@ -83,6 +83,11 @@ const DEFAULT_BROWSERS = [
   'chromium',
   'chromium-browser',
   'msedge',
+  ...(fs.existsSync(path.join(process.env.HOME || '', '.cache/ms-playwright'))
+    ? fs.readdirSync(path.join(process.env.HOME || '', '.cache/ms-playwright'))
+      .filter((d) => d.startsWith('chromium_headless_shell-'))
+      .map((d) => path.join(process.env.HOME || '', '.cache/ms-playwright', d, 'chrome-headless-shell-linux64', 'chrome-headless-shell'))
+    : []),
 ];
 
 const MIME = {
@@ -417,21 +422,35 @@ function check(name, ok, detail) {
   console.log((ok ? 'PASS  ' : 'FAIL  ') + name.padEnd(34) + (detail || ''));
 }
 
-async function settle(cdp, ms = 900) {
-  for (let i = 0; i < 40; i++) {
-    const ready = await cdp.evaluate(`document.readyState === 'complete' && !!document.querySelector('.task-row, .task-card')`);
-    if (ready) break;
-    await sleep(100);
+async function waitUntil(cdp, expr, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await cdp.evaluate(expr)) return true;
+    await sleep(20);
   }
-  await sleep(ms);
+  return false;
+}
+
+async function nextFrame(cdp) {
+  await cdp.evaluate('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
+}
+
+async function settle(cdp, ms = 30) {
+  await waitUntil(cdp, `document.readyState === 'complete' && !!document.querySelector('.task-row, .task-card')`, 4000);
+  await nextFrame(cdp);
+  if (ms > 0) await sleep(ms);
 }
 
 async function boot(cdp, width, opts = {}) {
-  const url = 'http://127.0.0.1:' + PORT + '/index.html' + (opts.admin ? '?admin=1' : '') + (opts.hash ? '#' + opts.hash : '');
+  const base = 'http://127.0.0.1:' + PORT + '/index.html';
+  const url = base + (opts.admin ? '?admin=1' : '') + (opts.hash ? '#' + opts.hash : '');
   await cdp.setMetrics(width, opts.height || (width <= 480 ? 640 : 900));
   await setSessionCookie(cdp, !!opts.admin);
-  await cdp.navigate('http://127.0.0.1:' + PORT + '/index.html');
-  await sleep(250);
+  const onOrigin = await cdp.evaluate(`location.origin === ${JSON.stringify('http://127.0.0.1:' + PORT)}`);
+  if (!onOrigin) {
+    await cdp.navigate(base);
+    await waitUntil(cdp, `location.href === ${JSON.stringify(base)} && document.readyState === 'complete'`, 3000);
+  }
   // Isolation: every scenario starts from this app's keys only, so a student boot cannot inherit
   // the admin flag (class_tasks_admin) or a previous draft/progress.
   await cdp.evaluate(RESET_OWNED_STORAGE);
@@ -439,15 +458,17 @@ async function boot(cdp, width, opts = {}) {
   if (opts.storage) Object.assign(seed, opts.storage);
   seed.class_tasks_tour_seen = '1';
   await cdp.evaluate('(() => { const p = ' + JSON.stringify(seed) + '; for (const k in p) localStorage.setItem(k, p[k]); return 1; })()');
+  const prevNoHash = await cdp.evaluate(`location.pathname + location.search`);
+  const nextNoHash = '/index.html' + (opts.admin ? '?admin=1' : '');
   await cdp.navigate(url);
-  await sleep(150);
-  await cdp.evaluate('location.reload()');
-  await settle(cdp);
+  await waitUntil(cdp, `location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`, 3000);
+  if (prevNoHash === nextNoHash) await cdp.evaluate('location.reload()');
+  await settle(cdp, 30);
   let mode = null;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 60; i++) {
     mode = await cdp.evaluate(READ_MODE);
     if (mode === !!opts.admin) break;
-    await sleep(100);
+    await sleep(25);
   }
   if (mode !== !!opts.admin) {
     throw new Error('requested ' + (opts.admin ? 'admin' : 'student') + ' mode but the page rendered ' + (mode ? 'admin' : 'student'));
@@ -462,13 +483,13 @@ async function pressEnter(cdp) {
   for (const type of ['keyDown', 'char', 'keyUp']) {
     await cdp.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: type === 'char' ? '\r' : undefined });
   }
-  await sleep(250);
+  await nextFrame(cdp);
 }
 
 async function pressKey(cdp, key, code, windowsVirtualKeyCode) {
   await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode });
   await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode });
-  await sleep(250);
+  await nextFrame(cdp);
 }
 
 // The focused control must be a real, visible, named replacement - never the body, a hidden page or
@@ -587,28 +608,31 @@ async function main() {
         await boot(cdp, width, { admin: true, storage: { ...seed, class_tasks_theme: theme } });
         for (const route of ['class-tasks', 'done', 'past', 'calendar', 'my-tasks']) {
           await cdp.evaluate("location.hash = '#" + route + "'");
-          await sleep(250);
+          await waitUntil(cdp, `!!document.querySelector('#page-${route}:not([hidden])')`);
+          await nextFrame(cdp);
           const o = await cdp.evaluate(READ_OVERFLOW);
           check('overflow ' + width + ' ' + route + ' ' + theme, o.scroll - o.client <= 1 && o.bad.length === 0,
             'client ' + o.client + ' / scroll ' + o.scroll + (o.bad.length ? ' :: ' + o.bad.join(' | ') : ''));
         }
         // the two overlays that carry their own fixed width
         await cdp.evaluate("location.hash = '#class-tasks'");
-        await sleep(200);
+        await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])')`);
         await click(cdp, '#class-task-list .task-row');
-        await sleep(400);
+        await waitUntil(cdp, `!document.getElementById('task-dialog-overlay').hidden`);
+        await nextFrame(cdp);
         let o = await cdp.evaluate(READ_OVERFLOW);
         check('overflow ' + width + ' dialog ' + theme, o.scroll - o.client <= 1 && o.bad.length === 0,
           'client ' + o.client + ' / scroll ' + o.scroll + (o.bad.length ? ' :: ' + o.bad.join(' | ') : ''));
         await cdp.evaluate("document.getElementById('dialog-close').click()");
-        await sleep(300);
+        await waitUntil(cdp, `document.getElementById('task-dialog-overlay').hidden`);
         await click(cdp, '#settings-open');
-        await sleep(400);
+        await waitUntil(cdp, `!document.getElementById('settings-overlay').hidden`);
+        await nextFrame(cdp);
         o = await cdp.evaluate(READ_OVERFLOW);
         check('overflow ' + width + ' settings ' + theme, o.scroll - o.client <= 1 && o.bad.length === 0,
           'client ' + o.client + ' / scroll ' + o.scroll + (o.bad.length ? ' :: ' + o.bad.join(' | ') : ''));
         await cdp.evaluate("document.getElementById('settings-close').click()");
-        await sleep(200);
+        await waitUntil(cdp, `document.getElementById('settings-overlay').hidden`);
       }
       if (width > 480) continue;
       const fold = await cdp.evaluate(`(() => {
@@ -626,7 +650,8 @@ async function main() {
       const t = [];
       for (const [hash, sel] of [['class-tasks', '#class-task-list .task-row-title'], ['past', '#past-list .task-row-title'], ['done', '#done-list .task-row-title']]) {
         await cdp.evaluate("location.hash = '#" + hash + "'");
-        await sleep(300);
+        await waitUntil(cdp, `!!document.querySelector('#page-${hash}:not([hidden])')`);
+        await nextFrame(cdp);
         const box = await cdp.evaluate(`(() => {
           const el = document.querySelector(${JSON.stringify(sel)});
           if (!el) return null;
@@ -680,12 +705,12 @@ async function main() {
         for (const type of ['keyDown', 'char', 'keyUp']) {
           await cdp.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: type === 'char' ? '\r' : undefined });
         }
-        await sleep(400);
+        await waitUntil(cdp, dialogOpen);
         opened = await cdp.evaluate(dialogOpen);
         if (opened) {
           await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
           await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-          await sleep(400);
+          await waitUntil(cdp, `!(${dialogOpen})`);
         }
       }
       const closed = opened ? !(await cdp.evaluate(dialogOpen)) : false;
@@ -757,6 +782,7 @@ async function main() {
     await pressEnter(cdp);
     const popConfirm = await cdp.evaluate(`!document.querySelector('.confirm-overlay').hidden`);
     await pressKey(cdp, 'Escape', 'Escape', 27);
+    await waitUntil(cdp, `document.querySelector('.confirm-overlay').hidden`);
     const popCancelled = await cdp.evaluate(READ_ACTIVE);
     const stillDone = await cdp.evaluate(`(() => {
       const card = document.querySelector('#page-my-tasks .task-card[data-task-id="' + ${JSON.stringify((doneCard && doneCard.taskId) || '')} + '"]');
@@ -766,13 +792,17 @@ async function main() {
       && focusOk(popCancelled, doneCard.taskId) && /status-check/.test(popCancelled.cls),
       'task ' + (doneCard && doneCard.taskId) + ' still ' + stillDone + ' -> ' + popCancelled.tag + '.' + popCancelled.cls + ' "' + popCancelled.name + '"');
     await pressEnter(cdp);
+    await waitUntil(cdp, `!!document.querySelector('.status-popover:not([hidden])')`);
     await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
     await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
     await pressEnter(cdp);
+    await waitUntil(cdp, `!document.querySelector('.confirm-overlay').hidden`);
     const popConfirmAgain = await cdp.evaluate(`!document.querySelector('.confirm-overlay').hidden`);
     await pressKey(cdp, 'Tab', 'Tab', 9);
     const popReopenFocused = await cdp.evaluate(`document.activeElement.textContent.trim()`);
     await pressEnter(cdp);
+    await waitUntil(cdp, `document.querySelector('.confirm-overlay').hidden`);
+    await nextFrame(cdp);
     const popAccepted = await cdp.evaluate(READ_ACTIVE);
     const newStatus = await cdp.evaluate(`(() => {
       const card = document.querySelector('#page-my-tasks .task-card[data-task-id="' + ${JSON.stringify((doneCard && doneCard.taskId) || '')} + '"]');
@@ -786,7 +816,8 @@ async function main() {
     // Home/End/ArrowDown navigate, Escape closes the dropdown without closing the task dialog,
     // and Enter selects an option and returns focus to #dialog-subject-btn.
     await click(cdp, '#page-my-tasks .task-card .task-title-open');
-    await sleep(250);
+    await waitUntil(cdp, `!document.getElementById('task-dialog-overlay').hidden`);
+    await nextFrame(cdp);
     await cdp.evaluate(`document.getElementById('dialog-subject-btn').focus()`);
     await pressEnter(cdp);
     const subjOpened = await cdp.evaluate(`(() => {
@@ -837,23 +868,25 @@ async function main() {
     await boot(cdp, 375, { admin: true, hash: 'calendar', storage: { class_tasks_draft: shortDraft } });
     const hiddenPage = await cdp.evaluate(READ_ANNOUNCE);
     await click(cdp, '.nav-item[data-page="class-tasks"]');
-    await sleep(500);
+    await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])') && !document.getElementById('announce-toggle').hidden`);
+    await nextFrame(cdp);
     const revealed = await cdp.evaluate(READ_ANNOUNCE);
     check('announce short multiline', revealed.total === 1 && revealed.shown === 1 && revealed.clipped
       && !revealed.toggleHidden && /Show more/.test(revealed.toggleText),
       'hidden-page text "' + hiddenPage.text + '" (' + hiddenPage.text.length + ' chars); shown ' + revealed.shown
       + ' clipped ' + revealed.clipped + ' ' + revealed.clientHeight + '/' + revealed.scrollHeight + ' toggleHidden ' + revealed.toggleHidden);
     await click(cdp, '#announce-toggle');
-    await sleep(250);
+    await nextFrame(cdp);
     const expanded = await cdp.evaluate(READ_ANNOUNCE);
     const expandedOk = expanded.toggleText === 'Show less' && expanded.clipped === false;
     await click(cdp, '#announce-toggle');
-    await sleep(250);
+    await nextFrame(cdp);
     const recollapsed = await cdp.evaluate(READ_ANNOUNCE);
     await click(cdp, '.nav-item[data-page="calendar"]');
-    await sleep(200);
+    await waitUntil(cdp, `!!document.querySelector('#page-calendar:not([hidden])')`);
     await click(cdp, '.nav-item[data-page="class-tasks"]');
-    await sleep(500);
+    await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])') && !document.getElementById('announce-toggle').hidden`);
+    await nextFrame(cdp);
     const revisited = await cdp.evaluate(READ_ANNOUNCE);
     check('announce collapse revisit', expandedOk && recollapsed.clipped && !recollapsed.toggleHidden
       && revisited.clipped && !revisited.toggleHidden && /Show more/.test(revisited.toggleText),
@@ -868,9 +901,10 @@ async function main() {
       empty: !!document.querySelector('#done-list .list-empty'),
     }))()`);
     await click(cdp, '.nav-item[data-page="class-tasks"]');
-    await sleep(200);
+    await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])')`);
     await click(cdp, '.nav-item[data-page="done"]');
-    await sleep(400);
+    await waitUntil(cdp, `!!document.querySelector('#page-done:not([hidden])') && document.querySelectorAll('#done-list .done-row').length > 0`);
+    await nextFrame(cdp);
     const inAppDone = await cdp.evaluate(`document.querySelectorAll('#done-list .done-row').length`);
     check('cold done deep link', coldDone.rows > 0 && coldDone.rows === inAppDone && !coldDone.empty,
       'cold rows ' + coldDone.rows + ' (empty ' + coldDone.empty + '), in-app ' + inAppDone);
@@ -906,9 +940,9 @@ async function main() {
       await sleep(50);
     }
     const gone = deleted && deleted.rows === before - 1 && deleted.toast && deleted.undo;
-    await sleep(200);
+    await nextFrame(cdp);
     await click(cdp, '#toast-action');
-    await sleep(300);
+    await waitUntil(cdp, `document.querySelectorAll('#past-list .done-row').length === ${before}`);
     const after = await cdp.evaluate(`document.querySelectorAll('#past-list .done-row').length`);
     check('delete arms + undo', !!armed && !!gone && after === before,
       'rows ' + before + ' -> armed ' + (clicked && clicked.text) + ' -> ' + (deleted && deleted.rows) + ' -> undo ' + after + ' (toast "' + (deleted && deleted.message) + '")');
