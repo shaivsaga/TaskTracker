@@ -40,6 +40,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { runClassFilterChecks } from './class-filters.mjs';
+import { runUiBehaviorChecks } from './ui-behaviors.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import net from 'node:net';
 
@@ -949,6 +950,9 @@ async function main() {
 
     // 7b. class List/Board filters and their status transitions, through the same isolated boot
     await runClassFilterChecks({ cdp, boot, check, click, sleep, pressKey, pressEnter, fixture, FIXTURE_INSTANT });
+
+    // 7c. real-browser UI and accessibility behaviors replacing source-regex tests
+    await runUiBehaviorChecks({ cdp, boot, check, click, pressKey, progress, draft });
 
     // 8. both themes render from the stored choice
     const bg = {};
