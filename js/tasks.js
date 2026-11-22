@@ -293,7 +293,7 @@ function createTaskCard(task) {
     footer.className = 'task-card-footer';
     if (task.subject) footer.appendChild(createSubjectTag(task.subject));
     if (task.dueDate) {
-      const diff = dayDiff(task.dueDate);
+      const diff = dayDiff(task.getDeadline());
       const isDone = task.status === 'done';
       const overdueNow = task.isOverdue();
       const due = document.createElement('span');
@@ -455,7 +455,7 @@ function clearClassFilters() {
 function classUrgencyBucket(task) {
   if (task.status === 'done') return 3;
   if (!task.dueDate) return 2;
-  const diff = dayDiff(task.dueDate);
+  const diff = dayDiff(task.getDeadline());
   if (!task.isOverdue() && diff >= 0 && diff <= 1) return 0;
   if (task.isOverdue()) return 1;
   return 2;
@@ -754,21 +754,20 @@ function formatMineWhen(task, d, dayDiffFn) {
 // Pure personal-strip summary: uses Task.getDueTimestamp() (range end date) and the same 7-day
 // expiry rule as Task.isPast() so the strip and class overview can never drift apart.
 export function summarizeMine(allTasks, nowMs = Date.now(), dayDiffFn = dayDiff) {
-  const all = Array.isArray(allTasks) ? allTasks : [];
+  const tasks = Array.isArray(allTasks) ? allTasks : [];
   const diffFn = dayDiffFn || ((d) => {
     const start = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
     return Math.round((start(d) - start(new Date(nowMs))) / 86400000);
   });
-  const unfinished = all.filter((t) => t.status !== 'done' && !t.closedAt);
+  const unfinished = tasks.filter((t) => t.status !== 'done' && !t.isClosed());
   const open = [];
   let olderOverdue = 0;
   for (const t of unfinished) {
-    const d = typeof t.getDueTimestamp === 'function' ? t.getDueTimestamp() : null;
-    if (d && nowMs - d.getTime() > 7 * 86400000) olderOverdue++;
-    else open.push({ t, d });
+    if (t.isExpired(nowMs)) olderOverdue++;
+    else open.push({ t, d: t.getDueTimestamp() });
   }
-  const dated = open.filter((x) => x.d).sort((a, b) => a.d - b.d);
-  const next = dated.find((x) => x.d.getTime() >= nowMs) || dated[0] || null;
+  const datedEntries = open.filter((x) => x.d).sort((a, b) => a.d - b.d);
+  const next = datedEntries.find((x) => x.d.getTime() >= nowMs) || datedEntries[0] || null;
   const labelText = open.length ? 'left for you' : "left. You're caught up.";
   let nextText = '';
   if (!open.length) {
@@ -780,7 +779,7 @@ export function summarizeMine(allTasks, nowMs = Date.now(), dayDiffFn = dayDiff)
         ? `Next: ${next.t.title} · ${formatMineWhen(next.t, next.d, diffFn)}`
         : `${next.t.title} was due ${formatMineWhen(next.t, next.d, diffFn)}`;
   }
-  return { hidden: !all.length, clear: !open.length, count: open.length, olderOverdue, labelText, nextText };
+  return { hidden: !tasks.length, clear: !open.length, count: open.length, olderOverdue, labelText, nextText };
 }
 function renderMine(all) {
   const mineEl = document.querySelector('#mine');
@@ -864,7 +863,7 @@ function createTaskRow(task) {
 
   const overdue = task.dueDate && task.status !== 'done' && task.isOverdue();
   // Same rule as the board badge (within 3 days): amber, with the words "Due today" / "Due tomorrow" / "In 2 days" doing the work, so colour is never the only cue.
-  const soon = !!task.dueDate && task.status !== 'done' && !overdue && dayDiff(task.dueDate) <= 3;
+  const soon = !!task.dueDate && task.status !== 'done' && !overdue && dayDiff(task.getDeadline()) <= 3;
   const due = createRowDate(
     task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel(),
     task.dueDate ? (overdue ? 'alarm-clock' : 'calendar') : ''
@@ -1020,7 +1019,7 @@ export function openTaskDialog(task) {
   dom.dialogDateBtn.disabled = ro;
   dom.dialogDelete.hidden = ro;
   dom.dialogDuplicate.hidden = ro;
-  getCloseBtn().hidden = ro || task.closedAt > 0;
+  getCloseBtn().hidden = ro || task.isClosed();
   dom.dialogTitleInput.value = task.title === 'New Task' ? '' : task.title;
   updateDialogDue(task);
   updateDialogStatus(task);
