@@ -18,7 +18,7 @@ Check whether your diff touches any of these files or functions. If it does, run
 - `js/publish.js`: `createPublishIntent`, `#publish-form` submit, `#publish-rebase`
 - `js/recovery.js`: `nextAuthority`, `filterDeletedProgress`, `prepareRecoveredDraft`
 
-Last confirmed in sync at commit: `aa5eb5e` (move this forward only after confirming `tests/formal/BoardSync.tla` still describes the code at the new commit).
+Last confirmed in sync at commit: `667c455` (move this forward only after confirming `tests/formal/BoardSync.tla` still describes the code at the new commit).
 
 ## Properties verified
 
