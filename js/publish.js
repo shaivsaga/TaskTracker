@@ -307,13 +307,13 @@ $('#publish-form').addEventListener('submit', async (e) => {
     if (unknown.length) {
       throw new Error(`These subjects are not configured: ${unknown.join(', ')}. Add them to the catalogue before publishing.`);
     }
-    const subjects = catalog ? catalog.forPublish(body.tasks) : [];
+    const sentSubjects = body.subjects ?? (catalog ? catalog.forPublish(body.tasks) : []);
     const baseRevision = state.verifiedRevision;
     const intentKey = JSON.stringify({
       baseRevision,
       tasks: body.tasks,
       announcements: body.announcements,
-      subjects,
+      subjects: sentSubjects,
       note: body.note,
       clearBoard: body.clearBoard || null,
     });
@@ -321,8 +321,8 @@ $('#publish-form').addEventListener('submit', async (e) => {
       schemaVersion: 2,
       operationId: publishIntent.operationIdFor(intentKey),
       baseRevision,
-      subjects,
       ...body,
+      subjects: sentSubjects,
     };
     const sentFingerprint = JSON.stringify(snapshot());
     const res = await fetch(API.publish, {
