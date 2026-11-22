@@ -64,6 +64,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 .brand b { display: none; font: 400 12px/20px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
 /* Phone-only logo row at the top of the page; the header brand is hidden there because the header is the bottom tab bar. */
 .brand-m { display: none; }
+.section-badge { display: inline-flex; align-items: center; flex: none; padding: 2px 6px; border: 2px solid var(--ac); background: var(--sf2); color: var(--tx); font: 400 10px/16px 'Press Start 2P', monospace; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
 .nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .tn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; min-width: 40px; padding: 0 3px; border: 2px solid transparent; color: var(--mu); font: 600 14px/20px 'Plus Jakarta Sans', system-ui, sans-serif; }
 .tn .sp { filter: saturate(.7); }
@@ -763,6 +764,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .tb .brand { display: none; }
   .brand-m { position: sticky; top: 0; z-index: 5; display: flex; align-self: stretch; height: 56px; margin: 0 -16px 0; padding: 0 72px 0 16px; background: var(--bg); border-bottom: 2px solid var(--ln); }
   .brand-m b { display: block; }
+  .brand-m:has(.section-badge) { flex-wrap: wrap; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; gap: 4px 8px; }
+  .brand-m .section-badge { padding: 2px 6px; font-size: 8px; line-height: 12px; }
   .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }
   /* The current tab is a filled block with its accent bar along the bottom (the base rule's

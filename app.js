@@ -5,7 +5,7 @@ import {
 } from './logic.js?v=5';
 import { state } from './js/state.js';
 import { dom, cacheDom } from './js/dom.js';
-import { readJSON, writeJSON, formatTime } from './js/util.js';
+import { readJSON, writeJSON, formatTime, sectionKey } from './js/util.js';
 import * as calendar from './js/calendar.js';
 import * as quickAdd from './js/quick-add.js';
 import * as tour from './js/tour.js';
@@ -26,10 +26,11 @@ import { selectNoticeChanges } from './js/update-notice.js';
 cacheDom();
 // Preferences are watched once here, at startup, so a slow or failed board fetch cannot delay them.
 motion.init();
+settings.mountSectionBadges();
 
 // --- Admin access: Basic Auth signs in once (api/login.php), then an HttpOnly session cookie does the rest ---
-const ADMIN_KEY = 'class_tasks_admin';
-const SIGNED_OUT_KEY = 'class_tasks_signed_out';
+const ADMIN_KEY = sectionKey('class_tasks_admin');
+const SIGNED_OUT_KEY = sectionKey('class_tasks_signed_out');
 
 const JSON_POST = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', cache: 'no-store' };
 const adminHint = () => {
@@ -84,7 +85,7 @@ function setPublished(data) {
 }
 
 // --- Update notice: one popup per visit listing tasks that are new or changed since this device last saw the Board ---
-const SEEN_KEY = 'class_tasks_seen';
+const SEEN_KEY = sectionKey('class_tasks_seen');
 let noticeShown = false;
 const noticeStamp = (value) => (Number.isFinite(value) && value > 0 ? value : 0);
 const isSeenMap = (seen) => !!seen && typeof seen === 'object' && !Array.isArray(seen);
