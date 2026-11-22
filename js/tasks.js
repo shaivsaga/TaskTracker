@@ -464,6 +464,41 @@ function orderClassTasks(list) {
   return sorted.slice().sort((a, b) => classUrgencyBucket(a) - classUrgencyBucket(b));
 }
 const CLASS_BUCKET_LABELS = ['Due today & tomorrow', 'Overdue this week', 'Upcoming', 'Done'];
+function bucketed(list, bucketOf, labelOf, rowOf) {
+  const keys = new Set(list.map(bucketOf));
+  const nodes = [];
+  let last;
+  for (const item of list) {
+    const k = bucketOf(item);
+    if (keys.size > 1 && k !== last) {
+      const h = document.createElement('div');
+      h.className = 'list-bucket';
+      h.setAttribute('role', 'presentation');
+      h.textContent = labelOf(k);
+      nodes.push(h);
+      last = k;
+    }
+    nodes.push(rowOf(item));
+  }
+  return nodes;
+}
+function createRowDate(text, iconName) {
+  const due = document.createElement('span');
+  due.className = 'task-row-due';
+  if (iconName) {
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('class', 'i');
+    icon.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', `#i-${iconName}`);
+    icon.appendChild(use);
+    due.append(icon);
+  }
+  const label = document.createElement('span');
+  label.textContent = text;
+  due.append(label);
+  return due;
+}
 export function renderClassTasks() {
   const board = document.querySelector('#class-board');
   board.querySelectorAll('.column-content').forEach((c) => {
@@ -482,22 +517,7 @@ export function renderClassTasks() {
   });
   board.querySelectorAll('.kanban-column').forEach(updateColumn);
 
-  const buckets = new Set(visible.map(classUrgencyBucket));
-  const nodes = [];
-  let lastBucket = -1;
-  visible.forEach((task) => {
-    const b = classUrgencyBucket(task);
-    if (buckets.size > 1 && b !== lastBucket) {
-      const h = document.createElement('div');
-      h.className = 'list-bucket';
-      h.setAttribute('role', 'presentation');
-      h.textContent = CLASS_BUCKET_LABELS[b] || '';
-      nodes.push(h);
-      lastBucket = b;
-    }
-    nodes.push(createTaskRow(task));
-  });
-  dom.classListEl.replaceChildren(...nodes);
+  dom.classListEl.replaceChildren(...bucketed(visible, classUrgencyBucket, (b) => CLASS_BUCKET_LABELS[b] || '', createTaskRow));
   if (!visible.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
@@ -539,13 +559,22 @@ function renderPastPage() {
   const mkBtn = (label, fn, confirmLabel) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'text-button';
+    b.className = confirmLabel ? 'text-button is-danger' : 'text-button';
     b.textContent = label;
     if (confirmLabel) armInlineConfirm(b, label, confirmLabel, fn);
     else b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
     return b;
   };
-  past.forEach((task) => {
+  const pastBucket = (t) => {
+    const d = t.getDeadline();
+    return d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : 'undated';
+  };
+  const pastLabel = (key) => {
+    if (key === 'undated') return 'No due date';
+    const [y, m] = key.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+  const createPastRow = (task) => {
     const row = document.createElement('div');
     row.className = 'task-row done-row past-row';
     row.dataset.taskId = task.id;
@@ -554,11 +583,10 @@ function renderPastPage() {
     title.type = 'button';
     title.className = 'task-row-title';
     title.textContent = task.title;
-    const tag = document.createElement('span');
-    tag.className = 'task-row-due';
-    tag.textContent = task.getPastLabel();
+    const tag = createRowDate(task.dueDate ? task.getRangeLabel() : 'No due date', task.dueDate ? 'calendar' : '');
     const actions = document.createElement('span');
-    actions.style.cssText = 'display:flex;gap:12px;justify-content:flex-end';
+    actions.className = 'row-actions';
+    actions.hidden = !canEdit;
     if (canEdit) {
       actions.appendChild(mkBtn('Restore', () => {
         task.closedAt = 0;
@@ -575,8 +603,9 @@ function renderPastPage() {
     }
     row.addEventListener('click', () => openTaskDialog(task));
     row.append(title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
-    host.appendChild(row);
-  });
+    return row;
+  };
+  host.replaceChildren(...bucketed(past, pastBucket, pastLabel, createPastRow));
 }
 // Restore a task's progress entry to what it was before the last status change.
 // Shared by every Undo action so all of them persist and re-render the same way.
@@ -630,6 +659,9 @@ export function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
       return;
     }
     clearTimeout(timer);
+    delete btn.dataset.armed;
+    btn.textContent = label;
+    btn.removeAttribute('aria-label');
     onConfirm();
   });
 }
@@ -656,13 +688,13 @@ function renderDonePage() {
     host.appendChild(none);
     return;
   }
-  const stamp = (ms) => {
-    const d = new Date(ms);
-    const diff = dayDiff(d);
-    const day = diff === 0 ? 'Today' : diff === -1 ? 'Yesterday' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    return `${day}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  const DONE_BUCKET_LABELS = { today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier' };
+  const doneBucket = (t) => {
+    if (!t.movedAt) return 'earlier';
+    const diff = dayDiff(new Date(t.movedAt));
+    return diff === 0 ? 'today' : diff === -1 ? 'yesterday' : 'earlier';
   };
-  done.forEach((task) => {
+  const createDoneRow = (task) => {
     const row = document.createElement('div');
     row.className = 'task-row done-row' + (task.movedAt && Date.now() - task.movedAt < 8000 ? ' is-landed' : '');
     row.dataset.taskId = task.id;
@@ -676,18 +708,20 @@ function renderDonePage() {
     title.type = 'button';
     title.className = 'task-row-title is-done';
     title.textContent = task.title;
-    const when = document.createElement('span');
-    when.className = 'task-row-due';
-    when.textContent = task.movedAt ? stamp(task.movedAt) : '';
+    const when = createRowDate(task.dueDate ? task.getRangeLabel() : '', task.dueDate ? 'calendar' : '');
+    const actions = document.createElement('span');
+    actions.className = 'row-actions';
     const undo = document.createElement('button');
     undo.type = 'button';
     undo.className = 'text-button';
     undo.textContent = 'Mark not done';
     reopenWithConfirm(undo, task);
+    actions.appendChild(undo);
     row.addEventListener('click', () => openTaskDialog(task));
-    row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), when, undo);
-    host.appendChild(row);
-  });
+    row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), when, actions);
+    return row;
+  };
+  host.replaceChildren(...bucketed(done, doneBucket, (k) => DONE_BUCKET_LABELS[k] || '', createDoneRow));
 }
 // A subject is searchable by its editable name as well as its code, so a renamed subject is found
 // by what the class actually sees on the chip.
@@ -737,14 +771,13 @@ export function summarizeMine(allTasks, nowMs = Date.now(), dayDiffFn = dayDiff)
   const labelText = open.length ? 'left for you' : "left. You're caught up.";
   let nextText = '';
   if (!open.length) {
-    nextText = olderOverdue > 0 ? `${olderOverdue} older overdue in Past.` : 'Counts active tasks and the last 7 days.';
+    nextText = 'Counts active tasks and the last 7 days.';
   } else {
-    const base = !next
+    nextText = !next
       ? 'No due dates on what is left.'
       : next.d.getTime() >= nowMs
         ? `Next: ${next.t.title} · ${formatMineWhen(next.t, next.d, diffFn)}`
         : `${next.t.title} was due ${formatMineWhen(next.t, next.d, diffFn)}`;
-    nextText = olderOverdue > 0 ? `${base} · ${olderOverdue} older in Past` : base;
   }
   return { hidden: !all.length, clear: !open.length, count: open.length, olderOverdue, labelText, nextText };
 }
@@ -792,12 +825,6 @@ function updateOverview() {
   document.querySelector('#csum-done').textContent = `${classTasks.length - classOpen.length} of ${classTasks.length} done here`;
   // An empty board already says "No tasks yet."; a 0-of-0 tally above it is noise.
   document.querySelector('#class-summary').hidden = classTasks.length === 0;
-  const badge = document.querySelector('#nav-badge');
-  badge.textContent = open.length ? String(open.length) : '';
-  badge.hidden = open.length === 0;
-  // The badge is the tile's visible text too, so the accessible name has to follow the count
-  // (WCAG 2.5.3 label in name); it is written here because this is the badge's only writer.
-  document.querySelector('#nav-admin').setAttribute('aria-label', open.length === 0 ? 'Admin' : 'Admin ' + open.length);
   document.querySelector('#page-my-tasks').classList.toggle('is-blank', myTasks.length === 0);
 }
 const notesTextCache = new WeakMap();
@@ -834,23 +861,15 @@ function createTaskRow(task) {
     + (task.status === 'done' ? ' is-done' : '');
   title.textContent = task.title;
 
-  const due = document.createElement('span');
   const overdue = task.dueDate && task.status !== 'done' && task.isOverdue();
   // Same rule as the board badge (within 3 days): amber, with the words "Due today" / "Due tomorrow" / "In 2 days" doing the work, so colour is never the only cue.
   const soon = !!task.dueDate && task.status !== 'done' && !overdue && dayDiff(task.dueDate) <= 3;
-  due.className = 'task-row-due' + (overdue ? ' is-overdue' : soon ? ' is-due-soon' : '');
-  const dueLabel = document.createElement('span');
-  dueLabel.textContent = task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel();
-  if (task.dueDate) {
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    icon.setAttribute('class', 'i');
-    icon.setAttribute('aria-hidden', 'true');
-    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    use.setAttribute('href', '#i-' + (overdue ? 'alarm-clock' : 'calendar'));
-    icon.appendChild(use);
-    due.append(icon);
-  }
-  due.append(dueLabel);
+  const due = createRowDate(
+    task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel(),
+    task.dueDate ? (overdue ? 'alarm-clock' : 'calendar') : ''
+  );
+  if (overdue) due.classList.add('is-overdue');
+  else if (soon) due.classList.add('is-due-soon');
   if (task.status !== 'done') due.title = task.getDueShort();
 
   const del = document.createElement('button');
@@ -1614,10 +1633,11 @@ dom.dialogDelete.addEventListener('click', () => {
   if (!state.currentTask) return;
   const task = state.currentTask;
   closeStatusPopover();
+  dom.dialogOverlay.setAttribute('aria-hidden', 'true');
   motion.hideOverlay(dom.dialogOverlay);
   document.body.style.overflow = '';
   const idx = myTasks.indexOf(task);
-  if (idx !== -1) deleteTask(task); else closeTaskDialog();
+  if (idx !== -1) { deleteTask(task); focusFallbackControl(); } else closeTaskDialog();
   state.currentTask = null;
 });
 dom.dialogStatusBtn.addEventListener('click', () => { closeSubjectDropdown(false); if (state.currentTask) openStatusPopover(state.currentTask, dom.dialogStatusBtn); });

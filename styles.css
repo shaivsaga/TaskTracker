@@ -49,7 +49,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 /* [[section:shell]] */
 /* ---------- Shell: the mockup top bar (slice 3.1e) ---------- */
 /* Sprite icons (mockup styles.css 17-43): 20 icons per sheet row, --i picks one, --s the scale. */
-.sp { display: inline-block; flex: none; width: calc(16px * var(--s)); height: calc(16px * var(--s)); background: var(--sheet) no-repeat; background-size: calc(16px * var(--s) * 20) calc(16px * var(--s)); background-position: calc(-16px * var(--i) * var(--s)) 0; image-rendering: pixelated; }
+.sp { display: inline-block; flex: none; width: calc(16px * var(--s)); height: calc(16px * var(--s)); background: var(--sheet) no-repeat; background-size: calc(20px * var(--s) * 20) calc(16px * var(--s)); background-position: calc(-20px * var(--i) * var(--s)) 0; image-rendering: pixelated; }
 .x1 { --s: 1; }
 .x2 { --s: 2; }
 
@@ -73,8 +73,9 @@ main[tabindex="-1"]:focus { outline: 0; }
 .tn .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 .tn.adm { background: var(--ac); border-color: var(--ac); color: var(--onac); box-shadow: inset 0 -3px 0 var(--acd); }
 .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
-.bd { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 3px; display: grid; place-items: center; font: 400 12px/12px 'Press Start 2P', monospace; background: var(--ac); color: var(--onac); }
-.bd.er { background: var(--er); color: var(--oa); }
+.bd { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 3px; display: grid; place-items: center; font: 400 12px/12px 'Press Start 2P', monospace; font-variant-numeric: tabular-nums; background: var(--ac); color: var(--onac); z-index: 1; }
+.tn.adm .bd { background: var(--sf); color: var(--tx); border: 2px solid var(--acd); }
+.bd.er, .tn.adm .bd.er { background: var(--er); color: var(--oa); border-color: var(--er); }
 .px { font-family: 'Press Start 2P', monospace; font-weight: 400; letter-spacing: 0.02em; text-transform: uppercase; }
 .ttl { font-size: 16px; line-height: 24px; }
 /* The title and the line under it read as one group; the gap the page column adds is pulled in by half. */
@@ -84,7 +85,6 @@ h1.ttl { margin-bottom: -8px; }
   .tb { gap: 2px; padding: 0 max(6px, env(safe-area-inset-right)) 0 max(6px, env(safe-area-inset-left)); }
   .ib { width: 36px; }
   .brand { padding: 0; }
-  .nav { gap: 0; }
   .tn { min-width: 36px; padding: 0; }
 }
 @media (min-width: 720px) {
@@ -197,7 +197,7 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 
 /* [[section:banners]] */
 /* ---------- Banners, summary, admin ---------- */
-.sync-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 0; padding: 8px 12px; border: 1px solid var(--wn); color: var(--wn); background: var(--wnb); font-size: 12px; line-height: 20px; }
+.sync-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 0; padding: 8px 12px; border: 2px solid var(--wn); color: var(--wn); background: var(--sf); font-size: 12px; line-height: 20px; }
 /* Preview mode is the mockup's quiet .pin sheet - 2px var(--ln) on var(--sf2), 12px of padding - not a
    warning banner: nothing is wrong, the admin is only looking at the student's copy of the board. */
 .preview-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 0; padding: 12px; border: 2px solid var(--ln); color: var(--tx); background: var(--sf2); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 14px; line-height: 20px; }
@@ -209,31 +209,36 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .admin-bar { display: grid; gap: 8px; min-height: 64px; margin-top: 16px; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf); }
 .admin-status { color: var(--mu); font-size: 12px; line-height: 16px; }
 .admin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-/* From 720px the status keeps the left edge and the three groups sit on the right of one line. */
-@media (min-width: 720px) {
+/* From 1100px status and all three divider-separated groups sit on one 64px line; below that,
+   status sits above the controls so 720-1099px never wraps a group with a stray left border. */
+@media (min-width: 1100px) {
   .admin-bar { grid-template-columns: auto 1fr; align-items: center; gap: 8px 16px; }
   .admin-actions { justify-content: flex-end; }
   .admin-group { justify-content: flex-end; }
+  .admin-group + .admin-group { padding-left: 8px; border-left: 2px solid var(--ln); }
 }
 .admin-actions .text-button, .history-item .text-button, .file-item .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); background: var(--sf); color: var(--tx); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .admin-actions .text-button:hover, .history-item .text-button:hover, .file-item .text-button:hover { border-color: var(--ac); background: var(--sf2); color: var(--tx); }
-/* Three groups, one divider each: quiet tools, then the draft pair, then Publish standing alone. */
+/* Three groups: quiet underlined tools, then the draft pair, then Publish standing alone. */
 .admin-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.admin-group + .admin-group { padding-left: 8px; border-left: 2px solid var(--ln); }
-/* The tools read as links, Save keeps its frame, Publish keeps the fill: weight descends left to right. */
-.admin-actions .admin-tools .text-button { border-color: transparent; background: none; box-shadow: none; color: var(--mu); }
-.admin-actions .admin-tools .text-button:hover { border-color: transparent; background: none; color: var(--tx); }
-/* One size per role inside the bar. Before this, "Discard changes" (12px) sat between "Preview as
-   student" (12px) and "Save" (14px) in the same row, so the row had no type logic. The two tools stay at
-   the label size and lose their button padding, because they read as links, not as framed actions. */
+#admin-bar #btn-discard:not(:disabled) { border-color: var(--er); color: var(--er); }
+#admin-bar #btn-discard:not(:disabled):hover { border-color: var(--er); background: var(--erb); color: var(--er); }
+/* One size per role inside the bar: secondary tools at 12/16, committed draft/release actions at 14/20. */
 #admin-bar .admin-group .text-button,
 #admin-bar .admin-group .secondary-button,
 #admin-bar .admin-group .primary-button { font-size: 14px; line-height: 20px; }
-#admin-bar .admin-tools .text-button { font-size: 12px; line-height: 16px; padding: 0 4px; }
-/* Phones: one group per row. At 14px the three groups no longer share 343px, and a bar that reflows at
-   375 but not at 320 reads as a bug rather than as breakpoint behaviour. */
+#admin-bar .admin-tools .text-button { font-size: 12px; line-height: 16px; }
+/* Phones: one group per row; collapse disabled Discard and Publish when no changes are pending. */
 @media (max-width: 719px) {
-  #admin-bar .admin-actions { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 8px; }
+  #admin-bar { padding: 12px; }
+  #admin-bar:not(.is-clean) .admin-status { color: var(--tx); font-weight: 600; }
+  #admin-bar .admin-actions { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: stretch; gap: 8px; }
+  #admin-bar .admin-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #admin-bar .admin-tools .text-button { width: 100%; padding: 0 8px; }
+  #admin-bar .admin-release { order: 1; width: 100%; padding-top: 8px; border-top: 2px solid var(--ln); }
+  #admin-bar .admin-draft { order: 2; width: 100%; }
+  #admin-bar #btn-discard, #admin-bar #btn-apply { width: 100%; }
+  #admin-bar.is-clean .admin-draft, #admin-bar.is-clean .admin-release { display: none; }
 }
 
 .summary { display: flex; flex-wrap: wrap; align-items: center; margin: 16px 0 0; color: var(--mu); font-size: 12px; line-height: 20px; }
@@ -463,25 +468,19 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
    what produced a 60px name and a 'Delete' button hanging past the card edge. */
 @media (min-width: 1100px) {
   /* lint-allow:px 200px -- the title floor: below this the title is not readable, which is why the row turns into a card */
-  .done-row { grid-template-columns: 24px minmax(200px, 1fr) 104px 112px auto; padding: 10px 16px; } /* lint-allow:px 112px -- the status column, wide enough for 'Expired' and 'Closed' without wrapping */
+  /* lint-allow:px 160px -- matches .task-row due column */
+  .done-row { grid-template-columns: 24px minmax(200px, 1fr) 104px 160px auto; padding: 10px 16px; }
+  .done-row.past-row { grid-template-columns: minmax(200px, 1fr) 104px 160px auto; }
   .done-row .task-row-due { text-align: right; }
   /* The three actions never sit beside a differently-labelled button in the same row, so a fixed
      min-width bought no alignment and cost the title 144px of track. */
   .done-row .text-button { min-width: 0; }
 }
-/* The mockup's done title is muted, not struck through (mockup 169): the app's line-through and
-   its 600 weight go, and the secondary line stays the app's own --mu. */
-.done-row .task-row-title.is-done { font-weight: 500; text-decoration: none; }
-/* The Past row has no status column: it only says why the task is archived. Declared after the
-   .task-row and .done-row track lists above so it replaces them at every width. */
-.past-row { grid-template-columns: minmax(0, 1fr) auto auto auto; }
-@media (min-width: 1100px) {
-  /* lint-allow:px 200px -- the title floor, as .done-row; 112px is the label column that fits 'Expired' and 'Closed' */
-  .past-row { grid-template-columns: minmax(200px, 1fr) 104px 112px auto; }
-}
-/* The archive is the one list whose row is also the only place the task name appears at a glance;
-   a two-line clamp replaces the single-line ellipsis that used to hide it. */
-.done-row .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
+/* The mockup's done and past titles are muted, not struck through: archive rows sit below active tasks in weight,
+   with a two-line clamp so long titles truncate cleanly without pushing metadata or actions. */
+.done-row .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--mu); font-weight: 500; text-decoration: none; white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
+#past-list .subject-tag { filter: saturate(0.75); }
+.row-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .done-row .text-button { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border: 2px solid var(--mu); color: var(--tx); background: var(--sf); box-shadow: 0 2px 0 var(--sh); font-size: 12px; line-height: 16px; text-decoration: none; }
 .done-row .text-button:hover { border-color: var(--ac); background: var(--sf2); }
 .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
@@ -632,13 +631,16 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* [[section:history]] */
 /* ---------- History ---------- */
-.history-bar { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.history-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .history-list, .history-detail { margin: 0; padding: 0; list-style: none; }
 .history-item { padding: 12px 0; border-top: 1px solid var(--ln); }
-.history-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.history-label { flex: 1 1 100%; font-size: 14px; font-weight: 600; line-height: 20px; }
+.history-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.history-label { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 600; line-height: 20px; }
+.history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.history-actions .is-danger { margin-left: auto; }
 .history-detail { margin-top: 8px; color: var(--mu); font-size: 14px; line-height: 20px; }
-.history-item .text-button[data-armed], #preset-delete[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
+.text-button.is-danger[data-armed], #preset-delete[data-armed], #admin-bar #btn-discard[data-armed] { color: var(--oa); background: var(--er); border-color: var(--er); box-shadow: 0 2px 0 var(--sh); text-decoration: none; }
+.text-button.is-danger[data-armed]:hover, #preset-delete[data-armed]:hover, #admin-bar #btn-discard[data-armed]:hover { color: var(--oa); background: var(--er); border-color: var(--er); }
 .subject-row .history-head { gap: 8px 12px; }
 .subject-row .search { flex: 1 1 160px; min-width: 120px; }
 .subject-row .search input { width: 100%; }
@@ -671,7 +673,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* Desktop: ruled with borders, not a 1px gap over a --ln backdrop, so the lines no longer depend on a
    gap track surviving fractional zoom. Every day row is one fixed height, so a busy day
    (3 chips + "+N more") clips instead of stretching its row. Week is a single row. */
-@media (min-width: 721px) {
+@media (min-width: 720px) {
   /* lint-allow:px 152px -- 3 chips + the "+N more" row + the day number */
   .cal { gap: 0; border: 0; border-top: 1px solid var(--ln); border-left: 1px solid var(--ln); background: none; overflow: visible; grid-template-rows: auto; grid-auto-rows: 152px; }
   .cal[data-mode="week"] { grid-auto-rows: auto; }
@@ -759,7 +761,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (max-width: 719px) {
   .tb { position: fixed; top: auto; right: 0; bottom: 0; left: 0; height: auto; align-items: flex-end; padding: 8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-bottom: 0; border-top: 2px solid var(--ln); }
   .tb .brand { display: none; }
-  .brand-m { position: sticky; top: 0; z-index: 5; display: flex; align-self: stretch; height: 52px; margin: -8px -16px 0; padding: 8px 56px 0 16px; background: var(--bg); border-bottom: 2px solid var(--ln); }
+  .brand-m { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; align-self: stretch; height: 60px; margin: -8px -16px 0; padding: 0 60px 0 16px; background: var(--bg); border-bottom: 2px solid var(--ln); }
   .brand-m b { display: block; }
   .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }
@@ -768,9 +770,13 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
      stray vertical lines beside Calendar and Past. */
   .tn.is-active { border-color: transparent; }
   .tn .lbl { position: static; width: auto; height: auto; clip: auto; overflow: visible; font: 600 12px/16px 'Plus Jakarta Sans', system-ui, sans-serif; white-space: nowrap; }
-  .tn.adm { max-width: 72px; height: 56px; transform: none; box-shadow: inset 0 -3px 0 var(--acd); }
-  .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 2px var(--sf), 0 0 0 4px var(--tx); }
-  .bd { top: 0; right: 2px; }
+  .tn.adm { max-width: 72px; height: 56px; transform: none; box-shadow: inset 0 -3px 0 var(--acd); display: grid; grid-template-columns: auto; grid-template-rows: auto auto; align-content: center; justify-content: center; justify-items: center; align-items: center; gap: 2px; }
+  .tn.adm:has(.bd:not([hidden])) { grid-template-columns: auto auto; column-gap: 2px; flex: 1 0 auto; max-width: 72px; padding: 0 3px; }
+  .tn.adm .sp { grid-column: 1 / -1; grid-row: 1; }
+  .tn.adm .lbl { grid-column: 1; grid-row: 2; }
+  .tn.adm.is-active { box-shadow: inset 0 -3px 0 var(--acd), 0 0 0 1px var(--sf), 0 0 0 3px var(--tx); }
+  .bd { top: 2px; right: 2px; }
+  .tn.adm .bd { position: static; grid-column: 2; grid-row: 2; min-width: 16px; height: 16px; padding: 0 4px; border-width: 1px; font: 700 12px/14px 'Plus Jakarta Sans', system-ui, sans-serif; }
   /* Phone tab order: Tasks, Calendar, Admin (centre, president only), Done, Past. */
   .tn[data-page="class-tasks"] { order: 1; }
   .tn[data-page="calendar"] { order: 2; }
@@ -821,16 +827,21 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #page-class-tasks > .page-heading .page-supporting-copy { display: none; }
   #page-class-tasks .view-tabs, #class-board { display: none; }
   #page-class-tasks #class-task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
-  #class-task-list .list-bucket { padding: 4px 0 2px; border-bottom: 2px solid var(--ln); background: transparent; }
-  #class-task-list .task-row { padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
-  #class-task-list .task-row-title { font-size: 16px; line-height: 24px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; max-height: 48px; }
+  #class-task-list .list-bucket, #page-my-tasks #task-list .list-bucket { padding: 4px 0 2px; border-bottom: 2px solid var(--ln); background: transparent; }
+  #class-task-list .task-row, #page-my-tasks #task-list .task-row { padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
+  #class-task-list .task-row-title, #page-my-tasks #task-list .task-row-title { font-size: 16px; line-height: 24px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; max-height: 48px; }
   /* Admin follows the same phone rule: one list, no Board/List switch. The saved view is left alone,
      so resizing back to desktop restores it. */
   #page-my-tasks .view-tabs { display: none; }
   #page-my-tasks .kanban-board { display: none; }
+  #page-my-tasks #new-task-btn { width: 100%; }
   #page-my-tasks #task-list { display: flex !important; flex-direction: column; gap: 8px; border: 0; background: none; }
   #page-my-tasks.is-blank #task-list { display: none !important; }
+  .quick-group-label { flex: 1 1 100%; }
+  .quick-code { display: none; }
   .cal-day { min-height: 80px; padding: 4px; border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); }
+  .cal-num { min-width: 0; padding: 0; }
+  .cal-day.is-today .cal-num { min-width: 20px; padding: 0 3px; }
   /* Each day is its own block with a 2px edge and a gap between, not a cell in one ruled sheet. */
   .cal { gap: 12px 8px; border: 0; background: none; overflow: visible; }
   .cal-dow { background: transparent; }
@@ -850,10 +861,11 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .cal .cal-time { display: none; }
   /* Week view on phones: one full-width row per day instead of seven ~45px columns. */
   .cal[data-mode="week"] .cal-dow { display: none; }
-  .cal[data-mode="week"] .cal-day { grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; min-height: 0; padding: 8px 12px; }
+  .cal[data-mode="week"] .cal-day { grid-template-columns: 40px minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 12px; min-height: 0; padding: 8px 12px; }
   .cal[data-mode="week"] .cal-day::before { content: attr(data-dow); grid-column: 1; grid-row: 1; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: .04em; text-transform: uppercase; }
-  .cal[data-mode="week"] .cal-num { grid-column: 1; grid-row: 2; justify-self: start; }
+  .cal[data-mode="week"] .cal-num { grid-column: 1; grid-row: 2; justify-self: start; align-self: start; }
   .cal[data-mode="week"] .cal-chip, .cal[data-mode="week"] .cal-more { grid-column: 2; }
+  .cal[data-mode="week"] .cal-day > .cal-num + .cal-chip { grid-row: 1 / 3; }
   .cal[data-mode="week"] .cal-chip { min-height: 44px; padding: 8px 12px; font-size: 14px; line-height: 20px; }
   .cal[data-mode="week"] .cal-time { display: inline; }
   .cal[data-mode="week"] .cal-chip-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
@@ -886,44 +898,53 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
      (subject left, date or status right), then the actions at 44px - so a card never re-arranges
      itself because one task happens to have a subject, a date, or a second admin action. */
   #done-list, #past-list { display: flex; flex-direction: column; gap: 8px; border: 0; background: none; }
-  #done-list .done-row, #past-list .done-row { grid-template-columns: 24px minmax(0, 1fr) auto; padding: 12px; background: var(--sf); border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); row-gap: 8px; }
+  #done-list .list-bucket, #past-list .list-bucket { padding: 4px 0 2px; border-bottom: 2px solid var(--ln); background: transparent; }
+  #done-list .done-row, #past-list .done-row { grid-template-columns: 24px minmax(0, 1fr) auto; padding: 12px 16px; background: var(--sf); border: 2px solid var(--ln); box-shadow: 0 2px 0 var(--sh); row-gap: 8px; }
   #done-list .done-row .task-row-title, #past-list .done-row .task-row-title { font-size: 16px; line-height: 24px; }
-  /* Multiple actions get a full row so they cannot squeeze the title or escape the card at 320px. */
+  #done-list .done-row > :nth-child(1) { align-self: start; margin-top: 2px; }
+  /* Multiple actions get a compact footer row so they cannot squeeze the title or escape the card at 320px. */
   #done-list .done-row > :nth-child(2), #past-list .done-row > :nth-child(2) { grid-column: 2 / 4; grid-row: 1; }
   #done-list .done-row > :nth-child(3), #past-list .done-row > :nth-child(3) { grid-column: 2; grid-row: 2; align-self: center; }
   #done-list .done-row > :nth-child(4), #past-list .done-row > :nth-child(4) { grid-column: 3; grid-row: 2; justify-self: end; align-self: center; text-align: right; white-space: nowrap; }
-  /* The actions own the third row, right-aligned and free to wrap: the delete confirm's longer label
-     ("Confirm deleting this task") must never push a button past the card edge at 320px. The cell
-     stays shrink-to-fit, so a Done row's lone button keeps its own width instead of becoming a
-     full-card invisible tap target. */
-  #done-list .done-row > :nth-child(5), #past-list .done-row > :nth-child(5) { grid-column: 1 / -1; grid-row: 3; justify-self: end; max-width: 100%; flex-wrap: wrap; }
-  #done-list .done-row .text-button, #past-list .done-row .text-button { min-height: 44px; padding: 0 8px; border-color: transparent; background: none; box-shadow: none; color: var(--ac); }
+  /* Compact archive footer: aligned with the title column (2 / 4 on Done, 1 / -1 on Past), separated by a 1px hairline rule.
+     Buttons stay content-sized at 32px visual height with a 44px touch target via ::after. */
+  #done-list .done-row > .row-actions { grid-column: 2 / 4; grid-row: 3; justify-self: stretch; flex-wrap: wrap; max-width: 100%; padding-top: 8px; border-top: 1px solid var(--ln); margin: 0; }
+  #past-list .past-row > .row-actions { grid-column: 1 / -1; grid-row: 3; justify-self: stretch; flex-wrap: wrap; max-width: 100%; padding-top: 8px; border-top: 1px solid var(--ln); margin: 0; }
+  #done-list .done-row .text-button, #past-list .done-row .text-button { position: relative; min-height: 32px; height: auto; padding: 0 12px; border: 2px solid var(--ln); background: var(--sf2); box-shadow: none; color: var(--tx); font-size: 12px; font-weight: 600; line-height: 16px; text-decoration: none; }
+  /* lint-allow:px -6px -- 44px touch target around 32px compact archive action button */
+  #done-list .done-row .text-button::after, #past-list .done-row .text-button::after { content: ''; position: absolute; inset: -6px 0; }
+  #done-list .done-row .text-button:hover, #past-list .done-row .text-button:hover { border-color: var(--ac); background: var(--acs); }
+  #past-list .done-row .text-button.is-danger { padding: 0 8px; border-color: transparent; background: transparent; color: var(--er); }
+  #past-list .done-row .text-button.is-danger:hover, #past-list .done-row .text-button.is-danger:focus-visible { border-color: var(--er); background: var(--erb); }
   #done-list .done-row .text-button[data-armed], #past-list .done-row .text-button[data-armed] { color: var(--onac); background: var(--ac); border-color: var(--ac); box-shadow: inset 0 -3px 0 var(--acd), 0 2px 0 var(--sh); }
+  #past-list .done-row .text-button.is-danger[data-armed] { padding: 0 12px; color: var(--oa); background: var(--er); border-color: var(--er); box-shadow: 0 2px 0 var(--sh); }
   /* Tablets have the width for the actions to sit on the metadata line, so the card keeps two rows
      there; the phone keeps the third row. */
 /* lint-allow:px 720px -- the app's own tablet breakpoint */
   @media (min-width: 720px) {
     #done-list .done-row, #past-list .done-row { grid-template-columns: 24px minmax(0, 1fr) auto auto; }
     #done-list .done-row > :nth-child(2), #past-list .done-row > :nth-child(2) { grid-column: 2 / 5; }
-    #done-list .done-row > :nth-child(5), #past-list .done-row > :nth-child(5) { grid-column: 4; grid-row: 2; align-self: center; }
+    #done-list .done-row > .row-actions, #past-list .done-row > .row-actions { grid-column: 4; grid-row: 2; justify-self: end; align-self: center; padding-top: 0; border-top: 0; margin: 0; }
   }
-  /* The Past card has no status box, so its children are title, subject, label, actions - one fewer than the
-     Done card the rules above place. Re-seat them, or the title lands in the 24px checkbox track. Phone: name,
-     then subject left and label right, then the actions on their own row (hidden when a viewer has none). */
   #past-list .past-row { grid-template-columns: minmax(0, 1fr) auto; }
   #past-list .past-row > :nth-child(1) { grid-column: 1 / -1; grid-row: 1; }
   #past-list .past-row > :nth-child(2) { grid-column: 1; grid-row: 2; align-self: center; }
   #past-list .past-row > :nth-child(3) { grid-column: 2; grid-row: 2; justify-self: end; align-self: center; text-align: right; white-space: nowrap; }
-  #past-list .past-row > :nth-child(4) { grid-column: 1 / -1; grid-row: 3; justify-self: end; max-width: 100%; flex-wrap: wrap; }
-  #past-list .past-row > :nth-child(4):empty { display: none; }
 /* lint-allow:px 720px -- the app's own tablet breakpoint */
   @media (min-width: 720px) {
     #past-list .past-row { grid-template-columns: minmax(0, 1fr) auto auto; }
-    #past-list .past-row > :nth-child(4) { grid-column: 3; grid-row: 2; align-self: center; }
+    #past-list .past-row > :nth-child(2) { grid-column: 1; }
+    #past-list .past-row > :nth-child(3) { grid-column: 2; }
+    #past-list .past-row > .row-actions { grid-column: 3; grid-row: 2; justify-self: end; align-self: center; padding-top: 0; border-top: 0; margin: 0; }
   }
 }
 /* lint-allow:px 480px -- the app's own narrow-phone breakpoint for the two-column quick preview; the mockup has no 480 boundary */
 @media (max-width: 480px) { .quick-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 374px) {
+  .nav { gap: 2px; }
+  .cal { gap: 12px 4px; }
+  .cal-day { padding: 2px; }
+}
 /* [[/section:responsive]] */
 
 /* [[section:a11y]] */
@@ -952,8 +973,6 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* lint-allow:px 719px -- the phone/desktop boundary the app already uses, not a design-scale value */
 @media (max-width: 719px) {
   .admin-actions .text-button, .history-item .text-button, .file-item .text-button { height: 44px; }
-  /* On a phone the bar wraps, so a group rule would open a line as a stray tick; the wrap already separates. */
-  .admin-group + .admin-group { padding-left: 0; border-left: 0; }
 }
 
 /* Phones: every text button, chip and picker control reaches the 44px floor, including the ones that

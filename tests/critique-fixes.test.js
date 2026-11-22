@@ -35,10 +35,16 @@ test('Board view keeps subject filtering, List view adds bucket headings, and in
   assert.match(HTML, /data-view="list" aria-pressed="true"/, 'index.html must default the class view tab to List to match VIEW_DEFAULTS.class');
 });
 
-test('Done rows unify reopen to one control and .mine respects previewing + range deadlines', () => {
+test('Done and Past rows use shared bucketing, calm date labels, and no status box on Past', () => {
   const doneBody = TASKS.slice(TASKS.indexOf('function renderDonePage()'), TASKS.indexOf('function subjectCodesMatching'));
   assert.doesNotMatch(doneBody, /createStatusCheck\(task\)/, 'Done rows must not render a second interactive status-check reopen trigger');
   assert.match(doneBody, /status-check is-done is-static/, 'Done rows keep a static green check icon beside Mark not done');
+  assert.match(doneBody, /bucketed\(done,/, 'Done page must group rows with bucketed()');
+  assert.match(doneBody, /getRangeLabel\(\)/, 'Done rows must use the same compact date format as Past instead of completion timestamp');
+  const pastBody = TASKS.slice(TASKS.indexOf('function renderPastPage()'), TASKS.indexOf('function doneMessage()'));
+  assert.match(pastBody, /bucketed\(past,/, 'Past page must group rows with bucketed()');
+  assert.doesNotMatch(pastBody, /status-check/, 'Past rows must not render a status box');
+  assert.match(pastBody, /getRangeLabel\(\)/, 'Past rows must show the task date without Closed/Expired status labels');
 
   // Behavioral tests for the personal strip summary (replaces brittle regex on app.js).
   const now = new Date(2026, 10, 21, 12, 0, 0).getTime();
@@ -54,7 +60,7 @@ test('Done rows unify reopen to one control and .mine respects previewing + rang
   assert.equal(summary.count, 1, 'closed, done, and 7+ day expired tasks are excluded');
   assert.equal(summary.olderOverdue, 1, '7+ day expired task is counted in Past');
   assert.match(summary.nextText, /Next: Range task · Tomorrow/, 'range task deadline uses endDate');
-  assert.match(summary.nextText, /1 older in Past/);
+  assert.doesNotMatch(summary.nextText, /older in Past/, 'personal strip must not nag about older Past tasks');
 });
 
 test('keyboard focus outlines, student / shortcut, read-only dialog footer, and admin delete confirmations are guarded', () => {
