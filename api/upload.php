@@ -76,7 +76,7 @@ if (($ext === 'docx' || $ext === 'pptx') && !class_exists('ZipArchive')) tt_json
 if (!content_ok($f['tmp_name'], $ext)) tt_json(415, ['error' => 'That file does not look like a valid .' . $ext . ' file.']);
 $display = mb_substr($orig, 0, 120);
 
-$dir = dirname(__DIR__) . '/data/uploads';
+$dir = tt_data_dir() . '/uploads';
 if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) tt_json(500, ['error' => 'Cannot create upload storage.']);
 $used = 0;
 foreach (glob($dir . '/*') ?: [] as $x) { if (is_file($x)) $used += (int)@filesize($x); }

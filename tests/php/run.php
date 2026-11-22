@@ -887,4 +887,231 @@ if (!$sbT) {
     tt_e2e_stop($sbT);
 }
 
+// ---------------------------------------------------------------------------
+// I. Multi-section storage isolation, section tags in transfers, and fail-closed TT_SECTION.
+// ---------------------------------------------------------------------------
+$repoDataDir = dirname(__DIR__, 2) . '/data';
+$withSectionEnv = function (?string $val, callable $fn) {
+    $had = array_key_exists('TT_SECTION', $_SERVER);
+    $old = $_SERVER['TT_SECTION'] ?? null;
+    if ($val === null) unset($_SERVER['TT_SECTION']);
+    else $_SERVER['TT_SECTION'] = $val;
+    try {
+        return $fn();
+    } finally {
+        if ($had) $_SERVER['TT_SECTION'] = $old;
+        else unset($_SERVER['TT_SECTION']);
+    }
+};
+
+check('section: tt_section_id_valid accepts valid IDs',
+    tt_section_id_valid('a') && tt_section_id_valid('b') && tt_section_id_valid('0')
+    && tt_section_id_valid('sec_2-x') && tt_section_id_valid(str_repeat('a', 32)));
+foreach (['', '../x', 'B', 'foo/bar', 'a b', str_repeat('a', 33), '-bad', '_bad', 'a.b', "b\n"] as $badSec) {
+    check('section: tt_section_id_valid rejects ' . json_encode($badSec), !tt_section_id_valid($badSec));
+}
+check('section: tt_section_id_valid rejects non-strings', !tt_section_id_valid(null) && !tt_section_id_valid(123));
+
+check('section: unset TT_SECTION resolves to root data/',
+    $withSectionEnv(null, fn() => tt_section_id() === '' && tt_data_dir() === $repoDataDir
+        && tt_admin_dir() === $repoDataDir . '/admin' && tt_dir() === $repoDataDir . '/sessions'));
+check('section: empty TT_SECTION resolves to root data/',
+    $withSectionEnv('', fn() => tt_section_id() === '' && tt_data_dir() === $repoDataDir));
+check('section: TT_SECTION=a resolves to root data/',
+    $withSectionEnv('a', fn() => tt_section_id() === '' && tt_data_dir() === $repoDataDir));
+check('section: TT_SECTION=b resolves to data/sections/b',
+    $withSectionEnv('b', fn() => tt_section_id() === 'b' && tt_data_dir() === $repoDataDir . '/sections/b'
+        && tt_admin_dir() === $repoDataDir . '/sections/b/admin' && tt_dir() === $repoDataDir . '/sections/b/sessions'));
+check('section: TT_SECTION=0 resolves to data/sections/0 (not treated as empty)',
+    $withSectionEnv('0', fn() => tt_section_id() === '0' && tt_data_dir() === $repoDataDir . '/sections/0'));
+
+$legacyClean = clean_payload(['v' => 1, 'progress' => []]);
+check('section transfer: untagged payload omits section key',
+    $legacyClean !== null && !array_key_exists('section', $legacyClean));
+$tagA = clean_payload(['v' => 1, 'progress' => [], 'section' => 'a']);
+$tagB = clean_payload(['v' => 1, 'progress' => [], 'section' => 'b']);
+$tagCustom = clean_payload(['v' => 1, 'progress' => [], 'section' => 'sec_2-x']);
+check('section transfer: valid section tags are preserved',
+    ($tagA['section'] ?? null) === 'a' && ($tagB['section'] ?? null) === 'b' && ($tagCustom['section'] ?? null) === 'sec_2-x');
+foreach (['', null, 123, 'B', '../x', 'foo/bar', 'a b', str_repeat('a', 33), "b\n"] as $badTag) {
+    check('section transfer: invalid section tag rejected ' . json_encode($badTag),
+        clean_payload(['v' => 1, 'progress' => [], 'section' => $badTag]) === null);
+}
+
+$routerFile = rtrim(sys_get_temp_dir(), '/\\') . '/tt-section-router-' . bin2hex(random_bytes(4)) . '.php';
+$routerSrc = <<<'PHP'
+<?php
+$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+if (array_key_exists('HTTP_X_TEST_SECTION', $_SERVER)) {
+    $_SERVER['TT_SECTION'] = $_SERVER['HTTP_X_TEST_SECTION'];
+    unset($_SERVER['HTTP_X_TEST_SECTION']);
+}
+if (array_key_exists('HTTP_X_TEST_USER', $_SERVER)) {
+    $_SERVER['REMOTE_USER'] = $_SERVER['HTTP_X_TEST_USER'];
+    unset($_SERVER['HTTP_X_TEST_USER']);
+}
+$rel = $path;
+if (preg_match('#^/s/([a-z0-9_-]+)/(.+)$#', $path, $m)) {
+    if (!array_key_exists('TT_SECTION', $_SERVER)) $_SERVER['TT_SECTION'] = $m[1];
+    $rel = '/' . $m[2];
+}
+$_SERVER['SCRIPT_NAME'] = $path;
+$root = rtrim($_SERVER['DOCUMENT_ROOT'], '/\\');
+$target = $root . $rel;
+if (is_file($target) && pathinfo($target, PATHINFO_EXTENSION) === 'php') {
+    chdir(dirname($target));
+    require $target;
+    return true;
+}
+http_response_code(404);
+echo 'Not found';
+return true;
+PHP;
+@file_put_contents($routerFile, $routerSrc);
+$sbS = tt_e2e_start(null, null, $routerFile);
+if (!$sbS) {
+    @unlink($routerFile);
+    echo "skip: multi-section end-to-end (needs proc_open + allow_url_fopen + a loopback listener)\n";
+} else {
+    register_shutdown_function(function () use ($sbS, $routerFile) {
+        tt_e2e_stop($sbS);
+        @unlink($routerFile);
+    });
+    @copy(dirname(__DIR__, 2) . '/transfer.php', $sbS['root'] . '/transfer.php');
+    $cat = [['code' => 'CS', 'name' => 'CS', 'color' => '#3366cc', 'active' => true]];
+
+    // Seed Section A board & transfer, and verify TT_SECTION='a' writes to root data/.
+    $pubA = tt_e2e_publish($sbS, ['tasks' => [['id' => 'a-1', 'title' => 'A Task', 'subject' => 'CS']], 'announcements' => [], 'subjects' => $cat]);
+    $pubA2 = tt_e2e_req($sbS, 'POST', '/api/publish.php', json_encode([
+        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 1,
+        'tasks' => [['id' => 'a-1', 'title' => 'A Task v2', 'subject' => 'CS']], 'announcements' => [], 'subjects' => $cat,
+    ]), ['X-Test-Section: a']);
+    $trA = tt_e2e_req($sbS, 'POST', '/transfer.php', json_encode(['payload' => ['v' => 1, 'progress' => ['a-1' => ['status' => 'done', 'movedAt' => 1700000000000]]]]), [], false);
+    $trATok = is_array($trA['json'] ?? null) ? (string)($trA['json']['token'] ?? '') : '';
+    check('section A: TT_SECTION unset and "a" write to root data/ and never data/sections/a',
+        $pubA !== null && $pubA['status'] === 200 && $pubA2 !== null && $pubA2['status'] === 200
+        && ($pubA2['json']['current']['revision'] ?? null) === 2
+        && $trA !== null && $trA['status'] === 200 && strlen($trATok) === 32
+        && !is_dir($sbS['root'] . '/data/sections/a'));
+
+    $aBoardBefore = tt_e2e_bytes($sbS, 'data/current.json');
+    $aAdminBefore = tt_e2e_bytes($sbS, 'data/admin/state.json');
+    $aVerBefore = tt_e2e_count($sbS, 'data/versions/*.json');
+    $aSessBefore = tt_e2e_count($sbS, 'data/sessions/*.json');
+    $aUpBefore = tt_e2e_count($sbS, 'data/uploads/*');
+    $aTrBefore = tt_e2e_count($sbS, 'data/transfers/*.json');
+
+    // Login on Section B creates a section-scoped session and path-scoped cookie.
+    $loginB = tt_e2e_req($sbS, 'POST', '/s/b/api/login.php', '{}', ['X-Test-User: officer-b'], false);
+    $cookieB = '';
+    $cookiePathB = false;
+    foreach ($loginB['headers'] ?? [] as $h) {
+        if (preg_match('/^set-cookie:\s*tt_admin=([a-f0-9]{64});/i', $h, $m)) {
+            $cookieB = $m[1];
+            $cookiePathB = stripos($h, 'path=/s/b/api/') !== false;
+        }
+    }
+    check('section B: login creates session under data/sections/b/sessions/ and path=/s/b/api/ cookie',
+        $loginB !== null && $loginB['status'] === 200 && $cookieB !== '' && $cookiePathB
+        && tt_e2e_has($sbS, 'data/sections/b/sessions/' . hash('sha256', $cookieB) . '.json'));
+
+    // Cross-section session tokens are rejected.
+    $aOnB = tt_e2e_req($sbS, 'GET', '/s/b/api/versions.php?view=admin');
+    $bOnA = tt_e2e_req($sbS, 'GET', '/api/versions.php?view=admin', null, ['Cookie: tt_admin=' . $cookieB], false);
+    check('section B: session cookies are isolated between A and B',
+        $aOnB !== null && $aOnB['status'] === 401 && $bOnA !== null && $bOnA['status'] === 401);
+
+    // Preset save on brand-new Section B works (nested dir creation on lock + write).
+    $presetB = tt_e2e_req($sbS, 'POST', '/s/b/api/versions.php', json_encode([
+        'action' => 'preset-save', 'operationId' => bin2hex(random_bytes(16)), 'baseAdminRevision' => 1,
+        'preset' => ['name' => 'Sec B Preset', 'subjects' => $cat],
+    ]), ['Cookie: tt_admin=' . $cookieB], false);
+    check('section B: versions.php action on fresh section creates data/sections/b/admin/state.json',
+        $presetB !== null && $presetB['status'] === 200 && tt_e2e_has($sbS, 'data/sections/b/admin/state.json'));
+
+    // Publish on Section B writes board + version under data/sections/b/.
+    $pubB = tt_e2e_req($sbS, 'POST', '/s/b/api/publish.php', json_encode([
+        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 0,
+        'tasks' => [['id' => 'b-1', 'title' => 'B Task', 'subject' => 'CS']], 'announcements' => [], 'subjects' => $cat,
+    ]), ['Cookie: tt_admin=' . $cookieB], false);
+    $versB = tt_e2e_req($sbS, 'GET', '/s/b/api/versions.php', null, ['Cookie: tt_admin=' . $cookieB], false);
+    check('section B: publish and versions are scoped under data/sections/b/',
+        $pubB !== null && $pubB['status'] === 200 && tt_e2e_has($sbS, 'data/sections/b/current.json')
+        && tt_e2e_count($sbS, 'data/sections/b/versions/*.json') === 1
+        && $versB !== null && $versB['status'] === 200 && count($versB['json']['versions'] ?? []) === 1
+        && ($versB['json']['versions'][0]['tasks'][0]['id'] ?? null) === 'b-1');
+
+    // Upload on Section B writes to data/sections/b/uploads/.
+    $boundary = '----ttSecB' . bin2hex(random_bytes(4));
+    $mpBody = "--{$boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"note.pdf\"\r\nContent-Type: application/pdf\r\n\r\n%PDF-1.4\n%%EOF\n\r\n--{$boundary}--\r\n";
+    $upB = tt_e2e_req($sbS, 'POST', '/s/b/api/upload.php', $mpBody, [
+        'Cookie: tt_admin=' . $cookieB,
+        'Content-Type: multipart/form-data; boundary=' . $boundary,
+        'X-Requested-With: tasktracker',
+    ], false);
+    $upId = is_array($upB['json'] ?? null) ? (string)($upB['json']['id'] ?? '') : '';
+    check('section B: upload stores file under data/sections/b/uploads/',
+        $upB !== null && $upB['status'] === 200 && $upId !== '' && tt_e2e_has($sbS, 'data/sections/b/uploads/' . $upId));
+
+    // Transfer on Section B writes to data/sections/b/transfers/, preserves section tag, and isolates from A.
+    $trB = tt_e2e_req($sbS, 'POST', '/s/b/transfer.php', json_encode([
+        'payload' => ['v' => 1, 'section' => 'b', 'progress' => ['b-1' => ['status' => 'in_progress', 'movedAt' => 1700000000000]]],
+    ]), [], false);
+    $trBTok = is_array($trB['json'] ?? null) ? (string)($trB['json']['token'] ?? '') : '';
+    $readB = tt_e2e_req($sbS, 'GET', '/s/b/transfer.php?t=' . $trBTok, null, [], false);
+    $readBFromA = tt_e2e_req($sbS, 'GET', '/transfer.php?t=' . $trBTok, null, [], false);
+    $readAFromB = tt_e2e_req($sbS, 'GET', '/s/b/transfer.php?t=' . $trATok, null, [], false);
+    $badTagTr = tt_e2e_req($sbS, 'POST', '/transfer.php', json_encode([
+        'payload' => ['v' => 1, 'section' => 'B', 'progress' => []],
+    ]), [], false);
+    check('section B: transfer stores under data/sections/b/transfers/, preserves section tag, and isolates tokens',
+        $trB !== null && $trB['status'] === 200 && strlen($trBTok) === 32
+        && tt_e2e_has($sbS, 'data/sections/b/transfers/' . $trBTok . '.json')
+        && $readB !== null && $readB['status'] === 200 && ($readB['json']['payload']['section'] ?? null) === 'b'
+        && $readBFromA !== null && $readBFromA['status'] === 404
+        && $readAFromB !== null && $readAFromB['status'] === 404
+        && $badTagTr !== null && $badTagTr['status'] === 400);
+
+    // Logout on Section B revokes only B's session.
+    $logoutB = tt_e2e_req($sbS, 'POST', '/s/b/api/logout.php', '{}', ['Cookie: tt_admin=' . $cookieB], false);
+    check('section B: logout revokes B session without touching A sessions',
+        $logoutB !== null && $logoutB['status'] === 200
+        && !tt_e2e_has($sbS, 'data/sections/b/sessions/' . hash('sha256', $cookieB) . '.json'));
+
+    // Section A's data/ must be completely untouched by all Section B operations.
+    check('section isolation: Section A data/ is completely untouched after Section B operations',
+        tt_e2e_bytes($sbS, 'data/current.json') === $aBoardBefore
+        && tt_e2e_bytes($sbS, 'data/admin/state.json') === $aAdminBefore
+        && tt_e2e_count($sbS, 'data/versions/*.json') === $aVerBefore
+        && tt_e2e_count($sbS, 'data/sessions/*.json') === $aSessBefore
+        && tt_e2e_count($sbS, 'data/uploads/*') === $aUpBefore
+        && tt_e2e_count($sbS, 'data/transfers/*.json') === $aTrBefore);
+
+    // Invalid non-empty TT_SECTION must fail closed with HTTP 400 across ALL endpoints (cookie-less).
+    $invalidSections = ['../x', 'B', 'foo/bar', 'a b', str_repeat('a', 33), '-bad', 'a.b'];
+    $endpoints = [
+        ['POST', '/api/login.php', '{}'],
+        ['POST', '/api/logout.php', '{}'],
+        ['GET', '/api/versions.php', null],
+        ['POST', '/api/publish.php', '{}'],
+        ['POST', '/api/upload.php', '{}'],
+        ['GET', '/transfer.php', null],
+        ['POST', '/transfer.php', '{}'],
+    ];
+    $all400 = true;
+    foreach ($invalidSections as $badSec) {
+        foreach ($endpoints as [$m, $ep, $b]) {
+            $res = tt_e2e_req($sbS, $m, $ep, $b, ['X-Test-Section: ' . $badSec], false);
+            if ($res === null || $res['status'] !== 400 || ($res['json']['error'] ?? null) !== 'Invalid section.') {
+                $all400 = false;
+                echo "note: fail-closed mismatch for section=" . json_encode($badSec) . " $m $ep -> "
+                    . ($res ? $res['status'] . ' ' . $res['body'] : 'null') . "\n";
+            }
+        }
+    }
+    $secDirs = array_values(array_filter(glob($sbS['root'] . '/data/sections/*') ?: [], 'is_dir'));
+    check('section fail-closed: invalid TT_SECTION returns HTTP 400 on every endpoint without creating dirs',
+        $all400 && count($secDirs) === 1 && basename($secDirs[0]) === 'b');
+}
+
 exit($fails ? 1 : 0);

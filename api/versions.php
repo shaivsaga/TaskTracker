@@ -3,7 +3,7 @@ require __DIR__ . '/_session.php';
 require_once __DIR__ . '/_board.php';
 tt_require_admin();
 header('Content-Type: application/json');
-$dataDir = dirname(__DIR__) . '/data';
+$dataDir = tt_data_dir();
 $dir = $dataDir . '/versions';
 
 // Canonical snapshot id: a plain positive integer, no leading zeros, fits PHP_INT_MAX. Returns the id as a string, or null. The (int) round-trip rejects "000123" and digit strings that overflow; digits-only means no path characters.

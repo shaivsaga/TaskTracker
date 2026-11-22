@@ -11,6 +11,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 require __DIR__ . '/api/_validate.php';
+tt_section_id();
 
 function respond(int $code, $body = null) {
     http_response_code($code);
@@ -68,7 +69,7 @@ if ($method !== 'GET' && $method !== 'POST') {
 }
 
 // Storage: data/transfers/ with its own deny-all .htaccess
-$dir = __DIR__ . '/data/transfers';
+$dir = tt_data_dir() . '/transfers';
 if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) respond(500, ['error' => 'Transfer storage is not available.']);
 if (!is_writable($dir)) respond(500, ['error' => 'Transfer storage is not available.']);
 $ht = $dir . '/.htaccess';

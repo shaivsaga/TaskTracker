@@ -90,7 +90,7 @@ $args = array_slice($argv, 1);
 $modes = array_values(array_intersect($args, ['--check', '--apply', '--recover']));
 if (count($modes) !== 1) mig_fail(MIGRATE_USAGE, 2);
 
-$dataDir = dirname(__DIR__) . '/data';
+$dataDir = tt_data_dir();
 [$lock, $lockErr] = tt_board_lock($dataDir);
 if ($lock === null) mig_fail('the publish lock is unavailable', 3);
 

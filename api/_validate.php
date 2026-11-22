@@ -89,5 +89,9 @@ function clean_payload($p) {
         }
         $clean['draft'] = $draftOut;
     }
+    if (array_key_exists('section', $p)) {
+        if (!tt_section_id_valid($p['section'])) return null;
+        $clean['section'] = $p['section'];
+    }
     return $clean;
 }

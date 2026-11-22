@@ -4,7 +4,7 @@ require __DIR__ . '/_validate.php';
 require_once __DIR__ . '/_board.php';
 tt_require_admin();
 header('Content-Type: application/json');
-$dataDir = dirname(__DIR__) . '/data';
+$dataDir = tt_data_dir();
 function fail($code, $msg, $extra = []) {
   http_response_code($code);
   echo json_encode(['error' => $msg] + $extra);
