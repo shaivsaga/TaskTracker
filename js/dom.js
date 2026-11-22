@@ -1,18 +1,3 @@
-// js/dom.js - the app's cached element lookups (app.js split, slice 2.2).
-//
-// cacheDom() runs the document.querySelector()/querySelectorAll() calls that used to sit in app.js's
-// top-level `const` declarations and parks the results on `dom`. app.js calls it exactly once, at
-// module-eval time, before the first use of any cached element.
-//
-// Importing this module touches nothing: `document` is read only inside cacheDom(), so
-//   node --input-type=module -e "await import('./js/dom.js')"
-// is clean with no DOM in scope (docs/p6-architecture-findings.md 4, DECISIONS.md D6).
-// D6: no logic.js import, no ?v= on the js/ <-> js/ import, nothing runs at evaluation time.
-//
-// Deliberately NOT cached here: the elements app.js creates at run time (#confirm-* in
-// ensureConfirmDialog, #notice-overlay, the due picker and the status popover). A reference to one of
-// those cached at load would be null or stale; app.js keeps querying them where it uses them.
-
 export const dom = {};
 
 export function cacheDom() {

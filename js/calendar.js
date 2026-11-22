@@ -1,33 +1,14 @@
-// js/calendar.js - the calendar page (app.js split, slice 2.3).
-//
-// Moved verbatim out of app.js: renderCalendar and renderCalAgenda, their private helpers, the
-// month/week navigation, the day-cell and agenda handlers and the calendar's own listeners.
-//
-// D6: this module never imports logic.js and never reads a bare global. The date helpers, the task
-// source and the task dialog arrive through init(deps); renderCalendar is exported because
-// renderAllTasks() in app.js still repaints the page. `subjects` is a thunk, not the map itself:
-// init() has to run where the moved listener block used to sit, which is before app.js initialises
-// its SUBJECTS const, so the map is read at call time instead of captured at init time.
-//
-// calMode/calAnchor/calSelected/calByDay/calAgendaSig stay in js/state.js (slice 2.1) and are read
-// and written through `state` here.
-//
-// Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
-// evaluation time, so
-//   node --input-type=module -e "await import('./js/calendar.js')"
-// is clean under plain Node (docs/p6-architecture-findings.md 4, DECISIONS.md D6).
-
 import { state } from './state.js';
 import { plural } from './util.js';
 import { subjectFor } from './subjects.js';
 
-let recordSource = null;    // () => the task list the renderers read (state.isAdmin is read inside it)
-let openTaskDialog = null;  // opens the task dialog when a chip is clicked
-let todayDate = null;       // logic.js helpers, kept in app.js's one ./logic.js?v=5 import
+let recordSource = null;
+let openTaskDialog = null;
+let todayDate = null;
 let toInputValue = null;
 let dayDiff = null;
-let subjects = null;        // () => app.js's SUBJECTS map, read at call time (see the header)
-let calPhone = null;        // window.matchMedia('(max-width: 719px)'), created in init()
+let subjects = null;
+let calPhone = null;
 let calMode = 'month';
 let calAnchor = null;
 let calSelected = null;
@@ -38,12 +19,10 @@ export function invalidateAgenda() {
   calAgendaSig = '';
 }
 
-// --- Calendar ---
 const calSort = (a, b) => (a.dueTime || '').localeCompare(b.dueTime || '');
 const calLongDate = (d) => d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 const calSameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 
-// Phone month view: the day picked in the grid, defaulting to today (or the 1st) of the shown month.
 function calPickDay() {
   if (calSelected && calSameMonth(calSelected, calAnchor)) return calSelected;
   const t = todayDate();
@@ -58,7 +37,6 @@ function calRange() {
   return { start: new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay()), days: Math.ceil((first.getDay() + last.getDate()) / 7) * 7 };
 }
 
-// A custom hex colour has no shipped class, so the dot carries the definition's colour itself.
 function subjectDot(code) {
   const dot = document.createElement('span');
   const cls = code && subjects()[code] ? subjects()[code] : '';
@@ -85,7 +63,6 @@ function createCalChip(task) {
   return chip;
 }
 
-// Same rule as the list rows and the board badge: open, not overdue, due within 3 days.
 const isDueSoon = (t) => t.status !== 'done' && !!t.dueDate && !t.isOverdue() && dayDiff(t.getDeadline()) <= 3;
 const urgencyRank = (t) => (t.status === 'done' ? 3 : t.isOverdue() ? 0 : isDueSoon(t) ? 1 : 2);
 
@@ -93,12 +70,12 @@ function createCalDots(list) {
   const wrap = document.createElement('span');
   wrap.className = 'cal-dots';
   wrap.setAttribute('aria-hidden', 'true');
-  // Completion never reserves a marker slot; rank the remaining tasks before limiting them.
+
   const open = list.filter((t) => t.status !== 'done');
   open.sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
     wrap.appendChild(subjectDot(t.subject));
   });
-  // The cell's aria-label carries the true count; this is the visible remainder for the rest.
+
   if (open.length > 3) {
     const more = document.createElement('span');
     more.className = 'cal-plus';
@@ -116,7 +93,7 @@ function renderCalAgenda() {
   if (!on) { calAgendaSig = ''; return; }
   const d = calPickDay();
   const tasks = (calByDay.get(toInputValue(d)) || []).slice().sort(calSort);
-  // The page re-renders every minute; only touch the live region when the day's content really changed.
+
   const sig = `${toInputValue(d)}|${tasks.map((t) => `${t.id}:${t.status}:${t.title}:${t.dueTime || ''}:${t.isOverdue() ? 1 : 0}`).join(',')}`;
   if (sig === calAgendaSig) return;
   calAgendaSig = sig;
@@ -153,7 +130,6 @@ function calSelect(d, focus) {
   if (focus) calFocus(key);
 }
 
-// Arrow keys move the selection by a day or a week; Enter/Space picks the focused day.
 function calKey(e, d) {
   const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
   if (step) { e.preventDefault(); calSelect(new Date(d.getFullYear(), d.getMonth(), d.getDate() + step), true); }
@@ -168,10 +144,6 @@ function syncCalTabs() {
   });
 }
 
-// The day cell's two ARIA contracts sit here side by side instead of being duplicated per branch:
-// the phone month cell is a picker (role=button, roving tabindex, aria-current="true" on the picked
-// day), every other cell is a labelled group that holds that day's chips and marks today
-// aria-current="date".
 function calLabelCell(cell, num, { d, key, list, picker, current }) {
   const overdue = list.filter((t) => t.status !== 'done' && t.isOverdue()).length;
   const soon = list.filter(isDueSoon).length;
@@ -189,7 +161,6 @@ function calLabelCell(cell, num, { d, key, list, picker, current }) {
   }
 }
 
-// Every calendar day a task covers, capped at 60 so a mistyped end date cannot paint a year of dots.
 function calDayKeys(t) {
   const keys = [toInputValue(t.dueDate)];
   if (t.endDate) {
@@ -206,7 +177,7 @@ export function renderCalendar() {
   const grid = document.querySelector('#cal-grid');
   if (!grid) return;
   const { start, days } = calRange();
-  const dated = recordSource().filter((t) => t.dueDate && !t.isPast());  // closed and expired tasks are archived, not scheduled
+  const dated = recordSource().filter((t) => t.dueDate && !t.isPast());
   const byDay = new Map();
   dated.forEach((t) => calDayKeys(t).forEach((k) => {
     if (!byDay.has(k)) byDay.set(k, []);
@@ -216,7 +187,7 @@ export function renderCalendar() {
   document.querySelector('#cal-title').textContent = calMode === 'week'
     ? `${short(start)} – ${short(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6))}`
     : calAnchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-  // The arrows move a month or a week; say which, instead of a bare "Previous"/"Next".
+
   const period = calMode === 'week' ? 'week' : 'month';
   document.querySelector('#cal-prev').setAttribute('aria-label', `Previous ${period}`);
   document.querySelector('#cal-next').setAttribute('aria-label', `Next ${period}`);
@@ -281,8 +252,6 @@ function calStep(dir) {
   renderCalendar();
 }
 
-// Called once by app.js, at the spot the listeners below used to occupy, after cacheDom() and
-// before the first render. The module keeps every dep in a module-local binding.
 export function init(deps) {
   recordSource = deps.recordSource;
   openTaskDialog = deps.openTaskDialog;

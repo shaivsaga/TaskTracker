@@ -1,5 +1,3 @@
-/* Client side of file attachments: validation, image compression, upload.
-   Plain JS, no libraries. Exposes window.TTFiles. Only pdf, pptx, docx, jpg, png are accepted. */
 (function () {
   'use strict';
 
@@ -11,10 +9,10 @@
     png: 'image/png'
   };
   var MAX_BYTES = 11 * 1024 * 1024;     // documents, per file (the server allows 12 MB: nginx 12m, upload_max_filesize 12M)
-  var MAX_INPUT = 40 * 1024 * 1024;     // images are shrunk, so allow a big camera original in
-  var MAX_SIDE = 1600, MIN_SIDE = 640;  // longest side in pixels
-  var TARGET = 250 * 1024;              // aim for 250 KB or less per image
-  var KEEP_PNG = 150 * 1024;            // small PNGs (diagrams, icons) stay PNG
+  var MAX_INPUT = 40 * 1024 * 1024;
+  var MAX_SIDE = 1600, MIN_SIDE = 640;
+  var TARGET = 250 * 1024;
+  var KEEP_PNG = 150 * 1024;
   var QUALITIES = [0.82, 0.72, 0.62, 0.5];
   var ACCEPT = '.pdf,.pptx,.docx,.jpg,.jpeg,.png';
 
@@ -25,7 +23,7 @@
       if (e === 'jpeg') e = 'jpg';
       return Object.prototype.hasOwnProperty.call(MIME, e) ? e : null;
     }
-    for (var k in MIME) { if (MIME[k] === file.type) return k; }  // pasted files can have no name
+    for (var k in MIME) { if (MIME[k] === file.type) return k; }
     return null;
   }
 
@@ -47,8 +45,6 @@
     return new Promise(function (resolve) { canvas.toBlob(resolve, 'image/jpeg', q); });
   }
 
-  // Resize to MAX_SIDE and re-encode as JPEG, lowering quality (then size) until it is small.
-  // Re-encoding also drops EXIF data such as GPS location.
   async function compressImage(file) {
     var base = (file.name || 'image').replace(/\.[^.]+$/, '') || 'image';
     var src = await loadImage(file);
@@ -79,7 +75,6 @@
     } finally { if (src.close) src.close(); }
   }
 
-  // Returns { blob, name } ready to upload, or throws a readable error.
   async function prepare(file) {
     var ext = extFor(file);
     if (!ext) throw new Error('Only PDF, PPTX, DOCX, JPG and PNG files are allowed.');

@@ -360,6 +360,17 @@ function checkDuePickerComposedPath(rel, src, errors) {
   }
 }
 
+function checkForbiddenComments(rel, src, errors) {
+  for (const m of src.matchAll(/\/\/[^\n]*(?:app\.js split, slice|moved verbatim|D6: this module)/g)) {
+    errors.push({
+      rule: 'no-forbidden-comments',
+      file: rel,
+      line: lineAt(src, m.index),
+      message: 'Delete split-history and D6 boilerplate comments; tests/lint.mjs enforces the D6 boundary structurally.',
+    });
+  }
+}
+
 function checkHtmlAndCssStructure(root, html, css, errors) {
   const propsStart = html.indexOf('class="dialog-controls"');
   const propsEnd = propsStart >= 0 ? html.indexOf('id="dialog-doc"', propsStart) : -1;
@@ -406,6 +417,7 @@ export async function lintRepo(root = ROOT_DEFAULT, opts = {}) {
     checkBareMovedStateInModules(rel, src, movedNames, errors);
     await checkD6ModuleBoundary(root, rel, src, errors, opts);
     checkDuePickerComposedPath(rel, src, errors);
+    checkForbiddenComments(rel, src, errors);
   }
   checkDualSpriteSheets(root, css, errors);
   checkSingleBoardFetch(root, jsFiles, errors);

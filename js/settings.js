@@ -1,51 +1,16 @@
-// js/settings.js - the settings panel and the theme (app.js split, slice 2.4).
-//
-// Moved verbatim out of app.js: the theme block that sat next to the new-task button (applyTheme,
-// the toggle's initial aria-label and its click listener) and the "Settings and reset" region
-// (RESET_PHRASE, RESET_KEEP, showResetConfirm, openSettings, closeSettings, resetLocalData,
-// logoutAdmin and every listener of the panel, including its document-level Escape handler).
-// closeSettings stays exported because app.js still calls it from two places: the tutorial closes
-// Settings before it starts (js/tour.js receives it through its own init deps) and the transfer
-// panel closes Settings before it opens. Nothing else in either block is read from outside.
-//
-// One init() registers both blocks, and app.js calls it at the settings region's old position.
-// That is the only place it can go: `$` is declared below the theme block in app.js, so passing it
-// there would throw while app.js is still evaluating. The theme toggle's click handler is the only
-// listener on #theme-toggle, so registering it later competes with nothing; every other listener
-// keeps the exact registration order it had in app.js (settings-open, logout, login, close,
-// overlay, reset start/cancel/input/submit, then the document-level Escape), which is the order
-// the Escape chain relies on (docs/p6-architecture-findings.md 5).
-//
-// D6: this module never imports logic.js and never reads a bare global. `$`, hideAnimated,
-// adminHint, signIn, showToast, JSON_POST, ADMIN_KEY and SIGNED_OUT_KEY arrive
-// through init(deps) - all of them are declared above the call site in app.js, so they can be
-// passed by value. `state`, `dom` and `KEYS` are module imports, not globals. The
-// localStorage keys and value shapes are untouched: class_tasks_theme stays 'light'/'dark', the
-// reset keeps exactly class_tasks_theme, the literal class_tasks_sidebar key, ADMIN_KEY,
-// SIGNED_OUT_KEY and KEYS.cache, and the login/logout handlers still write ADMIN_KEY and
-// SIGNED_OUT_KEY. The sidebar key is a literal here because its export in js/nav.js was removed
-// with the inline sidebar boot script; keeping it in the keep-set preserves stored values.
-//
-// Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
-// evaluation time, so
-//   node --input-type=module -e "await import('./js/settings.js')"
-// is clean under plain Node (docs/p6-architecture-findings.md 4-5, DECISIONS.md D6).
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { KEYS, currentSection, sectionKey, keysForSection } from './util.js';
 import { openOverlay, hideOverlay } from './motion.js';
 
-let $ = null;                 // app.js's querySelector shorthand, used by the panel's rows
-let adminHint = null;         // app.js: openSettings offers the sign-in row only when a hint is stored
-let signIn = null;            // app.js: the sign-in row's Basic Auth login
-let showToast = null;         // app.js: the logout, login and reset failure messages
-let JSON_POST = null;         // app.js: the logout request's POST options
-let ADMIN_KEY = null;         // app.js: the admin flag key the reset keeps and the login row writes
-let SIGNED_OUT_KEY = null;    // app.js: the deliberate-logout key the reset keeps and logout writes
+let $ = null;
+let adminHint = null;
+let signIn = null;
+let showToast = null;
+let JSON_POST = null;
+let ADMIN_KEY = null;
+let SIGNED_OUT_KEY = null;
 
-// Theme. The saved choice is 'light', 'dark' or nothing (= System). The head script in index.html
-// sets the first paint; after that the top-bar toggle and Settings > Appearance both go through here.
 const THEME_COLOR = { light: '#F4EFE2', dark: '#0F1226' };
 const systemQuery = typeof window !== 'undefined' && window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
 function savedChoice() {
@@ -72,7 +37,6 @@ function setChoice(choice) {
   paintThemeChoice();
 }
 
-// --- Settings and reset ---
 const RESET_PHRASE = 'RESET';
 const DEVICE_KEEP = [
   'class_tasks_theme',
@@ -163,7 +127,6 @@ export function resetLocalData() {
   return resetSectionStorage();
 }
 
-// Phase 4: client-only logout. Clears the admin flag and reloads into the student view. The draft stays in localStorage.
 async function logoutAdmin() {
   const btn = $('#settings-logout');
   btn.disabled = true;
@@ -187,17 +150,14 @@ async function logoutAdmin() {
   location.reload();
 }
 
-// Called once by app.js, at the spot the moved listeners used to occupy, after cacheDom(). Every
-// dep is declared above that call site in app.js, so passing them by value is safe. The two blocks
-// register in their original source order: the theme toggle first, then the settings panel.
 export function init(deps) {
-  $ = deps.$;                                 // the panel's rows
-  adminHint = deps.adminHint;                 // openSettings decides whether to offer sign-in
-  signIn = deps.signIn;                       // the sign-in row
-  showToast = deps.showToast;                 // logout, login and reset failure messages
-  JSON_POST = deps.JSON_POST;                 // the logout request's POST options
-  ADMIN_KEY = deps.ADMIN_KEY;                 // the reset's keep-set, and the login row writes it
-  SIGNED_OUT_KEY = deps.SIGNED_OUT_KEY;       // the reset's keep-set, and logout writes it
+  $ = deps.$;
+  adminHint = deps.adminHint;
+  signIn = deps.signIn;
+  showToast = deps.showToast;
+  JSON_POST = deps.JSON_POST;
+  ADMIN_KEY = deps.ADMIN_KEY;
+  SIGNED_OUT_KEY = deps.SIGNED_OUT_KEY;
 applyChoice(savedChoice());
 dom.themeToggle.addEventListener('click', () => {
   setChoice(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');

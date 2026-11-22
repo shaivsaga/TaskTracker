@@ -1,14 +1,3 @@
-/**
- * js/subjects.js - the subject catalogue: validation, readable ink, and preset application.
- *
- * Pure: no DOM, no network, no storage. The server repeats these rules (api/_board.php); a value
- * this module rejects must never be sent, and a value it accepts must not be rejected there.
- *
- * A Subject is {code, name, color, active}. The code is immutable once created, so renaming or
- * recolouring a subject never re-tags a task; retiring one only removes it from new choices.
- */
-
-/** The ten colours the app already ships, in the order the design system lists them. */
 export const PALETTE = [
   '#58affc', '#ff9f6b', '#70d1fe', '#8fe3a8', '#d8c7a0',
   '#c3c7d6', '#c9a6e0', '#f7cd54', '#fba6f7', '#7ff0e0',
@@ -17,13 +6,11 @@ export const PALETTE = [
 export const MAX_SUBJECTS = 300;
 export const MAX_NAME = 100;
 
-/** The class each shipped palette colour already uses, so an unchanged colour renders identically. */
 export const COLOR_CLASSES = [
   'bg-blue', 'bg-sunglow', 'bg-cyan', 'bg-green', 'bg-sand',
   'bg-stone', 'bg-mauve', 'bg-yellow', 'bg-pink', 'bg-teal',
 ];
 
-/** The shipped class for a colour, or '' when the colour is beyond the palette (inline vars then). */
 export function classForColor(color) {
   const i = PALETTE.indexOf(String(color).toLowerCase());
   return i === -1 ? '' : COLOR_CLASSES[i];
@@ -33,15 +20,10 @@ const COLOR_RE = /^#[0-9a-f]{6}$/;
 const RESERVED = new Set(['__proto__', 'prototype', 'constructor']);
 const CONTROL_RE = /[\u0000-\u001f\u007f]/;
 
-/** The neutral definition shown for a code that is no longer configured. Display only. */
 export function retiredSubject(code) {
   return { code: String(code), name: String(code), color: '#c3c7d6', active: false };
 }
 
-/**
- * Validate a catalogue. Returns {subjects} or {error}; a catalogue is accepted or rejected whole,
- * never silently repaired, because a half-valid list would publish half the colours.
- */
 export function validateSubjects(raw) {
   if (!Array.isArray(raw)) return { error: 'Subjects must be a list.' };
   if (raw.length > MAX_SUBJECTS) return { error: `Too many subjects (max ${MAX_SUBJECTS}).` };
@@ -95,23 +77,17 @@ export function subjectTextColor(hex) {
   return contrastRatio(hex, '#000000') >= contrastRatio(hex, '#ffffff') ? '#000000' : '#ffffff';
 }
 
-/** The definition for a code in this catalogue, or null. Never invents one. */
 export function subjectFor(catalog, code) {
   if (!Array.isArray(catalog) || typeof code !== 'string' || code === '') return null;
   return catalog.find((s) => s && s.code === code) || null;
 }
 
-/** Human-readable display name for a subject code, falling back to the code itself. */
 export function subjectDisplayName(catalog, code) {
   if (typeof code !== 'string' || code === '') return '';
   const def = subjectFor(catalog, code);
   return def && typeof def.name === 'string' && def.name.trim() !== '' ? def.name : code;
 }
 
-/**
- * Normalize and validate a newly created subject before its code is locked.
- * Normalizes code to uppercase; if code is omitted, derives it from name.
- */
 export function validateNewSubject(input, existing = []) {
   const rawCode = typeof input?.code === 'string' ? input.code.trim().toUpperCase() : '';
   const rawName = typeof input?.name === 'string' ? input.name.trim() : '';
@@ -138,11 +114,7 @@ export function validateNewSubject(input, existing = []) {
     : PALETTE[list.length % PALETTE.length];
   return { subject: { code, name, color, active: true } };
 }
-/**
- * Replace the catalogue's choices with a preset's, without touching a single task.
- * A code the preset leaves out but a task still uses is kept as a retired definition, so the task
- * keeps displaying correctly and the code cannot silently disappear from the board.
- */
+
 export function applyPresetCatalog(current, preset, referencedCodes) {
   const next = [];
   const seen = new Set();
@@ -163,7 +135,6 @@ export function applyPresetCatalog(current, preset, referencedCodes) {
   return next;
 }
 
-/** What a preset would change, for the confirmation preview. Counts only; it retags nothing. */
 export function describePreset(current, preset, referencedCodes) {
   const next = applyPresetCatalog(current, preset, referencedCodes);
   const before = new Map((Array.isArray(current) ? current : []).map((s) => [s.code, s]));
@@ -180,12 +151,10 @@ export function describePreset(current, preset, referencedCodes) {
   return { next, added, changed, retired, removed };
 }
 
-/** The choices a *new* assignment may pick: configured and still active. */
 export function assignableSubjects(catalog) {
   return (Array.isArray(catalog) ? catalog : []).filter((s) => s && s.active !== false);
 }
 
-/** A stable signature for cache invalidation: a rename or recolour must repaint calendars. */
 export function catalogSignature(catalog) {
   return (Array.isArray(catalog) ? catalog : [])
     .map((s) => `${s.code}:${s.name}:${s.color}:${s.active ? 1 : 0}`)
@@ -193,7 +162,6 @@ export function catalogSignature(catalog) {
     .join('|');
 }
 
-/** An uppercase code from a name, for the "new subject" flow: stable once the admin accepts it. */
 export function codeFromName(name) {
   const base = String(name).toUpperCase().replace(/[^A-Z0-9_.-]+/g, '').slice(0, 32);
   return /^[A-Z0-9]/.test(base) ? base : '';

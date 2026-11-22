@@ -1,58 +1,14 @@
-// js/announcements.js - the pinned announcements (app.js split, slice 2.5).
-//
-// Moved verbatim out of app.js: the announcement region - renderPublicAnnouncements (the class-side
-// list), the ANNOUNCE_MAX cap, updateAnnounceCount, the ANN_INLINE whitelist, cleanAnnounce,
-// fillAnnounce, syncAnnounceTools, saveAnnouncements, renderAnnouncements (the admin list with its
-// delete/undo), toggleAnnounceForm, the admin form's submit handler and the editor and announce-tool
-// listeners. renderAnnouncements is exported because app.js (loadPublished and the bootstrap init),
-// js/publish.js (restoreDraft and the publish POST) and js/transfer.js (a replaced draft) all
-// re-render the list. renderPublicAnnouncements stays private: renderAnnouncements is its only caller.
-//
-// Preserved exactly, per the slice brief:
-//   - localStorage: this region writes no key of its own. saveAnnouncements() calls app.js's
-//     saveTasks(), which still writes class_tasks_progress and class_tasks_draft (the draft is
-//     { tasks, announcements }); an announcement keeps the shape { id, text, html, createdAt } and
-//     its id is still Math.random().toString(36).slice(2, 10).
-//   - the admin-only gating: renderPublicAnnouncements still picks the draft list only when
-//     state.previewing || state.isAdmin, and the admin editor stays inside #announce-admin.
-//   - the editor behaviour (add/edit/delete, list order, unshift on add, splice at the removed index
-//     with the Undo toast, the "No pinned announcements." empty state) and the markup/wording.
-//
-// Two things stay in app.js on purpose: the one-time move of #announce-admin out of the Class tasks
-// page (a module-eval statement next to the auth block), and dom.noteTools / syncNoteTools, which are
-// the task dialog's doc editor, not this region.
-//
-// D6: this module never imports logic.js and never reads a bare global. lookup (logic.js), linkify
-// and dropHasFiles (app.js), showToast, saveTasks, updateAdminBar and diffDraft arrive through
-// init(deps) - the last two are app.js's until slice 2.5's publish commit moves them into
-// js/publish.js, which then supplies them. state and dom are module imports.
-//
-// init() runs at the position where the first of the moved listeners used to be registered, so the
-// page's document/element listener order is unchanged (the announce editor's keydown handler still
-// registers above the keyboard-shortcut handler). Every other region line is a declaration and keeps
-// its place; the listener blocks are the only lines that moved, to the bottom of init, and they are
-// byte-identical.
-//
-// Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
-// evaluation time, so
-//   node --input-type=module -e "await import('./js/announcements.js')"
-// is clean under plain Node (docs/p6-architecture-findings.md 4-5, DECISIONS.md D6).
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 
-let lookup = null;           // logic.js: cleanAnnounce's whitelist lookup
-let linkify = null;          // app.js: fillAnnounce links URLs in rendered announcements and notes
-let dropHasFiles = null;     // app.js: the editor refuses a file drop
-let showToast = null;        // app.js: the removed / over-limit / too-much-formatting messages
-let saveTasks = null;        // app.js: persists progress and the admin draft after every edit
-let updateAdminBar = null;   // app.js -> js/publish.js (slice 2.5): the unpublished-changes bar
-let diffDraft = null;        // app.js -> js/publish.js (slice 2.5): the draft-vs-published diff
-// Pinned block (critique P0, then P2 for desktop): on phones it collapses to the newest announcement
-// so the first task row stays on screen, and the toggle opens the rest. That collapse is a phone
-// affordance only - on larger screens the brief asks for the full bodies, so the block is always
-// open there and the toggle is not rendered. On phones the one item is also clamped to two lines
-// (CSS).
+let lookup = null;
+let linkify = null;
+let dropHasFiles = null;
+let showToast = null;
+let saveTasks = null;
+let updateAdminBar = null;
+let diffDraft = null;
+
 const PHONE_PINNED = '(max-width: 719px)';
 let pinnedOpen = false;
 function syncPinned() {
@@ -65,15 +21,13 @@ function syncPinned() {
   const collapsed = phone && !pinnedOpen;
   box.classList.toggle('is-empty', items.length === 0);
   box.classList.toggle('is-collapsed', collapsed);
-  // Clipped text can only be measured while the page has layout. Off screen the answer is unknown,
-  // so stay conservative and offer the toggle: the app:page-shown remeasure hides it again if the
-  // revealed text is not actually clipped.
+
   const text = items[0] && items[0].querySelector('.announce-text');
   const measurable = box.getClientRects().length > 0;
   const clipped = collapsed && !!text && (measurable ? text.scrollHeight > text.clientHeight + 1 : true);
   toggle.hidden = !items.length || !phone || (collapsed && items.length < 2 && !clipped);
   toggle.setAttribute('aria-expanded', String(collapsed ? 'false' : 'true'));
-  // Collapsed, one item is already visible, so the count names the remainder, not the total.
+
   toggle.textContent = pinnedOpen ? 'Show less' : (items.length > 2 ? `Show ${items.length - 1} more` : 'Show more');
 }
 
@@ -106,7 +60,6 @@ function renderPublicAnnouncements() {
   syncPinned();
 }
 
-// --- Pinned announcements ---
 const ANNOUNCE_MAX = 280;
 
 function updateAnnounceCount() {
@@ -115,7 +68,7 @@ function updateAnnounceCount() {
   dom.announceCount.textContent = (left < 0 ? `${-left} over` : `${left} left`) + (touch ? '' : ' · Ctrl+Enter to pin');
   dom.announceCount.classList.toggle('is-low', left <= 20);
 }
-// Rich announcements: a separate whitelist from sanitizeDoc. Stored as b, i, ul, li, br only.
+
 const ANN_INLINE = { b: 'b', strong: 'b', i: 'i', em: 'i' };
 function cleanAnnounce(root) {
   const out = document.createElement('div');
@@ -170,13 +123,12 @@ function cleanAnnounce(root) {
   return { node: out, html: text ? out.innerHTML : '', text };
 }
 
-// Builds an announcement body with DOM calls only. Old plain announcements fall back to text.
 function fillAnnounce(el, a) {
   el.replaceChildren();
   const rich = typeof a.html === 'string' && a.html !== '';
   el.classList.toggle('is-rich', rich);
   if (rich) {
-    const tpl = document.createElement('template'); // inert: nothing runs or loads
+    const tpl = document.createElement('template');
     tpl.innerHTML = a.html;
     el.append(...cleanAnnounce(tpl.content).node.childNodes);
   } else {
@@ -234,7 +186,7 @@ export function renderAnnouncements() {
     li.append(text, date, del);
     dom.announceList.appendChild(li);
   });
-  
+
 }
 
 function toggleAnnounceForm(show) {
@@ -244,7 +196,6 @@ function toggleAnnounceForm(show) {
   updateAnnounceCount();
 }
 
-// Called once by app.js, at the spot the moved listeners used to occupy.
 export function init(deps) {
   lookup = deps.lookup;
   linkify = deps.linkify;
@@ -265,7 +216,7 @@ dom.announceInput.addEventListener('paste', (e) => {
 dom.announceInput.addEventListener('drop', (e) => { if (dropHasFiles(e)) e.preventDefault(); });
 
 dom.announceTools.forEach((b) => {
-  b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the editor
+  b.addEventListener('mousedown', (e) => e.preventDefault());
   b.addEventListener('click', () => {
     dom.announceInput.focus();
     document.execCommand(b.dataset.cmd);
@@ -277,9 +228,9 @@ document.addEventListener('selectionchange', () => { if (document.activeElement 
 
 document.querySelector('#announce-toggle').addEventListener('click', () => { pinnedOpen = !pinnedOpen; syncPinned(); });
 window.addEventListener('resize', syncPinned);
-window.addEventListener('hashchange', () => requestAnimationFrame(syncPinned)); // the router: the page may just have appeared
-document.addEventListener('app:page-shown', () => requestAnimationFrame(syncPinned)); // pushState reveal: measure with layout
-if (document.fonts) document.fonts.ready.then(syncPinned); // line breaks change once the body font loads
+window.addEventListener('hashchange', () => requestAnimationFrame(syncPinned));
+document.addEventListener('app:page-shown', () => requestAnimationFrame(syncPinned));
+if (document.fonts) document.fonts.ready.then(syncPinned);
 
 document.querySelector('#announce-add-btn').addEventListener('click', () => toggleAnnounceForm(dom.announceForm.hidden));
 document.querySelector('#announce-cancel').addEventListener('click', () => toggleAnnounceForm(false));

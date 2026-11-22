@@ -1,14 +1,3 @@
-/**
- * js/subjects-editor.js - the admin subject catalogue and its named presets.
- *
- * The catalogue being edited is a *draft*: nothing reaches students until Publish, and a code is
- * immutable once created, so renaming or recolouring never re-tags a task. A retired subject stops
- * being offered for new assignments but keeps rendering on the tasks that already use it.
- *
- * Presets are server-owned private state. Applying one is a local draft change (never a task edit),
- * previewed first, and saved presets survive a reload and a server restart.
- */
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { PALETTE, validateSubjects, validateNewSubject, subjectTextColor, codeFromName, MAX_NAME, describePreset } from './subjects.js';
@@ -16,10 +5,10 @@ import { store } from './store.js';
 
 let deps = null;
 const EMPTY = 'No subjects configured yet. Add one, or apply a preset.';
-let rowError = new Map();   // code -> message, shown inline and never stored
-let openPaletteCode = null; // one subject row's swatch strip open at a time
-let pendingNew = null;      // { code, name, color, codeTouched, error } while creating a subject
-let presets = [];           // admin: named catalogues from the private store
+let rowError = new Map();
+let openPaletteCode = null;
+let pendingNew = null;
+let presets = [];
 function setExpanded(open) {
   if (!dom.subjectBody || !dom.subjectToggle) return;
   const expanded = Boolean(open);
@@ -56,8 +45,6 @@ export function init(d) {
   dom.presetSave.addEventListener('click', savePreset);
 }
 
-/* ---- draft handling -------------------------------------------------------------------------- */
-
 function commit(next, message) {
   const { subjects, error } = validateSubjects(next);
   if (error) {
@@ -65,8 +52,8 @@ function commit(next, message) {
     return false;
   }
   state.draftSubjects = subjects;
-  deps.syncCatalog(subjects);           // tag rendering, pickers and calendar cache
-  if (!deps.saveTasks()) return false;  // never claim a saved catalogue when storage refused
+  deps.syncCatalog(subjects);
+  if (!deps.saveTasks()) return false;
   render();
   dom.subjectStatus.textContent = message || 'Catalogue updated in the draft. Publish to apply it.';
   return true;
@@ -226,8 +213,6 @@ function onListChange(e) {
   }
 }
 
-/* ---- rendering ------------------------------------------------------------------------------- */
-
 function el(tag, cls, text) {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -241,7 +226,7 @@ export function render() {
   if (!state.draftSubjects.length && !pendingNew) {
     dom.subjectStatus.textContent = EMPTY;
   } else if (dom.subjectStatus.textContent === EMPTY) {
-    dom.subjectStatus.textContent = '';   // a stale empty-state line must not outlive the data
+    dom.subjectStatus.textContent = '';
   }
   const referenced = new Set(deps.referencedCodes());
 
@@ -421,8 +406,6 @@ function renderPresets() {
   dom.presetDelete.disabled = !presets.length;
 }
 
-/* ---- presets --------------------------------------------------------------------------------- */
-
 export async function loadPresets() {
   if (!state.isAdmin) return;
   const out = await store.fetchAdminState();
@@ -453,7 +436,6 @@ async function deleteSelectedPreset() {
   dom.subjectStatus.textContent = 'Preset deleted.';
 }
 
-// Applying is local: preview first, then replace the draft's choices. Tasks are never re-tagged.
 async function applySelectedPreset() {
   const id = dom.presetSelect.value;
   const preset = presets.find((p) => p.id === id);

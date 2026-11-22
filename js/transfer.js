@@ -1,73 +1,32 @@
-// js/transfer.js - the transfer and import flow (app.js split, slice 2.4).
-//
-// Moved verbatim out of app.js: the whole "Phase 7: transfer by QR code and link" region - the
-// send side (TRANSFER_API, TRANSFER_TOKEN_RE, takeTransferToken, transferHeaders,
-// buildTransferPayload, transferUrl, setTransferView, tickTransfer, showTransferLink,
-// createTransfer, cancelTransfer, copyTransferLink, openTransfer, closeTransfer) and the receive
-// side (validateTransfer, openImport, closeImport, applyImport, checkIncomingTransfer), plus every
-// listener of the transfer and import overlays and the region's document-level Escape handler.
-//
-// Kept exactly as they were (STATE.md pins them, and the slice brief repeats them):
-//   - takeTransferToken reads ?transfer= and strips it with history.replaceState. app.js still
-//     calls it at module-evaluation time - `const INCOMING_TRANSFER = transfer.takeTransferToken()`
-//     - i.e. before start() awaits checkAdmin(), which is the order the region had.
-//   - TRANSFER_TOKEN_RE = /^[a-f0-9]{32}$/, applied to the incoming token and to the POST reply.
-//   - `cache: 'no-store'` on the transfer.php fetch in checkIncomingTransfer.
-//   - mergeProgress is logic.js's and arrives through init(deps); this module never imports
-//     logic.js, so the merge semantics and the tie rule stay the caller's own function.
-//   - the summary wording ("N tasks added ... stay as they are here ..."), the Undo toast and the
-//     admin draft checkbox are byte-identical.
-//   - the localStorage keys and shapes are untouched: this region writes none of them itself; it
-//     edits state.progress / state.pendingImport and calls app.js's saveTasks(), which keeps
-//     writing class_tasks_progress, class_tasks_draft and class_tasks_published_cache.
-//
-// init() registers the moved listeners from app.js, at the position in the page where the first of
-// them used to register, so the document/element listener order does not change: the publish/history
-// Escape handler, then settings, then tour, then this region (transfer clicks, import clicks, the
-// region's Escape handler), then the focus trap. Inside the module the listeners are gathered at the
-// bottom in their original order; between them in app.js sat only function declarations, which have
-// no effect until called.
-//
-// D6: this module never imports logic.js and never reads a bare global. `$`, hideAnimated,
-// showToast, closeSettings, myTasks, applyProgress, saveTasks, renderAllTasks, renderAnnouncements,
-// snapshot, restoreDraft, mergeProgress, Task, taskIdOk and STATUS_ORDER arrive through init(deps);
-// each is declared (or, for renderAllTasks, hoisted) above the call site in app.js, so passing them
-// by value is safe. `state` and `dom` are module imports. Importing this module touches nothing: no
-// DOM read, no listener, no state read and no timer at evaluation time, so
-//   node --input-type=module -e "await import('./js/transfer.js')"
-// is clean under plain Node (docs/p6-architecture-findings.md 4-5, DECISIONS.md D6).
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { plural, currentSection } from './util.js';
 import { openOverlay, hideOverlay } from './motion.js';
 import { filterDeletedProgress } from './recovery.js';
 
-let $ = null;                    // app.js's querySelector shorthand (declared above the init call site)
-let showToast = null;            // js/tasks.js: every failure message, the merge toast and its Undo label
-let closeSettings = null;        // js/settings.js: openTransfer closes Settings before it opens
-let myTasks = null;              // app.js: buildTransferPayload sends the draft
-let applyProgress = null;        // js/tasks.js: the merged statuses are re-applied to the drafts
-let saveTasks = null;            // js/tasks.js: persists progress and draft after a merge and after Undo
-let renderAllTasks = null;       // js/tasks.js: re-renders the board after a merge and after Undo
-let snapshot = null;             // js/publish.js: applyImport snapshots this device before it merges
-let restoreDraft = null;         // js/publish.js: ADR-0007 archive-first + labelled recovery draft replacement
-let mergeProgress = null;        // logic.js
-let Task = null;                 // logic.js: validateTransfer rebuilds a received draft through Task.fromJSON
-let taskIdOk = null;             // logic.js: the id guard on received progress and draft tasks
-let STATUS_ORDER = null;         // js/tasks.js: openImport looks up where each task sits on the board
+let $ = null;
+let showToast = null;
+let closeSettings = null;
+let myTasks = null;
+let applyProgress = null;
+let saveTasks = null;
+let renderAllTasks = null;
+let snapshot = null;
+let restoreDraft = null;
+let mergeProgress = null;
+let Task = null;
+let taskIdOk = null;
+let STATUS_ORDER = null;
 
-let activeTransfer = null;       // { token, expiresAt } on this device's clock
+let activeTransfer = null;
 let transferTimer = null;
 let transferBusy = false;
 let transferQrOk = false;
 let pendingImport = null;
 
-// --- Phase 7: transfer by QR code and link ---
 const TRANSFER_API = 'transfer.php';
 const TRANSFER_TOKEN_RE = /^[a-f0-9]{32}$/;
 
-// Read the token before checkAdmin() rewrites the address bar, then remove it from the URL.
 export function takeTransferToken() {
   try {
     const p = new URLSearchParams(location.search);
@@ -82,20 +41,17 @@ export function takeTransferToken() {
 
 const transferHeaders = { 'Content-Type': 'application/json' };
 
-// ---- Sending ----
 export function buildTransferPayload(activeSection = currentSection() || 'a') {
   const payload = { v: 1, section: activeSection, progress: state.progress };
   if (state.isAdmin && myTasks) {
-    // The catalogue travels with the draft so the receiving device can render and publish it. The
-    // base revision and every deletion marker stay behind: authority belongs to the server.
+
     const draft = {
       schemaVersion: 2,
       tasks: myTasks.map((t) => t.toJSON()),
       announcements: state.announcements,
       subjects: state.draftSubjects,
     };
-    // The size guard counts the catalogue too, so an oversized draft is reported, never silently
-    // stripped back to progress plus tasks.
+
     if (JSON.stringify(draft).length < 700000) payload.draft = draft;
   }
   return payload;
@@ -216,7 +172,6 @@ function closeTransfer() {
   hideOverlay(dom.transferOverlay);
 }
 
-// ---- Receiving ----
 export function transferSectionError(p, activeSection = currentSection() || 'a') {
   if (!p || typeof p !== 'object' || Array.isArray(p) || p.v !== 1) return null;
   const expected = String(activeSection || 'a').toLowerCase() || 'a';
@@ -232,7 +187,6 @@ export function transferSectionError(p, activeSection = currentSection() || 'a')
   return null;
 }
 
-// Returns { progress, draft } rebuilt from scratch, or null when the data is not usable.
 export function validateTransfer(p, activeSection = currentSection() || 'a', deps = {}) {
   const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
   if (!isObj(p) || p.v !== 1) return null;
@@ -256,7 +210,7 @@ export function validateTransfer(p, activeSection = currentSection() || 'a', dep
     if (!isObj(d) || !Array.isArray(d.tasks) || d.tasks.length > 2000) return null;
     if (d.announcements != null && !Array.isArray(d.announcements)) return null;
     const tasks = d.tasks.filter(isObj);
-    // Task.fromJSON only does String(opts.id), and that id later lands in a CSS attribute selector.
+
     if (!tasks.every((o) => checkId(o.id))) return null;
     draft = {
       tasks: tasks.map((o) => TaskCtor.fromJSON(o).toJSON()),
@@ -312,8 +266,7 @@ async function applyImport() {
   const withDraft = !!(data.draft && state.isAdmin && $('#import-draft-check').checked);
   let saved = true;
   if (withDraft) {
-    // Route draft replacement through the one ADR-0007 path: archive displaced draft-only tasks
-    // first, and turn permanently deleted ids into labelled new copies.
+
     const replaced = await restoreDraft(data.draft);
     if (!replaced) {
       state.progress = before.progress;
@@ -365,7 +318,6 @@ export function init(deps) {
   snapshot = deps.snapshot; restoreDraft = deps.restoreDraft; mergeProgress = deps.mergeProgress;
   Task = deps.Task; taskIdOk = deps.taskIdOk; STATUS_ORDER = deps.STATUS_ORDER;
 
-  // The moved listeners, in the order they registered in app.js (the Escape chain depends on it).
 $('#settings-transfer').addEventListener('click', openTransfer);
 $('#transfer-close').addEventListener('click', closeTransfer);
 $('#transfer-done').addEventListener('click', closeTransfer);

@@ -1,48 +1,26 @@
-// js/quick-add.js - the quick-add overlay and its pickers (app.js split, slice 2.3).
-//
-// Moved verbatim out of app.js: isDateWord, openQuickPicker, clearQuickDue, quickText, quickField,
-// renderQuickPreview, renderQuickChips, syncQuickChips, applyQuickToken, openQuickAdd, closeQuickAdd,
-// submitQuickAdd and the region's listeners. openQuickAdd stays exported because app.js's
-// startNewTask() and the N shortcut still open the overlay.
-//
-// D6: this module never imports logic.js and never reads a bare global. The natural-language parser
-// (parseQuickAdd) and the tokenizer it shares with the chip handlers (quickWords) stay in app.js and
-// arrive through init(deps): logic.js has no quick-add parser at this tip, only the material the
-// parser is built from (lookup, parseTimeWord, WEEKDAYS) plus Task, dayDiff, toInputValue and
-// STATUS_LABELS - all passed in the same call. `subjects` and `statusCodes` are thunks: the module
-// reads the maps while it renders, never while init() runs (docs/p6-architecture-findings.md 4, D6).
-//
-// quickPicked/quickPrev/quickChipEls/quickReturnFocus stay in js/state.js (slice 2.1) and are read
-// and written through `state` here.
-//
-// Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
-// evaluation time, so
-//   node --input-type=module -e "await import('./js/quick-add.js')"
-// is clean under plain Node.
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { formatTime } from './util.js';
 import { openOverlay, hideOverlay } from './motion.js';
 
-let lookup = null;            // logic.js
-let parseTimeWord = null;     // logic.js
-let WEEKDAYS = null;          // logic.js
-let dayDiff = null;           // logic.js
-let toInputValue = null;      // logic.js
-let STATUS_LABELS = null;     // logic.js
-let Task = null;              // logic.js
-let subjects = null;          // the SUBJECTS map, read at call time (never captured)
-let createSubjectTag = null;  // app.js (Subject chip and preview tag)
-let openDuePicker = null;     // app.js, the picker shared with the task dialog
-let closeDuePicker = null;    // app.js, the picker shared with the task dialog
-let myTasks = null;           // app.js's draft list: one stable array, only ever mutated in place
-let setStatus = null;         // js/tasks.js
-let saveTasks = null;         // js/tasks.js
-let setPage = null;           // js/nav.js
-let renderAllTasks = null;    // js/tasks.js
-let openTaskDialog = null;    // js/tasks.js
-let showToast = null;         // js/tasks.js
+let lookup = null;
+let parseTimeWord = null;
+let WEEKDAYS = null;
+let dayDiff = null;
+let toInputValue = null;
+let STATUS_LABELS = null;
+let Task = null;
+let subjects = null;
+let createSubjectTag = null;
+let openDuePicker = null;
+let closeDuePicker = null;
+let myTasks = null;
+let setStatus = null;
+let saveTasks = null;
+let setPage = null;
+let renderAllTasks = null;
+let openTaskDialog = null;
+let showToast = null;
 
 export const STATUS_CODES = {
   ns: 'not_started', todo: 'not_started', 'not started': 'not_started',
@@ -50,13 +28,11 @@ export const STATUS_CODES = {
   dn: 'done', done: 'done',
 };
 
-// Module-private quick-add state (formerly leaked through js/state.js).
 let quickReturnFocus = null;
 let quickPicked = { date: null, endDate: null, time: null };
 let quickPrev = { subject: '', status: '', due: '' };
 let quickChipEls = [];
 
-// Splits on spaces but keeps "not started" and "in progress" as one word.
 export function quickWords(text) {
   const raw = String(text || '').trim().split(/\s+/).filter(Boolean);
   const out = [];
@@ -68,8 +44,6 @@ export function quickWords(text) {
   return out;
 }
 
-// Pure natural-language parser: "GENMATH worksheet ip 10/5 3pm".
-// Callers in Node tests pass { subjects, picked, now, parseTimeWord, lookup, weekdays }.
 export function parseQuickAdd(text, opts = {}) {
   const subjectMap = opts.subjects ?? (subjects ? subjects() : {});
   const picked = opts.picked ?? quickPicked;
@@ -103,16 +77,13 @@ export function parseQuickAdd(text, opts = {}) {
       rest.push(word);
     }
   });
-  if (picked && picked.date) { out.dueDate = picked.date; out.endDate = picked.endDate || undefined; out.dueTime = picked.time || undefined; }   // picker wins
-  if (!out.dueDate) { out.endDate = undefined; out.dueTime = undefined; }              // time and end date need a start date
+  if (picked && picked.date) { out.dueDate = picked.date; out.endDate = picked.endDate || undefined; out.dueTime = picked.time || undefined; }
+  if (!out.dueDate) { out.endDate = undefined; out.dueTime = undefined; }
   out.status = out.status || 'not_started';
   out.title = (rest.join(' ') || (out.subject ? `${out.subject} task` : 'New Task')).slice(0, 500);
   return out;
 }
 
-// The subject row shows the parser's own guess plus one Change chip, or a single Add subject chip when the
-// input names no subject yet. The full list appears only after that chip is pressed, and stays revealed
-// until the overlay closes so the list cannot collapse under a finger mid-choice.
 let quickSubjectOpen = false;
 let quickSubjectSig = '';
 
@@ -221,8 +192,7 @@ function renderQuickChips(p) {
   quickSubjectSig = `${(p && p.subject) || ''}|${quickSubjectOpen}`;
   const groups = [
     ['Subject', 'subject', subjectItems(p)],
-    // Status is personal progress, not a property of the posted task: it is set on your own list, and
-    // typing "ip"/"done" still parses. Only Subject and Due get chips here.
+
     ['Due', 'due', [
       { type: 'date', code: 'today', label: 'Today', shown: 'today' },
       { type: 'date', code: 'tmr', label: 'Tomorrow', shown: 'tmr' },
@@ -268,8 +238,7 @@ function renderQuickChips(p) {
 }
 
 function syncQuickChips(p) {
-  // Re-render only when the guess or the reveal flag actually moved, so typing inside a subject word
-  // does not rebuild the row on every keystroke, and never silently drop the focused chip.
+
   const subjectGroup = document.querySelector('#quick-chips .quick-group[data-group="subject"]');
   const hadFocus = !!subjectGroup && subjectGroup.contains(document.activeElement);
   if (`${(p && p.subject) || ''}|${quickSubjectOpen}` !== quickSubjectSig) {
@@ -297,7 +266,6 @@ function syncQuickChips(p) {
   });
 }
 
-// Clicking a chip swaps that token in the input; clicking it again removes it.
 function applyQuickToken(type, code) {
   if (type === 'pick') { openQuickPicker('date'); return; }
   if (type === 'time') { openQuickPicker('time'); return; }
@@ -343,7 +311,7 @@ function submitQuickAdd(openDetails) {
   myTasks.push(task);
   if (p.status !== 'not_started') setStatus(task, p.status);
   else saveTasks();
-  state.justChangedId = task.id;   // a new task arrives (is-entering); nothing else enters
+  state.justChangedId = task.id;
   closeDuePicker();
   hideOverlay(dom.quickOverlay, 120);
   if (state.searchQuery) { state.searchQuery = ''; document.querySelector('#task-search').value = ''; }
@@ -353,7 +321,6 @@ function submitQuickAdd(openDetails) {
   else showToast('Task added');
 }
 
-// Called once by app.js, at the spot the moved listeners used to occupy.
 export function init(deps) {
   lookup = deps.lookup;
   parseTimeWord = deps.parseTimeWord;

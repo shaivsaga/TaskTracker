@@ -1,13 +1,3 @@
-// js/store.js - the Board, admin draft, and deletion-authority store.
-//
-// Owns the one Board fetch (data/current.json with no-cache revalidation), server-proved
-// deletion authority (monotonic revision + grow-only deleted ids), authenticated admin actions
-// with stale-base retry, coalesced admin state reads, and ADR-0007 archive-first draft
-// replacement. Pure factory createBoardStore() accepts injectable fetch/storage adapters so
-// Node tests exercise the same module interface with in-memory adapters.
-//
-// D6: no logic.js import, no DOM access, nothing runs at evaluation time.
-
 import { state } from './state.js';
 import { readJSON, writeJSON, KEYS, API } from './util.js';
 import { validateSubjects, subjectFor, retiredSubject } from './subjects.js';
@@ -17,7 +7,6 @@ export const newOperationId = () => (globalThis.crypto?.randomUUID
   ? globalThis.crypto.randomUUID().replace(/-/g, '')
   : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''));
 
-// Returns a clean { tasks, announcements, ... } or null when the payload is not a usable board.
 export function normalizeBoard(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.tasks)) return null;
   if (data.announcements != null && !Array.isArray(data.announcements)) return null;
@@ -80,7 +69,6 @@ export function createBoardStore({
     return stateObj.verifiedDeletedIds.includes(String(id));
   }
 
-  // The single Board fetch seam: stable URL + cache: 'no-cache' lets nginx answer 304 via ETag.
   async function fetchBoard({ fallbackToCache = true, onPersistError } = {}) {
     let board = null;
     let authoritative = false;
@@ -109,7 +97,6 @@ export function createBoardStore({
     return { board, authoritative, offline, cleaned };
   }
 
-  // Coalesces simultaneous ?view=admin loads (bin + subjects presets) into one request.
   async function fetchAdminState({ force = false } = {}) {
     if (!force && inflightAdmin) return inflightAdmin;
     const req = (async () => {
@@ -165,8 +152,6 @@ export function createBoardStore({
     }
   }
 
-  // Enforces ADR-0007 on every draft replacement (history, checkpoints, discard, transfer, Undo):
-  // archive displaced draft-only tasks first, then rewrite permanently deleted ids as labelled copies.
   async function replaceDraft(snap, hooks) {
     const { myTasks, Task, syncCatalog, applyProgress, saveTasks, renderAllTasks, renderAnnouncements, showToast } = hooks;
     const incoming = Array.isArray(snap && snap.tasks) ? snap.tasks : [];

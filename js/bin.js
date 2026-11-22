@@ -1,18 +1,3 @@
-/**
- * js/bin.js - the admin recycle bin.
- *
- * Server-owned and private: every read and action is an authenticated no-store request, and the
- * list survives a reload, a restart and the device's own draft/history retention.
- *
- * Deliberate safety rules:
- *   - Restoring is non-consuming: the server keeps its copy, and the draft is private until Publish.
- *   - Restoring an id that is permanently deleted produces a *labelled new copy*, never the old
- *     identity, and never carries the old device progress.
- *   - Restoring onto an existing draft id asks for an explicit replace and archives the displaced
- *     content first; nothing is overwritten silently.
- *   - Permanent deletion is armed before it acts, and its public effect is one id/time marker.
- */
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { prepareRecoveredDraft } from './recovery.js';
@@ -22,7 +7,7 @@ import { store, newOperationId } from './store.js';
 let deps = null;
 let rows = [];
 let lastData = {};
-let armed = null;          // { binId, action } - one armed row at a time
+let armed = null;
 let busy = false;
 
 function setExpanded(open) {
@@ -113,7 +98,7 @@ function render(data) {
     remove.dataset.binAction = 'delete';
     remove.dataset.binId = row.binId;
     remove.setAttribute('aria-label', `Delete ${row.title || row.taskId} permanently`);
-    // A reserved identity cannot come back as itself; say so before the click, not after.
+
     if (reserved.has(row.taskId)) {
       const note = el('span', 'history-label', 'Comes back as a new copy');
       head.appendChild(note);
