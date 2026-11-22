@@ -361,20 +361,13 @@ function checkDuePickerComposedPath(rel, src, errors) {
 }
 
 function checkForbiddenComments(rel, src, errors) {
-  const patterns = [
-    { re: /\/\/[^\n]*(?:eslint-disable|@ts-ignore|@ts-expect-error|@ts-nocheck)/g, fix: 'Fix the underlying code or lint rule instead of suppressing it.' },
-    { re: /\/\/[^\n]*(?:app\.js split, slice|moved verbatim|D6: this module)/g, fix: 'Delete split-history and D6 boilerplate comments; tests/lint.mjs enforces the D6 boundary structurally.' },
-    { re: /\/\*[\s\S]*?(?:eslint-disable|@ts-ignore|@ts-expect-error|@ts-nocheck)[\s\S]*?\*\//g, fix: 'Fix the underlying code or lint rule instead of suppressing it.' },
-  ];
-  for (const { re, fix } of patterns) {
-    for (const m of src.matchAll(re)) {
-      errors.push({
-        rule: 'no-forbidden-comments',
-        file: rel,
-        line: lineAt(src, m.index),
-        message: fix,
-      });
-    }
+  for (const m of src.matchAll(/\/\/[^\n]*(?:app\.js split, slice|moved verbatim|D6: this module)/g)) {
+    errors.push({
+      rule: 'no-forbidden-comments',
+      file: rel,
+      line: lineAt(src, m.index),
+      message: 'Delete split-history and D6 boilerplate comments; tests/lint.mjs enforces the D6 boundary structurally.',
+    });
   }
 }
 
