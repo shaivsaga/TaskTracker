@@ -100,6 +100,7 @@ class Task {
 
     this.files = Array.isArray(opts.files) ? opts.files : [];
 
+    Object.seal(this);
   }
 
   getDueDateDisplay() {
@@ -139,13 +140,15 @@ class Task {
     return ts.getTime() < Date.now();
   }
 
+  isClosed() { return this.closedAt > 0; }
+
   // Past = closed by the admin, or more than 7 days past its due date.
-  isExpired() {
+  isExpired(now = Date.now()) {
     const ts = this.getDueTimestamp();
-    return !!ts && Date.now() - ts.getTime() > 7 * 86400000;
+    return !!ts && now - ts.getTime() > 7 * 86400000;
   }
 
-  isPast() { return this.closedAt > 0 || this.isExpired(); }
+  isPast(now = Date.now()) { return this.isClosed() || this.isExpired(now); }
 
   getPastLabel() { return this.dueDate ? this.getRangeLabel() : 'Closed'; }
 

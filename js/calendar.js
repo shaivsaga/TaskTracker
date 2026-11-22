@@ -86,7 +86,7 @@ function createCalChip(task) {
 }
 
 // Same rule as the list rows and the board badge: open, not overdue, due within 3 days.
-const isDueSoon = (t) => t.status !== 'done' && !!t.dueDate && !t.isOverdue() && dayDiff(t.dueDate) <= 3;
+const isDueSoon = (t) => t.status !== 'done' && !!t.dueDate && !t.isOverdue() && dayDiff(t.getDeadline()) <= 3;
 const urgencyRank = (t) => (t.status === 'done' ? 3 : t.isOverdue() ? 0 : isDueSoon(t) ? 1 : 2);
 
 function createCalDots(list) {
