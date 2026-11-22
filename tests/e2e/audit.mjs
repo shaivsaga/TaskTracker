@@ -40,6 +40,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { runClassFilterChecks } from './class-filters.mjs';
+import { runUiBehaviorChecks } from './ui-behaviors.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import net from 'node:net';
 
@@ -454,9 +455,8 @@ async function boot(cdp, width, opts = {}) {
   // Isolation: every scenario starts from this app's keys only, so a student boot cannot inherit
   // the admin flag (class_tasks_admin) or a previous draft/progress.
   await cdp.evaluate(RESET_OWNED_STORAGE);
-  const seed = {};
+  const seed = { class_tasks_tour_seen: '1' };
   if (opts.storage) Object.assign(seed, opts.storage);
-  seed.class_tasks_tour_seen = '1';
   await cdp.evaluate('(() => { const p = ' + JSON.stringify(seed) + '; for (const k in p) localStorage.setItem(k, p[k]); return 1; })()');
   const prevNoHash = await cdp.evaluate(`location.pathname + location.search`);
   const nextNoHash = '/index.html' + (opts.admin ? '?admin=1' : '');
@@ -949,6 +949,9 @@ async function main() {
 
     // 7b. class List/Board filters and their status transitions, through the same isolated boot
     await runClassFilterChecks({ cdp, boot, check, click, sleep, pressKey, pressEnter, fixture, FIXTURE_INSTANT });
+
+    // 7c. real-browser UI and accessibility behaviors replacing source-regex tests
+    await runUiBehaviorChecks({ cdp, boot, check, click, pressKey, waitUntil, progress, draft });
 
     // 8. both themes render from the stored choice
     const bg = {};

@@ -58,6 +58,7 @@ test('fetchBoard adopts authoritative revision, erases deleted progress, and cac
   assert.equal(out.offline, false);
   assert.equal(seenInit.url, 'data/current.json');
   assert.equal(seenInit.init.cache, 'no-cache');
+  assert.ok(seenInit.init.signal instanceof AbortSignal, 'Board fetch supplies an AbortSignal timeout');
   assert.equal(stateObj.verifiedRevision, 4);
   assert.deepEqual(stateObj.verifiedDeletedIds, ['gone']);
   assert.deepEqual(Object.keys(stateObj.progress), ['t1']);

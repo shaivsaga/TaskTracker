@@ -232,7 +232,7 @@ async function loadVersions() {
     const res = await fetch(API.versions, { cache: 'no-store' });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || 'Could not load versions');
-    serverVersions = out.versions;
+    serverVersions = Array.isArray(out.versions) ? out.versions : [];
   } catch (ex) { showToast(ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message); }
   renderHistory();
 }
