@@ -21,6 +21,7 @@ import { store, newOperationId } from './store.js';
 
 let deps = null;
 let rows = [];
+let lastData = {};
 let armed = null;          // { binId, action } - one armed row at a time
 let busy = false;
 
@@ -80,8 +81,9 @@ export async function load() {
     say('The recycle bin cannot be loaded right now.');
     return;
   }
+  lastData = out.data;
   rows = Array.isArray(out.data.binSummaries) ? out.data.binSummaries : [];
-  render(out.data);
+  render(lastData);
 }
 
 function render(data) {
@@ -125,7 +127,7 @@ function render(data) {
 
 async function onAction(action, binId, btn) {
   if (busy) return;
-  if (armed && (armed.binId !== binId || armed.action !== action)) { armed = null; render({}); }
+  if (armed && (armed.binId !== binId || armed.action !== action)) { armed = null; render(lastData); }
   if (action === 'restore') return restore(binId, btn);
   if (action === 'delete') {
     if (!armed || armed.binId !== binId) {
@@ -177,7 +179,8 @@ async function restore(binId, btn) {
     armed = null;
     await load();
     if (subjects.length === 0) say('Restored into your draft. Publish to show it to the class.');
-    btn.focus();
+    const live = dom.binList.querySelector(`button[data-bin-action="restore"][data-bin-id="${CSS.escape(binId)}"]`) || dom.binRefresh;
+    live.focus();
   } catch (e) {
     say('Cannot reach the server right now; the copy is still in the recycle bin.');
   } finally {
@@ -199,7 +202,7 @@ async function permanentDelete(binId, btn) {
         : out.code === 'stale_base'
           ? 'The board changed since this page loaded. Reload before deleting permanently.'
           : 'Could not delete that copy.');
-      render({});
+      render(lastData);
       return;
     }
     const board = out.data && out.data.current;
