@@ -169,6 +169,12 @@ test('TLC trace 2 & 3 (real PHP + js/store.js + js/publish.js): post-rename cras
     assert.equal(retryRes.status, 200);
     assert.equal(retryBody.replayed, true);
     assert.equal(retryBody.current.revision, 2);
+    // Changing an unused subject changes intentKey so a new operationId is allocated instead of triggering 409 operation_conflict
+    const changedSubjectsKey = JSON.stringify({
+      ...draftPayload,
+      subjects: [...subjects, { code: 'MATH', name: 'Math', color: '#ff8800', active: true }],
+    });
+    assert.notEqual(intent.operationIdFor(changedSubjectsKey), opId1, 'edited subjects must allocate a fresh operationId');
     intent.clear();
 
     // Step 3 (TLC Trace 3): Stale Admin 2 still at baseRevision 1 is refused with 409 stale_base
