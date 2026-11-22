@@ -112,6 +112,16 @@ test('deploy/section.sh provision seeds section board, generates configs, and re
       locations.push({ at: lines[i].text, body });
     }
 
+    const locNoSlash = locations.find((l) => l.at === `location = /s/b/${token} {`);
+    assert.ok(locNoSlash, `missing route /s/b/${token}`);
+    assert.ok(locNoSlash.body.includes('absolute_redirect off;'), 'missing absolute_redirect off in non-slash location');
+    assert.ok(locNoSlash.body.includes(`return 301 /s/b/${token}/;`), 'missing 301 redirect in non-slash location');
+
+    const locSlash = locations.find((l) => l.at === `location = /s/b/${token}/ {`);
+    assert.ok(locSlash, `missing route /s/b/${token}/`);
+    assert.ok(locSlash.body.includes(`rewrite ^ /s/b/${token}/index.html last;`), 'missing internal rewrite in trailing-slash location');
+    assert.ok(!locSlash.body.some((t) => /\balias\b/.test(t)), 'trailing-slash location must not use alias');
+
     const withHeaders = locations.filter((l) => l.body.some((t) => /^add_header\b/.test(t)));
     assert.ok(withHeaders.length >= 6, `expected header-bearing locations, got ${withHeaders.length}`);
     for (const loc of withHeaders) {
