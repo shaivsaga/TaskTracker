@@ -1,47 +1,10 @@
-// js/tasks.js - the task hub: renderers, dialog, status popover and drag & drop (app.js split, slice 2.6).
-//
-// Moved verbatim out of app.js, in three commits. This file is commit 3 of that slice; the
-// values below arrive through init(deps) because app.js still owns them:
-//   Task - logic.js: rebuilds each stored task through Task.fromJSON
-//   dayDiff - logic.js: day counts for due badges and the overview
-//   sortTasks - logic.js: the renderers sort through it
-//   STATUS_LABELS - logic.js: the confirm dialog and the popover wording
-//   statusChangeMessage - logic.js: the undo toast text on every status change
-//   sanitizeDoc - logic.js: the note editor stores only its allow-list
-//   clampPopoverPosition - logic.js: keeps the status popover on screen
-//   myTasks - app.js: the live draft array, mutated in place
-//   isEditable - app.js: admin, not previewing, in the draft
-//   hideAnimated - app.js: overlays close with their exit animation
-//   createSubjectTag - app.js: the subject chip (it owns SUBJECTS)
-//   startNewTask - app.js: the list footer opens quick add
-//   TTFiles - attachments.js: the classic-script file helper (ACCEPT, MAX_*)
-//   openDuePicker - app.js: the due date picker stays in app.js (quick add uses it too)
-//   calendar - app.js: its namespace, renderAllTasks repaints the calendar
-//   publish - app.js: its namespace, renderAllTasks and diffDraft update the admin bar
-//
-// D6: this module never imports logic.js, never imports another feature module and never reads a bare
-// global. state and dom are the only module imports besides the util.js helpers. Everything that used to
-// be an app.js top-level binding is either declared here or assigned from init(deps): the call sites are
-// byte-identical, so a dep that is never assigned is a loud TypeError instead of a silent second copy.
-//
-// init() runs at the position where the first moved listener used to be registered, and every moved
-// listener block is registered inside it in source order, so the order of the page listeners is
-// unchanged - the due-picker Escape handler (capture + stopPropagation) and the dialog/popover Escape
-// chain depend on it (docs/p6-architecture-findings.md 5).
-//
-// Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
-// evaluation time, so
-//   node --input-type=module -e "await import('./js/tasks.js'); console.log('import clean')"
-// is clean under plain Node (docs/p6-architecture-findings.md 4-5, DECISIONS.md D6).
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, STATUS_TO_COLUMN, COLUMN_TO_STATUS } from './util.js';
-import * as motion from './motion.js';   // leaf helper: imports nothing, reads the DOM only
-import { classForColor, subjectDisplayName } from './subjects.js';   // pure: colour -> shipped class, code -> display name
+import * as motion from './motion.js';
+import { classForColor, subjectDisplayName } from './subjects.js';
 import { store } from './store.js';
 
-// --- Values app.js passes in through init(deps) ------------------------------------------------
 let Task = null;
 let dayDiff = null;
 let sortTasks = null;
@@ -58,7 +21,6 @@ let openDuePicker = null;
 let calendar = null;
 let publish = null;
 
-// Module-private UI state (formerly leaked through js/state.js).
 let changedIds = new Set();
 let confirmOverlayEl = null;
 let dialogReturn = null;
@@ -71,13 +33,10 @@ let statusPopoverTask = null;
 let statusPopoverIndex = 0;
 let lastMineSig = '';
 
-// --- Moved verbatim from app.js ----------------------------------------------------------------
 const findTask = (id) => [...myTasks, ...state.publishedTasks].find((t) => t.id === id);
-// A control the user can actually land on: laid out, not inside a hidden page or a closed popover.
-// Rows themselves are not tab stops, so returning focus to one leaves it on <body>.
+
 const isLiveControl = (el) => !!(el && el.isConnected && el.getClientRects().length && !el.closest('[hidden]'));
-// Renders rebuild the row or card that opened the dialog/confirm, so its old element is gone. Find
-// the same task's replacement title first (the only row-opening tab stop), then its status control.
+
 function focusTaskControl(taskId) {
   const scope = `[data-task-id="${CSS.escape(String(taskId))}"]`;
   for (const sel of ['button.task-row-title', 'button.task-title-open', 'button.status-check']) {
@@ -86,8 +45,7 @@ function focusTaskControl(taskId) {
   }
   return null;
 }
-// When the class Status filter is hiding the changed task, its select is the visible control that
-// explains the empty rows. An open task dialog still owns focus; an is-closing one is already gone.
+
 function focusClassFilterFallback() {
   if (dom.dialogOverlay && !dom.dialogOverlay.hidden && !dom.dialogOverlay.classList.contains('is-closing')) return null;
   if (!state.classStatusFilter || !classListVisible()) return null;
@@ -96,8 +54,7 @@ function focusClassFilterFallback() {
   select.focus();
   return select;
 }
-// Last resort after a task leaves the visible page (e.g. reopened from Done): the active nav tile is
-// a meaningful, visible control, never the hidden page, a closed popover or <body>.
+
 function focusFallbackControl() {
   const filter = focusClassFilterFallback();
   if (filter) return filter;
@@ -112,7 +69,7 @@ export function applyProgress(list) {
   list.forEach((t) => { const p = state.progress[t.id]; t.status = p ? p.status : 'not_started'; t.movedAt = p ? p.movedAt : 0; });
 }
 export function setStatus(task, status) {
-  // Motion measures the old layout now; renderAllTasks() plays it once the new one exists.
+
   motion.begin(task.id, state.progress[task.id]?.status || 'not_started', status);
   state.progress[task.id] = { status, movedAt: Date.now() };
   if (status === 'done') navigator.vibrate?.(12);
@@ -138,7 +95,7 @@ function ensureConfirmDialog() {
   confirmOverlayEl = overlay;
   return overlay;
 }
-// Both preset application and reopening use the same keyboard and overlay lifecycle.
+
 export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, openerHint, taskId }) {
   const overlay = ensureConfirmDialog();
   if (!overlay.hidden) { onCancel?.(); return; }
@@ -156,9 +113,9 @@ export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, op
     okBtn.onclick = null;
     cancelBtn.onclick = null;
     motion.hideOverlay(overlay);
-    if (accept) onConfirm();   // rebuilds the page first: the opener may not survive it
+    if (accept) onConfirm();
     else onCancel?.();
-    // The option that opened this confirm may be a hidden popover item; only a laid-out control counts.
+
     if (isLiveControl(opener) && opener.tabIndex >= 0) opener.focus();
     else if (isLiveControl(openerHint)) openerHint.focus();
     else if (!taskId || !focusTaskControl(taskId)) focusFallbackControl();
@@ -166,7 +123,7 @@ export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, op
   const onKey = (e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
-      e.stopImmediatePropagation(); // keep the task dialog behind from closing too
+      e.stopImmediatePropagation();
       close(false);
       return;
     }
@@ -195,9 +152,7 @@ function confirmReopen(task, newStatus, onConfirm, openerHint) {
     okLabel: 'Reopen', onConfirm, openerHint, taskId: task.id,
   });
 }
-// --- Persistence: progress (everyone) + draft (admin) ---
-// Returns whether both writes succeeded. A caller must never show "deleted"/"saved" when this is
-// false: the draft and the progress key are separate, so a partial failure is reported, not hidden.
+
 export function saveTasks() {
   const steps = [];
   const progressOk = writeJSON(KEYS.progress, state.progress);
@@ -236,14 +191,11 @@ export function loadTasks() {
   myTasks.length = 0;
   (draft.tasks || []).forEach((o) => myTasks.push(Task.fromJSON(o)));
   state.announcements = Array.isArray(draft.announcements) ? draft.announcements : [];
-  // A schema-2 draft carries its own catalogue; a legacy envelope has none, so the published
-  // catalogue is used until the admin saves one (never a generic reset).
+
   state.draftSubjects = Array.isArray(draft.subjects) ? draft.subjects : [];
   applyProgress(myTasks);
 }
-// Progress is erased only by an authority the server proved (see app.js applyDeletionAuthority):
-// a task merely absent from this board, or a failed/empty/offline load, never erases anything.
-// --- Task Card Creation ---
+
 function createTaskCard(task) {
   const article = document.createElement('article');
   article.className = 'task-card';
@@ -255,9 +207,7 @@ function createTaskCard(task) {
 
   const titleEl = document.createElement('h3');
   titleEl.className = 'task-card-title';
-  // The title is the card's own control: it names the card and carries the keyboard path, while the
-  // card keeps its click-anywhere gesture (the button's click bubbles to the article). A focusable
-  // <article> with no role had no accessible name, so a screen reader reached a nameless stop.
+
   const titleBtn = document.createElement('button');
   titleBtn.type = 'button';
   titleBtn.className = 'task-title-open';
@@ -274,7 +224,6 @@ function createTaskCard(task) {
   if (isEditable(task) && changedIds.has(task.id)) article.classList.add('is-changed');
   header.append(createStatusCheck(task), titleEl);
 
-  // Delete button
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'task-delete-btn';
   deleteBtn.type = 'button';
@@ -313,15 +262,12 @@ function createTaskCard(task) {
     article.appendChild(footer);
   }
 
-  // Drag events
   article.addEventListener('dragstart', handleDragStart);
   article.addEventListener('dragend', handleDragEnd);
 
   return article;
 }
-// --- Delete Task ---
-// Archive first, then remove locally. If the archive fails, nothing is deleted and the draft keeps
-// the task: the server copy is the only durable recovery, so it cannot be skipped.
+
 async function deleteTask(task) {
   const index = myTasks.indexOf(task);
   if (index === -1) return false;
@@ -344,8 +290,6 @@ async function deleteTask(task) {
   return true;
 }
 
-// Undo re-checks authority at click time: a deletion proved after the toast appeared wins over the
-// older snapshot, and the old id is then offered as a labelled copy instead of silently returning.
 function undoDelete(task, index) {
   if (store.mustRecoverAsNewId(String(task.id))) {
     showToast('That task was permanently deleted. Recover it as a new copy from the recycle bin.');
@@ -402,7 +346,7 @@ export function showSkeletons() {
     }
   });
 }
-// --- Tasks: published list, same builders as admin, student-safe ---
+
 function classSubjectCodes(all) {
   return [...new Set(all.map((t) => t.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
@@ -536,14 +480,13 @@ export function renderClassTasks() {
     dom.classListEl.appendChild(none);
   }
 }
-// --- Completed tasks page ---
+
 export const recordSource = () => ((state.isAdmin || state.previewing) ? myTasks : state.publishedTasks);
 function renderPastPage() {
   const host = document.querySelector('#past-list');
   if (!host) return;
   host.replaceChildren();
-  // The archive says only why a task is here, never whether you finished it, so it sorts by due date alone
-  // (newest first). The shared sortTasks puts done tasks last, which would reveal the same thing.
+
   const dueAt = (t) => { const d = t.getDueTimestamp(); return d ? d.getTime() : -Infinity; };
   const past = recordSource().filter((t) => t.isPast())
     .sort((a, b) => (dueAt(b) - dueAt(a)) || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
@@ -555,8 +498,7 @@ function renderPastPage() {
     return;
   }
   const canEdit = state.isAdmin && !state.previewing;
-  // A destructive action that removes a published task asks first: the button arms for 4s and the
-  // second press runs it, the same inline confirm the Done page's reopen uses.
+
   const mkBtn = (label, fn, confirmLabel) => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -608,31 +550,26 @@ function renderPastPage() {
   };
   host.replaceChildren(...bucketed(past, pastBucket, pastLabel, createPastRow));
 }
-// Restore a task's progress entry to what it was before the last status change.
-// Shared by every Undo action so all of them persist and re-render the same way.
-// The last open task gets the same motion as any other; only the words change.
+
 function doneMessage() {
   const open = recordSource().filter((x) => !x.isPast());
   return open.length && open.every((x) => x.status === 'done') ? 'All caught up' : statusChangeMessage('done');
 }
 function restoreProgress(taskId, prev) {
-  // A deletion proved after this toast was created wins over the older snapshot: the id must not
-  // come back into device progress at all, whatever the captured entry said.
+
   if (store.mustRecoverAsNewId(String(taskId))) {
     showToast('That task was permanently deleted. Its progress cannot be restored.');
     renderAllTasks();
     return;
   }
-  // Undo during the flight: drop the ghost, then let the rows glide back.
+
   motion.cancel(taskId);
   motion.begin(taskId, state.progress[taskId]?.status || 'not_started', prev ? prev.status : 'not_started');
   if (prev) state.progress[taskId] = prev; else delete state.progress[taskId];
   applyProgress(myTasks);
   applyProgress(state.publishedTasks);
   saveTasks();
-  // A dialog may still be open on this task: refresh it so it shows the restored status.
-  // Write the restored values onto currentTask itself so the refresh does not depend on
-  // currentTask being the same instance applyProgress just updated.
+
   if (state.currentTask && state.currentTask.id === taskId) {
     const p = state.progress[taskId];
     state.currentTask.status = p ? p.status : 'not_started';
@@ -647,7 +584,7 @@ function restoreProgress(taskId, prev) {
     focusFallbackControl();
   }
 }
-// The app's inline destructive confirm: the first press arms the button for 4s, the second runs it.
+
 export function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
   let timer = null;
   btn.addEventListener('click', (e) => {
@@ -666,14 +603,13 @@ export function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
     onConfirm();
   });
 }
-// Reopening a done task replaces its completed time, so ask first and offer Undo.
+
 function reopenWithConfirm(btn, task) {
   armInlineConfirm(btn, btn.textContent, 'Confirm marking this task not done', () => {
     const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
     setStatus(task, 'not_started');
     renderAllTasks();
-    // The armed button was just replaced. Move to the task's new control, or a visible fallback when
-    // it left this page (Done), instead of dropping focus onto <body>.
+
     if (!focusTaskControl(task.id)) focusFallbackControl();
     showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
   });
@@ -700,7 +636,7 @@ function renderDonePage() {
     row.className = 'task-row done-row' + (task.movedAt && Date.now() - task.movedAt < 8000 ? ' is-landed' : '');
     row.dataset.taskId = task.id;
     row.setAttribute('role', 'listitem');
-    // Done rows reopen through the single "Mark not done" action so the row has one consistent confirm flow.
+
     const dot = document.createElement('span');
     dot.className = 'status-check is-done is-static';
     dot.setAttribute('aria-hidden', 'true');
@@ -724,8 +660,7 @@ function renderDonePage() {
   };
   host.replaceChildren(...bucketed(done, doneBucket, (k) => DONE_BUCKET_LABELS[k] || '', createDoneRow));
 }
-// A subject is searchable by its editable name as well as its code, so a renamed subject is found
-// by what the class actually sees on the chip.
+
 function subjectCodesMatching(q) {
   const out = new Set();
   for (const s of Array.isArray(state.catalog) ? state.catalog : []) {
@@ -751,8 +686,7 @@ function formatMineWhen(task, d, dayDiffFn) {
   const label = n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   return task.dueTime ? `${label}, ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : label;
 }
-// Pure personal-strip summary: uses Task.getDueTimestamp() (range end date) and the same 7-day
-// expiry rule as Task.isPast() so the strip and class overview can never drift apart.
+
 export function summarizeMine(allTasks, nowMs = Date.now(), dayDiffFn = dayDiff) {
   const tasks = Array.isArray(allTasks) ? allTasks : [];
   const diffFn = dayDiffFn || ((d) => {
@@ -807,8 +741,7 @@ function updateOverview() {
   const sumOverdue = document.querySelector('#sum-overdue');
   sumOverdue.textContent = `${overdue} overdue`;
   sumOverdue.hidden = overdue === 0;
-  // The class page shows the same answer for the board the class sees, plus what is already done on
-  // this device. Same source as renderClassTasks, so preview and student views agree.
+
   const classAll = (state.previewing ? myTasks : state.publishedTasks) || [];
   renderMine(classAll);
   const classTasks = classAll.filter((t) => !t.isPast());
@@ -823,7 +756,7 @@ function updateOverview() {
   csumOverdue.textContent = `${classOverdue} overdue`;
   csumOverdue.hidden = classOverdue === 0;
   document.querySelector('#csum-done').textContent = `${classTasks.length - classOpen.length} of ${classTasks.length} done here`;
-  // An empty board already says "No tasks yet."; a 0-of-0 tally above it is noise.
+
   document.querySelector('#class-summary').hidden = classTasks.length === 0;
   document.querySelector('#page-my-tasks').classList.toggle('is-blank', myTasks.length === 0);
 }
@@ -831,7 +764,7 @@ const notesTextCache = new WeakMap();
 function plainNotes(task) {
   const hit = notesTextCache.get(task);
   if (hit && hit.html === task.notes) return hit.text;
-  const tpl = document.createElement('template'); // inert: embedded images are not loaded
+  const tpl = document.createElement('template');
   tpl.innerHTML = (task.notes || '').replace(/<(?:br|\/div|\/p|\/li)\b[^>]*>/gi, ' ');
   const text = (tpl.content.textContent || '').toLowerCase();
   notesTextCache.set(task, { html: task.notes, text });
@@ -847,13 +780,10 @@ function createTaskRow(task) {
   row.dataset.taskId = task.id;
   row.setAttribute('role', 'listitem');
 
-  // Checkbox: empty = not started, minus = in progress, check = done
   const check = createStatusCheck(task);
   if (task.id === state.justChangedId) row.classList.add('is-entering');
   if (isEditable(task) && changedIds.has(task.id)) row.classList.add('is-changed');
 
-  // The row itself is no longer a tab stop: a focusable div with no role announced nothing. The title
-  // is the row's control and the click still opens from anywhere in the row (the click bubbles).
   const title = document.createElement('button');
   title.type = 'button';
   title.className = 'task-row-title'
@@ -862,7 +792,7 @@ function createTaskRow(task) {
   title.textContent = task.title;
 
   const overdue = task.dueDate && task.status !== 'done' && task.isOverdue();
-  // Same rule as the board badge (within 3 days): amber, with the words "Due today" / "Due tomorrow" / "In 2 days" doing the work, so colour is never the only cue.
+
   const soon = !!task.dueDate && task.status !== 'done' && !overdue && dayDiff(task.getDeadline()) <= 3;
   const due = createRowDate(
     task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel(),
@@ -923,7 +853,7 @@ export function renderAllTasks() {
   state.justChangedId = null;
   motion.play();
 }
-// Title is a one-line-looking textarea that grows with its content
+
 function fitDialogTitle() {
   dom.dialogTitleInput.style.height = 'auto';
   dom.dialogTitleInput.style.height = dom.dialogTitleInput.scrollHeight + 'px';
@@ -950,7 +880,7 @@ function updateDialogStatus(task) {
   dom.dialogStatusBtn.className = `prop-value status-value ${s.cls}`;
   dom.dialogStatusBtn.setAttribute('aria-label', `Status: ${s.label}`);
 }
-// --- Links in notes: made at render time, never stored. sanitizeDoc flattens <a> back to its text on save. ---
+
 const URL_RE = /https?:\/\/[^\s<>"']+/gi;
 function unlinkify(root) {
   root.querySelectorAll('a').forEach((a) => a.replaceWith(document.createTextNode(a.textContent)));
@@ -1051,8 +981,7 @@ export function closeTaskDialog() {
   const back = dialogReturn;
   dialogReturn = null;
   if (back) {
-    // The page was just rebuilt: keep the same control if it survived, otherwise focus the task's
-    // replacement title/status control. The old row fallback was not a tab stop, so focus fell to body.
+
     if (isLiveControl(back.el) && back.el.tabIndex >= 0) back.el.focus();
     else if (!focusTaskControl(back.id)) focusFallbackControl();
   }
@@ -1126,7 +1055,7 @@ async function insertDocImages(files) {
       const out = await TTFiles.upload(blob, name);
       src = TTFiles.urlFor(out.id);
     } catch (e) {
-      src = await fileToDataUrl(file);   // not signed in or offline: keep it inline instead of losing it
+      src = await fileToDataUrl(file);
       if (!src) { showToast(e.message || 'Could not add that image'); continue; }
     }
     insertDocImage(src);
@@ -1211,14 +1140,14 @@ function syncNoteTools() {
   });
 }
 export const dropHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
-// Saves the task being edited in the panel and confirms it.
+
 function autosave() {
   if (!state.currentTask || !isEditable(state.currentTask)) return;
   state.currentTask.notes = sanitizeDoc(dom.dialogDoc.innerHTML);
   saveTasks();
   flashSaved();
 }
-// Leaving Done needs an explicit yes. Returns true when the change may proceed.
+
 const isReopen = (task, status) => task.status === 'done' && status !== 'done';
 function updateColumn(columnEl) {
   const n = columnEl.querySelectorAll('.task-card').length;
@@ -1235,7 +1164,6 @@ function updateColumn(columnEl) {
     emptyMsg.hidden = !isEmpty;
   }
 }
-// --- Drag & Drop ---
 
 function handleDragStart(e) {
   draggedCard = e.target.closest('.task-card');
@@ -1304,14 +1232,10 @@ function handleDrop(e) {
 
   document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
 }
-// Membership only: the configured codes, so quick-add and the calendar can recognise a subject.
-// Colours come from the catalogue definition (see app.js createSubjectTag), never from this map.
+
 export const SUBJECTS = {};
 export const STATUS_ORDER = ['not_started', 'in_progress', 'done'];
 
-// Rebuilt whenever the catalogue changes (a rename or retire must change what is recognised).
-// The value is the shipped class for the subject's colour, so calendar dots and quick-add chips
-// keep rendering exactly as before for the palette, and a custom colour reports no class.
 export function syncSubjectMap(catalog) {
   for (const code of Object.keys(SUBJECTS)) delete SUBJECTS[code];
   for (const s of Array.isArray(catalog) ? catalog : []) {
@@ -1319,8 +1243,6 @@ export function syncSubjectMap(catalog) {
   }
 }
 
-// The dialog's subject choices: None plus every assignable code. Rebuilt on a catalogue change so a
-// retired subject disappears from the picker without touching a task that already uses it.
 let subjectDropdownIndex = 0;
 function paintSubjectDropdown() {
   if (!dom.dialogSubjectDropdown) return;
@@ -1394,7 +1316,7 @@ function ensureStatusPopover() {
       const pickedFrom = statusPopoverAnchor;
       if (isReopen(picked, next)) {
         closeStatusPopover();
-        // The focused option is now hidden; hand the confirm the trigger that is still on screen.
+
         confirmReopen(picked, next, () => {
           const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
           setStatus(picked, next);
@@ -1426,7 +1348,7 @@ function ensureStatusPopover() {
   state.statusPopoverEl = el;
   return el;
 }
-// The control that opened the popover. Kept here so closing can reset aria-expanded and hand focus back.
+
 let statusPopoverAnchor = null;
 function paintStatusPopover() {
   const task = statusPopoverTask;
@@ -1435,7 +1357,7 @@ function paintStatusPopover() {
     opt.setAttribute('aria-selected', String(!!task && opt.dataset.status === task.status));
   });
 }
-// A pick re-renders the lists, so the old trigger is gone: find the task's new visible check, or the dialog button.
+
 function focusStatusTrigger(task, anchor) {
   if (anchor && anchor.isConnected && anchor.getClientRects().length) { anchor.focus({ preventScroll: true }); return; }
   const next = [...document.querySelectorAll(`[data-task-id="${task.id}"] .status-check`)].find((el) => el.getClientRects().length);
@@ -1467,14 +1389,14 @@ function openStatusPopover(task, anchorEl) {
   const { top, left } = clampPopoverPosition(rect, el.offsetWidth, el.offsetHeight, window.innerWidth, window.innerHeight);
   el.style.top = `${top}px`;
   el.style.left = `${left}px`;
-  // Real focus moves into the list, so a screen reader announces the option and its selected state.
+
   el.children[statusPopoverIndex].focus();
 }
 function createStatusCheck(task) {
   const check = document.createElement('button');
   check.type = 'button';
   check.className = `status-check is-${task.status.replace(/_/g, '-')}` + '';
-  // Names the task and its current status: "Read chapter 3: Not started. Change status".
+
   check.setAttribute('aria-label', `${task.title}: ${STATUS_LABELS[task.status] || task.status}. Change status`);
   check.setAttribute('aria-haspopup', 'listbox');
   check.setAttribute('aria-expanded', 'false');
@@ -1506,7 +1428,6 @@ function selectSubject(code, refocus = false) {
   if (refocus && dom.dialogSubjectBtn && !dom.dialogSubjectBtn.disabled) dom.dialogSubjectBtn.focus();
 }
 
-// Called once by app.js, at the spot the moved listeners used to occupy.
 export function init(deps) {
   Task = deps.Task;
   dayDiff = deps.dayDiff;
@@ -1523,7 +1444,7 @@ export function init(deps) {
   openDuePicker = deps.openDuePicker;
   calendar = deps.calendar;
   publish = deps.publish;
-// Don't dismiss the toast while someone is tabbing to its Undo button
+
 dom.toastEl.addEventListener('focusin', () => clearTimeout(toastTimer));
 dom.toastEl.addEventListener('focusout', () => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 3000); });
 dom.dialogFileInput.accept = TTFiles.ACCEPT;
@@ -1542,7 +1463,6 @@ dom.dialogTitleInput.addEventListener('input', () => {
   fitDialogTitle();
 });
 window.addEventListener('resize', () => { if (state.currentTask) fitDialogTitle(); });
-// --- Event Listeners ---
 
 dom.dialogClose.addEventListener('click', closeTaskDialog);
 dom.dialogOverlay.addEventListener('click', (e) => { if (e.target === dom.dialogOverlay) closeTaskDialog(); });
@@ -1579,20 +1499,18 @@ dom.dialogDoc.addEventListener('paste', (e) => {
   document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
 });
 
-// Read-only (students): the browser opens the link itself (new tab). Admin editing: plain click places the caret, Ctrl/Cmd+click opens.
 dom.dialogDoc.addEventListener('click', (e) => {
   const a = e.target instanceof Element ? e.target.closest('a') : null;
   if (!a || !dom.dialogDoc.contains(a) || !dom.dialogDoc.isContentEditable) return;
   e.preventDefault();
   if (e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener,noreferrer');
 });
-// Rebuild links when leaving the box, so URLs typed or pasted while editing become links.
+
 dom.dialogDoc.addEventListener('focusout', () => { if (state.currentTask) refreshLinks(dom.dialogDoc); });
 
-// Note formatting toolbar. sanitizeDoc keeps only b, i, ul and li, so nothing else can be stored.
 dom.dialogDoc.addEventListener('focus', () => document.execCommand('styleWithCSS', false, false));
 dom.noteTools.forEach((b) => {
-  b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the selection in the note
+  b.addEventListener('mousedown', (e) => e.preventDefault());
   b.addEventListener('click', () => {
     if (!state.currentTask || !isEditable(state.currentTask)) return;
     dom.dialogDoc.focus();
@@ -1641,7 +1559,7 @@ dom.dialogDelete.addEventListener('click', () => {
   state.currentTask = null;
 });
 dom.dialogStatusBtn.addEventListener('click', () => { closeSubjectDropdown(false); if (state.currentTask) openStatusPopover(state.currentTask, dom.dialogStatusBtn); });
-// Column drop zones (My Tasks page)
+
 document.querySelectorAll('.kanban-column').forEach(columnEl => {
   columnEl.addEventListener('dragover', handleDragOver);
   columnEl.addEventListener('drop', handleDrop);
@@ -1666,11 +1584,11 @@ document.addEventListener('keydown', (e) => {
     paintStatusPopover();
     state.statusPopoverEl.children[statusPopoverIndex].focus();
   }
-  // A focused option activates itself on Enter; only click from here when focus is elsewhere.
+
   if (e.key === 'Enter' && !state.statusPopoverEl.contains(document.activeElement)) { state.statusPopoverEl.children[statusPopoverIndex].click(); }
 });
 refreshSubjectChoices();
-// Lives on <body> (same as the status menu) so the dialog's scroll area can't clip it
+
 dom.dialogSubjectDropdown.classList.add('status-popover');
 document.body.appendChild(dom.dialogSubjectDropdown);
 dom.dialogSubjectBtn.addEventListener('click', () => {

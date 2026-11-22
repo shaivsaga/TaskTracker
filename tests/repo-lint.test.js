@@ -132,3 +132,12 @@ test('no-orphan-field-label and cal-plus-anchor catch commit 87a1178^ regression
   assert.ok(errors.some((e) => e.rule === 'no-orphan-field-label'));
   assert.ok(errors.some((e) => e.rule === 'cal-plus-anchor'));
 });
+
+test('no-forbidden-comments catches suppressions and obsolete D6/slice boilerplate', async () => {
+  const errors = await runMutated((dir) => {
+    const p = path.join(dir, 'js', 'util.js');
+    fs.writeFileSync(p, '// D6: this module never imports logic.js\n// eslint-disable-next-line\n' + fs.readFileSync(p, 'utf8'));
+  }, { checkRuntimeImport: false });
+  const hits = errors.filter((e) => e.rule === 'no-forbidden-comments');
+  assert.equal(hits.length, 2);
+});

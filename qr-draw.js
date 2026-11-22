@@ -1,13 +1,9 @@
-/* Draws a QR code to a <canvas> using QRCode.make() from qrcode.js.
-   One flat colour (brand blue) on white. Round data dots, rounded corner
-   finders, centre disc with the TaskTracker mark knocked out in white.
-   Dark enough on white to scan in both themes. */
 (function () {
   'use strict';
 
   var INK = '#2B5BC0', PAPER = '#FFFFFF';
-  var QUIET = 4; // quiet zone, in modules
-  var DOT = 0.86; // dot diameter as a share of one module
+  var QUIET = 4;
+  var DOT = 0.86;
 
   function reader(q) {
     var m = q && (q.modules || q.matrix) || q;
@@ -64,12 +60,10 @@
       ctx.fillStyle = PAPER;
       ctx.fillRect(0, 0, px, px);
 
-      // Centre clear area in modules, about 22% of the width
       var bm = Math.max(5, Math.round(n * 0.22));
       if ((n - bm) % 2) bm += 1;
       var b0 = (n - bm) / 2, b1 = b0 + bm;
 
-      // Data dots (finder zones are drawn separately)
       ctx.fillStyle = INK;
       var rad = (cell * DOT) / 2, off = cell / 2;
       for (var r = 0; r < n; r++) {
@@ -87,14 +81,12 @@
       finder(ctx, 0, n - 7, cell);
       finder(ctx, n - 7, 0, cell);
 
-      // Centre disc with a white ring of clear space around it
       var bx = (QUIET + b0) * cell, bs = bm * cell, mid = bx + bs / 2;
       ctx.fillStyle = INK;
       ctx.beginPath();
       ctx.arc(mid, mid, bs * 0.45, 0, Math.PI * 2);
       ctx.fill();
 
-      // Logo knocked out in white; the mark spans x 4 to 21, y 3 to 21
       var s = (bs * 0.5) / 24;
       ctx.save();
       ctx.translate(mid - 12.5 * s, mid - 12 * s);

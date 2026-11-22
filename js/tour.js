@@ -1,40 +1,19 @@
-// js/tour.js - the first-time tutorial (app.js split, slice 2.3).
-//
-// Moved verbatim out of app.js: TOUR_KEY, tourVisible, TOUR_STEPS, tourSeen, tourTarget,
-// renderTourSample, placeTour, showTourStep, startTour, endTour and the region's listeners.
-// tourSeen and startTour stay exported because app.js's init() still auto-opens the tour on a
-// first visit; nothing else in the region is read from outside the module.
-//
-// D6: this module never imports logic.js and never reads a bare global. `$` (app.js's
-// document.querySelector shorthand), the STATUS_LABELS map from logic.js, STATUS_ORDER,
-// createSubjectTag, setPreview, setPage, hideAnimated and closeSettings arrive
-// through init(deps), which app.js calls at the spot the moved listeners used to occupy.
-//
-// tourIndex/tourTimer/tourSampleStatus stay in js/state.js (slice 2.1) and are read and written
-// through `state` here. The first-run flag keeps its storage key (class_tasks_tour_seen) and its
-// value ('1').
-//
-// Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
-// evaluation time, so
-//   node --input-type=module -e "await import('./js/tour.js')"
-// is clean under plain Node (docs/p6-architecture-findings.md 4, DECISIONS.md D6).
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { openOverlay, hideOverlay } from './motion.js';
 
-let $ = null;                 // app.js's querySelector shorthand, used by the steps and the overlay
-let STATUS_LABELS = null;     // logic.js
-let STATUS_ORDER = null;      // js/tasks.js: the three statuses the sample picker offers
-let createSubjectTag = null;  // app.js: the sample card's subject chip
-let setPreview = null;        // js/publish.js: startTour leaves admin preview
-let setPage = null;           // js/nav.js: startTour switches to the class tasks page
-let closeSettings = null;     // js/settings.js: the Settings replay button closes Settings first
+let $ = null;
+let STATUS_LABELS = null;
+let STATUS_ORDER = null;
+let createSubjectTag = null;
+let setPreview = null;
+let setPage = null;
+let closeSettings = null;
 
 let tourIndex = -1;
 let tourTimer = null;
 let tourSampleStatus = 'not_started';
-// --- Phase 5: first-time tutorial. Sample content lives only inside the overlay: never in progress, the draft or the board. ---
+
 const TOUR_KEY = 'class_tasks_tour_seen';
 const tourVisible = (el) => (el && el.getClientRects().length ? el : null);
 const TOUR_STEPS = [
@@ -52,7 +31,7 @@ const TOUR_STEPS = [
 ];
 
 export function tourSeen() { try { return localStorage.getItem(TOUR_KEY) === '1'; } catch (e) { return true; } }
-// Phones have no Board/List switch, so omit desktop-only steps rather than showing an untargeted card.
+
 const tourIsPhone = () => window.matchMedia('(max-width: 719px)').matches;
 const activeSteps = () => TOUR_STEPS.filter((s) => !(s.desktopOnly && tourIsPhone()));
 const tourTarget = () => { const s = activeSteps()[tourIndex]; return s && s.target ? s.target() : null; };
@@ -198,7 +177,7 @@ export function startTour() {
   openOverlay(dom.tourOverlay);
   document.body.style.overflow = 'hidden';
   showTourStep(0);
-  // Layout can shift while the board loads, so keep the spotlight on its target.
+
   clearInterval(tourTimer);
   tourTimer = setInterval(() => { if (tourIndex >= 0) placeTour(tourTarget()); }, 400);
 }
@@ -213,9 +192,6 @@ function endTour() {
   hideOverlay(dom.tourOverlay);
 }
 
-// Called once by app.js, at the spot the listeners below used to occupy, after cacheDom(). The
-// module keeps every dep in a module-local binding; `$` is safe to pass by value because it is
-// declared above that call site in app.js.
 export function init(deps) {
   $ = deps.$;
   STATUS_LABELS = deps.STATUS_LABELS;

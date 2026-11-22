@@ -360,6 +360,24 @@ function checkDuePickerComposedPath(rel, src, errors) {
   }
 }
 
+function checkForbiddenComments(rel, src, errors) {
+  const patterns = [
+    { re: /\/\/[^\n]*(?:eslint-disable|@ts-ignore|@ts-expect-error|@ts-nocheck)/g, fix: 'Fix the underlying code or lint rule instead of suppressing it.' },
+    { re: /\/\/[^\n]*(?:app\.js split, slice|moved verbatim|D6: this module)/g, fix: 'Delete split-history and D6 boilerplate comments; tests/lint.mjs enforces the D6 boundary structurally.' },
+    { re: /\/\*[\s\S]*?(?:eslint-disable|@ts-ignore|@ts-expect-error|@ts-nocheck)[\s\S]*?\*\//g, fix: 'Fix the underlying code or lint rule instead of suppressing it.' },
+  ];
+  for (const { re, fix } of patterns) {
+    for (const m of src.matchAll(re)) {
+      errors.push({
+        rule: 'no-forbidden-comments',
+        file: rel,
+        line: lineAt(src, m.index),
+        message: fix,
+      });
+    }
+  }
+}
+
 function checkHtmlAndCssStructure(root, html, css, errors) {
   const propsStart = html.indexOf('class="dialog-controls"');
   const propsEnd = propsStart >= 0 ? html.indexOf('id="dialog-doc"', propsStart) : -1;
@@ -406,6 +424,7 @@ export async function lintRepo(root = ROOT_DEFAULT, opts = {}) {
     checkBareMovedStateInModules(rel, src, movedNames, errors);
     await checkD6ModuleBoundary(root, rel, src, errors, opts);
     checkDuePickerComposedPath(rel, src, errors);
+    checkForbiddenComments(rel, src, errors);
   }
   checkDualSpriteSheets(root, css, errors);
   checkSingleBoardFetch(root, jsFiles, errors);

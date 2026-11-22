@@ -1,22 +1,10 @@
-/* Pure logic for TaskTracker: dates, the Task model, sorting, progress merging.
-   Moved out of app.js unchanged so tests can load it without a browser.
-   Loaded as a module before app.js. Nothing here touches the page at load time.
-   The natural-language quick-add parsers are NOT here: parseQuickAdd and quickWords have always
-   lived in app.js, and since the app.js split in js/quick-add.js. */
-
-// --- Status vocabulary ---
-// The canonical labels for the three statuses. Shared with app.js so the board,
-// the dialog, the status popover and the toasts all name a status the same way.
 const STATUS_LABELS = { not_started: 'Not started', in_progress: 'In progress', done: 'Done' };
 
-// Toast copy for a status change: always names the status the task moved to, so
-// reopening to "In progress" never announces "not done".
 function statusChangeMessage(status) {
   const label = STATUS_LABELS[status] || status;
   return `Marked ${String(label).toLowerCase()}`;
 }
 
-// --- Date helpers (calendar days, local time) ---
 function dayDiff(date) {
   const start = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   return Math.round((start(date) - start(new Date())) / 86400000);
@@ -26,7 +14,6 @@ function toInputValue(d) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-// Attached files live on the server (data/uploads); a task only keeps {id, name, size}.
 const FILE_ID_RE = /^[a-f0-9]{32}\.(pdf|pptx|docx|jpg|png)$/;
 function cleanFiles(list) {
   return (Array.isArray(list) ? list : [])
@@ -67,16 +54,13 @@ function sanitizeDoc(html) {
   return out.innerHTML;
 }
 
-// A task id is used as a CSS attribute-selector value and as a progress object key, so it has
-// to stay boring. Same rule app.js applies to transfer progress ids, plus __proto__.
 const TASK_ID_RE = /^[\w.\-]{1,100}$/;
 function taskIdOk(id) {
-  if (id === undefined) return true;            // the Task constructor generates one
+  if (id === undefined) return true;
   const s = String(id);
   return s !== '__proto__' && TASK_ID_RE.test(s);
 }
 
-// --- Task Data Model (Feature 1) ---
 class Task {
   constructor(opts = {}) {
     this.title = opts.title === undefined ? 'New Task' : String(opts.title);
@@ -142,7 +126,6 @@ class Task {
 
   isClosed() { return this.closedAt > 0; }
 
-  // Past = closed by the admin, or more than 7 days past its due date.
   isExpired(now = Date.now()) {
     const ts = this.getDueTimestamp();
     return !!ts && now - ts.getTime() > 7 * 86400000;
@@ -166,7 +149,6 @@ class Task {
     return fmt(this.dueDate, true);
   }
 
-  // The date work is actually due: the last day of a range, otherwise the start.
   getDeadline() { return this.endDate || this.dueDate; }
 
   getDueHint() {
@@ -192,7 +174,6 @@ class Task {
     return `in ${plural(Math.floor(diff / 30), 'month')}`;
   }
 
-  // Card and list text: the countdown, capitalised, plus the short calendar date beyond tomorrow and the time whenever the task has one.
   getDueLabel() {
     if (!this.dueDate) return 'Someday';
     const diff = dayDiff(this.getDeadline());
@@ -205,8 +186,6 @@ class Task {
     return [text, datePart, this.getTimeLabel()].filter(Boolean).join(' · ');
   }
 
-  // Short date(s) next to the countdown: "Nov 20", "Nov 19–20", "Nov 19 – Dec 3",
-  // "Nov 19, 2026 – Jan 3, 2027".
   getRangeLabel() {
     const year = new Date().getFullYear();
     if (!this.endDate || toInputValue(this.endDate) === toInputValue(this.dueDate)) {
@@ -295,11 +274,10 @@ const WEEKDAYS = {
 
 const lookup = (map, key) => (Object.hasOwn(map, key) ? map[key] : undefined);
 
-// "3pm", "3:30pm", "15:30" -> "HH:MM" (or null)
 function parseTimeWord(w) {
   let m = /^(\d{1,2})(?::(\d{2}))?(am|pm)$/i.exec(w);
   if (!m) {
-    // Shorthand: 1159pm -> 11:59pm, 315pm -> 3:15pm, 930am -> 9:30am
+
     const c = /^(\d{1,2})(\d{2})(am|pm)$/i.exec(w);
     if (c) m = [c[0], c[1], c[2], c[3]];
   }
@@ -327,7 +305,6 @@ function todayDate() {
   return new Date(n.getFullYear(), n.getMonth(), n.getDate());
 }
 
-// today, tmr, fri, 10/5, 10/5/2026, oct 5, 5 oct 2026, 2026-10-05
 function parseDateText(raw) {
   const s = raw.trim().toLowerCase().replace(/,/g, '');
   if (!s) return null;
@@ -349,7 +326,6 @@ function parseDateText(raw) {
   return null;
 }
 
-// Per task, the entry with the newer movedAt wins. A tie keeps the local one.
 function mergeProgress(local, incoming) {
   const merged = {};
   Object.keys(local).forEach((id) => { merged[id] = local[id]; });
@@ -363,9 +339,6 @@ function mergeProgress(local, incoming) {
   return { merged, added, updated, kept };
 }
 
-// Position a fixed popover near its trigger without leaving the viewport.
-// Flips above the trigger when there is no room below (same rule as the
-// subject dropdown), then clamps both axes inside the viewport margins.
 function clampPopoverPosition(rect, width, height, viewportWidth, viewportHeight) {
   const margin = 8;
   const gap = 4;
@@ -378,9 +351,6 @@ function clampPopoverPosition(rect, width, height, viewportWidth, viewportHeight
   return { top, left };
 }
 
-// Resolve a location hash to a navigable page name with the same fallbacks
-// the sidebar uses: unknown or empty hashes land on the first page, and the
-// admin-only page falls back for signed-out students.
 function pageFromHash(hash, knownPages, isAdmin) {
   const name = String(hash || '').replace(/^#/, '');
   if (!knownPages.includes(name)) return knownPages[0];

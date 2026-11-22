@@ -1,54 +1,9 @@
-// js/nav.js - navigation and routing (app.js split, slice 2.4).
-//
-// Moved verbatim out of app.js: the "Navigation" region (setPage, the nav-item click listeners,
-// NAV_PAGES and the hashchange deep-link handler). Slice 3.1e deleted the sidebar, so the
-// "Sidebar collapse" block (SIDEBAR_KEY, setSidebarCollapsed, its #sidebar-toggle listener and the
-// initial collapsed state) and the phone-drawer block (setSidebarOpen, #sidebar-scrim,
-// #sidebar-close, the document Escape handler, the media-query change listener and the inert/focus
-// management) are gone, together with the call at the end of setPage. The nav tiles are now the
-// mockup's header tiles (header.tb > nav.nav > a.tn.nav-item).
-//
-// setPage is a hub function: app.js and the publish, quick-add, settings and tour init deps already
-// received it as a bare name, so it stays exported and every one of those call sites reads
-// nav.setPage. NAV_PAGES is exported because app.js's bootstrap deep-link call reads the page list.
-// The sidebar key ('class_tasks_sidebar') is not exported any more: the inline classic boot script
-// that once ran before app.js is gone, so neither it nor anything else read the export. js/settings.js
-// keeps the literal key in its reset keep-set, so any value already stored under it survives a reset.
-//
-// The page name comes from the tile's own title/aria-label, not from a text node: the mockup tiles
-// carry a clipped .lbl (the short phone label) and no desktop text label, and the router has to keep
-// writing the names the old sidebar labels held (Class tasks, Admin, Completed tasks, Past tasks,
-// Calendar).
-//
-// Deliberately not moved: the #nav-badge write. It lives in updateOverview(), the overview-stats
-// renderer (#sum-open, #sum-progress, #sum-today, #sum-overdue, the blank-page flag) called by
-// renderAllTasks - since slice 2.6 it is in js/tasks.js, not part of this region, so the badge
-// keeps exactly one writer.
-//
-// D6: this module never imports logic.js and never reads a bare global. `state` and `dom` are module
-// imports; pageFromHash (logic.js) and setPreview (a hoisted function declaration in app.js) arrive
-// through init(deps) - app.js keeps the single ./logic.js?v=5 import. This module reads and writes no
-// localStorage key; the router still writes history.replaceState/pushState with #<page>.
-//
-// init() runs at the exact spot the moved statements used to occupy, so the registration order the
-// Escape chain depends on does not change (nav items, then hashchange). NAV_PAGES is built in init(),
-// never at module-evaluation time.
-//
-// Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
-// evaluation time, so
-//   node --input-type=module -e "await import('./js/nav.js')"
-// is clean under plain Node (docs/p6-architecture-findings.md 4-5, DECISIONS.md D6).
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 
-let pageFromHash = null;     // app.js: logic.js's pageFromHash, used by the hashchange handler
-let setPreview = null;       // app.js: the nav click and hashchange handlers leave the admin preview
+let pageFromHash = null;
+let setPreview = null;
 
-// --- Navigation ---
-
-// The tile's page name. It has to come from title/aria-label: the .lbl span is the clipped phone
-// label (aria-hidden), so it is not the app's page name on desktop.
 const navName = (item) => item.getAttribute('title') || item.getAttribute('aria-label') || item.dataset.page;
 
 export function setPage(pageName, updateHash = true) {
@@ -66,9 +21,6 @@ export function setPage(pageName, updateHash = true) {
     page.hidden = page !== activePage;
   });
 
-  // pushState emits no hashchange, so anything that measures laid-out content (the pinned
-  // announcement collapse) would keep its hidden-page estimate until the next resize. Announce the
-  // reveal explicitly; listeners measure on the next frame, when the page has layout.
   document.dispatchEvent(new CustomEvent('app:page-shown', { detail: { page: activePageName } }));
 
   dom.breadcrumbCurrent.textContent = navName(activeItem);
@@ -80,12 +32,8 @@ export function setPage(pageName, updateHash = true) {
   }
 }
 
-// app.js's own bootstrap deep-link call reads this page list too (the setPage call at the bottom
-// of app.js, inside its init()). It is built in init() from dom.navItems.
 export let NAV_PAGES = null;
 
-// Called once by app.js, at the spot the moved statements used to occupy, after cacheDom(). Both
-// deps are available when it runs: pageFromHash is the logic.js import, setPreview is hoisted.
 export function init(deps) {
   pageFromHash = deps.pageFromHash;
   setPreview = deps.setPreview;
@@ -96,7 +44,7 @@ export function init(deps) {
       setPage(item.dataset.page, 'push');
     });
   });
-  // Deep links: follow hash edits, pasted links, and Back/Forward navigation.
+
   NAV_PAGES = dom.navItems.map((item) => item.dataset.page);
   window.addEventListener('hashchange', () => {
     if (state.previewing) setPreview(false);

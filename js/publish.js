@@ -1,48 +1,3 @@
-// js/publish.js - the admin draft, publish and history (app.js split, slice 2.5).
-//
-// Moved verbatim out of app.js: the admin block - snapshot, describeDiff, diffDraft, updateAdminBar,
-// restoreDraft, saveCheckpoint, setPreview, the clear-board phrase helpers (CLEAR_PHRASE,
-// isClearBoardPublish, clearPhraseOk), syncPublishClear, openPublishDialog, the publish POST,
-// renderHistory, loadVersions, and the listeners for the publish and history overlays, the
-// Save/Apply/Preview/Discard buttons, Ctrl/Cmd+S, Ctrl/Cmd+Enter and Escape.
-//
-// Preserved exactly, per the slice brief:
-//   - localStorage: class_tasks_checkpoints (a checkpoint is { at, ...snapshot() }, newest 20),
-//     class_tasks_published_cache (the normalised board a publish writes back) and, through
-//     app.js's saveTasks, class_tasks_progress and class_tasks_draft.
-//   - the publish request: POST api/publish.php, Content-Type: application/json, body
-//     { ...snapshot(), note } or, in clear-board mode, { tasks: [], announcements: [], note,
-//     clearBoard: { confirm: CLEAR_PHRASE, expectedCount } }; the response is normalised and
-//     written to the published cache before setPublished.
-//   - the version list: GET api/versions.php with cache: 'no-store'; a delete is POST
-//     api/versions.php { id } and clear-all is POST api/versions.php { all: true }.
-//   - the history overlay markup and wording (Checkpoint / Published rows, the fmtWhen timestamp,
-//     'No saved versions yet.', Restore, Delete, the two-click 'Click again to confirm' clear
-//     button) and the publish dialog's summary wording, clear-board warning and error text.
-//   - the admin gating: updateAdminBar, the Ctrl/Cmd+S and Ctrl/Cmd+Enter shortcuts and the
-//     Publish/Apply entry points all still check state.isAdmin.
-//
-// The task dialog's Duplicate handler is not part of this region and stays in app.js, as does the
-// one-time #announce-admin move next to the auth block.
-//
-// D6: this module never imports logic.js and never reads a bare global. Task (logic.js),
-// normalizeBoard, setPublished, applyProgress, saveTasks, renderAllTasks, renderAnnouncements,
-// showToast, hideAnimated, myTasks and app.js's $ shorthand arrive through init(deps); nav.setPage
-// arrives as setPage. state and dom are module imports; readJSON, writeJSON, KEYS, API and fmtWhen
-// come from util.js.
-//
-// init() runs at the position where the region's first listener used to be registered, so the
-// page's document/element listener order is unchanged: the note-tool and announce handlers above,
-// then this region's element listeners and the shortcuts/Escape handlers, then settings, tour, the
-// transfer/import listeners and the focus trap. Every other region line is a declaration and keeps
-// its place; the listener blocks are the only lines that moved, to the bottom of init, and they are
-// byte-identical.
-//
-// Importing this module touches nothing: no DOM read, no listener, no state read and no timer at
-// evaluation time, so
-//   node --input-type=module -e "await import('./js/publish.js')"
-// is clean under plain Node (docs/p6-architecture-findings.md 4-5, DECISIONS.md D6).
-
 import { state } from './state.js';
 import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, API, fmtWhen } from './util.js';
@@ -50,32 +5,28 @@ import { catalogSignature, subjectDisplayName } from './subjects.js';
 import { openOverlay, hideOverlay } from './motion.js';
 import { store, normalizeBoard, newOperationId } from './store.js';
 
-let $ = null;                   // app.js: its querySelector shorthand
-let myTasks = null;             // app.js: the live draft array, mutated in place by restoreDraft
-let showToast = null;           // js/tasks.js: every message, the 'Undo' label and its action
-let armInlineConfirm = null;    // js/tasks.js: shared 4s inline destructive confirm
-let saveTasks = null;           // js/tasks.js: persists progress and the draft after a restore
-let renderAllTasks = null;      // js/tasks.js: re-renders the board after a preview, restore or publish
-let renderAnnouncements = null; // js/announcements.js: the same, for the announcement list
-let applyProgress = null;       // js/tasks.js: restoreDraft re-applies the saved statuses
-let setPublished = null;        // app.js: the live board is replaced after a publish
-let Task = null;                // logic.js: restoreDraft rebuilds each task through Task.fromJSON
-let catalog = null;             // app.js: the draft subject catalogue helpers
-let syncCatalog = null;         // app.js: a restored catalogue must repaint tags and pickers
-let setPage = null;             // js/nav.js: setPreview(true) switches to the Class tasks page
-let adoptInlineImages = null;   // js/note-images.js: publish moves inline note images to uploads/
-let rewriteNotes = null;        // js/note-images.js: the same rewrite for the in-memory draft
-let files = null;               // app.js: window.TTFiles, the upload client
+let $ = null;
+let myTasks = null;
+let showToast = null;
+let armInlineConfirm = null;
+let saveTasks = null;
+let renderAllTasks = null;
+let renderAnnouncements = null;
+let applyProgress = null;
+let setPublished = null;
+let Task = null;
+let catalog = null;
+let syncCatalog = null;
+let setPage = null;
+let adoptInlineImages = null;
+let rewriteNotes = null;
+let files = null;
 
 let lastSavedAt = null;
 let serverVersions = [];
 let clearTimer = null;
 let conflictBoard = null;
-// --- Admin: diff, checkpoints, publish, history, import/export, preview ---
 
-// The draft content, including its catalogue, in the one shape checkpoints, restore, discard and
-// transfer all share. It carries no authority: a base revision in a snapshot is history, never a
-// licence to write.
 export const snapshot = () => ({
   schemaVersion: 2,
   tasks: myTasks.map((t) => t.toJSON()),
@@ -102,8 +53,7 @@ export function diffDraft() {
   });
   pub.forEach((_, id) => { if (!cur.has(id)) removed++; });
   const ann = JSON.stringify(state.announcements) !== JSON.stringify(state.publishedAnnouncements);
-  // A catalogue-only edit is a real unpublished change: a rename, a recolour or a retire must
-  // enable Publish even when not a single task moved.
+
   const publishedCatalog = state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [];
   const subjectsChanged = catalogSignature(state.draftSubjects) !== catalogSignature(publishedCatalog);
   return {
@@ -134,7 +84,6 @@ export function updateAdminBar(diff) {
   $('#nav-admin').setAttribute('aria-label', diff.total ? `Admin, ${diff.total} unpublished ${diff.total === 1 ? 'change' : 'changes'}` : 'Admin');
 }
 
-// One path for history, checkpoints, discard, transfer and their Undo.
 export async function restoreDraft(snap) {
   const out = await store.replaceDraft(snap, {
     myTasks, Task, syncCatalog, applyProgress, saveTasks, renderAllTasks, renderAnnouncements, showToast,
@@ -160,7 +109,6 @@ export function setPreview(on) {
   renderAnnouncements();
 }
 
-// Clear-board mode: the draft has no tasks but the live board does. Publishing then needs the typed phrase, and the request carries an explicit clearBoard intent (the server refuses a bare empty publish).
 const CLEAR_PHRASE = 'CLEAR BOARD';
 const isClearBoardPublish = () => myTasks.length === 0 && state.publishedTasks.length > 0;
 const clearPhraseOk = () => $('#publish-clear-input').value.trim() === CLEAR_PHRASE;
@@ -188,7 +136,6 @@ function openPublishDialog() {
   $('#publish-note').focus();
 }
 
-// History
 function renderHistory() {
   const list = $('#history-list');
   const items = [
@@ -292,16 +239,14 @@ export function init(deps) {
   files = deps.files;
   armInlineConfirm = deps.armInlineConfirm || null;
 $('#publish-clear-input').addEventListener('input', syncPublishClear);
-// Explicit review step for a refused stale publish: adopting the newer board is the admin's
-// decision, and it only moves the publishing base - it never edits or replaces the draft.
+
 $('#publish-rebase').addEventListener('click', async () => {
   const newer = conflictBoard;
   if (!newer) return;
   conflictBoard = null;
   $('#publish-conflict').hidden = true;
   $('#publish-error').hidden = true;
-  // A refused response is evidence that the write lost, not authority: re-read the board through
-  // the single Board fetch seam and adopt only a verified response.
+
   const { board, authoritative } = await store.fetchBoard({ fallbackToCache: false });
   if (!board || !authoritative) {
     $('#publish-error').textContent = 'That newer board could not be adopted. Reload the page.';
@@ -330,20 +275,17 @@ $('#publish-form').addEventListener('submit', async (e) => {
       body = { tasks: [], announcements: [], note, clearBoard: { confirm: CLEAR_PHRASE, expectedCount: state.publishedTasks.length } };
     } else {
       const snap = snapshot();
-      // Inline note images are board weight: move each one to uploads/ before the board is sent, so
-      // the shared JSON stays kilobytes instead of megabytes. Throws (and the dialog shows why)
-      // rather than publishing a board that carries the image bytes.
+
       const adopted = await adoptInlineImages(snap.tasks, files);
       if (adopted.count) {
         snap.tasks = adopted.tasks;
-        // The draft must drop the bytes too, or the next publish uploads the same images again.
+
         myTasks.forEach((t) => { if (t.notes) t.notes = rewriteNotes(t.notes, adopted.map); });
         saveTasks();
       }
       body = { ...snap, note };
     }
-    // One intent id for this publish, held across a transport retry; the base is the revision this
-    // editor actually reviewed, so the server can refuse a stale write instead of overwriting it.
+
     const unknown = catalog && catalog.unknownFor ? catalog.unknownFor(body.tasks) : [];
     if (unknown.length) {
       throw new Error(`These subjects are not configured: ${unknown.join(', ')}. Add them to the catalogue before publishing.`);
@@ -363,10 +305,9 @@ $('#publish-form').addEventListener('submit', async (e) => {
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) {
-      // Post-commit is not "nothing changed": say what actually happened.
+
       if (out.code === 'committed_recovery_pending') throw new Error(out.error || 'Published, but the archive is still settling. Reload.');
-      // A stale write is refused, never retried blindly or rebased silently: keep the draft and let
-      // the admin review the newer board before publishing over it.
+
       if (out.code === 'stale_base') {
         conflictBoard = out.current || null;
         const newer = out.current || {};
@@ -382,15 +323,13 @@ $('#publish-form').addEventListener('submit', async (e) => {
     const board = normalizeBoard(out.current);
     if (!board) throw new Error('Published, but the response was unreadable. Reload to check.');
     writeJSON(KEYS.cache, board);
-    // A successful publish is authoritative: adopt its revision and markers, then erase progress
-    // the server proved deleted (a publish may carry a permanent-deletion marker).
+
     store.adoptAuthoritativeBoard(board, { onPersistError: () => showToast('Could not update saved progress on this device.') });
     setPublished(board);
     hideOverlay(dom.publishOverlay);
     renderAllTasks();
     renderAnnouncements();
-    // Editing while the request was in flight is legitimate; those edits stay unpublished, and the
-    // toast must not claim they went out with this publish.
+
     if (JSON.stringify(snapshot()) !== sentFingerprint) showToast('Published. Your newer edits are still unpublished.');
     else showToast('Published');
   } catch (ex) {
@@ -433,7 +372,6 @@ $('#history-clear').addEventListener('click', async (e) => {
   renderHistory();
 });
 
-// Wiring
 [[dom.publishOverlay, '#publish-close, #publish-cancel'], [dom.historyOverlay, '#history-close']].forEach(([ov, sel]) => {
   ov.querySelectorAll(sel).forEach((b) => b.addEventListener('click', () => hideOverlay(ov)));
   ov.addEventListener('click', (e) => { if (e.target === ov) hideOverlay(ov); });
@@ -454,7 +392,6 @@ const runDiscard = async () => {
 if (armInlineConfirm) armInlineConfirm($('#btn-discard'), 'Discard changes', 'Confirm discarding unpublished changes', runDiscard);
 else $('#btn-discard').addEventListener('click', runDiscard);
 
-// Shortcuts: Ctrl/Cmd+S = checkpoint, Ctrl/Cmd+Enter = apply
 document.addEventListener('keydown', (e) => {
   if (!state.isAdmin || !(e.metaKey || e.ctrlKey)) return;
   const typing = e.target instanceof Element && e.target.closest('input, textarea, [contenteditable]');
