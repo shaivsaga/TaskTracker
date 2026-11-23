@@ -103,7 +103,7 @@ Rules:
 - The One Voice Rule. Royal blue is the only accent.
 - The Calm Urgency Rule. Overdue is red text on a faint wash, labeled in plain words ("2 days overdue", "Expired", "Closed"); no alarm fills, no shaming language.
 - The Twenty Names Rule. The token vocabulary is the twenty names in `:root` (bg, sf, sf2, ln, tx, mu, ac, acd, acs, onac, ok, wn, er, sh, oa and their washes).
-- The Derived Veil Rule. The overlay veil is the ink, not a colour of its own: `color-mix(in srgb, var(--tx) 48%, transparent)` on paper and 14% at night.
+- The Derived Veil Rule. Use ink at 48% on paper and the background at 78% at night. Night dialogs use an ink-soft edge to separate the surface from the dimmed page.
 - The Pixel Is a Garnish Rule. The pixel face never sets a sentence, a date or a time.
 - The Phone Fold Rule. On a phone the first task card must clear the fixed tab bar without a scroll.
 - The Ledge Rule. Depth is a solid offset in the rule color.

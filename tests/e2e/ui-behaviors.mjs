@@ -24,6 +24,40 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     JSON.stringify({ ...tourFirst, phoneTourStep }),
   );
 
+  for (const width of [320, 390, 1280]) {
+    for (const theme of ['light', 'dark']) {
+      await boot(cdp, width, { storage: { class_tasks_theme: theme } });
+      await waitUntil(cdp, `!!document.querySelector('#class-task-list .task-row-title')`);
+      await click(cdp, '#class-task-list .task-row-title');
+      await waitUntil(cdp, `!document.querySelector('#task-dialog-overlay').hidden`);
+      const layers = await cdp.evaluate(`(() => {
+        const ctx = document.createElement('canvas').getContext('2d');
+        const luminance = (...colors) => {
+          ctx.clearRect(0, 0, 1, 1);
+          for (const color of colors) {
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 1, 1);
+          }
+          const [r, g, b] = [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3)
+            .map((byte) => byte / 255)
+            .map((c) => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        return ['#task-dialog-overlay', '#quick-overlay'].map((selector) => {
+          const overlay = document.querySelector(selector);
+          const panel = getComputedStyle(overlay.firstElementChild);
+          const surface = luminance(panel.backgroundColor);
+          const scrim = luminance(panel.backgroundColor, getComputedStyle(overlay).backgroundColor);
+          const edge = luminance(panel.borderTopColor);
+          return { selector, surface, scrim, edgeContrast: (Math.max(edge, surface) + 0.05) / (Math.min(edge, surface) + 0.05) };
+        });
+      })()`);
+      check('dialog layer separation ' + width + ' ' + theme, layers.every(
+        (layer) => layer.scrim < layer.surface && (theme === 'light' || layer.edgeContrast >= 3),
+      ), JSON.stringify(layers));
+    }
+  }
+
   // 2. Class page header order, #mine vertical alignment, default List view, buckets, and Board filter visibility.
   await boot(cdp, 1280, { storage: { class_tasks_progress: JSON.stringify(progress) } });
   const classLayout = await cdp.evaluate(`(() => {
