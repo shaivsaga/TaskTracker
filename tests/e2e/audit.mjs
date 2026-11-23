@@ -12,7 +12,7 @@
 //   lists     task lists are role=list, rows are role=listitem, and each row has a title control
 //   keys      Enter on the row's title control opens the task dialog, Escape closes it
 //   focus     closing the dialog or a reopen confirm lands on a live, visible control, never <body>
-//   announce  every pinned announcement shows on desktop; the phone keeps its one-item collapse,
+//   announce  pinned announcements collapse to one item with an expand toggle on desktop and phone,
 //             including a short multi-line item that was measured while its page was hidden
 //   done      a cold #done deep link paints the completed rows already in localStorage
 //   delete    the archive's Delete arms ("Confirm?") before it deletes, and the Undo toast restores
@@ -847,16 +847,22 @@ async function main() {
       && !!pickedSubjCode && subjPicked.ddHidden && subjPicked.activeId === 'dialog-subject-btn' && subjPicked.btnText === pickedSubjCode,
       'open=' + subjOpened.open + ' inside=' + subjOpened.inside + ' esc=' + subjEscClosed.activeId + ' picked=' + pickedSubjCode + '/' + subjPicked.btnText);
 
-    // 6. pinned announcements: all on desktop, one on the phone
+    // 6. pinned announcements: one-item collapse + toggle on both desktop and phone
     for (const width of [1280, 375]) {
       await boot(cdp, width);
       const a = await cdp.evaluate(READ_ANNOUNCE);
-      const ok = width > 719
-        ? a.total > 1 && a.shown === a.total && a.toggleHidden
-        : a.total > 1 && a.shown === 1 && !a.toggleHidden
-          // The collapsed label must name the rows it still hides, not the total ("Show 2 more").
-          && a.toggleText.includes(String(a.total - a.shown));
-      check('announce ' + width, ok, 'total ' + a.total + ' shown ' + a.shown + ' toggleHidden ' + a.toggleHidden + ' "' + a.toggleText + '"');
+      const collapsedOk = a.total > 1 && a.shown === 1 && !a.toggleHidden
+        // The collapsed label must name the rows it still hides, not the total ("Show 2 more").
+        && a.toggleText.includes(String(a.total - a.shown));
+      await click(cdp, '#announce-toggle');
+      await nextFrame(cdp);
+      const expanded = await cdp.evaluate(READ_ANNOUNCE);
+      const expandedOk = expanded.shown === expanded.total && expanded.toggleText === 'Show less';
+      await click(cdp, '#announce-toggle');
+      await nextFrame(cdp);
+      const recollapsed = await cdp.evaluate(READ_ANNOUNCE);
+      const ok = collapsedOk && expandedOk && recollapsed.shown === 1 && recollapsed.toggleText.includes(String(a.total - 1));
+      check('announce ' + width, ok, 'total ' + a.total + ' shown ' + a.shown + '/' + expanded.shown + '/' + recollapsed.shown + ' toggleHidden ' + a.toggleHidden + ' "' + a.toggleText + '"');
     }
 
     // 6b. One<br>Two<br>Three inside a single phone item: 11 characters, three laid-out lines. Booting

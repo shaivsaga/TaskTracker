@@ -79,14 +79,23 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       footerHidden: getComputedStyle(footer).display === 'none',
       titleTabIndex: title.getAttribute('tabindex'),
       statusLabel: status.getAttribute('aria-label') || '',
+      statusHasPopup: status.getAttribute('aria-haspopup'),
+      statusExpanded: status.getAttribute('aria-expanded'),
+      statusCaret: !!status.querySelector('.status-caret'),
       dateLabel: date.getAttribute('aria-label') || '',
+      docRole: doc.getAttribute('role'),
+      docMultiline: doc.getAttribute('aria-multiline'),
+      subjBorder: getComputedStyle(subj).borderTopColor,
       sunkMatch: getComputedStyle(doc).backgroundColor === getComputedStyle(subj).backgroundColor,
     };
   })()`);
   check(
     'student / shortcut and read-only dialog contract',
     slashFocused && roDialog.readonly && roDialog.footerHidden && roDialog.titleTabIndex === '-1'
-      && roDialog.statusLabel.startsWith('Status:') && roDialog.dateLabel.startsWith('Due:') && roDialog.sunkMatch,
+      && roDialog.statusLabel.startsWith('Status:') && roDialog.statusHasPopup === 'listbox'
+      && roDialog.statusExpanded === 'false' && roDialog.statusCaret && roDialog.dateLabel.startsWith('Due:')
+      && roDialog.docRole === null && roDialog.docMultiline === null
+      && roDialog.subjBorder === 'rgba(0, 0, 0, 0)' && roDialog.sunkMatch,
     JSON.stringify({ slashFocused, ...roDialog }),
   );
 
@@ -212,5 +221,86 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     adminBarCheck.widthDelta <= 1 && adminBarCheck.jumpPx === 0 && adminBarCheck.armed === '1'
       && historyClearCheck.isDanger && historyClearCheck.armed === '1' && historyClearCheck.bg === 'rgb(179, 38, 30)',
     JSON.stringify({ adminBarCheck, historyClearCheck }),
+  );
+
+  // 8. First-visit 320x568 Phone Fold clearance with #tour-cue below tasks, plus 44px toolbar height parity and keyboard focus.
+  await boot(cdp, 320, { storage: { class_tasks_tour_seen: '' } });
+  await waitUntil(cdp, `document.getElementById('tour-cue')?.hidden === false && !!document.querySelector('#class-task-list .task-row')`);
+  const fold320 = await cdp.evaluate(`(() => {
+    const row = document.querySelector('#class-task-list .task-row');
+    const tb = document.querySelector('.tb');
+    const cue = document.getElementById('tour-cue');
+    const list = document.getElementById('class-task-list');
+    const rr = row.getBoundingClientRect();
+    const tr = tb.getBoundingClientRect();
+    return {
+      rowBottom: Math.round(rr.bottom),
+      tbTop: Math.round(tr.top),
+      clearance: Math.round(tr.top - rr.bottom),
+      cueAfterList: !!(list.compareDocumentPosition(cue) & Node.DOCUMENT_POSITION_FOLLOWING),
+      cueVisible: !cue.hidden,
+    };
+  })()`);
+  await boot(cdp, 1280, { storage: { class_tasks_tour_seen: '' } });
+  await waitUntil(cdp, `document.getElementById('tour-cue')?.hidden === false && !!document.querySelector('#class-task-list .task-row')`);
+  const toolbarAndFold = await cdp.evaluate(`(() => {
+    const h = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().height);
+    const tab = document.querySelector('#page-class-tasks .view-tab[data-view="board"]');
+    tab.focus();
+    const focused = document.activeElement === tab;
+    const afterH = (() => {
+      const r = tab.getBoundingClientRect();
+      const cs = getComputedStyle(tab, '::after');
+      const top = parseFloat(cs.top) || 0;
+      const bottom = parseFloat(cs.bottom) || 0;
+      return Math.round(r.height - top - bottom);
+    })();
+    const row = document.querySelector('#class-task-list .task-row').getBoundingClientRect();
+    return {
+      searchH: h('#page-class-tasks .search'),
+      subjH: h('#class-subject-filter'),
+      statH: h('#class-status-filter'),
+      tabsH: h('#page-class-tasks .view-tabs'),
+      afterH,
+      focused,
+      desktopRowBottom: Math.round(row.bottom),
+    };
+  })()`);
+  check(
+    'first-visit fold clearance and 44px toolbar alignment',
+    fold320.cueVisible && fold320.cueAfterList && fold320.clearance >= 12
+      && toolbarAndFold.searchH === 44 && toolbarAndFold.subjH === 44 && toolbarAndFold.statH === 44
+      && toolbarAndFold.tabsH === 44 && toolbarAndFold.afterH >= 44 && toolbarAndFold.focused
+      && toolbarAndFold.desktopRowBottom < 800,
+    JSON.stringify({ fold320, toolbarAndFold }),
+  );
+
+  // 9. Calendar subject code readability (including FINMATH101), desktop month time suppression, and admin dialog textbox restore.
+  await boot(cdp, 1280, { hash: 'calendar' });
+  await waitUntil(cdp, `document.querySelectorAll('#cal-grid .cal-chip').length > 0`);
+  const calDesktop = await cdp.evaluate(`(() => {
+    const chips = [...document.querySelectorAll('#cal-grid .cal-chip')];
+    const withSub = chips.filter((c) => (c.querySelector('.cal-sub')?.textContent || '').trim().length > 0);
+    const timeVisible = chips.some((c) => {
+      const t = c.querySelector('.cal-time');
+      return t && getComputedStyle(t).display !== 'none';
+    });
+    const tabsH = Math.round(document.querySelector('#page-calendar .view-tabs').getBoundingClientRect().height);
+    const todayH = Math.round(document.getElementById('cal-today').getBoundingClientRect().height);
+    return { total: chips.length, withSub: withSub.length, timeVisible, tabsH, todayH };
+  })()`);
+  await boot(cdp, 1280, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: draft } });
+  await click(cdp, '#page-my-tasks .task-card-title button, #page-my-tasks .task-row-title');
+  await waitUntil(cdp, `!document.getElementById('task-dialog-overlay').hidden`);
+  const adminDoc = await cdp.evaluate(`(() => {
+    const doc = document.getElementById('dialog-doc');
+    return { role: doc.getAttribute('role'), multiline: doc.getAttribute('aria-multiline'), editable: doc.contentEditable };
+  })()`);
+  check(
+    'calendar subject codes, desktop month alignment, and admin dialog textbox restore',
+    calDesktop.total > 0 && calDesktop.withSub === calDesktop.total && !calDesktop.timeVisible
+      && calDesktop.tabsH === 44 && calDesktop.todayH === 44
+      && adminDoc.role === 'textbox' && adminDoc.multiline === 'true' && adminDoc.editable === 'true',
+    JSON.stringify({ calDesktop, adminDoc }),
   );
 }

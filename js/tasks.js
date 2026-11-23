@@ -944,6 +944,13 @@ export function openTaskDialog(task) {
   dom.dialogTitleInput.readOnly = ro;
   dom.dialogTitleInput.setAttribute('tabindex', ro ? '-1' : '0');
   dom.dialogDoc.contentEditable = ro ? 'false' : 'true';
+  if (ro) {
+    dom.dialogDoc.removeAttribute('role');
+    dom.dialogDoc.removeAttribute('aria-multiline');
+  } else {
+    dom.dialogDoc.setAttribute('role', 'textbox');
+    dom.dialogDoc.setAttribute('aria-multiline', 'true');
+  }
   dom.dialogDoc.dataset.placeholder = ro ? 'No notes for this task.' : 'Write notes, or drop images here';
   dom.dialogSubjectBtn.disabled = ro;
   dom.dialogDateBtn.disabled = ro;
