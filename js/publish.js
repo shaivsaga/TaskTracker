@@ -141,7 +141,7 @@ function openPublishDialog() {
   const undated = myTasks.filter((t) => !t.dueDate).length;
   const n = state.publishedTasks.length;
   $('#publish-summary').textContent = isClearBoardPublish()
-    ? `This removes all ${n} published task${n === 1 ? '' : 's'} from the class board.` + (d.ann ? ' Announcement changes stay unpublished.' : '')
+    ? `This removes all ${n} published task${n === 1 ? '' : 's'} from the class board.` + (d.ann ? ' Draft announcement changes stay unpublished until a normal publish.' : '')
     : `${describeDiff(d)}.` + (undated ? ` ${undated} task${undated === 1 ? ' has' : 's have'} no due date.` : '');
   $('#publish-note').value = '';
   $('#publish-clear-input').value = '';
@@ -341,7 +341,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
         const newer = out.current || {};
         const live = Array.isArray(newer.tasks) ? newer.tasks.length : null;
         $('#publish-conflict-text').textContent =
-          `The class board changed since you opened this draft (${live === null ? 'unknown' : live} live task(s), revision ${newer.revision ?? '?'}). Nothing was published. Review the newer board, then choose whether to publish your draft over it.`;
+          `The class board was updated elsewhere (${live === null ? 'task count unavailable' : `${live} live task${live === 1 ? '' : 's'}`}). Nothing was published. Review the newer board, then choose whether to publish your draft over it.`;
         $('#publish-conflict').hidden = false;
         $('#publish-rebase').focus();
         throw new Error(`${out.error || 'The board changed since you loaded it.'} Your draft is unchanged.`);

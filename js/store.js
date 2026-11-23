@@ -176,8 +176,8 @@ export function createBoardStore({
     prepared.content.tasks.forEach((o) => myTasks.push(Task.fromJSON(o)));
     if (prepared.recovered.length) {
       showToast?.(prepared.recovered.length === 1
-        ? 'Restored one task as a new copy: its old id was permanently deleted.'
-        : `Restored ${prepared.recovered.length} tasks as new copies: their old ids were permanently deleted.`);
+        ? 'Restored one task as a new copy because the earlier task was permanently deleted.'
+        : `Restored ${prepared.recovered.length} tasks as new copies because the earlier tasks were permanently deleted.`);
     }
     stateObj.announcements = snap && Array.isArray(snap.announcements)
       ? JSON.parse(JSON.stringify(snap.announcements))

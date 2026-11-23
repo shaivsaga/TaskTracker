@@ -196,6 +196,42 @@ export function loadTasks() {
   applyProgress(myTasks);
 }
 
+export function hasMeaningfulNotes(notes) {
+  if (typeof notes !== 'string' || !notes) return false;
+  if (/<img\b[^>]*\bsrc\s*=\s*["']?(?:data:image\/|uploads\/)/i.test(notes)) return true;
+  if (/<a\b[^>]*\bhref\s*=/i.test(notes)) return true;
+  const text = notes
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;|&#160;|\u00a0/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > 0;
+}
+
+function createTaskIndicators(task) {
+  const fileCount = Array.isArray(task.files) ? task.files.length : 0;
+  const hasNotes = hasMeaningfulNotes(task.notes);
+  if (!fileCount && !hasNotes) return null;
+  const wrap = document.createElement('span');
+  wrap.className = 'task-indicators';
+  if (hasNotes) {
+    const note = document.createElement('span');
+    note.className = 'task-ind';
+    note.title = 'Has notes';
+    note.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-note"/></svg><span class="sr-only">Has notes</span>';
+    wrap.appendChild(note);
+  }
+  if (fileCount > 0) {
+    const files = document.createElement('span');
+    files.className = 'task-ind';
+    const text = `${fileCount} attached ${fileCount === 1 ? 'file' : 'files'}`;
+    files.title = text;
+    files.innerHTML = `<svg class="i" aria-hidden="true"><use href="#i-file"/></svg><span aria-hidden="true">${fileCount}</span><span class="sr-only">${text}</span>`;
+    wrap.appendChild(files);
+  }
+  return wrap;
+}
+
 function createTaskCard(task) {
   const article = document.createElement('article');
   article.className = 'task-card';
@@ -237,10 +273,12 @@ function createTaskCard(task) {
 
   article.appendChild(header);
 
-  if (task.subject || task.dueDate) {
+  const indicators = createTaskIndicators(task);
+  if (task.subject || task.dueDate || indicators) {
     const footer = document.createElement('div');
     footer.className = 'task-card-footer';
     if (task.subject) footer.appendChild(createSubjectTag(task.subject));
+    if (indicators) footer.appendChild(indicators);
     if (task.dueDate) {
       const diff = dayDiff(task.getDeadline());
       const isDone = task.status === 'done';
@@ -705,7 +743,7 @@ export function summarizeMine(allTasks, nowMs = Date.now(), dayDiffFn = dayDiff)
   const labelText = open.length ? 'left for you' : "left. You're caught up.";
   let nextText = '';
   if (!open.length) {
-    nextText = 'Counts active tasks and the last 7 days.';
+    nextText = 'Nothing due right now. Older tasks are in Past.';
   } else {
     nextText = !next
       ? 'No due dates on what is left.'
@@ -791,6 +829,12 @@ function createTaskRow(task) {
     + (task.status === 'done' ? ' is-done' : '');
   title.textContent = task.title;
 
+  const main = document.createElement('div');
+  main.className = 'task-row-main';
+  main.appendChild(title);
+  const indicators = createTaskIndicators(task);
+  if (indicators) main.appendChild(indicators);
+
   const overdue = task.dueDate && task.status !== 'done' && task.isOverdue();
 
   const soon = !!task.dueDate && task.status !== 'done' && !overdue && dayDiff(task.getDeadline()) <= 3;
@@ -809,7 +853,7 @@ function createTaskRow(task) {
   del.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteTask(task); });
 
-  row.append(check, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
+  row.append(check, main, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
   row.addEventListener('click', () => openTaskDialog(task, null, false));
   return row;
 }

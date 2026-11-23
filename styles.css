@@ -350,6 +350,9 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .task-card.is-dragging { opacity: 0.35; }
 .task-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .task-card-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.task-indicators { display: inline-flex; align-items: center; gap: 8px; flex: none; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; }
+.task-ind { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
+.task-ind svg { width: 12px; height: 12px; stroke-width: 2; }
 .task-card-header .status-check { flex-shrink: 0; }
 .task-card-title { flex: 1; min-width: 0; color: var(--tx); font-size: 16px; font-weight: 600; line-height: 24px; }
 /* The title button is the clamped box: a block child inside a clamped h3 is clipped, not line-clamped.
@@ -439,6 +442,8 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .task-row:hover { background: var(--sf2); }
 .task-row:active { background: var(--sf2); }
 .task-row .status-check { justify-self: center; }
+.task-row-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.task-row-main .task-row-title { flex: 1 1 0; min-width: 0; }
 .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-width: 0; padding: 0; border: 0; overflow: hidden; color: var(--tx); background: none; font-size: 16px; font-weight: 600; line-height: 24px; text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .task-row-title.is-ghost { color: var(--mu); }
 .task-row-title.is-done { color: var(--mu); text-decoration: line-through; }
@@ -1214,6 +1219,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .mine-t { display: grid; gap: 2px; min-width: 0; }
 .mine-l { margin: 0; color: var(--tx); font-size: 16px; font-weight: 700; line-height: 24px; }
 .mine-next { margin: 0; overflow-wrap: anywhere; text-wrap: pretty; color: var(--mu); font-size: 14px; line-height: 20px; }
+.phone-privacy-note { display: none; }
 /* [[/section:mine]] */
 
 /* [[section:phone-fold]] */
@@ -1229,6 +1235,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .mine-n { font-size: 32px; line-height: 32px; }
   .mine-l { font-size: 14px; line-height: 20px; }
   .mine-next { font-size: 12px; line-height: 16px; }
+  .phone-privacy-note { display: block; margin: 12px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }
 }
 /* Below 375 the announcement's two clamped lines are the last 20px standing between the header and the
    first task, and a one-line clamp still shows it exists. Above 374 the two-line clamp stays (this
