@@ -1130,13 +1130,12 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .tour-overlay.is-centered { background: color-mix(in srgb, var(--tx) 48%, transparent); }
 .tour-spot { position: fixed; border-radius: 0; pointer-events: none; box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--tx) 48%, transparent), 0 0 0 2px var(--ac); }
 
-/* Night: the page is nearly black, so a darkening scrim cannot separate layers at all - pure black over
-   --bg #0F1226 tops out at 1.13:1. The ink lightens instead, which is the same colour decision as paper,
-   reversed. 14% keeps the veil at ~1.45:1 without turning the board into fog. */
 :root[data-theme="dark"] .task-dialog-overlay,
 :root[data-theme="dark"] .quick-overlay,
-:root[data-theme="dark"] .tour-overlay.is-centered { background: color-mix(in srgb, var(--tx) 14%, transparent); }
-:root[data-theme="dark"] .tour-spot { box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--tx) 14%, transparent), 0 0 0 2px var(--ac); }
+:root[data-theme="dark"] .tour-overlay.is-centered { background: color-mix(in srgb, var(--bg) 78%, transparent); }
+:root[data-theme="dark"] .tour-spot { box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--bg) 78%, transparent), 0 0 0 2px var(--ac); }
+:root[data-theme="dark"] .task-dialog,
+:root[data-theme="dark"] .quick-add { border-color: var(--mu); }
 .tour-overlay.is-centered .tour-spot { display: none; }
 .tour-card { position: fixed; display: grid; gap: 12px; width: min(440px, calc(100vw - 16px * 2)); padding: 16px; border: 2px solid var(--ac); background: var(--sf); box-shadow: 0 4px 0 var(--sh); }
 .tour-text { display: grid; gap: 8px; }

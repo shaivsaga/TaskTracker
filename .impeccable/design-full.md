@@ -137,7 +137,7 @@ Ten subject tags follow the class schedule colors, always with dark ink (#14183A
 **The Calm Urgency Rule.** Overdue is red text on a faint wash, labeled in plain words ("2 days overdue", "Expired", "Closed"); no alarm fills, no shaming language.
 **The Twenty Names Rule.** The token vocabulary is the twenty names in `:root` (bg, sf, sf2, ln, tx, mu, ac, acd, acs, onac, ok, wn, er, sh, oa and their washes). Add no app-only token. A name that nothing reads is deleted, not kept for a rainy day — `--ed` was retired this way.
 
-**The Derived Veil Rule.** The overlay veil is the ink, not a colour of its own: `color-mix(in srgb, var(--tx) 48%, transparent)` on paper and 14% at night. A named scrim token is forbidden by the rule above and by the lockstep lint, and the mockup's `rgba(20,24,58,.5)` is a paper-only value - on the night page it moves the pixels by 2/255 and the modal stops reading as a layer. In night a darkening scrim cannot work at all: pure black over `--bg` tops out at 1.13:1, so the veil lightens instead.
+**The Derived Veil Rule.** Use `color-mix(in srgb, var(--tx) 48%, transparent)` on paper and `color-mix(in srgb, var(--bg) 78%, transparent)` at night. The night veil dims underlying text and cards. An ink-soft border separates night dialogs from the page, and the tour keeps its accent edge.
 
 ## Typography
 
