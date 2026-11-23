@@ -220,7 +220,7 @@ The PHP suite runs with `php tests/php/run.php` (with XAMPP, `C:\xampp\php\php.e
 - [x] Manage subjects from the admin area
 - [x] File uploads for PDFs and images on tasks
 - [x] Automated tests for the core logic
-- [ ] Planned: class timetable / schedule view (likely integrated inside Calendar rather than a separate tab)
+- [ ] Planned: class timetable / schedule view inside Calendar — see [`docs/timetable-plan.md`](docs/timetable-plan.md)
 - [x] A written, repeatable backup of the board and uploads ([docs/backup-restore.md](docs/backup-restore.md), [deploy/backup.sh](deploy/backup.sh))
 - [ ] Optimizing board: move big note bodies out of the board file (future)
 - [x] Second section support — see [`docs/multi-section-plan.md`](docs/multi-section-plan.md) and [`docs/adr/0008-multi-section.md`](docs/adr/0008-multi-section.md)
