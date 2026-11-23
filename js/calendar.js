@@ -45,14 +45,17 @@ function calRange() {
   return { start: new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay()), days: Math.ceil((first.getDay() + last.getDate()) / 7) * 7 };
 }
 
+const calCatalog = () => (state.isAdmin && !state.previewing && Array.isArray(state.publishedCatalog) && state.publishedCatalog.length
+  ? state.publishedCatalog
+  : state.catalog);
+
 function subjectDot(code) {
   const dot = document.createElement('span');
-  const cls = code && subjects()[code] ? subjects()[code] : '';
+  const liveCat = calCatalog();
+  const def = code ? subjectFor(liveCat, code) : null;
+  const cls = !def && code && subjects()[code] ? subjects()[code] : (code && subjects()[code] && liveCat === state.catalog ? subjects()[code] : '');
   dot.className = 'cal-dot' + (cls ? ` ${cls}` : '');
-  if (code && !cls) {
-    const def = subjectFor(state.catalog, code);
-    if (def) dot.style.setProperty('--tag', def.color);
-  }
+  if (def && !cls) dot.style.setProperty('--tag', def.color);
   return dot;
 }
 function createCalChip(task) {
@@ -288,10 +291,11 @@ function syncCalSubjectFilter(allDated) {
   const select = document.querySelector('#cal-subject-filter');
   const reset = document.querySelector('#cal-filter-reset');
   if (!select) return;
+  const cat = calCatalog();
   const codes = [...new Set(allDated.map((t) => t.subject).filter(Boolean))]
-    .sort((a, b) => subjectDisplayName(state.catalog, a).localeCompare(subjectDisplayName(state.catalog, b), undefined, { sensitivity: 'base' }));
+    .sort((a, b) => subjectDisplayName(cat, a).localeCompare(subjectDisplayName(cat, b), undefined, { sensitivity: 'base' }));
   if (calSubjectFilter && !codes.includes(calSubjectFilter)) calSubjectFilter = '';
-  const sig = codes.map((c) => `${c}:${subjectDisplayName(state.catalog, c)}`).join('|');
+  const sig = codes.map((c) => `${c}:${subjectDisplayName(cat, c)}`).join('|');
   if (sig !== calSubjectSig) {
     calSubjectSig = sig;
     select.replaceChildren();
@@ -302,7 +306,7 @@ function syncCalSubjectFilter(allDated) {
     codes.forEach((code) => {
       const opt = document.createElement('option');
       opt.value = code;
-      opt.textContent = subjectDisplayName(state.catalog, code);
+      opt.textContent = subjectDisplayName(cat, code);
       select.appendChild(opt);
     });
   }
@@ -388,9 +392,9 @@ export function renderCalendar() {
   emptyEl.hidden = dated.length > 0;
   if (!emptyEl.hidden) {
     emptyEl.textContent = calSubjectFilter && allDated.length > 0
-      ? `No dated tasks for ${subjectDisplayName(state.catalog, calSubjectFilter)}.`
+      ? `No dated tasks for ${subjectDisplayName(calCatalog(), calSubjectFilter)}.`
       : (state.isAdmin && !state.previewing
-        ? 'No tasks have a due date yet. Add one in Admin and it shows up here.'
+        ? 'No live dated tasks have been posted yet.'
         : 'No dated tasks have been posted yet.');
   }
   if (focusedDay) calFocus(focusedDay);

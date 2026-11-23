@@ -10,6 +10,7 @@ export const state = {
   classSearchQuery: '',
   classSubjectFilter: '',
   classStatusFilter: '',
+  adminSubjectFilter: '',
   justChangedId: null,
   statusPopoverEl: null,
   announcements: [],
@@ -17,5 +18,6 @@ export const state = {
   verifiedDeletedIds: [],
   adminRevision: 0,
   catalog: [],
+  publishedCatalog: [],
   draftSubjects: [],
 };

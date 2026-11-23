@@ -227,7 +227,7 @@ function createTaskIndicators(task) {
   return wrap;
 }
 
-function createTaskCard(task) {
+function createTaskCard(task, catalogList = state.catalog) {
   const article = document.createElement('article');
   article.className = 'task-card';
   article.dataset.taskId = task.id;
@@ -272,7 +272,7 @@ function createTaskCard(task) {
   if (task.subject || task.dueDate || indicators) {
     const footer = document.createElement('div');
     footer.className = 'task-card-footer';
-    if (task.subject) footer.appendChild(createSubjectTag(task.subject));
+    if (task.subject) footer.appendChild(createSubjectTag(task.subject, catalogList));
     if (indicators) footer.appendChild(indicators);
     if (task.dueDate) {
       const diff = dayDiff(task.getDeadline());
@@ -394,11 +394,11 @@ export function showSkeletons() {
 function classSubjectCodes(all) {
   return [...new Set(all.map((t) => t.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
-function syncClassSubjectOptions(all) {
+function syncClassSubjectOptions(all, catalogList = state.catalog) {
   const select = document.querySelector('#class-subject-filter');
   if (!select) return;
   const codes = classSubjectCodes(all);
-  const labels = codes.map((code) => subjectDisplayName(state.catalog, code));
+  const labels = codes.map((code) => subjectDisplayName(catalogList, code));
   const current = [...select.options].slice(1);
   if (current.length !== codes.length || current.some((o, i) => o.value !== codes[i] || o.textContent !== labels[i])) {
     select.replaceChildren();
@@ -493,20 +493,21 @@ export function renderClassTasks() {
   board.querySelectorAll('.column-content').forEach((c) => {
     c.querySelectorAll('.task-card, .skeleton').forEach((n) => n.remove());
   });
-  const all = (state.previewing ? myTasks : state.publishedTasks).filter((t) => !t.isPast());
+  const all = classTasksSource().filter((t) => !t.isPast());
+  const liveCat = activeClassCatalog();
   const q = state.classSearchQuery.trim().toLowerCase();
-  syncClassSubjectOptions(all);
+  syncClassSubjectOptions(all, liveCat);
   document.querySelector('#class-status-filter').value = state.classStatusFilter;
-  const searched = orderClassTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
+  const searched = orderClassTasks(q ? all.filter((t) => matchesClassSearch(t, q, liveCat)) : all);
   const boardTasks = state.classSubjectFilter ? searched.filter((t) => t.subject === state.classSubjectFilter) : searched;
   const visible = searched.filter(matchesClassFilters);
   boardTasks.forEach((task) => {
     const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
-    if (col) col.appendChild(createTaskCard(task));
+    if (col) col.appendChild(createTaskCard(task, liveCat));
   });
   board.querySelectorAll('.kanban-column').forEach(updateColumn);
 
-  dom.classListEl.replaceChildren(...bucketed(visible, classUrgencyBucket, (b) => CLASS_BUCKET_LABELS[b] || '', createTaskRow));
+  dom.classListEl.replaceChildren(...bucketed(visible, classUrgencyBucket, (b) => CLASS_BUCKET_LABELS[b] || '', (t) => createTaskRow(t, liveCat)));
   if (!visible.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
@@ -525,14 +526,23 @@ export function renderClassTasks() {
   }
 }
 
-export const recordSource = () => ((state.isAdmin || state.previewing) ? myTasks : state.publishedTasks);
+export const classTasksSource = () => (state.previewing ? myTasks : state.publishedTasks);
+export const pastTasksSource = () => ((state.previewing || state.isAdmin) ? myTasks : state.publishedTasks);
+export const recordSource = () => classTasksSource();
+export const activeClassCatalog = () => (state.isAdmin && !state.previewing && Array.isArray(state.publishedCatalog) && state.publishedCatalog.length
+  ? state.publishedCatalog
+  : state.catalog);
+export const activePastCatalog = () => (state.isAdmin && !state.previewing ? state.catalog : activeClassCatalog());
+
 function renderPastPage() {
   const host = document.querySelector('#past-list');
   if (!host) return;
+  const draftBanner = document.querySelector('#past-draft-banner');
+  if (draftBanner) draftBanner.hidden = !(state.isAdmin && !state.previewing);
   host.replaceChildren();
 
   const dueAt = (t) => { const d = t.getDueTimestamp(); return d ? d.getTime() : -Infinity; };
-  const past = recordSource().filter((t) => t.isPast())
+  const past = pastTasksSource().filter((t) => t.isPast())
     .sort((a, b) => (dueAt(b) - dueAt(a)) || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
   if (!past.length) {
     const none = document.createElement('p');
@@ -588,7 +598,8 @@ function renderPastPage() {
       actions.appendChild(mkBtn('Delete', () => deleteTask(task), true));
     }
     row.addEventListener('click', () => openTaskDialog(task));
-    row.append(title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
+    const pastCat = activePastCatalog();
+    row.append(title, task.subject ? createSubjectTag(task.subject, pastCat) : document.createElement('span'), tag, actions);
     return row;
   };
   host.replaceChildren(...bucketed(past, pastBucket, pastLabel, createPastRow));
@@ -702,15 +713,16 @@ function renderDonePage() {
     });
     actions.appendChild(undo);
     row.addEventListener('click', () => openTaskDialog(task));
-    row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), when, actions);
+    const liveCat = activeClassCatalog();
+    row.append(dot, title, task.subject ? createSubjectTag(task.subject, liveCat) : document.createElement('span'), when, actions);
     return row;
   };
   host.replaceChildren(...bucketed(done, doneBucket, (k) => DONE_BUCKET_LABELS[k] || '', createDoneRow));
 }
 
-function subjectCodesMatching(q) {
+function subjectCodesMatching(q, catalogList = state.catalog) {
   const out = new Set();
-  for (const s of Array.isArray(state.catalog) ? state.catalog : []) {
+  for (const s of Array.isArray(catalogList) ? catalogList : []) {
     const name = String(s && s.name || '').toLowerCase();
     const code = String(s && s.code || '').toLowerCase();
     if (code.includes(q) || name.includes(q)) out.add(s.code);
@@ -718,15 +730,61 @@ function subjectCodesMatching(q) {
   return out;
 }
 
+const ADMIN_BUCKET_LABELS = ['Overdue', 'Due soon', 'Later', 'No due date'];
+function draftUrgencyBucket(task) {
+  if (task.status !== 'done' && task.isOverdue()) return 0;
+  if (task.status !== 'done' && task.dueDate && dayDiff(task.getDeadline()) <= 3) return 1;
+  if (task.dueDate) return 2;
+  return 3;
+}
+function orderDraftTasks(list) {
+  return sortTasks(list).slice().sort((a, b) => draftUrgencyBucket(a) - draftUrgencyBucket(b));
+}
+function syncAdminSubjectOptions(all) {
+  const select = document.querySelector('#admin-subject-filter');
+  if (!select) return;
+  const codes = classSubjectCodes(all);
+  const labels = codes.map((code) => subjectDisplayName(state.catalog, code));
+  const current = [...select.options].slice(1);
+  if (current.length !== codes.length || current.some((o, i) => o.value !== codes[i] || o.textContent !== labels[i])) {
+    select.replaceChildren();
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'Subject: All';
+    select.appendChild(allOpt);
+    codes.forEach((code, i) => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = labels[i];
+      select.appendChild(opt);
+    });
+  }
+  if (state.adminSubjectFilter && !codes.includes(state.adminSubjectFilter)) state.adminSubjectFilter = '';
+  select.value = state.adminSubjectFilter;
+}
+function clearAdminFilters() {
+  state.searchQuery = '';
+  state.adminSubjectFilter = '';
+  const search = document.querySelector('#task-search');
+  const subject = document.querySelector('#admin-subject-filter');
+  if (search) search.value = '';
+  if (subject) subject.value = '';
+  renderAllTasks();
+  if (search) search.focus();
+}
+
 function getVisibleTasks() {
   const q = state.searchQuery.trim().toLowerCase();
   const active = myTasks.filter((t) => !t.isPast());
+  const bySubject = state.adminSubjectFilter
+    ? active.filter((t) => t.subject === state.adminSubjectFilter)
+    : active;
   return sortTasks(q
-    ? active.filter((t) => {
-      const named = subjectCodesMatching(q);
+    ? bySubject.filter((t) => {
+      const named = subjectCodesMatching(q, state.catalog);
       return t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q) || named.has(t.subject);
     })
-    : active);
+    : bySubject);
 }
 function formatMineWhen(task, d, dayDiffFn) {
   const n = dayDiffFn(d);
@@ -776,12 +834,11 @@ function renderMine(all) {
   document.querySelector('#mine-next').textContent = s.nextText;
 }
 function updateOverview() {
-  const open = myTasks.filter((t) => t.status !== 'done' && !t.isPast());
+  const active = myTasks.filter((t) => !t.isPast());
+  const open = active.filter((t) => t.status !== 'done');
   const dueToday = open.filter((t) => t.dueDate && dayDiff(t.getDeadline()) === 0).length;
   const overdue = open.filter((t) => t.dueDate && t.isOverdue()).length;
-  const inProgress = myTasks.filter((t) => t.status === 'in_progress' && !t.isPast()).length;
-  document.querySelector('#sum-open').textContent = `${open.length} open`;
-  document.querySelector('#sum-progress').textContent = `${inProgress} in progress`;
+  document.querySelector('#sum-open').textContent = `${active.length} active`;
   const sumToday = document.querySelector('#sum-today');
   sumToday.textContent = `${dueToday} due today`;
   sumToday.hidden = dueToday === 0;
@@ -789,7 +846,7 @@ function updateOverview() {
   sumOverdue.textContent = `${overdue} overdue`;
   sumOverdue.hidden = overdue === 0;
 
-  const classAll = (state.previewing ? myTasks : state.publishedTasks) || [];
+  const classAll = classTasksSource() || [];
   renderMine(classAll);
   const classTasks = classAll.filter((t) => !t.isPast());
   const classOpen = classTasks.filter((t) => t.status !== 'done');
@@ -817,11 +874,11 @@ function plainNotes(task) {
   notesTextCache.set(task, { html: task.notes, text });
   return text;
 }
-function matchesClassSearch(task, q) {
+function matchesClassSearch(task, q, catalogList = activeClassCatalog()) {
   return task.title.toLowerCase().includes(q) || task.subject.toLowerCase().includes(q)
-    || subjectCodesMatching(q).has(task.subject) || plainNotes(task).includes(q);
+    || subjectCodesMatching(q, catalogList).has(task.subject) || plainNotes(task).includes(q);
 }
-function createTaskRow(task) {
+function createTaskRow(task, catalogList = state.catalog) {
   const row = document.createElement('div');
   row.className = 'task-row';
   row.dataset.taskId = task.id;
@@ -862,18 +919,24 @@ function createTaskRow(task) {
   del.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteTask(task); });
 
-  row.append(check, main, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
+  row.append(check, main, task.subject ? createSubjectTag(task.subject, catalogList) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
   row.addEventListener('click', () => openTaskDialog(task, null, false));
   return row;
 }
 function renderTaskList() {
   dom.taskListEl.innerHTML = '';
   const visible = getVisibleTasks();
-  visible.forEach((task) => dom.taskListEl.appendChild(createTaskRow(task)));
-  if (visible.length === 0 && state.searchQuery.trim()) {
+  dom.taskListEl.replaceChildren(...bucketed(orderDraftTasks(visible), draftUrgencyBucket, (b) => ADMIN_BUCKET_LABELS[b] || '', (t) => createTaskRow(t, state.catalog)));
+  if (visible.length === 0 && (state.searchQuery.trim() || state.adminSubjectFilter)) {
     const none = document.createElement('p');
     none.className = 'list-empty';
-    none.textContent = 'No tasks match your search.';
+    none.append('No draft tasks match these filters. ');
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'text-button';
+    clear.textContent = 'Clear filters';
+    clear.addEventListener('click', clearAdminFilters);
+    none.appendChild(clear);
     dom.taskListEl.appendChild(none);
   }
   const add = document.createElement('button');
@@ -888,13 +951,14 @@ export function renderAllTasks() {
     const diff = publish.diffDraft();
     changedIds = diff.changed;
     publish.updateAdminBar(diff);
+    syncAdminSubjectOptions(myTasks.filter((t) => !t.isPast()));
   }
   document.querySelectorAll('#page-my-tasks .column-content').forEach((content) => {
     content.querySelectorAll('.task-card, .skeleton, .drop-placeholder').forEach((c) => c.remove());
   });
   getVisibleTasks().forEach((task) => {
     const content = document.querySelector(`#page-my-tasks .kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
-    if (content) content.appendChild(createTaskCard(task));
+    if (content) content.appendChild(createTaskCard(task, state.catalog));
   });
   document.querySelectorAll('#page-my-tasks .kanban-column').forEach(updateColumn);
   renderTaskList();
@@ -1455,7 +1519,8 @@ function createStatusCheck(task) {
 function updateDialogSubject(task) {
   dom.dialogSubjectBtn.innerHTML = '';
   dom.dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
-  if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
+  const cat = isEditable(task) ? state.catalog : activeClassCatalog();
+  if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject, cat));
   else dom.dialogSubjectBtn.textContent = isEditable(task) ? 'Add subject' : 'None';
   dom.dialogSubjectBtn.setAttribute('aria-label', task.subject
     ? `Subject: ${dom.dialogSubjectBtn.textContent.trim()}`

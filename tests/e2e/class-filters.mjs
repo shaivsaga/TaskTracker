@@ -237,9 +237,11 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
     && desktopAdmin.tabs !== 'none' && desktopAdmin.saved === 'board',
     'view ' + desktopAdmin.view + ' board ' + desktopAdmin.boardVisible + ' list ' + desktopAdmin.listVisible + ' saved ' + desktopAdmin.saved);
 
-  // Empty public announcements disappear without removing the admin composer.
+  // Empty public announcements in Preview disappear without removing the admin composer.
   for (const width of [375, 1280]) {
-    await boot(cdp, width, { admin: true, storage: { class_tasks_draft: JSON.stringify({ tasks: fixture.tasks, announcements: [] }) } });
+    await boot(cdp, width, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: JSON.stringify({ tasks: fixture.tasks, announcements: [] }) } });
+    await click(cdp, '#btn-preview');
+    await waitFor(cdp, sleep, `!!document.querySelector('#page-class-tasks:not([hidden])')`);
     const hidden = await cdp.evaluate(`(() => { const box = document.getElementById('announce-public');
       return getComputedStyle(box).display === 'none' && box.getClientRects().length === 0; })()`);
     await click(cdp, '.nav-item[data-page="my-tasks"]');

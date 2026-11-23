@@ -125,10 +125,10 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     JSON.stringify({ doneRows, pastRows }),
   );
 
-  // 5. Admin task board precedes collapsed Recycle bin and Subjects panels, and toggles expand cleanly.
+  // 5. Admin task list/board precedes collapsed Recycle bin and Subjects panels, and toggles expand cleanly.
   await boot(cdp, 1280, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: draft } });
   const adminPanels = await cdp.evaluate(`(() => {
-    const board = document.querySelector('[aria-label="Personal task board"]');
+    const view = document.querySelector('[aria-label="Draft task list"]:not([hidden]), [aria-label="Draft task board"]:not([hidden])');
     const binPanel = document.getElementById('bin-panel');
     const subPanel = document.getElementById('subject-panel');
     const binToggle = document.getElementById('bin-toggle');
@@ -136,8 +136,8 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     const binBody = document.getElementById('bin-body');
     const subBody = document.getElementById('subject-body');
     const before = {
-      orderOk: board.getBoundingClientRect().top < binPanel.getBoundingClientRect().top
-        && board.getBoundingClientRect().top < subPanel.getBoundingClientRect().top,
+      orderOk: view.getBoundingClientRect().top < binPanel.getBoundingClientRect().top
+        && view.getBoundingClientRect().top < subPanel.getBoundingClientRect().top,
       binCollapsed: binToggle.getAttribute('aria-expanded') === 'false' && binBody.hidden,
       subCollapsed: subToggle.getAttribute('aria-expanded') === 'false' && subBody.hidden,
     };
@@ -322,17 +322,6 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     return t;
   });
   await boot(cdp, 1280, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: JSON.stringify(richDraft) } });
-  const boardInd = await cdp.evaluate(`(() => {
-    const c1 = document.querySelector('#page-my-tasks .kanban-board .task-card[data-task-id="fx011"]');
-    const c2 = document.querySelector('#page-my-tasks .kanban-board .task-card[data-task-id="fx012"]');
-    return {
-      hasCards: !!c1 && !!c2,
-      fx011Sr: [...(c1?.querySelectorAll('.task-indicators .sr-only') || [])].map((el) => el.textContent.trim()),
-      fx011Text: c1?.querySelector('.task-indicators')?.textContent.replace(/\\s+/g, ' ').trim() || '',
-      fx012Count: c2?.querySelectorAll('.task-indicators').length ?? -1,
-    };
-  })()`);
-  await click(cdp, '#page-my-tasks .view-tab[data-view="list"]');
   await waitUntil(cdp, `!document.getElementById('task-list')?.hidden`);
   const listInd = await cdp.evaluate(`(() => {
     const r1 = document.querySelector('#task-list .task-row[data-task-id="fx011"]');
@@ -341,6 +330,18 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       hasRows: !!r1 && !!r2,
       fx011Sr: [...(r1?.querySelectorAll('.task-indicators .sr-only') || [])].map((el) => el.textContent.trim()),
       fx012Count: r2?.querySelectorAll('.task-indicators').length ?? -1,
+    };
+  })()`);
+  await click(cdp, '#page-my-tasks .view-tab[data-view="board"]');
+  await waitUntil(cdp, `!document.querySelector('#page-my-tasks .kanban-board')?.hidden`);
+  const boardInd = await cdp.evaluate(`(() => {
+    const c1 = document.querySelector('#page-my-tasks .kanban-board .task-card[data-task-id="fx011"]');
+    const c2 = document.querySelector('#page-my-tasks .kanban-board .task-card[data-task-id="fx012"]');
+    return {
+      hasCards: !!c1 && !!c2,
+      fx011Sr: [...(c1?.querySelectorAll('.task-indicators .sr-only') || [])].map((el) => el.textContent.trim()),
+      fx011Text: c1?.querySelector('.task-indicators')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+      fx012Count: c2?.querySelectorAll('.task-indicators').length ?? -1,
     };
   })()`);
   await boot(cdp, 320, { hash: 'class-tasks' });
@@ -471,7 +472,10 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
   // 12. PR 3: Calendar subject filter + reset, phone Month completed-only mark, desktop +N more popover, and simplified Subject Editor tray.
   const calDraft = JSON.parse(draft);
   calDraft.tasks = calDraft.tasks.map((t) => (t.id === 'fx013' ? { ...t, dueDate: '2026-11-03', dueTime: '14:00' } : t));
-  await boot(cdp, 1280, { admin: true, hash: 'calendar', storage: { class_tasks_draft: JSON.stringify(calDraft) } });
+  await boot(cdp, 1280, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: JSON.stringify(calDraft) } });
+  await click(cdp, '#btn-preview');
+  await waitUntil(cdp, `!document.getElementById('preview-banner')?.hidden`);
+  await click(cdp, '.nav-item[data-page="calendar"]');
   await waitUntil(cdp, `document.querySelectorAll('#cal-grid .cal-chip').length > 0`);
   const beforeCalChips = await cdp.evaluate(`document.querySelectorAll('#cal-grid .cal-chip').length`);
   await cdp.evaluate(`(() => {
@@ -562,5 +566,156 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && subjExpanded.openTrays === 1 && subjExpanded.swatches === 10 && subjExpanded.hasPicker && subjExpanded.hasHex
       && !subjExpanded.overflow320 && subjEscFocus,
     JSON.stringify({ beforeCalChips, calFiltered, calResetFocus, popOpen, popEscFocus, popOpensDialog, doneCell390, subjInitial, subjExpanded, subjEscFocus }),
+  );
+
+  // 13. PR 4: Live-vs-draft isolation, persistent Preview banner, Admin List default + urgency buckets,
+  // Quick Add edge-only parsing / "Keep in title", and named #publish-diff + stale_base rebase refresh.
+  const isoDraft = JSON.parse(draft);
+  isoDraft.tasks.unshift({ id: 'draft-only-1', title: 'SECRET DRAFT TASK', subject: 'GENMATH', dueDate: '2026-11-10', notes: '' });
+  isoDraft.tasks = isoDraft.tasks.map((t) => (t.id === 'fx011' ? { ...t, title: 'Draft edited schema task' } : t));
+  isoDraft.tasks = isoDraft.tasks.filter((t) => t.id !== 'fx012');
+  isoDraft.announcements = [{ id: 'draft-ann', text: 'UNPUBLISHED ANNOUNCEMENT', createdAt: Date.now() }];
+  isoDraft.subjects = [
+    { code: 'GENSCI', name: 'GENSCI', color: '#70d1fe', active: true },
+    { code: 'GENMATH', name: 'Draft Math Renamed', color: '#fba6f7', active: true },
+    { code: 'PKLP', name: 'PKLP', color: '#ff9f6b', active: true },
+    { code: 'EFFCOM', name: 'EFFCOM', color: '#8fe3a8', active: true },
+    { code: 'MABKOM', name: 'MABKOM', color: '#d8c7a0', active: true },
+    { code: 'PERDEV', name: 'PERDEV', color: '#7ff0e0', active: true },
+    { code: 'PE', name: 'PE', color: '#f7cd54', active: true },
+    { code: 'THEOLOGY', name: 'THEOLOGY', color: '#c3c7d6', active: true },
+    { code: 'CP104', name: 'CP104', color: '#58affc', active: true },
+    { code: 'FINMATH101', name: 'FINMATH101', color: '#c9a6e0', active: true },
+  ];
+
+  await boot(cdp, 1280, {
+    admin: true,
+    hash: 'my-tasks',
+    storage: { class_tasks_draft: JSON.stringify(isoDraft), class_tasks_progress: JSON.stringify({ 'draft-only-1': { status: 'done', movedAt: 1000 } }) },
+  });
+  const adminDefault = await cdp.evaluate(`({
+    view: document.getElementById('page-my-tasks')?.dataset.view,
+    listVisible: document.getElementById('task-list')?.hidden === false,
+    boardHidden: document.querySelector('#page-my-tasks .kanban-board')?.hidden === true,
+    noSumProgress: !document.getElementById('sum-progress'),
+    buckets: document.querySelectorAll('#task-list .list-bucket').length,
+  })`);
+  await cdp.evaluate(`(() => {
+    const sel = document.getElementById('admin-subject-filter');
+    sel.value = 'GENMATH';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  const adminFiltered = await cdp.evaluate(`({
+    hasDraftTask: !!document.querySelector('#task-list .task-row[data-task-id="draft-only-1"]'),
+    otherCount: [...document.querySelectorAll('#task-list .task-row')].filter((r) => !r.querySelector('.subject-tag')?.textContent.includes('Draft Math Renamed')).length,
+  })`);
+
+  // Switch to Class Tasks, Calendar, Done, Past WITHOUT Preview: zero draft leakage!
+  await click(cdp, '.nav-item[data-page="class-tasks"]');
+  await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])')`);
+  const liveClass = await cdp.evaluate(`({
+    hasDraftTask: !!document.querySelector('#class-task-list [data-task-id="draft-only-1"]'),
+    hasDraftAnn: (document.getElementById('announce-list-public')?.textContent || '').includes('UNPUBLISHED ANNOUNCEMENT'),
+    hasLiveFx012: !!document.querySelector('#class-task-list [data-task-id="fx012"]'),
+    hasRenamedSubject: (document.getElementById('class-task-list')?.textContent || '').includes('Draft Math Renamed'),
+    previewHidden: document.getElementById('preview-banner')?.hidden === true,
+  })`);
+  await click(cdp, '.nav-item[data-page="calendar"]');
+  await waitUntil(cdp, `!!document.querySelector('#page-calendar:not([hidden])')`);
+  const liveCalLeak = await cdp.evaluate(`(document.getElementById('cal-grid')?.textContent || '').includes('SECRET DRAFT TASK')`);
+  await click(cdp, '.nav-item[data-page="done"]');
+  await waitUntil(cdp, `!!document.querySelector('#page-done:not([hidden])')`);
+  const liveDoneLeak = await cdp.evaluate(`!!document.querySelector('#done-list [data-task-id="draft-only-1"]')`);
+  await click(cdp, '.nav-item[data-page="past"]');
+  await waitUntil(cdp, `!!document.querySelector('#page-past:not([hidden])')`);
+  const pastAdminBanner = await cdp.evaluate(`document.getElementById('past-draft-banner')?.hidden === false`);
+
+  // Enter Preview -> #preview-banner persists across Class Tasks, Calendar, Done, Past; Draft data IS visible!
+  await click(cdp, '.nav-item[data-page="my-tasks"]');
+  await waitUntil(cdp, `!!document.querySelector('#page-my-tasks:not([hidden])')`);
+  await click(cdp, '#btn-preview');
+  await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])') && !document.getElementById('preview-banner')?.hidden`);
+  const prevClass = await cdp.evaluate(`({
+    bannerShown: !document.getElementById('preview-banner')?.hidden,
+    hasDraftTask: !!document.querySelector('#class-task-list [data-task-id="draft-only-1"]'),
+    hasDraftAnn: (document.getElementById('announce-list-public')?.textContent || '').includes('UNPUBLISHED ANNOUNCEMENT'),
+  })`);
+  await click(cdp, '.nav-item[data-page="calendar"]');
+  await waitUntil(cdp, `!!document.querySelector('#page-calendar:not([hidden])')`);
+  const prevCalBanner = await cdp.evaluate(`!document.getElementById('preview-banner')?.hidden && (document.getElementById('cal-grid')?.textContent || '').includes('SECRET DRAFT TASK')`);
+  await click(cdp, '.nav-item[data-page="done"]');
+  await waitUntil(cdp, `!!document.querySelector('#page-done:not([hidden])')`);
+  const prevDoneBanner = await cdp.evaluate(`!document.getElementById('preview-banner')?.hidden && !!document.querySelector('#done-list [data-task-id="draft-only-1"]')`);
+  await click(cdp, '.nav-item[data-page="past"]');
+  await waitUntil(cdp, `!!document.querySelector('#page-past:not([hidden])')`);
+  const prevPastBanner = await cdp.evaluate(`!document.getElementById('preview-banner')?.hidden && document.getElementById('past-draft-banner')?.hidden === true`);
+  await click(cdp, '.nav-item[data-page="my-tasks"]');
+  await waitUntil(cdp, `!!document.querySelector('#page-my-tasks:not([hidden])')`);
+  const exitedOnAdmin = await cdp.evaluate(`document.getElementById('preview-banner')?.hidden === true`);
+
+  // Publish Diff & Stale Base Rebase Refresh
+  await cdp.evaluate(`(() => {
+    window.__pr4OrigFetch = window.fetch.bind(window);
+    const newer = JSON.parse(${JSON.stringify(draft)});
+    newer.revision = 9;
+    window.fetch = async (url, init) => {
+      const s = String(url);
+      if (s.includes('api/publish.php') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ code: 'stale_base', error: 'Board changed', current: newer }), {
+          status: 409, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (s.includes('data/current.json')) {
+        return new Response(JSON.stringify({ ...newer, tasks: [...newer.tasks, { id: 'remote-new', title: 'Remote Task', subject: 'PE' }] }), {
+          status: 200, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return window.__pr4OrigFetch(url, init);
+    };
+  })()`);
+  await click(cdp, '#btn-apply');
+  await waitUntil(cdp, `!document.getElementById('publish-overlay')?.hidden`);
+  const diffInitial = await cdp.evaluate(`document.getElementById('publish-diff')?.textContent || ''`);
+  await click(cdp, '#publish-submit');
+  await waitUntil(cdp, `document.getElementById('publish-conflict')?.hidden === false`);
+  await click(cdp, '#publish-rebase');
+  await waitUntil(cdp, `document.getElementById('publish-conflict')?.hidden === true && (document.getElementById('publish-diff')?.textContent || '').includes('Remote Task')`);
+  const diffRebased = await cdp.evaluate(`document.getElementById('publish-diff')?.textContent || ''`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `document.getElementById('publish-overlay')?.hidden === true`);
+
+  // Quick Add edge-only + Keep in title button
+  await click(cdp, '#new-task-btn');
+  await waitUntil(cdp, `document.getElementById('quick-overlay')?.hidden === false`);
+  await cdp.evaluate(`(() => {
+    const inp = document.getElementById('quick-input');
+    inp.value = 'GENMATH Report ip friday';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  const qaParsed = await cdp.evaluate(`({
+    title: document.querySelector('#quick-preview .quick-title')?.textContent?.trim(),
+    hasKeepBtn: !!document.getElementById('quick-keep-literal'),
+  })`);
+  await click(cdp, '#quick-keep-literal');
+  const qaKept = await cdp.evaluate(`({
+    title: document.querySelector('#quick-preview .quick-title')?.textContent?.trim(),
+    btnLabel: document.getElementById('quick-keep-literal')?.textContent?.trim(),
+  })`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+
+  check(
+    'PR 4 draft isolation, persistent preview, admin list/filter, publish diff + rebase, and quick-add literal',
+    adminDefault.view === 'list' && adminDefault.listVisible && adminDefault.boardHidden
+      && adminDefault.noSumProgress && adminDefault.buckets >= 2 && adminDefault.buckets <= 4
+      && adminFiltered.hasDraftTask && adminFiltered.otherCount === 0
+      && !liveClass.hasDraftTask && !liveClass.hasDraftAnn && liveClass.hasLiveFx012 && !liveClass.hasRenamedSubject && liveClass.previewHidden
+      && !liveCalLeak && !liveDoneLeak && pastAdminBanner
+      && prevClass.bannerShown && prevClass.hasDraftTask && prevClass.hasDraftAnn
+      && prevCalBanner && prevDoneBanner && prevPastBanner && exitedOnAdmin
+      && diffInitial.includes('SECRET DRAFT TASK') && diffInitial.includes('Draft edited schema task')
+      && diffRebased.includes('Remote Task')
+      && qaParsed.title === 'Report ip' && qaParsed.hasKeepBtn
+      && qaKept.title === 'GENMATH Report ip friday' && qaKept.btnLabel === 'Parse keywords',
+    JSON.stringify({ adminDefault, adminFiltered, liveClass, liveCalLeak, liveDoneLeak, pastAdminBanner, prevClass, prevCalBanner, prevDoneBanner, prevPastBanner, exitedOnAdmin, qaParsed, qaKept }),
   );
 }

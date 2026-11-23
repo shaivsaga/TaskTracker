@@ -68,15 +68,17 @@ function setPublished(data) {
   const board = normalizeBoard(data) || { tasks: [], announcements: [] };
   state.publishedTasks = board.tasks.map((o) => Task.fromJSON(o));
   state.publishedAnnouncements = board.announcements;
+  state.publishedCatalog = Array.isArray(board.subjects) ? board.subjects.map((s) => ({ ...s })) : [];
   tasks.applyProgress(state.publishedTasks);
 
-  if (!state.isAdmin) syncCatalog(Array.isArray(board.subjects) ? board.subjects : []);
+  if (!state.isAdmin) syncCatalog(state.publishedCatalog);
   else if (!state.draftSubjects.length) {
 
-    state.draftSubjects = (Array.isArray(board.subjects) ? board.subjects : []).map((s) => ({ ...s }));
+    state.draftSubjects = state.publishedCatalog.map((s) => ({ ...s }));
     syncCatalog(state.draftSubjects);
     subjectsEditor.render();
   }
+  calendar.invalidateAgenda();
 }
 
 const SEEN_KEY = sectionKey('class_tasks_seen');
@@ -172,6 +174,10 @@ document.querySelector('#task-search').addEventListener('input', (e) => {
   state.searchQuery = e.target.value;
   tasks.renderAllTasks();
 });
+document.querySelector('#admin-subject-filter')?.addEventListener('change', (e) => {
+  state.adminSubjectFilter = e.target.value;
+  tasks.renderAllTasks();
+});
 
 document.querySelector('#class-task-search').addEventListener('input', (e) => {
   state.classSearchQuery = e.target.value;
@@ -195,7 +201,7 @@ document.querySelector('#new-task-btn')?.addEventListener('click', startNewTask)
 document.querySelector('#empty-add-btn')?.addEventListener('click', startNewTask);
 
 const VIEW_KEYS = { class: 'class_tasks_view_class', admin: 'class_tasks_view_admin' };
-const VIEW_DEFAULTS = { class: 'list', admin: 'board' };
+const VIEW_DEFAULTS = { class: 'list', admin: 'list' };
 const SCOPES = {
   class: { page: '#page-class-tasks', board: '#class-board', list: '#class-task-list' },
   admin: { page: '#page-my-tasks', board: '#page-my-tasks .kanban-board', list: '#task-list' },
@@ -228,9 +234,9 @@ document.querySelectorAll('.view-tab[data-view]').forEach((b) => {
   b.addEventListener('click', () => setView(b.closest('#page-my-tasks') ? 'admin' : 'class', b.dataset.view));
 });
 
-function createSubjectTag(code) {
+function createSubjectTag(code, catalogList = state.catalog) {
   const tag = document.createElement('span');
-  const def = subjects.subjectFor(state.catalog, code);
+  const def = subjects.subjectFor(Array.isArray(catalogList) && catalogList.length ? catalogList : state.catalog, code);
   if (def) {
 
     const cls = subjects.classForColor(def.color);

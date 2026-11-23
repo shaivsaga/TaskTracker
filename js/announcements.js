@@ -29,10 +29,12 @@ function syncPinned() {
   toggle.textContent = pinnedOpen ? 'Show less' : (items.length > 2 ? `Show ${items.length - 1} more` : 'Show more');
 }
 
+export const classAnnouncementsSource = () => (state.previewing ? state.announcements : state.publishedAnnouncements);
+
 function renderPublicAnnouncements() {
   const list = document.querySelector('#announce-list-public');
   if (!list) return;
-  const items = (state.previewing || state.isAdmin) ? state.announcements : state.publishedAnnouncements;
+  const items = classAnnouncementsSource();
   list.replaceChildren();
   if (!items.length) {
     const empty = document.createElement('li');

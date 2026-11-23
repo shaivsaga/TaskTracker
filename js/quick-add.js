@@ -22,26 +22,58 @@ let renderAllTasks = null;
 let openTaskDialog = null;
 let showToast = null;
 
-export const STATUS_CODES = {
-  ns: 'not_started', todo: 'not_started', 'not started': 'not_started',
-  ip: 'in_progress', started: 'in_progress', doing: 'in_progress', 'in progress': 'in_progress',
-  dn: 'done', done: 'done',
-};
-
 let quickReturnFocus = null;
 let quickPicked = { date: null, endDate: null, time: null };
-let quickPrev = { subject: '', status: '', due: '' };
+let quickPrev = { subject: '', due: '' };
+let quickKeepLiteral = false;
 let quickChipEls = [];
 
-export function quickWords(text) {
-  const raw = String(text || '').trim().split(/\s+/).filter(Boolean);
+const AMBIGUOUS_WEEKDAYS = new Set(['sat', 'sun']);
+
+function tokenizeQuick(text) {
+  const s = String(text || '');
   const out = [];
-  for (let i = 0; i < raw.length; i++) {
-    const pair = (raw[i] + ' ' + (raw[i + 1] || '')).toLowerCase();
-    if (pair === 'not started' || pair === 'in progress') { out.push(raw[i] + ' ' + raw[i + 1]); i++; }
-    else out.push(raw[i]);
+  let i = 0;
+  while (i < s.length) {
+    while (i < s.length && /\s/.test(s[i])) i++;
+    if (i >= s.length) break;
+    if (s[i] === '"') {
+      const end = s.indexOf('"', i + 1);
+      if (end !== -1) {
+        const inner = s.slice(i + 1, end).trim();
+        if (inner) out.push({ text: inner, quoted: true, raw: s.slice(i, end + 1) });
+        i = end + 1;
+        continue;
+      }
+    }
+    let j = i;
+    while (j < s.length && !/\s/.test(s[j]) && s[j] !== '"') j++;
+    out.push({ text: s.slice(i, j), quoted: false, raw: s.slice(i, j) });
+    i = j;
   }
   return out;
+}
+
+export function quickWords(text) {
+  return tokenizeQuick(text).map((t) => t.text);
+}
+
+function parseEdgeDateWord(word, now, lookupFn, weekdaysMap) {
+  const lower = word.toLowerCase();
+  if (AMBIGUOUS_WEEKDAYS.has(lower)) return undefined;
+  const md = /^(\d{1,2})[\/-](\d{1,2})$/.exec(word);
+  if (md) {
+    const d = new Date(now.getFullYear(), +md[1] - 1, +md[2]);
+    return d.getMonth() === +md[1] - 1 ? d : undefined;
+  }
+  if (lower === 'today') return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (lower === 'tmr' || lower === 'tomorrow') return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const weekday = lookupFn(weekdaysMap, lower);
+  if (weekday !== undefined) {
+    const ahead = ((weekday - now.getDay() + 7) % 7) || 7;
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + ahead);
+  }
+  return undefined;
 }
 
 export function parseQuickAdd(text, opts = {}) {
@@ -51,36 +83,48 @@ export function parseQuickAdd(text, opts = {}) {
   const timeFn = opts.parseTimeWord ?? parseTimeWord;
   const lookupFn = opts.lookup ?? lookup;
   const weekdaysMap = opts.weekdays ?? WEEKDAYS;
-  const out = { subject: '', status: null, typedStatus: false, dueDate: undefined, endDate: undefined, dueTime: undefined, title: '' };
-  const rest = [];
-  quickWords(text).forEach((word) => {
-    const lower = word.toLowerCase();
-    const md = /^(\d{1,2})[\/-](\d{1,2})$/.exec(word);
-    const time = timeFn(word);
-    const weekday = lookupFn(weekdaysMap, lower);
-    if (!out.subject && lookupFn(subjectMap, word.toUpperCase()) !== undefined) {
-      out.subject = word.toUpperCase();
-    } else if (!out.status && lookupFn(STATUS_CODES, lower)) {
-      out.status = lookupFn(STATUS_CODES, lower);
-      out.typedStatus = true;
-    } else if (!out.dueDate && md) {
-      const d = new Date(now.getFullYear(), +md[1] - 1, +md[2]);
-      if (d.getMonth() === +md[1] - 1) out.dueDate = d; else rest.push(word);
-    } else if (!out.dueDate && (lower === 'today' || lower === 'tmr' || lower === 'tomorrow')) {
-      out.dueDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (lower === 'today' ? 0 : 1));
-    } else if (!out.dueDate && weekday !== undefined) {
-      const ahead = ((weekday - now.getDay() + 7) % 7) || 7;
-      out.dueDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ahead);
-    } else if (!out.dueTime && time) {
-      out.dueTime = time;
-    } else {
-      rest.push(word);
+  const keepLiteral = opts.keepLiteral ?? false;
+  const out = { subject: '', status: 'not_started', typedStatus: false, dueDate: undefined, endDate: undefined, dueTime: undefined, parsedKeyword: false, title: '' };
+  const tokens = tokenizeQuick(text);
+  if (!keepLiteral && tokens.length) {
+    const head = tokens[0];
+    if (!head.quoted) {
+      const code = head.text.replace(/,$/, '').toUpperCase();
+      if (code && lookupFn(subjectMap, code) !== undefined) {
+        out.subject = code;
+        tokens.shift();
+      }
     }
-  });
+    let heldTime = null;
+    for (let step = 0; step < 2 && tokens.length > 0; step++) {
+      const tail = tokens[tokens.length - 1];
+      if (tail.quoted) break;
+      if (!out.dueTime && !heldTime) {
+        const t = timeFn(tail.text);
+        if (t) { heldTime = { tok: tail, value: t }; tokens.pop(); continue; }
+      }
+      if (!out.dueDate) {
+        const d = parseEdgeDateWord(tail.text, now, lookupFn, weekdaysMap);
+        if (d) { out.dueDate = d; tokens.pop(); continue; }
+      }
+      break;
+    }
+    if (heldTime) {
+      if (out.dueDate) out.dueTime = heldTime.value;
+      else tokens.push(heldTime.tok);
+    }
+    if (tokens.length > 0 && !out.dueTime && out.dueDate) {
+      const tail = tokens[tokens.length - 1];
+      if (!tail.quoted) {
+        const t = timeFn(tail.text);
+        if (t) { out.dueTime = t; tokens.pop(); }
+      }
+    }
+    out.parsedKeyword = Boolean(out.subject || out.dueDate);
+  }
   if (picked && picked.date) { out.dueDate = picked.date; out.endDate = picked.endDate || undefined; out.dueTime = picked.time || undefined; }
   if (!out.dueDate) { out.endDate = undefined; out.dueTime = undefined; }
-  out.status = out.status || 'not_started';
-  out.title = (rest.join(' ') || (out.subject ? `${out.subject} task` : 'New Task')).slice(0, 500);
+  out.title = (tokens.map((t) => t.text).join(' ') || (out.subject ? `${out.subject} task` : 'New Task')).slice(0, 500);
   return out;
 }
 
@@ -94,12 +138,11 @@ const subjectItems = (p) => {
 };
 
 function isDateWord(w) {
-  const l = w.toLowerCase();
-  return /^(\d{1,2})[\/-](\d{1,2})$/.test(w) || ['today', 'tmr', 'tomorrow'].includes(l) || lookup(WEEKDAYS, l) !== undefined;
+  return parseEdgeDateWord(w, new Date(), lookup, WEEKDAYS) !== undefined;
 }
 
 function openQuickPicker(kind) {
-  const p = parseQuickAdd(dom.quickInput.value);
+  const p = parseQuickAdd(dom.quickInput.value, { keepLiteral: quickKeepLiteral });
   const chip = quickChipEls.find((c) => c.dataset.type === (kind === 'time' ? 'time' : 'pick'));
   openDuePicker({
     anchor: chip || dom.quickInput,
@@ -118,8 +161,11 @@ function openQuickPicker(kind) {
 
 function clearQuickDue(refocus = true) {
   quickPicked = { date: null, endDate: null, time: null };
-  const kept = quickWords(dom.quickInput.value).filter((w) => !isDateWord(w) && !parseTimeWord(w));
-  dom.quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
+  const tokens = tokenizeQuick(dom.quickInput.value);
+  while (tokens.length > 0 && !tokens[tokens.length - 1].quoted && (isDateWord(tokens[tokens.length - 1].text) || parseTimeWord(tokens[tokens.length - 1].text))) {
+    tokens.pop();
+  }
+  dom.quickInput.value = tokens.length ? tokens.map((t) => t.raw).join(' ') + ' ' : '';
   closeDuePicker();
   if (refocus) dom.quickInput.focus();
   renderQuickPreview();
@@ -145,10 +191,12 @@ function quickField(label, content, changed) {
 
 function renderQuickPreview() {
   dom.quickPreview.replaceChildren();
-  const p = (dom.quickInput.value.trim() || quickPicked.date) ? parseQuickAdd(dom.quickInput.value) : null;
+  const p = (dom.quickInput.value.trim() || quickPicked.date)
+    ? parseQuickAdd(dom.quickInput.value, { keepLiteral: quickKeepLiteral })
+    : null;
   dom.quickPreview.hidden = !p;
   if (!p) {
-    quickPrev = { subject: '', status: '', due: '' };
+    quickPrev = { subject: '', due: '' };
     syncQuickChips(null);
     document.querySelector('#quick-add-btn').disabled = true;
     document.querySelector('#quick-open-btn').disabled = true;
@@ -156,7 +204,6 @@ function renderQuickPreview() {
   }
   const next = {
     subject: p ? p.subject : '',
-    status: p && p.typedStatus ? p.status : '',
     due: p && p.dueDate ? toInputValue(p.dueDate) + (p.endDate ? '→' + toInputValue(p.endDate) : '') + (p.dueTime || '') : '',
   };
   const changed = (k) => next[k] !== '' && next[k] !== quickPrev[k];
@@ -175,9 +222,21 @@ function renderQuickPreview() {
   dom.quickPreview.append(
     quickField('Task', p && quickText(p.title, 'quick-title')),
     quickField('Subject', p && p.subject ? createSubjectTag(p.subject) : null, changed('subject')),
-    quickField('Status', p ? quickText(STATUS_LABELS[p.status], 'quick-chip') : null, changed('status')),
     quickField('Due', dueNode, changed('due'))
   );
+  if (p.parsedKeyword || quickKeepLiteral) {
+    const keepBtn = document.createElement('button');
+    keepBtn.type = 'button';
+    keepBtn.className = 'text-button quick-keep-btn';
+    keepBtn.id = 'quick-keep-literal';
+    keepBtn.textContent = quickKeepLiteral ? 'Parse keywords' : 'Keep in title';
+    keepBtn.addEventListener('click', () => {
+      quickKeepLiteral = !quickKeepLiteral;
+      renderQuickPreview();
+      dom.quickInput.focus();
+    });
+    dom.quickPreview.appendChild(keepBtn);
+  }
   quickPrev = next;
   syncQuickChips(p);
   const hasText = !!dom.quickInput.value.trim();
@@ -255,7 +314,6 @@ function syncQuickChips(p) {
     let on = false;
     if (p) {
       if (type === 'subject') on = p.subject === code;
-      else if (type === 'status') on = p.typedStatus && p.status === STATUS_CODES[code];
       else if (type === 'date') on = !!p.dueDate && !quickPicked.date && dayDiff(p.dueDate) === (code === 'today' ? 0 : 1);
       else if (type === 'pick') on = !!quickPicked.date;
       else if (type === 'time') on = !!p.dueTime;
@@ -270,16 +328,22 @@ function applyQuickToken(type, code) {
   if (type === 'pick') { openQuickPicker('date'); return; }
   if (type === 'time') { openQuickPicker('time'); return; }
   if (type === 'clear') { clearQuickDue(); return; }
-  const isToken = {
-    subject: (w) => lookup(subjects(), w.toUpperCase()) !== undefined,
-    status: (w) => !!lookup(STATUS_CODES, w.toLowerCase()),
-    date: isDateWord,
-  }[type];
+  quickKeepLiteral = false;
+  const tokens = tokenizeQuick(dom.quickInput.value);
   const wasOn = quickChipEls.some((c) => c.dataset.type === type && c.dataset.code === code && c.classList.contains('is-selected'));
-  if (type === 'date') quickPicked.date = null;
-  const kept = quickWords(dom.quickInput.value).filter((w) => !isToken(w));
-  if (!wasOn) { if (type === 'subject') kept.unshift(code); else kept.push(code); }
-  dom.quickInput.value = kept.length ? kept.join(' ') + ' ' : '';
+  if (type === 'subject') {
+    if (tokens.length > 0 && !tokens[0].quoted && lookup(subjects(), tokens[0].text.replace(/,$/, '').toUpperCase()) !== undefined) {
+      tokens.shift();
+    }
+    if (!wasOn) tokens.unshift({ text: code, quoted: false, raw: code });
+  } else if (type === 'date') {
+    quickPicked.date = null;
+    while (tokens.length > 0 && !tokens[tokens.length - 1].quoted && (isDateWord(tokens[tokens.length - 1].text) || parseTimeWord(tokens[tokens.length - 1].text))) {
+      tokens.pop();
+    }
+    if (!wasOn) tokens.push({ text: code, quoted: false, raw: code });
+  }
+  dom.quickInput.value = tokens.length ? tokens.map((t) => t.raw).join(' ') + ' ' : '';
   dom.quickInput.focus();
   renderQuickPreview();
 }
@@ -289,8 +353,9 @@ export function openQuickAdd() {
   quickReturnFocus = document.activeElement;
   dom.quickInput.value = '';
   quickPicked = { date: null, endDate: null, time: null };
+  quickKeepLiteral = false;
   closeDuePicker();
-  quickPrev = { subject: '', status: '', due: '' };
+  quickPrev = { subject: '', due: '' };
   quickSubjectOpen = false;
   renderQuickChips();
   renderQuickPreview();
@@ -306,7 +371,7 @@ function closeQuickAdd() {
 
 function submitQuickAdd(openDetails) {
   if (!dom.quickInput.value.trim()) return;
-  const p = parseQuickAdd(dom.quickInput.value);
+  const p = parseQuickAdd(dom.quickInput.value, { keepLiteral: quickKeepLiteral });
   const task = new Task({ title: p.title, subject: p.subject, dueDate: p.dueDate, endDate: p.endDate, dueTime: p.dueTime });
   myTasks.push(task);
   if (p.status !== 'not_started') setStatus(task, p.status);
@@ -315,6 +380,11 @@ function submitQuickAdd(openDetails) {
   closeDuePicker();
   hideOverlay(dom.quickOverlay, 120);
   if (state.searchQuery) { state.searchQuery = ''; document.querySelector('#task-search').value = ''; }
+  if (state.adminSubjectFilter && p.subject !== state.adminSubjectFilter) {
+    state.adminSubjectFilter = '';
+    const sel = document.querySelector('#admin-subject-filter');
+    if (sel) sel.value = '';
+  }
   setPage('my-tasks');
   renderAllTasks();
   if (openDetails) openTaskDialog(task, null, false);
@@ -344,6 +414,7 @@ document.querySelector('#quick-add-btn').addEventListener('click', () => submitQ
 document.querySelector('#quick-open-btn').addEventListener('click', () => submitQuickAdd(true));
 document.querySelector('#quick-cancel-btn').addEventListener('click', closeQuickAdd);
 dom.quickInput.addEventListener('input', () => {
+  if (!dom.quickInput.value.trim()) quickKeepLiteral = false;
   const m = /(^|\s)(cal|date)\s$/i.exec(dom.quickInput.value);
   if (m) {
     dom.quickInput.value = dom.quickInput.value.slice(0, m.index + m[1].length);

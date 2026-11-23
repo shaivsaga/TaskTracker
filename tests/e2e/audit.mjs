@@ -856,13 +856,16 @@ async function main() {
       check('announce ' + width, ok, 'total ' + a.total + ' shown ' + a.shown + '/' + expanded.shown + '/' + recollapsed.shown + ' toggleHidden ' + a.toggleHidden + ' "' + a.toggleText + '"');
     }
 
-    // 6b. One<br>Two<br>Three inside a single phone item: 11 characters, three laid-out lines. Booting
-    // on Calendar measures it while hidden (the old length heuristic said "not clipped"), then the
-    // pushState reveal to Class tasks must remeasure and offer the toggle. It toggles both ways and
-    // survives a route revisit.
+    // 6b. One<br>Two<br>Three inside a single phone item: 11 characters, three laid-out lines. Entering
+    // Preview on Class tasks, navigating to Calendar then back to Class tasks must keep Preview active,
+    // remeasure when hidden -> revealed, and toggle both ways across route revisits.
     const shortAnnouncement = { id: 'an-short', text: 'OneTwoThree', html: 'One<br>Two<br>Three', createdAt: FIXTURE_INSTANT };
     const shortDraft = JSON.stringify({ tasks: fixture.tasks, announcements: [shortAnnouncement] });
-    await boot(cdp, 375, { admin: true, hash: 'calendar', storage: { class_tasks_draft: shortDraft } });
+    await boot(cdp, 375, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: shortDraft } });
+    await click(cdp, '#btn-preview');
+    await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])')`);
+    await click(cdp, '.nav-item[data-page="calendar"]');
+    await waitUntil(cdp, `!!document.querySelector('#page-calendar:not([hidden])')`);
     const hiddenPage = await cdp.evaluate(READ_ANNOUNCE);
     await click(cdp, '.nav-item[data-page="class-tasks"]');
     await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])') && !document.getElementById('announce-toggle').hidden`);

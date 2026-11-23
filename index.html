@@ -90,6 +90,10 @@
         <span class="sp x2" style="--i:18" aria-hidden="true"></span><b>TaskTracker</b>
       </a>
           <h1 class="px ttl" id="breadcrumb-current">Tasks</h1>
+          <div class="preview-banner" id="preview-banner" hidden>
+            <span>Previewing as a student. Showing your unpublished draft.</span>
+            <button class="text-button" type="button" id="preview-exit">Exit preview</button>
+          </div>
           <section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Tasks">
             <div class="page-heading">
               <p class="page-supporting-copy">Tasks posted for the class. Your progress is saved on this device only.</p>
@@ -125,10 +129,6 @@
               </div>
             </div>
             <p class="sync-note" id="sync-note" hidden>Offline. Showing the last synced version.</p>
-            <div class="preview-banner" id="preview-banner" hidden>
-              <span>Previewing as a student. Showing your unpublished draft.</span>
-              <button class="text-button" type="button" id="preview-exit">Exit preview</button>
-            </div>
             <section class="announcements" id="announce-public" aria-label="Pinned announcements">
               <div class="announce-header">
                 <h2><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg> Pinned</h2>
@@ -186,9 +186,15 @@
                   <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
                   <input type="search" id="task-search" placeholder="Search tasks" aria-label="Search tasks" autocomplete="off">
                 </label>
+                <div class="class-filters">
+                  <label class="sr-only" for="admin-subject-filter">Subject</label>
+                  <select id="admin-subject-filter">
+                    <option value="">Subject: All</option>
+                  </select>
+                </div>
                 <div class="view-tabs" role="group" aria-label="View">
-                  <button type="button" class="view-tab is-active" data-view="board" aria-pressed="true">Board</button>
-                  <button type="button" class="view-tab" data-view="list" aria-pressed="false">List</button>
+                  <button type="button" class="view-tab is-active" data-view="list" aria-pressed="true">List</button>
+                  <button type="button" class="view-tab" data-view="board" aria-pressed="false">Board</button>
                 </div>
                 <button class="primary-button" type="button" id="new-task-btn">
                   <svg class="i" aria-hidden="true"><use href="#i-plus"/></svg> New task
@@ -236,14 +242,13 @@
               <button class="text-button" type="button" id="empty-add-btn">Add a task</button>
             </div>
             <p class="summary" aria-label="Task summary">
-              <span>All tasks</span>
+              <span>Draft tasks</span>
               <span id="sum-open">0 open</span>
-              <span id="sum-progress">0 in progress</span>
               <span id="sum-today" hidden>0 due today</span>
               <span id="sum-overdue" class="is-alert" hidden>0 overdue</span>
             </p>
-            <div class="task-list" id="task-list" role="list" aria-label="Personal task list" hidden></div>
-            <div class="kanban-board" aria-label="Personal task board">
+            <div class="task-list" id="task-list" role="list" aria-label="Draft task list"></div>
+            <div class="kanban-board" aria-label="Draft task board" hidden>
               <div class="kanban-column" data-status="todo">
                 <div class="column-header">
                   <div><h2>To Do</h2><span class="column-count">(0)</span></div>
@@ -314,6 +319,9 @@
           <section class="page utility-page" id="page-past" data-page-view="past" aria-label="Past" hidden>
             <div class="page-heading">
               <div><p class="page-supporting-copy">Tasks that were closed or have passed their due date.</p></div>
+            </div>
+            <div class="preview-banner" id="past-draft-banner" hidden>
+              <span>Showing past draft tasks. Publish to update the live archive students see.</span>
             </div>
             <div class="task-list" id="past-list" role="list" aria-label="Past tasks list"></div>
           </section>
@@ -421,6 +429,7 @@
         </div>
         <div class="dialog-body">
           <p class="dialog-summary" id="publish-summary"></p>
+          <div class="publish-diff" id="publish-diff" hidden></div>
           <div class="field"><label class="field-label" for="publish-note">Note (optional)</label>
             <input class="text-input" id="publish-note" type="text" maxlength="80"></div>
           <p class="form-error" id="publish-clear-warning" hidden>Every published task will be removed from the class board. Pinned announcements stay live as they are, and earlier versions remain in History.</p>
@@ -584,7 +593,7 @@
     <div class="quick-overlay" id="quick-overlay" hidden>
       <div class="quick-add" role="dialog" aria-modal="true" aria-labelledby="quick-label">
         <label class="sr-only" id="quick-label" for="quick-input">Quick add task</label>
-        <input class="quick-input" id="quick-input" type="text" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="Subject, task, status, date">
+        <input class="quick-input" id="quick-input" type="text" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="Subject, task title, due date (or &quot;quote&quot; exact title)">
         <div class="quick-preview" id="quick-preview" aria-live="polite"></div>
         <div class="quick-chips" id="quick-chips"></div>
         <div class="quick-actions">

@@ -147,8 +147,11 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
    Desktop only: on phones the title is off-canvas (see the phone-fold section), and a stretched 100% box made the
    absolutely positioned title 320px wide inside a 288px column, which scrolled the page 16px sideways. */
 /* lint-allow:px 880px -- the title tracks the reading column above so its edge lines up */
+#preview-banner { width: 100%; max-width: 1120px; margin-inline: auto; }
 @media (min-width: 720px) {
   main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: auto; }
+  /* lint-allow:px 880px -- keeps preview banner aligned with reading column pages */
+  main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #preview-banner { max-width: 880px; }
 }
 /* [[/section:shell]] */
 
@@ -189,8 +192,8 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .search input::placeholder { color: var(--mu); opacity: 1; }
 
 .class-filters { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.class-filters select, #preset-select, #cal-subject-filter { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
-.class-filters select:focus-visible, #preset-select:focus-visible, #cal-subject-filter:focus-visible { border-color: var(--ac); }
+.class-filters select, #preset-select, #cal-subject-filter, #admin-subject-filter { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
+.class-filters select:focus-visible, #preset-select:focus-visible, #cal-subject-filter:focus-visible, #admin-subject-filter:focus-visible { border-color: var(--ac); }
 @media (min-width: 720px) {
   #page-class-tasks[data-view="board"] #class-status-filter { display: none; }
 }
@@ -675,6 +678,11 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .subject-row input[type="color"] { width: 44px; height: 44px; padding: 2px; border: 2px solid var(--mu); background: var(--oa); cursor: pointer; }
 .subject-swatch { width: 44px; height: 44px; padding: 0; border: 2px solid var(--mu); box-shadow: inset 0 0 0 4px var(--sf); cursor: pointer; }
 .subject-swatch:hover, .subject-swatch[aria-pressed="true"] { border-color: var(--ac); }
+.publish-diff { display: grid; gap: 12px; max-height: 240px; padding: 12px; border: 2px solid var(--ln); background: var(--sf2); overflow-y: auto; }
+.publish-diff-group { display: grid; gap: 4px; }
+.publish-diff-title { margin: 0; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; text-transform: uppercase; letter-spacing: 0.04em; }
+.publish-diff-list { margin: 0; padding-left: 20px; font-size: 14px; line-height: 20px; }
+.publish-diff-meta { color: var(--mu); font-size: 12px; }
 /* [[/section:history]] */
 
 /* [[section:calendar]] */
