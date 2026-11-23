@@ -16,7 +16,7 @@ import {
   STATUS_LABELS,
   statusChangeMessage
 } from '../logic.js';
-import { summarizeMine } from '../js/tasks.js';
+import { summarizeMine, classUrgencyBucket, orderClassTasks } from '../js/tasks.js';
 
 const dateOffset = (days) => {
   const date = new Date();
@@ -301,7 +301,52 @@ test('summarizeMine hides on empty board and counts only active unfinished tasks
   const summary = summarizeMine([closed, done, expired, range], now);
   assert.equal(summary.hidden, false);
   assert.equal(summary.count, 1);
+  assert.equal(summary.overdueCount, 0);
   assert.equal(summary.olderOverdue, 1);
   assert.match(summary.nextText, /Next: Range task · Tomorrow/);
   assert.doesNotMatch(summary.nextText, /older in Past/);
+});
+
+test('summarizeMine surfaces overdue tasks alongside Next without hiding upcoming deadlines', () => {
+  const now = new Date(2026, 10, 23, 16, 30, 0).getTime();
+  const overdueToday = new Task({ id: 'o1', title: 'Capstone demo', dueDate: new Date(2026, 10, 23), dueTime: '15:30' });
+  const upcoming = new Task({ id: 'u1', title: 'Essay draft', dueDate: new Date(2026, 10, 25) });
+  const doneOverdue = new Task({ id: 'd1', title: 'Done old', dueDate: new Date(2026, 10, 22), status: 'done' });
+
+  const both = summarizeMine([overdueToday, upcoming, doneOverdue], now);
+  assert.equal(both.count, 2);
+  assert.equal(both.overdueCount, 1);
+  assert.match(both.nextText, /^1 overdue · Next: Essay draft ·/);
+
+  const onlyOneOverdue = summarizeMine([overdueToday], now);
+  assert.equal(onlyOneOverdue.overdueCount, 1);
+  assert.match(onlyOneOverdue.nextText, /^1 overdue · Capstone demo was due Today, 3:30 PM$/);
+
+  const overdueEarlier = new Task({ id: 'o0', title: 'Quiz review', dueDate: new Date(2026, 10, 22), dueTime: '09:00' });
+  const multiOverdue = summarizeMine([overdueToday, overdueEarlier], now);
+  assert.equal(multiOverdue.overdueCount, 2);
+  assert.match(multiOverdue.nextText, /^2 overdue · Earliest: Quiz review \(/);
+});
+
+test('classUrgencyBucket and orderClassTasks place Overdue this week ahead of Due today & tomorrow', () => {
+  withFrozenNow('2026-11-23T16:30:00', () => {
+    const overdueToday = new Task({ id: 'o1', title: 'Overdue today', dueDate: new Date(2026, 10, 23), dueTime: '15:30' });
+    const dueLaterToday = new Task({ id: 't1', title: 'Due tonight', dueDate: new Date(2026, 10, 23), dueTime: '23:59' });
+    const dueTomorrow = new Task({ id: 't2', title: 'Due tomorrow', dueDate: new Date(2026, 10, 24) });
+    const rangeEndingTomorrow = new Task({ id: 'r1', title: 'Range', dueDate: new Date(2026, 10, 20), endDate: new Date(2026, 10, 24) });
+    const upcoming = new Task({ id: 'u1', title: 'Next week', dueDate: new Date(2026, 10, 30) });
+    const undated = new Task({ id: 'n1', title: 'Someday' });
+    const done = new Task({ id: 'd1', title: 'Finished', dueDate: new Date(2026, 10, 22), status: 'done' });
+
+    assert.equal(classUrgencyBucket(overdueToday, dayDiff), 0);
+    assert.equal(classUrgencyBucket(dueLaterToday, dayDiff), 1);
+    assert.equal(classUrgencyBucket(dueTomorrow, dayDiff), 1);
+    assert.equal(classUrgencyBucket(rangeEndingTomorrow, dayDiff), 1);
+    assert.equal(classUrgencyBucket(upcoming, dayDiff), 2);
+    assert.equal(classUrgencyBucket(undated, dayDiff), 2);
+    assert.equal(classUrgencyBucket(done, dayDiff), 3);
+
+    const ordered = orderClassTasks([done, undated, upcoming, dueTomorrow, dueLaterToday, rangeEndingTomorrow, overdueToday], sortTasks, dayDiff);
+    assert.deepEqual(ordered.map((t) => t.id), ['o1', 't1', 't2', 'r1', 'u1', 'n1', 'd1']);
+  });
 });

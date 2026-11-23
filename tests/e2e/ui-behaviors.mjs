@@ -855,4 +855,39 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && shortcutsVisible && tourSample.tag === 'BIO101' && tourSample.title === 'Sample: BIO101 worksheet',
     JSON.stringify({ tablet960, listGeom, boardGeom, popOpened, endStatus, homeStatus, adminDlg, roFilesDlg, quickPreviewHasLive, quickFeedback, shortcutsVisible, tourSample }),
   );
+
+  // 15. PR 1 (P1 #1): #mine surfaces overdue count alongside Next and orders Overdue this week before Due today & tomorrow.
+  const trustCheck = {};
+  for (const width of [390, 1280]) {
+    await boot(cdp, width, { hash: 'class-tasks' });
+    await waitUntil(cdp, `document.querySelectorAll('#class-task-list .list-bucket').length >= 2`);
+    trustCheck['w' + width] = await cdp.evaluate(`(() => {
+      const nextText = document.getElementById('mine-next')?.textContent?.trim() || '';
+      const buckets = [...document.querySelectorAll('#class-task-list .list-bucket')].map((el) => el.textContent.trim());
+      return {
+        nextText,
+        buckets,
+        hasOverdueAndNext: /^\\d+ overdue · Next: /.test(nextText),
+        overdueFirst: buckets[0] === 'Overdue this week' && buckets[1] === 'Due today & tomorrow',
+        overflowX: document.documentElement.scrollWidth > window.innerWidth,
+      };
+    })()`);
+  }
+  await boot(cdp, 320, { hash: 'class-tasks' });
+  await waitUntil(cdp, `!!document.querySelector('#class-task-list .task-row')`);
+  const fold320P1 = await cdp.evaluate(`(() => {
+    const rr = document.querySelector('#class-task-list .task-row').getBoundingClientRect();
+    const tb = document.querySelector('.tb').getBoundingClientRect();
+    return {
+      foldClearance: Math.round(tb.top - rr.bottom),
+      overflowX: document.documentElement.scrollWidth > window.innerWidth,
+    };
+  })()`);
+  check(
+    'P1 #1 overdue hero summary visibility and Overdue-first bucket order',
+    trustCheck.w390.hasOverdueAndNext && trustCheck.w390.overdueFirst && !trustCheck.w390.overflowX
+      && trustCheck.w1280.hasOverdueAndNext && trustCheck.w1280.overdueFirst && !trustCheck.w1280.overflowX
+      && fold320P1.foldClearance >= 12 && !fold320P1.overflowX,
+    JSON.stringify({ trustCheck, fold320P1 }),
+  );
 }
