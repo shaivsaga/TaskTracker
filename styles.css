@@ -933,10 +933,10 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .task-row > :nth-child(3), .done-row > :nth-child(3) { grid-column: 2; grid-row: 2; align-self: start; }
   .task-row > :nth-child(4), .done-row > :nth-child(4) { grid-column: 3; grid-row: 2; min-width: 0; white-space: normal; line-height: 16px; }
   .task-row:has(> :nth-child(3):empty) > :nth-child(4), .done-row:has(> :nth-child(3):empty) > :nth-child(4) { grid-column: 2 / 4; }
-  .task-row:not(.done-row) { grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) auto; }
-  .task-row:not(.done-row):has(> :nth-child(5):empty) { grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr); }
-  .task-row:not(.done-row) > .subject-tag { height: auto; min-height: 24px; padding-block: 4px; white-space: normal; overflow-wrap: anywhere; }
-  .task-row:not(.done-row) > .task-row-due { grid-column-end: -1; overflow-wrap: anywhere; }
+  .task-row:not(.done-row) { grid-template-columns: 24px fit-content(50%) minmax(0, 1fr) auto; column-gap: 8px; }
+  .task-row:not(.done-row):has(> :nth-child(5):empty) { grid-template-columns: 24px fit-content(50%) minmax(0, 1fr); }
+  .task-row:not(.done-row) > .subject-tag { align-self: end; height: auto; min-height: 24px; padding-block: 4px; white-space: normal; overflow-wrap: anywhere; }
+  .task-row:not(.done-row) > .task-row-due { grid-column-end: -1; align-self: end; text-align: left; overflow-wrap: anywhere; text-wrap: pretty; }
   /* Phone rows follow the board card: title up to two lines, subject bottom-left, due pill bottom-right. */
   .task-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
   .task-row:not(.done-row) { row-gap: 8px; }
@@ -1259,12 +1259,12 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 @media (max-width: 719px) {
   #breadcrumb-current { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   #page-class-tasks .page-heading { gap: 12px; }
-  .mine { gap: 12px; margin: 0; padding: 2px 0 6px; }
+  .mine { gap: 8px; margin: 0; padding: 2px 0 6px; }
   /* The count is the product's one number: it keeps its 32px Pixel Display size on phones so each font pixel
      is a whole 2 CSS px (crisp at any DPR), centered beside its 38px two-line summary. */
   .mine-n { font-size: 32px; line-height: 32px; }
   .mine-l { font-size: 14px; line-height: 20px; }
-  .mine-next { font-size: 12px; line-height: 16px; }
+  .mine-next { font-size: 12px; line-height: 16px; text-wrap: balance; }
   .phone-privacy-note { display: block; margin: 12px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }
 }
 /* Below 375 the announcement's two clamped lines are the last 20px standing between the header and the

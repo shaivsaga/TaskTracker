@@ -99,7 +99,7 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     JSON.stringify({ slashFocused, ...roDialog }),
   );
 
-  for (const width of [320, 390, 1280]) {
+  for (const width of [320, 375, 390, 1280]) {
     for (const theme of ['light', 'dark']) {
       await boot(cdp, width, { storage: { class_tasks_theme: theme } });
       const metadata = await cdp.evaluate(`(() => {
@@ -108,18 +108,33 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
         return rows.map((row) => {
           const badge = row.querySelector('.subject-tag');
           const due = row.querySelector('.task-row-due');
+          const badgeBox = badge.getBoundingClientRect();
+          const dueBox = due.getBoundingClientRect();
+          const rowBox = row.getBoundingClientRect();
+          const style = getComputedStyle(row);
+          const rightEdge = rowBox.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
+          const bottomEdge = rowBox.bottom - parseFloat(style.paddingBottom) - parseFloat(style.borderBottomWidth);
+          const leftEdge = row.children[1].getBoundingClientRect().left;
           return {
             code: badge.textContent,
             badgeFits: badge.scrollWidth <= badge.clientWidth + 1,
             dueFits: due.scrollWidth <= due.clientWidth + 1,
-            inside: due.getBoundingClientRect().right <= row.getBoundingClientRect().right,
+            inside: dueBox.right <= rowBox.right && dueBox.left >= badgeBox.right,
             emptyTrackHidden: getComputedStyle(row.lastElementChild).display === 'none',
+            phonePlacement: innerWidth >= 720 || (
+              Math.abs(dueBox.right - rightEdge) <= 1
+              && Math.abs(dueBox.bottom - bottomEdge) <= 1
+              && Math.abs(badgeBox.left - leftEdge) <= 1
+              && Math.abs(badgeBox.bottom - dueBox.bottom) <= 1
+              && getComputedStyle(due).textAlign === 'left'
+            ),
           };
         });
       })()`);
-      check('task row metadata ' + width + ' ' + theme, metadata.length > 0 && metadata.every(
-        (row) => row.badgeFits && row.dueFits && row.inside && row.emptyTrackHidden,
-      ), JSON.stringify(metadata));
+      const hasLongCodes = ['FINMATH101', 'THEOLOGY'].every((code) => metadata.some((row) => row.code === code));
+      check('task row metadata ' + width + ' ' + theme, hasLongCodes && metadata.every(
+        (row) => row.badgeFits && row.dueFits && row.inside && row.emptyTrackHidden && row.phonePlacement,
+      ), JSON.stringify(metadata.filter((row) => !row.badgeFits || !row.dueFits || !row.inside || !row.emptyTrackHidden || !row.phonePlacement)));
     }
   }
 
