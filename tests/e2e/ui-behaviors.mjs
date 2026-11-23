@@ -99,6 +99,30 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     JSON.stringify({ slashFocused, ...roDialog }),
   );
 
+  for (const width of [320, 390, 1280]) {
+    for (const theme of ['light', 'dark']) {
+      await boot(cdp, width, { storage: { class_tasks_theme: theme } });
+      const metadata = await cdp.evaluate(`(() => {
+        const rows = [...document.querySelectorAll('#class-task-list .task-row')]
+          .filter((row) => row.querySelector('.subject-tag') && row.querySelector('.task-row-due.is-overdue'));
+        return rows.map((row) => {
+          const badge = row.querySelector('.subject-tag');
+          const due = row.querySelector('.task-row-due');
+          return {
+            code: badge.textContent,
+            badgeFits: badge.scrollWidth <= badge.clientWidth + 1,
+            dueFits: due.scrollWidth <= due.clientWidth + 1,
+            inside: due.getBoundingClientRect().right <= row.getBoundingClientRect().right,
+            emptyTrackHidden: getComputedStyle(row.lastElementChild).display === 'none',
+          };
+        });
+      })()`);
+      check('task row metadata ' + width + ' ' + theme, metadata.length > 0 && metadata.every(
+        (row) => row.badgeFits && row.dueFits && row.inside && row.emptyTrackHidden,
+      ), JSON.stringify(metadata));
+    }
+  }
+
   // 4. Done rows use static non-button checkmark; Past rows omit status-check completely.
   await boot(cdp, 1280, { hash: 'done', storage: { class_tasks_progress: JSON.stringify(progress) } });
   const doneRows = await cdp.evaluate(`(() => {
