@@ -118,7 +118,7 @@ Do:
 - Do keep every corner square and every border 2px.
 - Do build depth only with the solid ledge in Rule Tan (`0 2px 0` or `0 4px 0`).
 - Do use Royal Blue for selection, focus and in-progress only.
-- Do keep the pixel font to titles, micro-labels and numerals; keep dates and times in tabular Plus Jakarta Sans.
+- Do use 16px pixel type for decorative Calendar month headings. Keep week ranges, day numbers, picker dates and times in tabular Plus Jakarta Sans.
 - (+5 more)
 Subject Palette (dark ink `#14183A` on all 10 tags): CP104 sky `#58AFFC`, PKLP orange `#FF9F6B`, GENSCI cyan `#70D1FE`, EFFCOM green `#8FE3A8`, MABKOM sand `#D8C7A0`, THEOLOGY stone `#C3C7D6`, FINMATH101 mauve `#C9A6E0`, PE yellow `#F7CD54`, GENMATH pink `#FBA6F7`, PERDEV teal `#7FF0E0`.
 Map: assets/sprites-light.svg
