@@ -107,7 +107,7 @@
               <div class="page-actions">
                 <label class="search">
                   <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
-                  <input type="search" id="class-task-search" placeholder="Search tasks" aria-label="Search class tasks" autocomplete="off">
+                  <input type="search" id="class-task-search" placeholder="Search tasks" aria-label="Search class tasks" title="Search tasks (/)" autocomplete="off">
                 </label>
                 <div class="class-filters">
                   <label class="sr-only" for="class-subject-filter">Subject</label>
@@ -184,7 +184,7 @@
               <div class="page-actions">
                 <label class="search">
                   <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
-                  <input type="search" id="task-search" placeholder="Search tasks" aria-label="Search tasks" autocomplete="off">
+                  <input type="search" id="task-search" placeholder="Search tasks" aria-label="Search tasks" title="Search tasks (/)" autocomplete="off">
                 </label>
                 <div class="class-filters">
                   <label class="sr-only" for="admin-subject-filter">Subject</label>
@@ -196,7 +196,7 @@
                   <button type="button" class="view-tab is-active" data-view="list" aria-pressed="true">List</button>
                   <button type="button" class="view-tab" data-view="board" aria-pressed="false">Board</button>
                 </div>
-                <button class="primary-button" type="button" id="new-task-btn">
+                <button class="primary-button" type="button" id="new-task-btn" title="New task (N)">
                   <svg class="i" aria-hidden="true"><use href="#i-plus"/></svg> New task
                 </button>
               </div>
@@ -239,7 +239,7 @@
             </section>
             <div class="empty-state">
               <p>No tasks yet.</p>
-              <button class="text-button" type="button" id="empty-add-btn">Add a task</button>
+              <button class="text-button" type="button" id="empty-add-btn" title="New task (N)">Add a task</button>
             </div>
             <p class="summary" aria-label="Task summary">
               <span>Draft tasks</span>
@@ -374,7 +374,7 @@
             <div class="dialog-controls">
               <div class="field">
                 <span class="field-label" id="dialog-status-field">Status</span>
-                <button class="prop-value status-value is-not-started" type="button" id="dialog-status-btn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="dialog-status-field dialog-status-label">
+                <button class="prop-value status-value is-not-started" type="button" id="dialog-status-btn" aria-haspopup="listbox" aria-expanded="false">
                   <span class="status-dot" id="dialog-status-dot"></span>
                   <span id="dialog-status-label">Not started</span>
                   <svg class="i status-caret" aria-hidden="true"><use href="#i-chevron-down"/></svg>
@@ -382,20 +382,20 @@
               </div>
               <div class="field">
                 <span class="field-label" id="dialog-subject-field">Subject</span>
-                <button class="prop-value empty-value" type="button" id="dialog-subject-btn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="dialog-subject-field dialog-subject-btn">Add subject</button>
+                <button class="prop-value empty-value" type="button" id="dialog-subject-btn" aria-haspopup="listbox" aria-expanded="false">Add subject</button>
                 <div class="status-dropdown subject-dropdown" id="dialog-subject-dropdown" role="listbox" aria-label="Subject" hidden></div>
               </div>
               <div class="field field-due">
                 <span class="field-label" id="dialog-due-field">Due<span class="due-hint" id="dialog-due-hint"></span></span>
                 <div class="due-controls">
-                  <button class="prop-value empty-value" type="button" id="dialog-date-btn" aria-labelledby="dialog-due-field dialog-date-btn">Add due date</button>
+                  <button class="prop-value empty-value" type="button" id="dialog-date-btn">Add due date</button>
                   <button class="prop-clear" type="button" id="dialog-due-clear" hidden aria-label="Clear due date">
                     <svg class="i prop-clear-icon" aria-hidden="true"><use href="#i-x"/></svg>
                   </button>
                 </div>
               </div>
             </div>
-            <div class="field">
+            <div class="field" id="dialog-notes-field">
               <div class="note-toolbar" role="toolbar" aria-label="Note formatting">
                 <button class="note-tool" type="button" data-cmd="bold" aria-label="Bold" aria-pressed="false" title="Bold (Ctrl+B)"><b>B</b></button>
                 <button class="note-tool" type="button" data-cmd="italic" aria-label="Italic" aria-pressed="false" title="Italic (Ctrl+I)"><i>I</i></button>
@@ -497,6 +497,18 @@
             </div>
             <button class="secondary-button" type="button" id="settings-transfer">Transfer</button>
           </div>
+          <div class="settings-row settings-shortcuts-row" id="settings-shortcuts-row">
+            <div>
+              <p class="settings-title">Keyboard shortcuts</p>
+              <p class="settings-desc settings-shortcuts">
+                <span><kbd>/</kbd> Search tasks</span>
+                <span><kbd>N</kbd> Quick add (Admin)</span>
+                <span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> Post announcement</span>
+                <span><kbd>Ctrl</kbd> + <kbd>B</kbd> / <kbd>Ctrl</kbd> + <kbd>I</kbd> Bold / Italic notes</span>
+                <span><kbd>Esc</kbd> Close dialog</span>
+              </p>
+            </div>
+          </div>
           <div class="settings-row" id="settings-login-row" hidden>
             <div>
               <p class="settings-title">Admin sign in</p>
@@ -594,7 +606,7 @@
       <div class="quick-add" role="dialog" aria-modal="true" aria-labelledby="quick-label">
         <label class="sr-only" id="quick-label" for="quick-input">Quick add task</label>
         <input class="quick-input" id="quick-input" type="text" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="Subject, task title, due date (or &quot;quote&quot; exact title)">
-        <div class="quick-preview" id="quick-preview" aria-live="polite"></div>
+        <div class="quick-preview" id="quick-preview"></div>
         <div class="quick-chips" id="quick-chips"></div>
         <div class="quick-actions">
           <button class="text-button" type="button" id="quick-cancel-btn">Cancel</button>

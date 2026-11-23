@@ -982,7 +982,7 @@ function updateDialogDue(task) {
   dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
   dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
   dom.dialogDateBtn.classList.toggle('empty-value', empty);
-  dom.dialogDateBtn.setAttribute('aria-label', empty ? 'Due: no due date' : `Due: ${task.getDueShort()}`);
+  dom.dialogDateBtn.setAttribute('aria-label', empty ? (editable ? 'Due: Add due date' : 'Due: No due date') : `Due: ${task.getDueShort()}`);
   dom.dialogDueClear.hidden = empty || !editable;
 }
 function updateDialogStatus(task) {
@@ -1081,6 +1081,11 @@ export function openTaskDialog(task) {
   refreshLinks(dom.dialogDoc);
   updateDialogSubject(task);
   renderDialogFiles(task);
+  const notesField = document.getElementById('dialog-notes-field');
+  if (notesField) {
+    const hasFiles = Array.isArray(task.files) && task.files.length > 0;
+    notesField.hidden = ro && !hasMeaningfulNotes(task.notes) && hasFiles;
+  }
   motion.openOverlay(dom.dialogOverlay);
   dom.dialogOverlay.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
@@ -1281,9 +1286,12 @@ function updateColumn(columnEl) {
   const emptyMsg = contentEl.querySelector('.column-empty');
   if (emptyMsg) {
     if (!emptyMsg.dataset.default) emptyMsg.dataset.default = emptyMsg.textContent;
-    const searching = columnEl.closest('#page-class-tasks') ? state.classSearchQuery.trim()
-      : columnEl.closest('#page-my-tasks') ? state.searchQuery.trim() : '';
-    emptyMsg.textContent = searching ? 'No tasks match your search.' : emptyMsg.dataset.default;
+    const filtered = columnEl.closest('#page-class-tasks')
+      ? Boolean(state.classSearchQuery.trim() || state.classSubjectFilter)
+      : columnEl.closest('#page-my-tasks')
+        ? Boolean(state.searchQuery.trim() || state.adminSubjectFilter)
+        : false;
+    emptyMsg.textContent = filtered ? 'No tasks match these filters.' : emptyMsg.dataset.default;
     emptyMsg.hidden = !isEmpty;
   }
 }
@@ -1524,7 +1532,7 @@ function updateDialogSubject(task) {
   else dom.dialogSubjectBtn.textContent = isEditable(task) ? 'Add subject' : 'None';
   dom.dialogSubjectBtn.setAttribute('aria-label', task.subject
     ? `Subject: ${dom.dialogSubjectBtn.textContent.trim()}`
-    : `Subject: ${isEditable(task) ? 'none chosen' : 'none'}`);
+    : (isEditable(task) ? 'Subject: Add subject' : 'Subject: None'));
   closeSubjectDropdown(false);
   paintSubjectDropdown();
 }
@@ -1686,9 +1694,11 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (!state.statusPopoverEl || state.statusPopoverEl.hidden) return;
   if (e.key === 'Escape') { closeStatusPopover(true); return; }
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
     e.preventDefault();
-    statusPopoverIndex = (statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
+    statusPopoverIndex = e.key === 'Home' ? 0
+      : e.key === 'End' ? STATUS_ORDER.length - 1
+      : (statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
     paintStatusPopover();
     state.statusPopoverEl.children[statusPopoverIndex].focus();
   }

@@ -718,4 +718,141 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && qaKept.title === 'GENMATH Report ip friday' && qaKept.btnLabel === 'Parse keywords',
     JSON.stringify({ adminDefault, adminFiltered, liveClass, liveCalLeak, liveDoneLeak, pastAdminBanner, prevClass, prevCalBanner, prevDoneBanner, prevPastBanner, exitedOnAdmin, qaParsed, qaKept }),
   );
+
+  // 14. PR 5 desktop left-alignment, tablet wordmark, filter reset/empty, Home/End, ARIA dialog, Quick Add a11y, Settings shortcuts, dynamic tour subject.
+  await boot(cdp, 960, { admin: true, hash: 'my-tasks' });
+  const tablet960 = await cdp.evaluate(`({
+    brandDisplay: getComputedStyle(document.querySelector('.tb .brand b')).display,
+    scrollW: document.documentElement.scrollWidth,
+    clientW: document.documentElement.clientWidth,
+  })`);
+
+  await boot(cdp, 1280, {});
+  const listGeom = await cdp.evaluate(`(() => {
+    const sel = document.getElementById('class-status-filter');
+    sel.value = 'not_started';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    return {
+      crumbLeft: Math.round(document.getElementById('breadcrumb-current').getBoundingClientRect().left),
+      pageLeft: Math.round(document.getElementById('page-class-tasks').getBoundingClientRect().left),
+    };
+  })()`);
+  await click(cdp, '#page-class-tasks [data-view="board"]');
+  await waitUntil(cdp, `document.getElementById('page-class-tasks').dataset.view === 'board'`);
+  const boardGeom = await cdp.evaluate(`(() => {
+    const su = document.getElementById('class-subject-filter');
+    su.value = 'GENSCI';
+    su.dispatchEvent(new Event('change', { bubbles: true }));
+    const emptyMsgs = [...document.querySelectorAll('#class-board .column-empty:not([hidden])')].map((el) => el.textContent.trim());
+    return {
+      crumbLeft: Math.round(document.getElementById('breadcrumb-current').getBoundingClientRect().left),
+      pageLeft: Math.round(document.getElementById('page-class-tasks').getBoundingClientRect().left),
+      clearedStatus: document.getElementById('class-status-filter').value === '',
+      emptyMsgs,
+    };
+  })()`);
+
+  // Status popover Home/End
+  await click(cdp, '#class-board .task-card .status-check');
+  const popOpened = await waitUntil(cdp, `!!document.querySelector('.status-popover[aria-label="Status"]:not([hidden])')`);
+  await pressKey(cdp, 'End', 'End', 35);
+  const endStatus = await cdp.evaluate(`document.activeElement?.dataset?.status || ''`);
+  await pressKey(cdp, 'Home', 'Home', 36);
+  const homeStatus = await cdp.evaluate(`document.activeElement?.dataset?.status || ''`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+
+  // Dialog ARIA + read-only empty-notes suppression when files exist + Settings shortcuts + Quick Add a11y + Tour dynamic subject
+  const pr5Draft = JSON.parse(draft);
+  pr5Draft.subjects = [{ code: 'BIO101', name: 'BIO101', color: '#8fe3a8', active: true }];
+  pr5Draft.tasks = [
+    {
+      id: 'pr5-ro-files',
+      title: 'File Only Task',
+      subject: 'BIO101',
+      status: 'not_started',
+      dueDate: '2026-11-12',
+      notes: '',
+      files: [{ id: '0123456789abcdef0123456789abcdef.pdf', name: 'rubric.pdf', size: 1024 }],
+      createdAt: Date.now(),
+    },
+    ...(pr5Draft.tasks || []),
+  ];
+  await boot(cdp, 1280, {
+    admin: true,
+    hash: 'my-tasks',
+    storage: { class_tasks_draft: JSON.stringify(pr5Draft), class_tasks_tour_seen: '1' },
+  });
+
+  // Editable task with files + empty notes keeps notes field visible; Settings shows shortcuts; Quick Add lacks aria-live on #quick-preview
+  await click(cdp, '#task-list [data-task-id="pr5-ro-files"] .task-row-title');
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === false`);
+  const adminDlg = await cdp.evaluate(`({
+    notesHidden: document.getElementById('dialog-notes-field')?.hidden,
+    noLabelledBy: ['dialog-status-btn', 'dialog-subject-btn', 'dialog-date-btn'].every((id) => !document.getElementById(id)?.hasAttribute('aria-labelledby')),
+    labelsOk: (document.getElementById('dialog-status-btn')?.getAttribute('aria-label') || '').startsWith('Status:')
+      && (document.getElementById('dialog-subject-btn')?.getAttribute('aria-label') || '').startsWith('Subject:')
+      && (document.getElementById('dialog-date-btn')?.getAttribute('aria-label') || '').startsWith('Due:'),
+  })`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === true`);
+
+  // Preview mode opens pr5-ro-files as read-only -> empty notes + file hides #dialog-notes-field
+  await click(cdp, '#btn-preview');
+  await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])') && !!document.querySelector('#class-task-list [data-task-id="pr5-ro-files"]')`);
+  await click(cdp, '#class-task-list [data-task-id="pr5-ro-files"] .task-row-title');
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === false`);
+  const roFilesDlg = await cdp.evaluate(`({
+    readonly: document.querySelector('#task-dialog-overlay .task-dialog')?.classList.contains('is-readonly'),
+    notesHidden: document.getElementById('dialog-notes-field')?.hidden,
+    filesHidden: document.getElementById('dialog-files-field')?.hidden,
+  })`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === true`);
+  await click(cdp, '#preview-exit');
+  await waitUntil(cdp, `!!document.querySelector('#page-my-tasks:not([hidden])')`);
+
+  // Quick Add aria-live check + debounced actionFeedback
+  const quickPreviewHasLive = await cdp.evaluate(`document.getElementById('quick-preview')?.hasAttribute('aria-live')`);
+  await click(cdp, '#new-task-btn');
+  await waitUntil(cdp, `document.getElementById('quick-overlay')?.hidden === false`);
+  await cdp.evaluate(`(() => {
+    const inp = document.getElementById('quick-input');
+    inp.value = 'BIO101 Draft notes tomorrow';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  await waitUntil(cdp, `(document.getElementById('action-feedback')?.textContent || '').includes('Draft notes')`);
+  const quickFeedback = await cdp.evaluate(`document.getElementById('action-feedback')?.textContent || ''`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `document.getElementById('quick-overlay')?.hidden === true`);
+
+  // Settings keyboard shortcuts + Tour dynamic subject
+  await click(cdp, '#settings-open');
+  await waitUntil(cdp, `document.getElementById('settings-overlay')?.hidden === false`);
+  const shortcutsVisible = await cdp.evaluate(`(() => {
+    const row = document.getElementById('settings-shortcuts-row');
+    return !!row && row.getClientRects().length > 0 && row.textContent.includes('Keyboard shortcuts') && row.textContent.includes('/');
+  })()`);
+  await click(cdp, '#settings-replay');
+  await waitUntil(cdp, `document.getElementById('tour-overlay')?.hidden === false`);
+  await click(cdp, '#tour-next');
+  await click(cdp, '#tour-next');
+  const tourSample = await cdp.evaluate(`({
+    tag: document.querySelector('#tour-sample .subject-tag')?.textContent?.trim(),
+    title: document.querySelector('#tour-sample .task-card-title')?.textContent?.trim(),
+  })`);
+  await click(cdp, '#tour-skip');
+  await waitUntil(cdp, `document.getElementById('tour-overlay')?.hidden === true`);
+
+  check(
+    'PR 5 alignment, tablet wordmark, status reset/filter msg, Home/End, ARIA dialog, Quick Add a11y, shortcuts, dynamic tour',
+    tablet960.brandDisplay === 'block' && tablet960.scrollW <= tablet960.clientW
+      && Math.abs(listGeom.crumbLeft - boardGeom.crumbLeft) <= 1 && Math.abs(listGeom.pageLeft - boardGeom.pageLeft) <= 1
+      && boardGeom.clearedStatus && boardGeom.emptyMsgs.includes('No tasks match these filters.')
+      && endStatus === 'done' && homeStatus === 'not_started' && popOpened
+      && adminDlg.notesHidden === false && adminDlg.noLabelledBy && adminDlg.labelsOk
+      && roFilesDlg.readonly && roFilesDlg.notesHidden === true && roFilesDlg.filesHidden === false
+      && quickPreviewHasLive === false && quickFeedback.includes('Draft notes')
+      && shortcutsVisible && tourSample.tag === 'BIO101' && tourSample.title === 'Sample: BIO101 worksheet',
+    JSON.stringify({ tablet960, listGeom, boardGeom, popOpened, endStatus, homeStatus, adminDlg, roFilesDlg, quickPreviewHasLive, quickFeedback, shortcutsVisible, tourSample }),
+  );
 }

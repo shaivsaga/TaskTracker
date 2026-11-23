@@ -27,6 +27,7 @@ let quickPicked = { date: null, endDate: null, time: null };
 let quickPrev = { subject: '', due: '' };
 let quickKeepLiteral = false;
 let quickChipEls = [];
+let quickAnnounceTimer = null;
 
 const AMBIGUOUS_WEEKDAYS = new Set(['sat', 'sun']);
 
@@ -195,6 +196,7 @@ function renderQuickPreview() {
     ? parseQuickAdd(dom.quickInput.value, { keepLiteral: quickKeepLiteral })
     : null;
   dom.quickPreview.hidden = !p;
+  clearTimeout(quickAnnounceTimer);
   if (!p) {
     quickPrev = { subject: '', due: '' };
     syncQuickChips(null);
@@ -239,6 +241,16 @@ function renderQuickPreview() {
   }
   quickPrev = next;
   syncQuickChips(p);
+  const parts = [`Task ${p.title}`];
+  if (p.subject) parts.push(`Subject ${p.subject}`);
+  if (p.dueDate) {
+    const startStr = p.dueDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    parts.push(`Due ${startStr}${p.dueTime ? ' ' + formatTime(p.dueTime) : ''}`);
+  }
+  const summary = parts.join(', ');
+  quickAnnounceTimer = setTimeout(() => {
+    if (!dom.quickOverlay.hidden && dom.actionFeedback) dom.actionFeedback.textContent = summary;
+  }, 350);
   const hasText = !!dom.quickInput.value.trim();
   document.querySelector('#quick-add-btn').disabled = !hasText;
   document.querySelector('#quick-open-btn').disabled = !hasText;
@@ -351,6 +363,7 @@ function applyQuickToken(type, code) {
 export function openQuickAdd() {
   if (!dom.dialogOverlay.hidden && !dom.dialogOverlay.classList.contains('is-closing')) return;
   quickReturnFocus = document.activeElement;
+  clearTimeout(quickAnnounceTimer);
   dom.quickInput.value = '';
   quickPicked = { date: null, endDate: null, time: null };
   quickKeepLiteral = false;
@@ -364,6 +377,7 @@ export function openQuickAdd() {
 }
 
 function closeQuickAdd() {
+  clearTimeout(quickAnnounceTimer);
   closeDuePicker();
   hideOverlay(dom.quickOverlay, 120);
   if (quickReturnFocus && quickReturnFocus.focus) quickReturnFocus.focus();
@@ -371,6 +385,7 @@ function closeQuickAdd() {
 
 function submitQuickAdd(openDetails) {
   if (!dom.quickInput.value.trim()) return;
+  clearTimeout(quickAnnounceTimer);
   const p = parseQuickAdd(dom.quickInput.value, { keepLiteral: quickKeepLiteral });
   const task = new Task({ title: p.title, subject: p.subject, dueDate: p.dueDate, endDate: p.endDate, dueTime: p.dueTime });
   myTasks.push(task);

@@ -64,7 +64,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 .brand b { display: none; font: 400 12px/20px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
 /* Phone-only logo row at the top of the page; the header brand is hidden there because the header is the bottom tab bar. */
 .brand-m { display: none; }
-.section-badge { display: inline-flex; align-items: center; flex: none; padding: 2px 6px; border: 2px solid var(--ac); background: var(--sf2); color: var(--tx); font: 400 10px/16px 'Press Start 2P', monospace; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.section-badge { display: inline-flex; align-items: center; flex: none; padding: 2px 6px; border: 2px solid var(--ac); background: var(--sf2); color: var(--tx); font: 400 12px/16px 'Press Start 2P', monospace; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
 .nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .tn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; min-width: 40px; padding: 0 3px; border: 2px solid transparent; color: var(--mu); font: 600 14px/20px 'Plus Jakarta Sans', system-ui, sans-serif; }
 .tn .sp { filter: saturate(.7); }
@@ -82,15 +82,9 @@ main[tabindex="-1"]:focus { outline: 0; }
 /* The title and the line under it read as one group; the gap the page column adds is pulled in by half. */
 h1.ttl { margin-bottom: -8px; }
 
-@media (max-width: 374px) {
-  .tb { gap: 2px; padding: 0 max(6px, env(safe-area-inset-right)) 0 max(6px, env(safe-area-inset-left)); }
-  .ib { width: 36px; }
-  .brand { padding: 0; }
-  .tn { min-width: 36px; padding: 0; }
-}
 @media (min-width: 720px) {
   .tb { padding: 0 40px; gap: 8px; }
-  /* Icon-only from 720 to 1099: the wordmark starts at 1100, so the link needs its own 44px floor. */
+  /* Icon-only from 720 to 959: the wordmark starts at 960, so the link needs its own 44px floor. */
   .brand { min-width: 44px; }
   .ib { width: 44px; }
   .nav { gap: 4px; }
@@ -108,9 +102,12 @@ h1.ttl { margin-bottom: -8px; }
   .nav { gap: 2px; }
   .tn { gap: 6px; padding: 0 8px; }
 }
-@media (min-width: 1100px) {
+/* lint-allow:px 960px -- tablet wordmark appears once the 5-tab bar fits TaskTracker + Section badge */
+@media (min-width: 960px) {
   .brand b { display: block; }
   .brand { padding: 0 12px 0 0; }
+}
+@media (min-width: 1100px) {
   /* Bar content shares the page column's edges: 40px of page padding inside the 1120px column. */
   .tb { padding-inline: max(40px, calc((100% - 1120px) / 2 + 40px)); }
 }
@@ -137,19 +134,19 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 #page-class-tasks .search input { flex: 1 1 auto; width: auto; min-width: 0; }
 #page-class-tasks .view-tabs { margin-left: auto; }
 .utility-page .page-heading { margin-bottom: 24px; }
-/* Wide pages (board, calendar) and reading pages (lists, Done, Past) keep their own widths, all centred. */
-#page-my-tasks, #page-class-tasks, #page-calendar { width: 100%; max-width: 1120px; margin-inline: auto; }
+/* Wide pages (board, calendar) and reading pages (lists, Done, Past) share the same left column edge. */
+#page-my-tasks, #page-class-tasks, #page-calendar { width: 100%; max-width: 1120px; margin-inline: 0 auto; }
 /* lint-allow:px 880px -- the mockup reading column for Done and Past; no 880px scale value exists */
-#page-done, #page-past { width: 100%; max-width: 880px; margin-inline: auto; }
+#page-done, #page-past { width: 100%; max-width: 880px; margin-inline: 0 auto; }
 /* lint-allow:px 880px -- List views reuse that same reading column */
 #page-my-tasks[data-view="list"], #page-class-tasks[data-view="list"] { max-width: 880px; }
 /* The shared page title sits above the sections, so it takes the narrow column's width whenever a narrow page is showing.
    Desktop only: on phones the title is off-canvas (see the phone-fold section), and a stretched 100% box made the
    absolutely positioned title 320px wide inside a 288px column, which scrolled the page 16px sideways. */
 /* lint-allow:px 880px -- the title tracks the reading column above so its edge lines up */
-#preview-banner { width: 100%; max-width: 1120px; margin-inline: auto; }
+#preview-banner { width: 100%; max-width: 1120px; margin-inline: 0 auto; }
 @media (min-width: 720px) {
-  main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: auto; }
+  main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: 0 auto; }
   /* lint-allow:px 880px -- keeps preview banner aligned with reading column pages */
   main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #preview-banner { max-width: 880px; }
 }
@@ -611,7 +608,7 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 /* The Change chip is an action among value chips: underlined, never filled like a subject. */
 .quick-chip-btn.is-change { text-decoration: underline; text-underline-offset: 3px; }
 .quick-code { color: var(--mu); font-size: 12px; }
-.quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; }
+.quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 12px; line-height: 20px; }
 kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; background: var(--sf); font-size: 12px; }
 /* [[/section:quick-add]] */
 
@@ -816,7 +813,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .brand-m { position: sticky; top: 0; z-index: 5; display: flex; align-self: stretch; height: 56px; margin: 0 -16px 0; padding: 0 72px 0 16px; background: var(--bg); border-bottom: 2px solid var(--ln); }
   .brand-m b { display: block; }
   .brand-m:has(.section-badge) { flex-wrap: wrap; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; gap: 4px 8px; }
-  .brand-m .section-badge { padding: 2px 6px; font-size: 8px; line-height: 12px; }
+  .brand-m .section-badge { padding: 2px 6px; }
   .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }
   /* The current tab is a filled block with its accent bar along the bottom (the base rule's
@@ -1076,6 +1073,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .settings-row > div:not(.view-tabs) { flex: 1 1 auto; min-width: 0; }
 .settings-row > .view-tabs { flex: none; }
 .settings-row > .secondary-button, .settings-row > .danger-button { flex: none; min-width: 88px; height: 44px; padding: 0 12px; font-size: 12px; line-height: 16px; }
+.settings-shortcuts { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; line-height: 20px; }
 .settings-title { margin: 0; color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; }
 /* The mockup's .sub (mockup 54), the second line of a settings row. */
 .settings-desc { margin: 4px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }

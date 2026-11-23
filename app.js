@@ -231,7 +231,18 @@ function setView(scope, view, animate = true) {
   page.classList.add('is-swapping');
 }
 document.querySelectorAll('.view-tab[data-view]').forEach((b) => {
-  b.addEventListener('click', () => setView(b.closest('#page-my-tasks') ? 'admin' : 'class', b.dataset.view));
+  b.addEventListener('click', () => {
+    const scope = b.closest('#page-my-tasks') ? 'admin' : 'class';
+    const nextView = b.dataset.view;
+    const clearClassStatus = scope === 'class' && nextView === 'board' && state.classStatusFilter;
+    if (clearClassStatus) {
+      state.classStatusFilter = '';
+      const sel = document.querySelector('#class-status-filter');
+      if (sel) sel.value = '';
+    }
+    setView(scope, nextView);
+    if (clearClassStatus) tasks.renderClassTasks();
+  });
 });
 
 function createSubjectTag(code, catalogList = state.catalog) {
