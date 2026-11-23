@@ -288,7 +288,7 @@ function createTaskCard(task, catalogList = state.catalog) {
       icon.appendChild(use);
       const label = document.createElement('span');
       label.textContent = isDone ? task.getDueDateDisplay() : task.getDueLabel();
-      if (!isDone) due.title = task.getDueShort();
+      if (!isDone) due.title = overdueNow ? `Overdue · ${task.getDueShort()}` : task.getDueShort();
       due.append(icon, label);
       footer.appendChild(due);
     }
@@ -925,7 +925,7 @@ function createTaskRow(task, catalogList = state.catalog) {
   );
   if (overdue) due.classList.add('is-overdue');
   else if (soon) due.classList.add('is-due-soon');
-  if (task.status !== 'done') due.title = task.getDueShort();
+  if (task.status !== 'done') due.title = overdue ? `Overdue · ${task.getDueShort()}` : task.getDueShort();
 
   const del = document.createElement('button');
   del.type = 'button';

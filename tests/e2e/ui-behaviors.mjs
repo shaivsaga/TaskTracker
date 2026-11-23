@@ -65,7 +65,7 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
   await boot(cdp, 1280, {});
   await pressKey(cdp, '/', 'Slash', 191);
   const slashFocused = await cdp.evaluate(`document.activeElement && document.activeElement.id === 'class-task-search'`);
-  await click(cdp, '#class-task-list .task-row-title');
+  await click(cdp, '#class-task-list [data-task-id="fx004"] .task-row-title');
   const roDialog = await cdp.evaluate(`(() => {
     const dlg = document.querySelector('.task-dialog');
     const footer = document.querySelector('.task-dialog .dialog-footer');
@@ -98,6 +98,24 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && roDialog.subjBorder === 'rgba(0, 0, 0, 0)' && roDialog.sunkMatch,
     JSON.stringify({ slashFocused, ...roDialog }),
   );
+
+  const overdueLabels = await cdp.evaluate(`(() => {
+    const row = document.querySelector('#class-task-list [data-task-id="fx004"] .task-row-due');
+    const card = document.querySelector('#class-board [data-task-id="fx004"] .due-badge');
+    const time = new Date(2026, 10, 2, 17).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const deadline = 'Nov 2 · ' + time;
+    return {
+      pills: [row, card].map((pill) => ({ text: pill.textContent, title: pill.title })),
+      expected: 'Overdue · ' + deadline,
+      dialogHint: document.querySelector('#dialog-due-hint').textContent,
+      dialogDate: document.querySelector('#dialog-date-btn').getAttribute('aria-label'),
+      expectedDialogDate: 'Due: ' + deadline,
+    };
+  })()`);
+  check('overdue Board and List pills and tooltips', overdueLabels.pills.every(
+    (pill) => pill.text === overdueLabels.expected && pill.title === overdueLabels.expected,
+  ) && overdueLabels.dialogHint === 'Overdue' && overdueLabels.dialogDate === overdueLabels.expectedDialogDate,
+    JSON.stringify(overdueLabels));
 
   for (const width of [320, 375, 390, 1280]) {
     for (const theme of ['light', 'dark']) {
