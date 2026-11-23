@@ -214,12 +214,33 @@ test('taskIdOk accepts generated ids and rejects anything that could break a sel
 test('getDueLabel includes short calendar date alongside relative countdown beyond tomorrow', () => {
   const today = new Task({ title: 'Today task', dueDate: dateOffset(0) });
   const tomorrow = new Task({ title: 'Tomorrow task', dueDate: dateOffset(1) });
+  const inThreeDays = new Task({ title: 'Upcoming task', dueDate: dateOffset(3) });
   const twoWeeks = new Task({ title: 'Future task', dueDate: dateOffset(15) });
-  const overdue = new Task({ title: 'Overdue task', dueDate: dateOffset(-3) });
   assert.equal(today.getDueLabel(), 'Due today');
   assert.equal(tomorrow.getDueLabel(), 'Due tomorrow');
+  assert.match(inThreeDays.getDueLabel(), /^In 3 days · [A-Z][a-z]{2} \d{1,2}$/);
   assert.match(twoWeeks.getDueLabel(), /^In 2 weeks · [A-Z][a-z]{2} \d{1,2}/);
-  assert.match(overdue.getDueLabel(), /^3 days overdue · [A-Z][a-z]{2} \d{1,2}/);
+});
+
+test('overdue deadline labels keep the date, range, and optional time without elapsed duration', () => {
+  withFrozenNow('2026-11-08T16:00:00', () => {
+    const date = (day) => new Date(2026, 10, day);
+    const dateOnly = new Task({ dueDate: date(7) });
+    const timed = new Task({ dueDate: date(2), dueTime: '17:00' });
+    const ranged = new Task({ dueDate: new Date(2026, 9, 27), endDate: date(4), dueTime: '17:05' });
+    const earlierToday = new Task({ dueDate: date(8), dueTime: '14:00' });
+    const rangeEndingToday = new Task({ dueDate: date(7), endDate: date(8), dueTime: '14:00' });
+    const laterToday = new Task({ dueDate: date(8), dueTime: '17:00' });
+
+    assert.equal(dateOnly.getDueLabel(), 'Overdue · Nov 7');
+    assert.equal(timed.getDueLabel(), `Overdue · Nov 2 · ${timed.getTimeLabel()}`);
+    assert.equal(ranged.getDueLabel(), `Overdue · Oct 27 – Nov 4 · ${ranged.getTimeLabel()}`);
+    assert.equal(earlierToday.getDueLabel(), `Overdue · Today · ${earlierToday.getTimeLabel()}`);
+    assert.equal(rangeEndingToday.getDueLabel(), `Overdue · Nov 7–8 · ${rangeEndingToday.getTimeLabel()}`);
+    assert.equal(earlierToday.getDueHint(), 'Overdue');
+    assert.equal(laterToday.getDueLabel(), `Due today · ${laterToday.getTimeLabel()}`);
+    assert.equal(new Task().getDueLabel(), 'Someday');
+  });
 });
 
 test('Task endDate serializes, validates ordering, and formats range with arrow', () => {

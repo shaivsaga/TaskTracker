@@ -153,16 +153,9 @@ class Task {
 
   getDueHint() {
     if (!this.dueDate) return '';
+    if (this.isOverdue()) return 'Overdue';
     const diff = dayDiff(this.getDeadline());
     const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-    if (this.isOverdue()) {
-      if (diff === 0) {
-        const mins = Math.max(1, Math.floor((Date.now() - this.getDueTimestamp().getTime()) / 60000));
-        return mins < 60 ? `${mins} min overdue` : `${Math.floor(mins / 60)} hr overdue`;
-      }
-      const days = -diff;
-      return days >= 14 ? '2+ weeks overdue' : days >= 7 ? '1 week overdue' : `${plural(days, 'day')} overdue`;
-    }
     if (diff === 0) {
       if (!this.dueTime) return 'today';
       const mins = Math.max(1, Math.ceil((this.getDueTimestamp().getTime() - Date.now()) / 60000));
@@ -177,12 +170,13 @@ class Task {
   getDueLabel() {
     if (!this.dueDate) return 'Someday';
     const diff = dayDiff(this.getDeadline());
-    const base = this.dueTime && diff === 0 && !this.isOverdue() ? 'today' : this.getDueHint();
+    const overdue = this.isOverdue();
+    const base = this.dueTime && diff === 0 && !overdue ? 'today' : this.getDueHint();
     const lead = base === 'today' || base === 'tomorrow' ? `due ${base}` : base;
     const text = lead.charAt(0).toUpperCase() + lead.slice(1);
     const isRange = this.endDate && toInputValue(this.endDate) !== toInputValue(this.dueDate);
     const showDate = isRange || diff > 1 || diff < 0;
-    const datePart = showDate ? this.getRangeLabel() : '';
+    const datePart = showDate ? this.getRangeLabel() : overdue ? 'Today' : '';
     return [text, datePart, this.getTimeLabel()].filter(Boolean).join(' · ');
   }
 
