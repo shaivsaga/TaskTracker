@@ -164,7 +164,8 @@ async function loadPublished() {
 }
 
 calendar.init({
-  recordSource: tasks.recordSource, openTaskDialog: tasks.openTaskDialog, todayDate, toInputValue, dayDiff, subjects: () => tasks.SUBJECTS,
+  recordSource: tasks.recordSource, openTaskDialog: tasks.openTaskDialog, todayDate, toInputValue, dayDiff,
+  subjects: () => tasks.SUBJECTS, clampPopoverPosition,
 });
 
 document.querySelector('#task-search').addEventListener('input', (e) => {
@@ -653,7 +654,7 @@ async function start() {
     subjectsEditor.loadPresets();
   };
   subjectsEditor.init({
-    syncCatalog,
+    syncCatalog: (list) => { syncCatalog(list); tasks.renderAllTasks(); },
     saveTasks: tasks.saveTasks,
     referencedCodes: () => [...new Set(
       [...myTasks, ...state.publishedTasks].map((t) => t && t.subject).filter(Boolean),

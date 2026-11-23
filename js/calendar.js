@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { plural } from './util.js';
-import { subjectFor } from './subjects.js';
+import { subjectFor, subjectDisplayName } from './subjects.js';
 
 let recordSource = null;
 let openTaskDialog = null;
@@ -8,15 +8,23 @@ let todayDate = null;
 let toInputValue = null;
 let dayDiff = null;
 let subjects = null;
+let clampPopoverPosition = null;
 let calPhone = null;
 let calMode = 'month';
 let calAnchor = null;
 let calSelected = null;
 let calByDay = new Map();
 let calAgendaSig = '';
+let calSubjectFilter = '';
+let calSubjectSig = '';
+let popoverEl = null;
+let popoverDateKey = '';
+let popoverTriggerEl = null;
+let popoverDocBound = false;
 
 export function invalidateAgenda() {
   calAgendaSig = '';
+  calSubjectSig = '';
 }
 
 const calSort = (a, b) => (a.dueTime || '').localeCompare(b.dueTime || '');
@@ -78,6 +86,15 @@ function createCalDots(list) {
   wrap.setAttribute('aria-hidden', 'true');
 
   const open = list.filter((t) => t.status !== 'done');
+  if (list.length > 0 && open.length === 0) {
+    const doneMark = document.createElement('span');
+    doneMark.className = 'cal-done-mark';
+    doneMark.title = 'All tasks done';
+    doneMark.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>';
+    wrap.appendChild(doneMark);
+    return wrap;
+  }
+
   open.sort((a, b) => urgencyRank(a) - urgencyRank(b)).slice(0, 3).forEach((t) => {
     wrap.appendChild(subjectDot(t.subject));
   });
@@ -179,11 +196,130 @@ function calDayKeys(t) {
   return keys;
 }
 
+function closeDayPopover(refocus = false) {
+  if (!popoverEl) return;
+  const targetKey = popoverDateKey;
+  const trigger = popoverTriggerEl;
+  popoverEl.hidden = true;
+  popoverDateKey = '';
+  popoverTriggerEl = null;
+  if (refocus) {
+    const live = (targetKey && document.querySelector(`#cal-grid [data-date="${targetKey}"] .cal-more`))
+      || (trigger && trigger.isConnected ? trigger : null);
+    if (live) live.focus();
+  }
+}
+
+function ensureDayPopover() {
+  if (popoverEl) return popoverEl;
+  const box = document.createElement('div');
+  box.id = 'cal-day-popover';
+  box.className = 'cal-day-popover';
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'false');
+  box.setAttribute('aria-labelledby', 'cal-popover-title');
+  box.hidden = true;
+  const head = document.createElement('div');
+  head.className = 'cal-popover-head';
+  const heading = document.createElement('h3');
+  heading.className = 'cal-popover-title';
+  heading.id = 'cal-popover-title';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'panel-close';
+  close.setAttribute('aria-label', 'Close day tasks');
+  close.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-x"/></svg>';
+  close.addEventListener('click', () => closeDayPopover(true));
+  head.append(heading, close);
+  const listWrap = document.createElement('div');
+  listWrap.className = 'cal-popover-list';
+  box.append(head, listWrap);
+  document.body.appendChild(box);
+  if (!popoverDocBound) {
+    popoverDocBound = true;
+    document.addEventListener('click', (e) => {
+      if (!popoverEl || popoverEl.hidden) return;
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      if (path.includes(popoverEl) || (popoverTriggerEl && path.includes(popoverTriggerEl))) return;
+      closeDayPopover(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !popoverEl || popoverEl.hidden) return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeDayPopover(true);
+    });
+  }
+  popoverEl = box;
+  return box;
+}
+
+function openDayPopover(d, key, list, trigger) {
+  if (popoverEl && !popoverEl.hidden && popoverDateKey === key) {
+    closeDayPopover(true);
+    return;
+  }
+  const box = ensureDayPopover();
+  popoverDateKey = key;
+  popoverTriggerEl = trigger;
+  box.querySelector('#cal-popover-title').textContent = calLongDate(d);
+  const wrap = box.querySelector('.cal-popover-list');
+  wrap.replaceChildren();
+  list.forEach((task) => {
+    const chip = createCalChip(task);
+    chip.addEventListener('click', () => closeDayPopover(false), true);
+    wrap.appendChild(chip);
+  });
+  box.hidden = false;
+  const rect = trigger.getBoundingClientRect();
+  if (clampPopoverPosition) {
+    const pos = clampPopoverPosition(rect, box.offsetWidth, box.offsetHeight, window.innerWidth, window.innerHeight);
+    box.style.top = `${pos.top}px`;
+    box.style.left = `${pos.left}px`;
+  } else {
+    box.style.top = `${Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - box.offsetHeight - 8))}px`;
+    box.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - box.offsetWidth - 8))}px`;
+  }
+  const closeBtn = box.querySelector('.panel-close');
+  if (closeBtn) closeBtn.focus();
+}
+
+function syncCalSubjectFilter(allDated) {
+  const select = document.querySelector('#cal-subject-filter');
+  const reset = document.querySelector('#cal-filter-reset');
+  if (!select) return;
+  const codes = [...new Set(allDated.map((t) => t.subject).filter(Boolean))]
+    .sort((a, b) => subjectDisplayName(state.catalog, a).localeCompare(subjectDisplayName(state.catalog, b), undefined, { sensitivity: 'base' }));
+  if (calSubjectFilter && !codes.includes(calSubjectFilter)) calSubjectFilter = '';
+  const sig = codes.map((c) => `${c}:${subjectDisplayName(state.catalog, c)}`).join('|');
+  if (sig !== calSubjectSig) {
+    calSubjectSig = sig;
+    select.replaceChildren();
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'All subjects';
+    select.appendChild(allOpt);
+    codes.forEach((code) => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = subjectDisplayName(state.catalog, code);
+      select.appendChild(opt);
+    });
+  }
+  select.value = calSubjectFilter;
+  if (reset) reset.hidden = !calSubjectFilter;
+}
+
 export function renderCalendar() {
   const grid = document.querySelector('#cal-grid');
   if (!grid) return;
+  closeDayPopover(false);
   const { start, days } = calRange();
-  const dated = recordSource().filter((t) => t.dueDate && !t.isPast());
+  const allDated = recordSource().filter((t) => t.dueDate && !t.isPast());
+  syncCalSubjectFilter(allDated);
+  const dated = calSubjectFilter
+    ? allDated.filter((t) => t.subject === calSubjectFilter)
+    : allDated;
   const byDay = new Map();
   dated.forEach((t) => calDayKeys(t).forEach((k) => {
     if (!byDay.has(k)) byDay.set(k, []);
@@ -241,7 +377,9 @@ export function renderCalendar() {
       more.type = 'button';
       more.className = 'cal-more';
       more.textContent = `+${list.length - max} more`;
-      more.addEventListener('click', () => { calAnchor = d; calMode = 'week'; syncCalTabs(); renderCalendar(); });
+      more.setAttribute('aria-haspopup', 'dialog');
+      more.setAttribute('aria-label', `${list.length - max} more tasks on ${calLongDate(d)}`);
+      more.addEventListener('click', (e) => { e.stopPropagation(); openDayPopover(d, key, list, more); });
       cell.appendChild(more);
     }
     grid.appendChild(cell);
@@ -249,9 +387,11 @@ export function renderCalendar() {
   const emptyEl = document.querySelector('#cal-empty');
   emptyEl.hidden = dated.length > 0;
   if (!emptyEl.hidden) {
-    emptyEl.textContent = state.isAdmin && !state.previewing
-      ? 'No tasks have a due date yet. Add one in Admin and it shows up here.'
-      : 'No dated tasks have been posted yet.';
+    emptyEl.textContent = calSubjectFilter && allDated.length > 0
+      ? `No dated tasks for ${subjectDisplayName(state.catalog, calSubjectFilter)}.`
+      : (state.isAdmin && !state.previewing
+        ? 'No tasks have a due date yet. Add one in Admin and it shows up here.'
+        : 'No dated tasks have been posted yet.');
   }
   if (focusedDay) calFocus(focusedDay);
   renderCalAgenda();
@@ -271,14 +411,29 @@ export function init(deps) {
   toInputValue = deps.toInputValue;
   dayDiff = deps.dayDiff;
   subjects = deps.subjects;
+  clampPopoverPosition = deps.clampPopoverPosition || null;
   calMode = 'month';
   calAnchor = todayDate();
   calSelected = null;
   calAgendaSig = '';
+  calSubjectFilter = '';
+  calSubjectSig = '';
+  closeDayPopover(false);
   calPhone = window.matchMedia('(max-width: 719px)');
   document.querySelector('#cal-prev').addEventListener('click', () => calStep(-1));
   document.querySelector('#cal-next').addEventListener('click', () => calStep(1));
   document.querySelector('#cal-today').addEventListener('click', () => { calAnchor = todayDate(); calSelected = calAnchor; renderCalendar(); });
+  document.querySelector('#cal-subject-filter')?.addEventListener('change', (e) => {
+    calSubjectFilter = e.target.value;
+    calAgendaSig = '';
+    renderCalendar();
+  });
+  document.querySelector('#cal-filter-reset')?.addEventListener('click', () => {
+    calSubjectFilter = '';
+    calAgendaSig = '';
+    renderCalendar();
+    document.querySelector('#cal-subject-filter')?.focus();
+  });
   calPhone.addEventListener('change', renderCalendar);
   document.querySelectorAll('[data-cal-mode]').forEach((b) => b.addEventListener('click', () => { calMode = b.dataset.calMode; syncCalTabs(); renderCalendar(); }));
 }

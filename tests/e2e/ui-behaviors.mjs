@@ -467,4 +467,100 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && bigErr.hidden === false && /too large/i.test(bigErr.text) && bigErr.linkHidden === true,
     JSON.stringify({ studentTransferHidden, binModal, defaultChecked, transferSent, bigErr }),
   );
+
+  // 12. PR 3: Calendar subject filter + reset, phone Month completed-only mark, desktop +N more popover, and simplified Subject Editor tray.
+  const calDraft = JSON.parse(draft);
+  calDraft.tasks = calDraft.tasks.map((t) => (t.id === 'fx013' ? { ...t, dueDate: '2026-11-03', dueTime: '14:00' } : t));
+  await boot(cdp, 1280, { admin: true, hash: 'calendar', storage: { class_tasks_draft: JSON.stringify(calDraft) } });
+  await waitUntil(cdp, `document.querySelectorAll('#cal-grid .cal-chip').length > 0`);
+  const beforeCalChips = await cdp.evaluate(`document.querySelectorAll('#cal-grid .cal-chip').length`);
+  await cdp.evaluate(`(() => {
+    const sel = document.getElementById('cal-subject-filter');
+    sel.value = 'GENSCI';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await waitUntil(cdp, `document.getElementById('cal-filter-reset')?.hidden === false`);
+  const calFiltered = await cdp.evaluate(`(() => {
+    const subs = [...document.querySelectorAll('#cal-grid .cal-chip .cal-sub')].map((el) => el.textContent.trim());
+    return { count: subs.length, allGensci: subs.length > 0 && subs.every((s) => s === 'GENSCI') };
+  })()`);
+  await click(cdp, '#cal-filter-reset');
+  await waitUntil(cdp, `document.getElementById('cal-filter-reset')?.hidden === true && document.querySelectorAll('#cal-grid .cal-chip').length === ${beforeCalChips}`);
+  const calResetFocus = await cdp.evaluate(`document.activeElement?.id`);
+
+  await click(cdp, '#cal-grid [data-date="2026-11-03"] .cal-more');
+  await waitUntil(cdp, `document.getElementById('cal-day-popover')?.hidden === false`);
+  const popOpen = await cdp.evaluate(`(() => {
+    const pop = document.getElementById('cal-day-popover');
+    const chips = [...pop.querySelectorAll('.cal-chip')];
+    const timeShown = chips.some((c) => {
+      const t = c.querySelector('.cal-time');
+      return t && getComputedStyle(t).display !== 'none';
+    });
+    return {
+      modeStillMonth: document.getElementById('cal-grid')?.dataset.mode === 'month',
+      chipCount: chips.length,
+      timeShown,
+    };
+  })()`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `document.getElementById('cal-day-popover')?.hidden === true`);
+  const popEscFocus = await cdp.evaluate(`document.activeElement?.closest('[data-date]')?.dataset.date === '2026-11-03' && document.activeElement?.classList.contains('cal-more')`);
+  await click(cdp, '#cal-grid [data-date="2026-11-03"] .cal-more');
+  await waitUntil(cdp, `document.getElementById('cal-day-popover')?.hidden === false`);
+  await click(cdp, '#cal-day-popover .cal-chip');
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === false`);
+  const popOpensDialog = await cdp.evaluate(`document.getElementById('cal-day-popover')?.hidden === true && document.getElementById('task-dialog-overlay')?.hidden === false`);
+
+  const allDoneNov3 = {
+    fx005: { status: 'done', movedAt: 1000 },
+    fx006: { status: 'done', movedAt: 1000 },
+    fx007: { status: 'done', movedAt: 1000 },
+  };
+  await boot(cdp, 390, { hash: 'calendar', storage: { class_tasks_progress: JSON.stringify(allDoneNov3) } });
+  await waitUntil(cdp, `!!document.querySelector('#cal-grid [data-date="2026-11-03"] .cal-done-mark')`);
+  const doneCell390 = await cdp.evaluate(`(() => {
+    const cell = document.querySelector('#cal-grid [data-date="2026-11-03"]');
+    return {
+      dots: cell.querySelectorAll('.cal-dot').length,
+      doneMarks: cell.querySelectorAll('.cal-done-mark').length,
+    };
+  })()`);
+
+  await boot(cdp, 320, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: draft } });
+  await click(cdp, '#subject-toggle');
+  await waitUntil(cdp, `document.querySelectorAll('.subject-row').length > 0`);
+  const subjInitial = await cdp.evaluate(`({
+    rows: document.querySelectorAll('.subject-row').length,
+    openTrays: document.querySelectorAll('.subject-colour-tray:not([hidden])').length,
+  })`);
+  await click(cdp, '.subject-row button[data-act="palette"]');
+  await waitUntil(cdp, `document.querySelectorAll('.subject-colour-tray:not([hidden])').length === 1`);
+  const subjExpanded = await cdp.evaluate(`(() => {
+    const tray = document.querySelector('.subject-colour-tray:not([hidden])');
+    const hex = tray.querySelector('input[type="text"]');
+    hex.focus();
+    return {
+      openTrays: document.querySelectorAll('.subject-colour-tray:not([hidden])').length,
+      swatches: tray.querySelectorAll('.subject-swatch').length,
+      hasPicker: !!tray.querySelector('input[type="color"]'),
+      hasHex: !!hex,
+      overflow320: document.documentElement.scrollWidth > window.innerWidth,
+    };
+  })()`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `document.querySelectorAll('.subject-colour-tray:not([hidden])').length === 0`);
+  const subjEscFocus = await cdp.evaluate(`document.activeElement?.dataset.act === 'palette'`);
+
+  check(
+    'PR 3 calendar filter, done indicator, +N more popover, and simplified subject colour tray',
+    calFiltered.allGensci && calFiltered.count < beforeCalChips && calResetFocus === 'cal-subject-filter'
+      && popOpen.modeStillMonth && popOpen.chipCount >= 4 && popOpen.timeShown
+      && popEscFocus && popOpensDialog
+      && doneCell390.dots === 0 && doneCell390.doneMarks === 1
+      && subjInitial.rows > 0 && subjInitial.openTrays === 0
+      && subjExpanded.openTrays === 1 && subjExpanded.swatches === 10 && subjExpanded.hasPicker && subjExpanded.hasHex
+      && !subjExpanded.overflow320 && subjEscFocus,
+    JSON.stringify({ beforeCalChips, calFiltered, calResetFocus, popOpen, popEscFocus, popOpensDialog, doneCell390, subjInitial, subjExpanded, subjEscFocus }),
+  );
 }

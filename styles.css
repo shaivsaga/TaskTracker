@@ -189,8 +189,8 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .search input::placeholder { color: var(--mu); opacity: 1; }
 
 .class-filters { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.class-filters select, #preset-select { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
-.class-filters select:focus-visible, #preset-select:focus-visible { border-color: var(--ac); }
+.class-filters select, #preset-select, #cal-subject-filter { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
+.class-filters select:focus-visible, #preset-select:focus-visible, #cal-subject-filter:focus-visible { border-color: var(--ac); }
 @media (min-width: 720px) {
   #page-class-tasks[data-view="board"] #class-status-filter { display: none; }
 }
@@ -661,9 +661,17 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .history-bar .text-button.is-danger:hover, .history-item .text-button.is-danger:hover { border-color: var(--er); background: var(--erb); color: var(--er); }
 .text-button.is-danger[data-armed], #preset-delete[data-armed], #admin-bar #btn-discard[data-armed] { color: var(--oa); background: var(--er); border-color: var(--er); box-shadow: 0 2px 0 var(--sh); text-decoration: none; }
 .text-button.is-danger[data-armed]:hover, #preset-delete[data-armed]:hover, #admin-bar #btn-discard[data-armed]:hover { color: var(--oa); background: var(--er); border-color: var(--er); }
-.subject-row .history-head { gap: 8px 12px; }
+.subject-row { display: grid; gap: 8px; }
+.subject-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.subject-row-id { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.subject-code { font-size: 12px; font-weight: 700; line-height: 16px; color: var(--mu); letter-spacing: 0.04em; }
 .subject-row .search { flex: 1 1 160px; min-width: 120px; }
 .subject-row .search input { width: 100%; }
+.subject-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 0; }
+.subject-colour-tray { display: grid; gap: 12px; padding: 12px; border: 2px solid var(--ln); background: var(--sf2); }
+.subject-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.subject-custom-colour { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.subject-custom-colour .search { flex: 0 1 120px; min-width: 104px; }
 .subject-row input[type="color"] { width: 44px; height: 44px; padding: 2px; border: 2px solid var(--mu); background: var(--oa); cursor: pointer; }
 .subject-swatch { width: 44px; height: 44px; padding: 0; border: 2px solid var(--mu); box-shadow: inset 0 0 0 4px var(--sf); cursor: pointer; }
 .subject-swatch:hover, .subject-swatch[aria-pressed="true"] { border-color: var(--ac); }
@@ -723,8 +731,17 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 /* the mockup's dot ring: outline 1px var(--pl) (mockup 135/316), which its dark --pl makes invisible */
 .cal-dot { flex: none; width: 8px; height: 8px; background: var(--tag, var(--mu)); outline: 1px solid var(--pl); }
+.cal-filters { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
+.cal-filters .text-button { min-height: 44px; padding: 0 8px; }
 .cal-more { display: inline-flex; align-items: center; min-height: 24px; padding: 0 4px; background: transparent; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; text-align: left; cursor: pointer; }
 .cal-more:hover { color: var(--tx); }
+.cal-done-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--ok); }
+.cal-done-mark svg { width: 12px; height: 12px; stroke-width: 3; }
+.cal-day-popover { position: fixed; z-index: 120; display: grid; gap: 8px; width: min(320px, calc(100vw - 16px)); max-height: min(320px, calc(100vh - 32px)); padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); overflow-y: auto; }
+.cal-popover-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-popover-title { margin: 0; font-size: 14px; font-weight: 700; line-height: 20px; color: var(--tx); }
+.cal-popover-list { display: grid; gap: 8px; }
+.cal-day-popover .cal-time { display: inline; }
 
 /* Phone month view: day cells are tap targets that show dots; the picked day's tasks list below the grid. */
 .cal-day.is-tappable { position: relative; justify-items: center; align-content: start; gap: 4px; min-height: 56px; padding: 4px; cursor: pointer; }
@@ -887,6 +904,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #page-calendar .cal-nav { grid-area: 1 / 2; justify-self: end; }
   #page-calendar .view-tabs { grid-area: 2 / 1; justify-self: start; }
   #page-calendar #cal-today { grid-area: 2 / 2; justify-self: end; align-self: stretch; }
+  #page-calendar .cal-filters { grid-column: 1 / -1; grid-row: 3; }
+  #page-calendar #cal-subject-filter { flex: 1 1 auto; min-width: 0; }
   .cal[data-mode="month"] .cal-day.is-tappable { min-height: 52px; }
   .cal[data-mode="month"] .cal-day.is-tappable:has(.cal-plus) { min-height: 72px; }
   .cal[data-mode="month"] .cal-dow { padding: 8px 0; text-align: center; }

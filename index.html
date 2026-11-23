@@ -322,6 +322,13 @@
             <div class="page-heading">
               <h2 class="cal-title" id="cal-title"></h2>
               <div class="page-actions">
+                <div class="cal-filters">
+                  <label class="sr-only" for="cal-subject-filter">Subject</label>
+                  <select id="cal-subject-filter">
+                    <option value="">All subjects</option>
+                  </select>
+                  <button class="text-button" type="button" id="cal-filter-reset" hidden>Clear filter</button>
+                </div>
                 <div class="view-tabs" role="group" aria-label="Calendar view">
                   <button type="button" class="view-tab is-active" data-cal-mode="month" aria-pressed="true">Month</button>
                   <button type="button" class="view-tab" data-cal-mode="week" aria-pressed="false">Week</button>
