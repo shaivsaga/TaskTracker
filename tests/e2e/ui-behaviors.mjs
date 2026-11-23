@@ -389,4 +389,82 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && settingsCopy.privacyDesktop,
     JSON.stringify({ boardInd, listInd, phone320Pr1, phone390Pr1, settingsCopy }),
   );
+
+  // 11. PR 2: Recycle Bin modal permanent delete (no id jargon) & Transfer draft opt-in / 700 KB limit.
+  await boot(cdp, 1280, { hash: 'settings' });
+  await click(cdp, '#settings-transfer');
+  await waitUntil(cdp, `!document.getElementById('transfer-overlay')?.hidden`);
+  const studentTransferHidden = await cdp.evaluate(`document.getElementById('transfer-admin-box')?.hidden === true`);
+
+  await boot(cdp, 1280, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: draft } });
+  await cdp.evaluate(`(() => {
+    window.__pr2Stub = { origFetch: window.fetch.bind(window), transfers: [] };
+    window.fetch = async (url, init) => {
+      const s = String(url);
+      if (s.includes('view=admin') || (init?.body && String(init.body).includes('bin-permanent-delete'))) {
+        return new Response(JSON.stringify({
+          binSummaries: [{ binId: 'bin1', taskId: 'fx999', title: 'Archived lab sheet', everPublished: true, source: 'publish-remove' }],
+          retiredDraftIds: [],
+          adminRevision: 1,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (s.endsWith('transfer.php') && init?.method === 'POST') {
+        const body = JSON.parse(init.body || '{}');
+        if (body.payload) window.__pr2Stub.transfers.push(body.payload);
+        return new Response(JSON.stringify({ token: '0123456789abcdef0123456789abcdef', expiresIn: 600 }), {
+          status: 200, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return window.__pr2Stub.origFetch(url, init);
+    };
+  })()`);
+  await click(cdp, '#bin-toggle');
+  await click(cdp, '#bin-refresh');
+  await waitUntil(cdp, `!!document.querySelector('#bin-list [data-bin-action="delete"]')`);
+  await click(cdp, '#bin-list [data-bin-action="delete"]');
+  await waitUntil(cdp, `!!document.querySelector('.confirm-overlay') && !document.querySelector('.confirm-overlay').hidden`);
+  const binModal = await cdp.evaluate(`(() => {
+    const msg = document.getElementById('confirm-message')?.textContent || '';
+    const ok = document.querySelector('[data-confirm="ok"]');
+    return {
+      title: document.getElementById('confirm-title')?.textContent?.trim(),
+      hasDanger: !!ok?.classList.contains('danger-button') && ok.classList.contains('is-solid'),
+      noJargon: !/never reused|\\bid\\b/i.test(msg),
+    };
+  })()`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `document.querySelector('.confirm-overlay')?.hidden === true`);
+
+  await click(cdp, '#settings-open');
+  await waitUntil(cdp, `!document.getElementById('settings-overlay')?.hidden`);
+  await click(cdp, '#settings-transfer');
+  await waitUntil(cdp, `!document.getElementById('transfer-overlay')?.hidden`);
+  const defaultChecked = await cdp.evaluate(`document.getElementById('transfer-include-draft')?.checked === false`);
+  await waitUntil(cdp, `(window.__pr2Stub?.transfers?.length || 0) >= 1`);
+  await click(cdp, '#transfer-include-draft');
+  await waitUntil(cdp, `(window.__pr2Stub?.transfers?.length || 0) >= 2`);
+  const transferSent = await cdp.evaluate(`(() => ({
+    firstHasDraft: Boolean(window.__pr2Stub.transfers[0]?.draft),
+    secondHasDraft: Boolean(window.__pr2Stub.transfers[1]?.draft),
+  }))()`);
+
+  const bigDraft = JSON.parse(draft);
+  bigDraft.tasks[0].notes = 'A'.repeat(710000);
+  await boot(cdp, 1280, { admin: true, hash: 'settings', storage: { class_tasks_draft: JSON.stringify(bigDraft) } });
+  await click(cdp, '#settings-transfer');
+  await waitUntil(cdp, `!document.getElementById('transfer-overlay')?.hidden && !document.getElementById('transfer-admin-box')?.hidden`);
+  await click(cdp, '#transfer-include-draft');
+  await waitUntil(cdp, `document.getElementById('transfer-error')?.hidden === false`);
+  const bigErr = await cdp.evaluate(`({
+    hidden: document.getElementById('transfer-error')?.hidden,
+    text: document.getElementById('transfer-error')?.textContent || '',
+    linkHidden: document.getElementById('transfer-link-row')?.hidden,
+  })`);
+  check(
+    'PR 2 modal bin delete confirm and transfer draft opt-in / size limit',
+    studentTransferHidden && binModal.title === 'Delete permanently?' && binModal.hasDanger && binModal.noJargon
+      && defaultChecked && !transferSent.firstHasDraft && transferSent.secondHasDraft
+      && bigErr.hidden === false && /too large/i.test(bigErr.text) && bigErr.linkHidden === true,
+    JSON.stringify({ studentTransferHidden, binModal, defaultChecked, transferSent, bigErr }),
+  );
 }

@@ -738,8 +738,8 @@ async function main() {
         'task ' + (started && started.taskId) + ' opened ' + opened + ' -> ' + active.tag + '.' + active.cls + ' "' + active.name + '"');
     }
 
-    // 5c. completed-task reopen from the Done row: the first Enter arms, the second reopens. The
-    // task leaves Done, so there is no row left to focus: focus must still land on a visible control.
+    // 5c. completed-task reopen from the Done row: single Enter reopens immediately with Undo and
+    // keeps focus on a live visible control as the row leaves Done.
     const reopenBase = { admin: true, storage: { class_tasks_draft: draft, class_tasks_progress: JSON.stringify(progress) } };
     await boot(cdp, 1280, { ...reopenBase, hash: 'done' });
     const beforeDone = await cdp.evaluate(`document.querySelectorAll('#done-list .done-row').length`);
@@ -751,19 +751,23 @@ async function main() {
       return { taskId: row.dataset.taskId, focused: document.activeElement === btn };
     })()`);
     await pressEnter(cdp);
-    const reopenArmed = await cdp.evaluate(`document.activeElement.textContent.trim()`);
-    await pressEnter(cdp);
+    await nextFrame(cdp);
     const accepted = await cdp.evaluate(READ_ACTIVE);
     const leftDone = await cdp.evaluate(`(() => {
       const id = ${JSON.stringify((rowStart && rowStart.taskId) || '')};
-      return { rows: document.querySelectorAll('#done-list .done-row').length, still: !!document.querySelector('#done-list [data-task-id="' + id + '"]') };
+      return {
+        rows: document.querySelectorAll('#done-list .done-row').length,
+        still: !!document.querySelector('#done-list [data-task-id="' + id + '"]'),
+        toastUndo: !document.getElementById('toast').hidden && !document.getElementById('toast-action').hidden,
+      };
     })()`);
-    check('reopen done row', !!rowStart && rowStart.focused && reopenArmed === 'Confirm?'
-      && leftDone.rows === beforeDone - 1 && !leftDone.still && focusOk(accepted),
-      'armed "' + reopenArmed + '", rows ' + beforeDone + ' -> ' + leftDone.rows + '; focus ' + accepted.tag + '.' + accepted.cls + ' "' + accepted.name + '"');
+    await click(cdp, '#toast-action');
+    await waitUntil(cdp, `document.querySelectorAll('#done-list .done-row').length === ${beforeDone}`);
+    check('reopen done row', !!rowStart && rowStart.focused && leftDone.rows === beforeDone - 1
+      && !leftDone.still && leftDone.toastUndo && focusOk(accepted),
+      'rows ' + beforeDone + ' -> ' + leftDone.rows + ' undo=' + leftDone.toastUndo + '; focus ' + accepted.tag + '.' + accepted.cls + ' "' + accepted.name + '"');
 
-    // 5d. reopen from the status popover: closeStatusPopover() hides the option before the confirm
-    // opens, so the old code captured a hidden option and focused it on Cancel and after Reopen.
+    // 5d. reopen from the status popover: immediate with Undo toast, no confirm modal, focus returns to live control.
     await boot(cdp, 1280, {
       admin: true, hash: 'my-tasks',
       storage: { class_tasks_draft: draft, class_tasks_progress: JSON.stringify(progress), class_tasks_view_admin: 'board' },
@@ -780,37 +784,24 @@ async function main() {
     await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
     await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
     await pressEnter(cdp);
-    const popConfirm = await cdp.evaluate(`!document.querySelector('.confirm-overlay').hidden`);
-    await pressKey(cdp, 'Escape', 'Escape', 27);
-    await waitUntil(cdp, `document.querySelector('.confirm-overlay').hidden`);
-    const popCancelled = await cdp.evaluate(READ_ACTIVE);
-    const stillDone = await cdp.evaluate(`(() => {
-      const card = document.querySelector('#page-my-tasks .task-card[data-task-id="' + ${JSON.stringify((doneCard && doneCard.taskId) || '')} + '"]');
-      return card ? card.dataset.status : null;
-    })()`);
-    check('reopen popover cancel', !!doneCard && doneCard.focused && popoverOpen && popConfirm && stillDone === 'done'
-      && focusOk(popCancelled, doneCard.taskId) && /status-check/.test(popCancelled.cls),
-      'task ' + (doneCard && doneCard.taskId) + ' still ' + stillDone + ' -> ' + popCancelled.tag + '.' + popCancelled.cls + ' "' + popCancelled.name + '"');
-    await pressEnter(cdp);
-    await waitUntil(cdp, `!!document.querySelector('.status-popover:not([hidden])')`);
-    await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
-    await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
-    await pressEnter(cdp);
-    await waitUntil(cdp, `!document.querySelector('.confirm-overlay').hidden`);
-    const popConfirmAgain = await cdp.evaluate(`!document.querySelector('.confirm-overlay').hidden`);
-    await pressKey(cdp, 'Tab', 'Tab', 9);
-    const popReopenFocused = await cdp.evaluate(`document.activeElement.textContent.trim()`);
-    await pressEnter(cdp);
-    await waitUntil(cdp, `document.querySelector('.confirm-overlay').hidden`);
     await nextFrame(cdp);
     const popAccepted = await cdp.evaluate(READ_ACTIVE);
-    const newStatus = await cdp.evaluate(`(() => {
-      const card = document.querySelector('#page-my-tasks .task-card[data-task-id="' + ${JSON.stringify((doneCard && doneCard.taskId) || '')} + '"]');
-      return card ? card.dataset.status : null;
+    const reopenedState = await cdp.evaluate(`(() => {
+      const id = ${JSON.stringify((doneCard && doneCard.taskId) || '')};
+      const card = document.querySelector('#page-my-tasks .task-card[data-task-id="' + id + '"]');
+      const confirmHidden = !document.querySelector('.confirm-overlay') || document.querySelector('.confirm-overlay').hidden;
+      return {
+        status: card ? card.dataset.status : null,
+        confirmHidden,
+        toastUndo: !document.getElementById('toast').hidden && !document.getElementById('toast-action').hidden,
+      };
     })()`);
-    check('reopen popover accept', !!doneCard && popConfirmAgain && popReopenFocused === 'Reopen'
-      && newStatus === 'not_started' && focusOk(popAccepted, doneCard.taskId) && /task-title-open|task-row-title|status-check/.test(popAccepted.cls),
-      'task ' + (doneCard && doneCard.taskId) + ' -> ' + newStatus + '; focus ' + popAccepted.tag + '.' + popAccepted.cls + ' "' + popAccepted.name + '"');
+    await click(cdp, '#toast-action');
+    await waitUntil(cdp, `document.querySelector('#page-my-tasks .task-card[data-task-id="' + ${JSON.stringify((doneCard && doneCard.taskId) || '')} + '"]')?.dataset.status === 'done'`);
+    check('reopen popover immediate and undo', !!doneCard && doneCard.focused && popoverOpen
+      && reopenedState.confirmHidden && reopenedState.status === 'not_started' && reopenedState.toastUndo
+      && focusOk(popAccepted, doneCard.taskId) && /task-title-open|task-row-title|status-check/.test(popAccepted.cls),
+      'task ' + (doneCard && doneCard.taskId) + ' -> ' + reopenedState.status + '; focus ' + popAccepted.tag + '.' + popAccepted.cls + ' "' + popAccepted.name + '"');
 
     // 5e. subject dropdown keyboard: Enter/ArrowDown opens and focuses the selected option,
     // Home/End/ArrowDown navigate, Escape closes the dropdown without closing the task dialog,
@@ -915,22 +906,12 @@ async function main() {
     check('cold done deep link', coldDone.rows > 0 && coldDone.rows === inAppDone && !coldDone.empty,
       'cold rows ' + coldDone.rows + ' (empty ' + coldDone.empty + '), in-app ' + inAppDone);
 
-    // 7. archive Delete arms before it deletes, and Undo restores
+    // 7. archive Delete moves to recycle bin immediately with Undo
     await boot(cdp, 1280, { admin: true, hash: 'past', storage: { class_tasks_draft: draft } });
     const before = await cdp.evaluate(`document.querySelectorAll('#past-list .done-row').length`);
-    const clicked = await cdp.evaluate(`(() => {
-      const row = document.querySelector('#past-list .done-row');
-      const del = [...row.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Delete');
-      if (!del) return null;
-      del.click();
-      return { text: del.textContent.trim(), rows: document.querySelectorAll('#past-list .done-row').length };
-    })()`);
-    const armed = clicked && clicked.text === 'Confirm?' && clicked.rows === before;
-    // Deletion archives first, so the row disappears one network turn later: poll for the effect
-    // instead of sampling synchronously.
     await cdp.evaluate(`(() => {
       const row = document.querySelector('#past-list .done-row');
-      const del = [...row.querySelectorAll('button')].find((b) => /Confirm\\?/.test(b.textContent));
+      const del = [...row.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Delete');
       if (del) del.click();
       return true;
     })()`);
@@ -950,8 +931,8 @@ async function main() {
     await click(cdp, '#toast-action');
     await waitUntil(cdp, `document.querySelectorAll('#past-list .done-row').length === ${before}`);
     const after = await cdp.evaluate(`document.querySelectorAll('#past-list .done-row').length`);
-    check('delete arms + undo', !!armed && !!gone && after === before,
-      'rows ' + before + ' -> armed ' + (clicked && clicked.text) + ' -> ' + (deleted && deleted.rows) + ' -> undo ' + after + ' (toast "' + (deleted && deleted.message) + '")');
+    check('delete immediate + undo', !!gone && after === before,
+      'rows ' + before + ' -> ' + (deleted && deleted.rows) + ' -> undo ' + after + ' (toast "' + (deleted && deleted.message) + '")');
 
     // 7b. class List/Board filters and their status transitions, through the same isolated boot
     await runClassFilterChecks({ cdp, boot, check, click, sleep, pressKey, pressEnter, fixture, FIXTURE_INSTANT });

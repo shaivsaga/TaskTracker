@@ -643,6 +643,7 @@ async function start() {
     Task,
     saveTasks: tasks.saveTasks,
     renderAllTasks: tasks.renderAllTasks,
+    confirmDialog: tasks.confirmDialog,
   });
 
   const loadAdminPanels = () => {

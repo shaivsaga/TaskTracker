@@ -1122,6 +1122,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* [[section:transfer]] */
 /* ---------- Transfer ---------- */
+.transfer-admin-box { display: grid; gap: 8px; }
 /* lint-allow:hex #FFFFFF -- QR codes need a white quiet zone in both themes */
 .transfer-qr-frame { display: grid; justify-self: center; width: fit-content; max-width: 100%; padding: 8px; border: 2px solid var(--ln); background: #FFFFFF; }
 .transfer-qr-frame canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; }

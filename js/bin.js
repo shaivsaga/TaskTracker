@@ -115,15 +115,23 @@ async function onAction(action, binId, btn) {
   if (armed && (armed.binId !== binId || armed.action !== action)) { armed = null; render(lastData); }
   if (action === 'restore') return restore(binId, btn);
   if (action === 'delete') {
-    if (!armed || armed.binId !== binId) {
-      armed = { binId, action };
-      btn.dataset.armed = '1';
-      btn.textContent = 'Delete permanently?';
-      say('Press again to delete this copy for good. Its id is never reused.');
-      btn.focus();
-      return;
+    const row = rows.find((r) => r.binId === binId);
+    const title = row ? (row.title || row.taskId) : 'this task';
+    const note = row && row.everPublished
+      ? 'This removes the saved copy from the recycle bin permanently. Earlier snapshots remain in History.'
+      : 'This removes the saved copy from the recycle bin permanently.';
+    if (deps && deps.confirmDialog) {
+      deps.confirmDialog({
+        title: 'Delete permanently?',
+        message: `\u201C${title}\u201D will be deleted permanently. ${note}`,
+        okLabel: 'Delete permanently',
+        danger: true,
+        openerHint: btn,
+        onConfirm: () => { permanentDelete(binId, btn); },
+      });
+    } else {
+      permanentDelete(binId, btn);
     }
-    return permanentDelete(binId, btn);
   }
 }
 
@@ -141,7 +149,7 @@ async function restore(binId, btn) {
     const prepared = prepareRecoveredDraft({ tasks: [task] }, forbidden, newOperationId);
     task = prepared.content.tasks[0];
     if (prepared.recovered.length) {
-      say('Restored as a new copy: the original id was permanently deleted, so its old progress does not carry over.');
+      say('Restored as a new copy because the earlier task was permanently deleted. Old progress does not carry over.');
     }
 
     const collision = deps.myTasks.find((t) => String(t.id) === String(task.id));
@@ -194,7 +202,7 @@ async function permanentDelete(binId, btn) {
     const board = out.data && out.data.current;
     if (board) store.adoptAuthoritativeBoard(board);
     await load();
-    say('Deleted for good. The id stays reserved, and uploaded files or older history copies are untouched.');
+    say('Deleted permanently. Uploaded files and earlier history snapshots are untouched.');
     dom.binRefresh.focus();
   } catch (e) {
     say('Cannot reach the server right now; nothing was deleted.');

@@ -171,7 +171,7 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
     && r.activeTask === 'fx003' && JSON.parse(r.progress || '{}').fx003?.status === 'in_progress',
     'rows ' + r.rows + ' focus task ' + r.activeTask + ' status ' + r.status);
 
-  // Confirmed Done -> Not started has the same filtered-removal feedback and Undo path.
+  // Reopening Done -> Not started acts immediately with the same filtered-removal feedback and Undo path.
   await boot(cdp, 1280, { storage: { ...asList, class_tasks_progress: done } });
   await setValue(cdp, sleep, 'class-status-filter', 'done', 'change');
   await focus(cdp, '#class-task-list .task-row[data-task-id="fx003"] .status-check');
@@ -179,17 +179,15 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
   await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
   await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
   await pressEnter(cdp);
-  await pressKey(cdp, 'Tab', 'Tab', 9);
-  await pressEnter(cdp);
   await sleep(300);
   r = await read(cdp);
-  check('class confirmed removal', r.rows === 0 && r.activeId === 'class-status-filter' && r.toast
+  check('class reopened removal', r.rows === 0 && r.activeId === 'class-status-filter' && r.toast
     && /Marked not started/.test(r.toastText) && /Hidden by the Status filter/.test(r.toastText),
     'rows ' + r.rows + ' focus ' + r.activeId + ' toast "' + r.toastText + '"');
   await click(cdp, '#toast-action');
   await sleep(250);
   r = await read(cdp);
-  check('class confirmed undo', r.rows === 1 && r.rowIds[0] === 'fx003' && r.status === 'done'
+  check('class reopened undo', r.rows === 1 && r.rowIds[0] === 'fx003' && r.status === 'done'
     && r.activeTask === 'fx003' && JSON.parse(r.progress || '{}').fx003?.status === 'done',
     'rows ' + r.rows + ' focus task ' + r.activeTask + ' status ' + r.status);
 

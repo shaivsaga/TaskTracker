@@ -526,6 +526,13 @@
         </div>
         <div class="dialog-body">
           <p class="dialog-summary" id="transfer-intro">Scan this code or open the link on your other device. It works for 10 minutes.</p>
+          <div class="transfer-admin-box" id="transfer-admin-box" hidden>
+            <label class="import-check" for="transfer-include-draft">
+              <input type="checkbox" id="transfer-include-draft">
+              <span>Include unpublished admin draft</span>
+            </label>
+            <p class="import-note" id="transfer-draft-note"></p>
+          </div>
           <div class="transfer-qr-frame" id="transfer-qr-frame" hidden>
             <canvas id="transfer-qr" role="img" aria-label="QR code for the transfer link"></canvas>
           </div>

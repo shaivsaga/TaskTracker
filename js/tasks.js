@@ -96,7 +96,7 @@ function ensureConfirmDialog() {
   return overlay;
 }
 
-export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, openerHint, taskId }) {
+export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, openerHint, taskId, danger = false }) {
   const overlay = ensureConfirmDialog();
   if (!overlay.hidden) { onCancel?.(); return; }
   const okBtn = overlay.querySelector('[data-confirm="ok"]');
@@ -106,12 +106,14 @@ export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, op
   overlay.querySelector('#confirm-title').textContent = title;
   overlay.querySelector('#confirm-message').textContent = message;
   okBtn.textContent = okLabel;
+  okBtn.className = danger ? 'danger-button is-solid' : 'primary-button';
 
   const close = (accept) => {
     overlay.removeEventListener('keydown', onKey, true);
     overlay.removeEventListener('click', onBackdrop);
     okBtn.onclick = null;
     cancelBtn.onclick = null;
+    okBtn.className = 'primary-button';
     motion.hideOverlay(overlay);
     if (accept) onConfirm();
     else onCancel?.();
@@ -144,13 +146,6 @@ export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, op
   overlay.addEventListener('keydown', onKey, true);
   motion.openOverlay(overlay);
   cancelBtn.focus();
-}
-function confirmReopen(task, newStatus, onConfirm, openerHint) {
-  confirmDialog({
-    title: 'Reopen this task?',
-    message: `\u201C${task.title}\u201D will move from Done to ${STATUS_LABELS[newStatus]}.`,
-    okLabel: 'Reopen', onConfirm, openerHint, taskId: task.id,
-  });
 }
 
 export function saveTasks() {
@@ -309,6 +304,11 @@ function createTaskCard(task) {
 async function deleteTask(task) {
   const index = myTasks.indexOf(task);
   if (index === -1) return false;
+  const activePastRow = document.activeElement?.closest?.('#past-list .done-row');
+  const pastRows = activePastRow ? [...document.querySelectorAll('#past-list .done-row')] : [];
+  const pastIdx = activePastRow ? pastRows.indexOf(activePastRow) : -1;
+  const nextPastId = pastIdx >= 0 ? (pastRows[pastIdx + 1]?.dataset.taskId || pastRows[pastIdx - 1]?.dataset.taskId || '') : '';
+  const prevScrollY = window.scrollY;
   const archive = state.isAdmin && !state.previewing ? await store.archiveTask(task) : { ok: true };
   if (!archive.ok) {
     showToast('Could not save this task to the recycle bin. It was not deleted.');
@@ -324,7 +324,13 @@ async function deleteTask(task) {
     return false;
   }
   renderAllTasks();
-  showToast('Task deleted. A copy stays in the recycle bin.', 'Undo', () => undoDelete(task, index));
+  if (activePastRow) {
+    const nextBtn = nextPastId && document.querySelector(`#past-list .done-row[data-task-id="${nextPastId}"] .text-button`);
+    if (nextBtn) nextBtn.focus({ preventScroll: true });
+    else focusFallbackControl();
+    if (window.scrollY !== prevScrollY) window.scrollTo(0, prevScrollY);
+  }
+  showToast('Task moved to recycle bin.', 'Undo', () => undoDelete(task, index));
   return true;
 }
 
@@ -537,13 +543,12 @@ function renderPastPage() {
   }
   const canEdit = state.isAdmin && !state.previewing;
 
-  const mkBtn = (label, fn, confirmLabel) => {
+  const mkBtn = (label, fn, isDanger = false) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = confirmLabel ? 'text-button is-danger' : 'text-button';
+    b.className = isDanger ? 'text-button is-danger' : 'text-button';
     b.textContent = label;
-    if (confirmLabel) armInlineConfirm(b, label, confirmLabel, fn);
-    else b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+    b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
     return b;
   };
   const pastBucket = (t) => {
@@ -580,7 +585,7 @@ function renderPastPage() {
           showToast('Task restored');
         }
       }));
-      actions.appendChild(mkBtn('Delete', () => deleteTask(task), 'Confirm deleting this task'));
+      actions.appendChild(mkBtn('Delete', () => deleteTask(task), true));
     }
     row.addEventListener('click', () => openTaskDialog(task));
     row.append(title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
@@ -642,16 +647,6 @@ export function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
   });
 }
 
-function reopenWithConfirm(btn, task) {
-  armInlineConfirm(btn, btn.textContent, 'Confirm marking this task not done', () => {
-    const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-    setStatus(task, 'not_started');
-    renderAllTasks();
-
-    if (!focusTaskControl(task.id)) focusFallbackControl();
-    showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
-  });
-}
 function renderDonePage() {
   const host = document.querySelector('#done-list');
   const done = sortTasks(recordSource().filter((t) => t.status === 'done'));
@@ -690,7 +685,21 @@ function renderDonePage() {
     undo.type = 'button';
     undo.className = 'text-button';
     undo.textContent = 'Mark not done';
-    reopenWithConfirm(undo, task);
+    undo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
+      const prevScrollY = window.scrollY;
+      const rows = [...document.querySelectorAll('#done-list .done-row')];
+      const idx = rows.indexOf(row);
+      const nextId = rows[idx + 1]?.dataset.taskId || rows[idx - 1]?.dataset.taskId || '';
+      setStatus(task, 'not_started');
+      renderAllTasks();
+      const nextCtrl = nextId && document.querySelector(`#done-list .done-row[data-task-id="${nextId}"] .text-button`);
+      if (nextCtrl) nextCtrl.focus({ preventScroll: true });
+      else if (!focusTaskControl(task.id)) focusFallbackControl();
+      if (window.scrollY !== prevScrollY) window.scrollTo(0, prevScrollY);
+      showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
+    });
     actions.appendChild(undo);
     row.addEventListener('click', () => openTaskDialog(task));
     row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), when, actions);
@@ -1199,7 +1208,6 @@ function autosave() {
   flashSaved();
 }
 
-const isReopen = (task, status) => task.status === 'done' && status !== 'done';
 function updateColumn(columnEl) {
   const n = columnEl.querySelectorAll('.task-card').length;
   columnEl.querySelector('.column-count').textContent = `(${n})`;
@@ -1264,20 +1272,14 @@ function handleDrop(e) {
 
   const newStatus = COLUMN_TO_STATUS[columnEl.dataset.status];
   if (newStatus && newStatus !== task.status) {
-    if (isReopen(task, newStatus)) {
-      confirmReopen(task, newStatus, () => {
-        const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-        setStatus(task, newStatus);
-        renderAllTasks();
-        showToast(statusChangeMessage(newStatus), 'Undo', () => restoreProgress(task.id, prev));
-      });
-    } else {
-      const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-      setStatus(task, newStatus);
-      renderAllTasks();
-      if (newStatus === 'done') {
-        showToast(doneMessage(), 'Undo', () => restoreProgress(task.id, prev));
-      }
+    const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
+    const reopened = task.status === 'done' && newStatus !== 'done';
+    setStatus(task, newStatus);
+    renderAllTasks();
+    if (reopened) {
+      showToast(statusChangeMessage(newStatus), 'Undo', () => restoreProgress(task.id, prev));
+    } else if (newStatus === 'done') {
+      showToast(doneMessage(), 'Undo', () => restoreProgress(task.id, prev));
     }
   }
 
@@ -1365,20 +1367,8 @@ function ensureStatusPopover() {
       const picked = statusPopoverTask;
       const next = opt.dataset.status;
       const pickedFrom = statusPopoverAnchor;
-      if (isReopen(picked, next)) {
-        closeStatusPopover();
-
-        confirmReopen(picked, next, () => {
-          const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
-          setStatus(picked, next);
-          if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
-          renderAllTasks();
-          const hiddenByFilter = !!state.classStatusFilter && next !== state.classStatusFilter && classListVisible();
-          showToast(hiddenByFilter ? `${statusChangeMessage(next)}. Hidden by the Status filter` : statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
-        }, pickedFrom);
-        return;
-      }
       const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
+      const reopened = picked.status === 'done' && next !== 'done';
       const prevScrollY = window.scrollY;
       setStatus(picked, next);
       if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
@@ -1389,6 +1379,8 @@ function ensureStatusPopover() {
       if (window.scrollY !== prevScrollY) window.scrollTo(0, prevScrollY);
       if (hiddenByFilter) {
         showToast(`${statusChangeMessage(next)}. Hidden by the Status filter`, 'Undo', () => restoreProgress(picked.id, prev));
+      } else if (reopened) {
+        showToast(statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
       } else if (next === 'done') {
         showToast(doneMessage(), 'Undo', () => restoreProgress(picked.id, prev));
       }
