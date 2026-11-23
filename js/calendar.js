@@ -52,8 +52,14 @@ function createCalChip(task) {
   chip.type = 'button';
   chip.className = 'cal-chip' + (task.status !== 'done' && task.isOverdue() ? ' is-overdue' : '');
   chip.dataset.status = task.status;
-  chip.title = (task.subject ? `${task.subject} · ` : '') + task.title;
-  if (task.subject) chip.appendChild(subjectDot(task.subject));
+  chip.title = [task.subject, task.dueTime ? task.getTimeLabel() : '', task.title].filter(Boolean).join(' · ');
+  if (task.subject) {
+    chip.appendChild(subjectDot(task.subject));
+    const sub = document.createElement('span');
+    sub.className = 'cal-sub';
+    sub.textContent = task.subject;
+    chip.appendChild(sub);
+  }
   if (task.dueTime) { const t = document.createElement('span'); t.className = 'cal-time'; t.textContent = task.getTimeLabel(); chip.appendChild(t); }
   const title = document.createElement('span');
   title.className = 'cal-chip-title';

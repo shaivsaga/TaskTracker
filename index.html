@@ -46,6 +46,7 @@
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
   <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
   <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
   <symbol id="i-trash-2" viewBox="0 0 24 24"><path d="M4 6.5h16M9 6.5v-3h6v3M6 6.5l1 14h10l1-14M10 10.5v6M14 10.5v6"/></symbol>
   <symbol id="i-alarm-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5M3.5 6L6.5 3M20.5 6L17.5 3"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M3.5 5.5h17v15h-17zM3.5 9.5h17M8 3v4M16 3v4"/></symbol>
@@ -126,13 +127,6 @@
               <span>Previewing as a student. Showing your unpublished draft.</span>
               <button class="text-button" type="button" id="preview-exit">Exit preview</button>
             </div>
-            <div class="preview-banner tour-cue" id="tour-cue" hidden>
-              <span>New here? Your progress stays private on this device.</span>
-              <span class="tour-cue-actions">
-                <button class="text-button" type="button" id="tour-cue-start">Take a quick tour</button>
-                <button class="text-button" type="button" id="tour-cue-dismiss">Dismiss</button>
-              </span>
-            </div>
             <section class="announcements" id="announce-public" aria-label="Pinned announcements">
               <div class="announce-header">
                 <h2><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg> Pinned</h2>
@@ -163,6 +157,13 @@
                 </div>
                 <div class="column-content is-empty"><p class="column-empty">Nothing done yet.</p></div>
               </div>
+            </div>
+            <div class="preview-banner tour-cue" id="tour-cue" hidden>
+              <span>New here? Your progress stays private on this device.</span>
+              <span class="tour-cue-actions">
+                <button class="text-button" type="button" id="tour-cue-start">Take a quick tour</button>
+                <button class="text-button" type="button" id="tour-cue-dismiss">Dismiss</button>
+              </span>
             </div>
             <p class="summary" id="class-summary" aria-label="Task summary">
               <span id="csum-open">0 open</span>
@@ -355,9 +356,10 @@
             <div class="dialog-controls">
               <div class="field">
                 <span class="field-label" id="dialog-status-field">Status</span>
-                <button class="prop-value status-value is-not-started" type="button" id="dialog-status-btn" aria-labelledby="dialog-status-field dialog-status-label">
+                <button class="prop-value status-value is-not-started" type="button" id="dialog-status-btn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="dialog-status-field dialog-status-label">
                   <span class="status-dot" id="dialog-status-dot"></span>
                   <span id="dialog-status-label">Not started</span>
+                  <svg class="i status-caret" aria-hidden="true"><use href="#i-chevron-down"/></svg>
                 </button>
               </div>
               <div class="field">

@@ -9,7 +9,6 @@ let saveTasks = null;
 let updateAdminBar = null;
 let diffDraft = null;
 
-const PHONE_PINNED = '(max-width: 719px)';
 let pinnedOpen = false;
 function syncPinned() {
   const box = document.querySelector('#announce-public');
@@ -17,16 +16,15 @@ function syncPinned() {
   const toggle = document.querySelector('#announce-toggle');
   if (!box || !list || !toggle) return;
   const items = list.querySelectorAll('.announce-item');
-  const phone = window.matchMedia(PHONE_PINNED).matches;
-  const collapsed = phone && !pinnedOpen;
+  const collapsed = !pinnedOpen;
   box.classList.toggle('is-empty', items.length === 0);
   box.classList.toggle('is-collapsed', collapsed);
 
   const text = items[0] && items[0].querySelector('.announce-text');
   const measurable = box.getClientRects().length > 0;
   const clipped = collapsed && !!text && (measurable ? text.scrollHeight > text.clientHeight + 1 : true);
-  toggle.hidden = !items.length || !phone || (collapsed && items.length < 2 && !clipped);
-  toggle.setAttribute('aria-expanded', String(collapsed ? 'false' : 'true'));
+  toggle.hidden = !items.length || (collapsed && items.length < 2 && !clipped);
+  toggle.setAttribute('aria-expanded', String(!collapsed));
 
   toggle.textContent = pinnedOpen ? 'Show less' : (items.length > 2 ? `Show ${items.length - 1} more` : 'Show more');
 }
