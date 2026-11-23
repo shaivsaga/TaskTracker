@@ -621,7 +621,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .dp-input:focus { border-color: var(--ac); }
 .dp-input.is-active { border-color: var(--acd); box-shadow: inset 0 0 0 1px var(--acd); }
 .dp-head { display: flex; align-items: center; gap: 4px; margin: 12px 0 8px; }
-.dp-month { flex: 1; font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; text-transform: uppercase; }
+.dp-month { flex: 1; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 20px; }
 .dp-nav { display: grid; place-content: center; min-width: 44px; height: 44px; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--mu); font-size: 12px; font-weight: 600; cursor: pointer; }
 .dp-nav:hover { border-color: var(--ac); color: var(--tx); }
 .dp-nav svg { width: 16px; height: 16px; stroke-width: 2; }
@@ -684,16 +684,11 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* [[section:calendar]] */
 /* ---------- Calendar ---------- */
-/* The mockup's calendar language (mockup styles.css 126-142, 256-266, 311-331): the month title in
-   the pixel face (.mhd .px, 12/20 then 16/24 from 720), the weekday row as its centred 600 12/16
-   .wk span, the day number in the pixel face of its phone tile (.wd b), today on the accent box
-   (.cd.today .dn), the picked tile with the inset ring plus the mockup's 2px offset shadow (.cd.sel),
-   weekends a shade back on --sf2 (.cd.we), and the 8px dot carrying its --pl outline ring
-   (.cd .pp i). The grid keeps the app's own paper sheet: 1px --ln gaps, cells rather than boxes. */
-.cal-title { color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 20px; letter-spacing: .02em; text-transform: uppercase; }
-@media (min-width: 720px) { .cal-title { font-size: 16px; line-height: 24px; } }
+.cal-title { color: var(--tx); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 24px; overflow-wrap: anywhere; text-wrap: balance; }
+#page-calendar:has(.cal[data-mode="month"]) .cal-title { font-family: 'Press Start 2P', monospace; font-weight: 400; letter-spacing: .02em; text-transform: uppercase; }
 .cal-nav { display: inline-flex; gap: 8px; }
 #page-calendar .cal-nav .icon-button { width: 44px; height: 44px; }
+#cal-past-link { display: flex; align-items: center; width: fit-content; min-height: 44px; margin-top: -16px; color: var(--ac); text-decoration: underline; }
 .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--ln); background: var(--ln); overflow: hidden; }
 .cal-dow, .cal-day { background: var(--sf); }
 .cal-dow { padding: 8px 0; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; text-align: center; }
@@ -703,24 +698,25 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-day { display: grid; position: relative; align-content: start; gap: 4px; min-width: 0; min-height: 104px; padding: 6px; }
 .cal[data-mode="week"] .cal-day { min-height: 320px; }
 .cal-day.is-outside { background: var(--sf2); }
-/* Desktop: ruled with borders, not a 1px gap over a --ln backdrop, so the lines no longer depend on a
-   gap track surviving fractional zoom. Every day row is one fixed height, so a busy day
-   (3 chips + "+N more") clips instead of stretching its row. Week is a single row. */
+/* Desktop borders survive fractional zoom. A busy week can grow to fit two-line task titles. */
 @media (min-width: 720px) {
-  /* lint-allow:px 152px -- 3 chips + the "+N more" row + the day number */
-  .cal { gap: 0; border: 0; border-top: 1px solid var(--ln); border-left: 1px solid var(--ln); background: none; overflow: visible; grid-template-rows: auto; grid-auto-rows: 152px; }
+  /* lint-allow:px 152px -- retains the existing minimum height for desktop month rows */
+  .cal { gap: 0; border: 0; border-top: 1px solid var(--ln); border-left: 1px solid var(--ln); background: none; overflow: visible; grid-template-rows: auto; grid-auto-rows: minmax(152px, auto); }
   .cal[data-mode="week"] { grid-auto-rows: auto; }
   .cal-dow, .cal-day { border-right: 1px solid var(--ln); border-bottom: 1px solid var(--ln); }
   .cal[data-mode="month"] .cal-day { min-height: 0; overflow: hidden; }
   .cal[data-mode="month"] .cal-time { display: none; }
-  /* lint-allow:px 64px -- caps long subject codes like FINMATH101 inside 147px desktop month cells */
-  .cal[data-mode="month"] .cal-sub { font-size: 10px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; }
+  .cal[data-mode="month"] .cal-chip { align-items: flex-start; }
+  .cal[data-mode="month"] .cal-dot { margin-top: 4px; }
+  .cal[data-mode="month"] .cal-sub { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .cal[data-mode="week"] .cal-chip { flex-wrap: wrap; row-gap: 2px; }
+  .cal[data-mode="month"] .cal-chip-title,
   .cal[data-mode="week"] .cal-chip-title { flex: 1 0 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+  .cal[data-mode="month"] .cal-chip-title { flex-basis: 0; }
 }
 
 .cal-day.is-outside .cal-num { color: var(--mu); }
-.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 12px; line-height: 16px; }
+.cal-num { display: grid; place-content: center; justify-self: start; min-width: 24px; height: 20px; padding: 0 2px; color: var(--tx); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; line-height: 16px; }
 .cal-day.is-today .cal-num { background: var(--ac); color: var(--onac); }
 /* the mockup's .stub box (2px --ln on --sf2) with the status spine on the left border */
 .cal-chip { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 4px 6px; border: 2px solid var(--ln); border-left: 3px solid var(--edge, var(--mu)); color: var(--tx); background: var(--sf2); font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
@@ -731,7 +727,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 /* The overdue pill's red on the cell's wash measured 4.4:1; the same red on --sf2 is 5.2:1, so the
    time keeps the weight and colour but not the wash behind it. */
 .cal-chip.is-overdue .cal-time { color: var(--er); font-weight: 600; }
-.cal-sub { flex: none; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.02em; white-space: nowrap; }
+.cal-sub { min-width: 0; max-width: 100%; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.02em; overflow-wrap: anywhere; }
 .cal-time { flex: none; color: var(--mu); font-weight: 500; font-variant-numeric: tabular-nums; }
 .cal-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 /* the mockup's dot ring: outline 1px var(--pl) (mockup 135/316), which its dark --pl makes invisible */

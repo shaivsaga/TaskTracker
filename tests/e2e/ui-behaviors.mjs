@@ -369,13 +369,59 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     const doc = document.getElementById('dialog-doc');
     return { role: doc.getAttribute('role'), multiline: doc.getAttribute('aria-multiline'), editable: doc.contentEditable };
   })()`);
+  await click(cdp, '#dialog-date-btn');
+  await waitUntil(cdp, `document.querySelector('.dp-month')?.getClientRects().length > 0`);
+  const readablePicker = await cdp.evaluate(`(() => {
+    const picker = getComputedStyle(document.querySelector('.dp-month'));
+    return picker.fontFamily.includes('Plus Jakarta Sans') && picker.fontVariantNumeric.includes('tabular-nums');
+  })()`);
   check(
-    'calendar subject codes, desktop month alignment, and admin dialog textbox restore',
+    'calendar subject codes, desktop month alignment, and admin dialog editor and picker',
     calDesktop.total > 0 && calDesktop.withSub === calDesktop.total && !calDesktop.timeVisible
       && calDesktop.tabsH === 44 && calDesktop.todayH === 44
-      && adminDoc.role === 'textbox' && adminDoc.multiline === 'true' && adminDoc.editable === 'true',
-    JSON.stringify({ calDesktop, adminDoc }),
+      && adminDoc.role === 'textbox' && adminDoc.multiline === 'true' && adminDoc.editable === 'true' && readablePicker,
+    JSON.stringify({ calDesktop, adminDoc, readablePicker }),
   );
+
+  for (const width of [320, 390, 1280]) {
+    for (const theme of ['light', 'dark']) {
+      await boot(cdp, width, { hash: 'calendar', storage: { class_tasks_theme: theme } });
+      await waitUntil(cdp, `!!document.querySelector('#cal-grid .cal-day')`);
+      const month = await cdp.evaluate(`(() => {
+        const title = document.querySelector('#cal-title');
+        const heading = getComputedStyle(title);
+        const date = getComputedStyle(document.querySelector('.cal-num'));
+        const chip = document.querySelector('#cal-grid .cal-chip');
+        return {
+          pixel: heading.fontFamily.includes('Press Start 2P') && heading.fontSize === '16px',
+          headingFits: title.scrollWidth <= title.clientWidth + 1,
+          readableDate: date.fontFamily.includes('Plus Jakarta Sans') && date.fontVariantNumeric.includes('tabular-nums'),
+          readableChip: !chip || (
+            getComputedStyle(chip.querySelector('.cal-chip-title')).webkitLineClamp === '2'
+            && chip.title.includes(chip.querySelector('.cal-sub').textContent)
+            && chip.title.includes(chip.querySelector('.cal-chip-title').textContent)
+          ),
+          archive: !!document.querySelector('#cal-past-link')?.getClientRects().length,
+        };
+      })()`);
+      await click(cdp, '[data-cal-mode="week"]');
+      const week = await cdp.evaluate(`(() => {
+        const title = getComputedStyle(document.querySelector('#cal-title'));
+        const sub = [...document.querySelectorAll('#cal-grid .cal-sub')];
+        return {
+          readableDates: title.fontFamily.includes('Plus Jakarta Sans') && title.fontVariantNumeric.includes('tabular-nums'),
+          readableSubjects: sub.length > 0 && sub.every((el) => parseFloat(getComputedStyle(el).fontSize) >= 12),
+        };
+      })()`);
+      await click(cdp, '[data-cal-mode="month"]');
+      const pastLink = await click(cdp, '#cal-past-link');
+      if (pastLink) await waitUntil(cdp, `!document.querySelector('#page-past').hidden`);
+      const past = await cdp.evaluate(`location.hash === '#past' && !!document.querySelector('#past-list .done-row')`);
+      check('calendar legibility and archive ' + width + ' ' + theme,
+        Object.values(month).every(Boolean) && Object.values(week).every(Boolean) && past,
+        JSON.stringify({ month, week, past }));
+    }
+  }
 
   // 10. PR 1: Task scannability indicators (notes + file count, ignoring empty HTML), phone privacy cue, and copy clarity.
   const richDraft = JSON.parse(draft);

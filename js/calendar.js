@@ -319,7 +319,10 @@ export function renderCalendar() {
   if (!grid) return;
   closeDayPopover(false);
   const { start, days } = calRange();
-  const allDated = recordSource().filter((t) => t.dueDate && !t.isPast());
+  const records = recordSource();
+  const archive = document.querySelector('#cal-past-link');
+  if (archive) archive.hidden = !records.some((task) => task.isPast());
+  const allDated = records.filter((task) => task.dueDate && !task.isPast());
   syncCalSubjectFilter(allDated);
   const dated = calSubjectFilter
     ? allDated.filter((t) => t.subject === calSubjectFilter)
