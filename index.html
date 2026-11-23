@@ -51,6 +51,8 @@
   <symbol id="i-alarm-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5M3.5 6L6.5 3M20.5 6L17.5 3"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M3.5 5.5h17v15h-17zM3.5 9.5h17M8 3v4M16 3v4"/></symbol>
   <symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 6H20M8.5 12H20M8.5 18H20M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6zM14 3.5v4h4"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8.5 9h7M8.5 12.5h7M8.5 16h4.5"/></symbol>
 </svg>
     <header class="tb">
       <a class="brand" href="#class-tasks" aria-label="TaskTracker home">
@@ -171,6 +173,7 @@
               <span id="csum-overdue" class="is-alert" hidden>0 overdue</span>
               <span id="csum-done">0 done here</span>
             </p>
+            <p class="phone-privacy-note" id="phone-privacy-note">Your progress is saved on this device only.</p>
           </section>
 
           <section class="page" id="page-my-tasks" data-page-view="my-tasks" aria-label="Admin" hidden>
@@ -335,7 +338,7 @@
               <h3 class="cal-agenda-title" id="cal-agenda-title"></h3>
               <div class="cal-agenda-list" id="cal-agenda-list"></div>
             </section>
-            <p class="list-empty" id="cal-empty" hidden>No tasks have a due date yet. Add one and it shows up here.</p>
+            <p class="list-empty" id="cal-empty" hidden>No dated tasks have been posted yet.</p>
           </section>
         <p class="sr-only" id="action-feedback" role="status" aria-live="polite"></p>
         <div class="toast" id="toast" hidden>
@@ -413,7 +416,7 @@
           <p class="dialog-summary" id="publish-summary"></p>
           <div class="field"><label class="field-label" for="publish-note">Note (optional)</label>
             <input class="text-input" id="publish-note" type="text" maxlength="80"></div>
-          <p class="form-error" id="publish-clear-warning" hidden>Every task the class can see will be removed. Announcements are not affected, and earlier versions stay in History.</p>
+          <p class="form-error" id="publish-clear-warning" hidden>Every published task will be removed from the class board. Pinned announcements stay live as they are, and earlier versions remain in History.</p>
           <div class="field" id="publish-clear" hidden>
             <label class="field-label" for="publish-clear-input">Type CLEAR BOARD to confirm</label>
             <input class="text-input" id="publish-clear-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="publish-clear-warning">
@@ -466,8 +469,8 @@
           </div>
           <div class="settings-row">
             <div>
-              <p class="settings-title">Replay tutorial</p>
-              <p class="settings-desc">Watch the tutorial again.</p>
+              <p class="settings-title">Replay tour</p>
+              <p class="settings-desc">Take the quick tour again.</p>
             </div>
             <button class="secondary-button" type="button" id="settings-replay">Replay</button>
           </div>
@@ -495,7 +498,7 @@
           <div class="settings-row">
             <div>
               <p class="settings-title">Reset all data</p>
-              <p class="settings-desc">Clears your progress and view settings on this device.</p>
+              <p class="settings-desc">Clears your task progress on this device. Appearance, layout, and tour settings stay.</p>
               <p class="settings-desc" id="reset-admin-note" hidden>Also clears your unpublished draft and saved checkpoints.</p>
             </div>
             <button class="danger-button" type="button" id="settings-reset-start">Reset</button>

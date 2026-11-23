@@ -246,7 +246,13 @@ export function renderCalendar() {
     }
     grid.appendChild(cell);
   }
-  document.querySelector('#cal-empty').hidden = dated.length > 0;
+  const emptyEl = document.querySelector('#cal-empty');
+  emptyEl.hidden = dated.length > 0;
+  if (!emptyEl.hidden) {
+    emptyEl.textContent = state.isAdmin && !state.previewing
+      ? 'No tasks have a due date yet. Add one in Admin and it shows up here.'
+      : 'No dated tasks have been posted yet.';
+  }
   if (focusedDay) calFocus(focusedDay);
   renderCalAgenda();
 }

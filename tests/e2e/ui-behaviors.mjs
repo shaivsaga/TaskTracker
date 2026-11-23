@@ -303,4 +303,90 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && adminDoc.role === 'textbox' && adminDoc.multiline === 'true' && adminDoc.editable === 'true',
     JSON.stringify({ calDesktop, adminDoc }),
   );
+
+  // 10. PR 1: Task scannability indicators (notes + file count, ignoring empty HTML), phone privacy cue, and copy clarity.
+  const richDraft = JSON.parse(draft);
+  richDraft.tasks = richDraft.tasks.map((t) => {
+    if (t.id === 'fx011') {
+      return {
+        ...t,
+        files: [
+          { id: '0123456789abcdef0123456789abcdef.pdf', name: 'rubric.pdf', size: 1200 },
+          { id: '0123456789abcdef0123456789abcdef.jpg', name: 'guide.jpg', size: 2400 },
+        ],
+      };
+    }
+    if (t.id === 'fx012') {
+      return { ...t, notes: '<div><br></div><p>&nbsp; &#160;</p>', files: [] };
+    }
+    return t;
+  });
+  await boot(cdp, 1280, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: JSON.stringify(richDraft) } });
+  const boardInd = await cdp.evaluate(`(() => {
+    const c1 = document.querySelector('#page-my-tasks .kanban-board .task-card[data-task-id="fx011"]');
+    const c2 = document.querySelector('#page-my-tasks .kanban-board .task-card[data-task-id="fx012"]');
+    return {
+      hasCards: !!c1 && !!c2,
+      fx011Sr: [...(c1?.querySelectorAll('.task-indicators .sr-only') || [])].map((el) => el.textContent.trim()),
+      fx011Text: c1?.querySelector('.task-indicators')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+      fx012Count: c2?.querySelectorAll('.task-indicators').length ?? -1,
+    };
+  })()`);
+  await click(cdp, '#page-my-tasks .view-tab[data-view="list"]');
+  await waitUntil(cdp, `!document.getElementById('task-list')?.hidden`);
+  const listInd = await cdp.evaluate(`(() => {
+    const r1 = document.querySelector('#task-list .task-row[data-task-id="fx011"]');
+    const r2 = document.querySelector('#task-list .task-row[data-task-id="fx012"]');
+    return {
+      hasRows: !!r1 && !!r2,
+      fx011Sr: [...(r1?.querySelectorAll('.task-indicators .sr-only') || [])].map((el) => el.textContent.trim()),
+      fx012Count: r2?.querySelectorAll('.task-indicators').length ?? -1,
+    };
+  })()`);
+  await boot(cdp, 320, { hash: 'class-tasks' });
+  const phone320Pr1 = await cdp.evaluate(`(() => {
+    const note = document.getElementById('phone-privacy-note');
+    const rNote = document.querySelector('#class-task-list .task-row[data-task-id="fx011"]');
+    const rFiles = document.querySelector('#class-task-list .task-row[data-task-id="fx021"]');
+    const rEmpty = document.querySelector('#class-task-list .task-row[data-task-id="fx012"]');
+    const firstRow = document.querySelector('#class-task-list .task-row');
+    const tb = document.querySelector('.tb').getBoundingClientRect();
+    const rr = firstRow.getBoundingClientRect();
+    return {
+      privacyVisible: !!note && getComputedStyle(note).display !== 'none',
+      rHasNote: !!(rNote?.querySelector('.task-indicators .sr-only')?.textContent.includes('Has notes')),
+      rFilesSr: [...(rFiles?.querySelectorAll('.task-indicators .sr-only') || [])].map((el) => el.textContent.trim()),
+      rEmpty: rEmpty?.querySelectorAll('.task-indicators').length === 0,
+      foldClearance: Math.round(tb.top - rr.bottom),
+      overflowX: document.documentElement.scrollWidth > window.innerWidth,
+    };
+  })()`);
+  await boot(cdp, 390, { hash: 'class-tasks' });
+  const phone390Pr1 = await cdp.evaluate(`(() => ({
+    privacyVisible: getComputedStyle(document.getElementById('phone-privacy-note')).display !== 'none',
+    overflowX: document.documentElement.scrollWidth > window.innerWidth,
+  }))()`);
+  await boot(cdp, 1280, { hash: 'settings' });
+  const settingsCopy = await cdp.evaluate(`(() => {
+    const replay = document.querySelector('#settings-replay')?.closest('.settings-row')?.querySelector('.settings-title')?.textContent?.trim() || '';
+    const resetDesc = document.querySelector('#settings-reset-start')?.closest('.settings-row')?.querySelector('.settings-desc')?.textContent || '';
+    const privacyDesktop = getComputedStyle(document.getElementById('phone-privacy-note')).display === 'none';
+    const calEmpty = document.getElementById('cal-empty')?.textContent?.trim() || '';
+    return { replayText: replay, resetDesc, privacyDesktop, calEmpty };
+  })()`);
+  check(
+    'PR 1 indicators, empty-HTML filtering, 320/390 privacy cue, and copy clarity',
+    boardInd.hasCards && boardInd.fx011Sr.includes('Has notes') && boardInd.fx011Sr.includes('2 attached files')
+      && boardInd.fx012Count === 0
+      && listInd.hasRows && listInd.fx011Sr.includes('Has notes') && listInd.fx011Sr.includes('2 attached files')
+      && listInd.fx012Count === 0
+      && phone320Pr1.privacyVisible && phone320Pr1.rHasNote
+      && phone320Pr1.rFilesSr.includes('2 attached files') && phone320Pr1.rEmpty
+      && phone320Pr1.foldClearance >= 12 && !phone320Pr1.overflowX
+      && phone390Pr1.privacyVisible && !phone390Pr1.overflowX
+      && settingsCopy.replayText === 'Replay tour' && !/also clears the live class/i.test(settingsCopy.resetDesc)
+      && !/add a task/i.test(settingsCopy.calEmpty)
+      && settingsCopy.privacyDesktop,
+    JSON.stringify({ boardInd, listInd, phone320Pr1, phone390Pr1, settingsCopy }),
+  );
 }
