@@ -440,19 +440,26 @@ function clearClassFilters() {
   renderClassTasks();
   if (search) search.focus();
 }
-function classUrgencyBucket(task) {
+const fallbackDayDiff = (d) => {
+  const now = new Date();
+  const a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((a - b) / 86400000);
+};
+export function classUrgencyBucket(task, dayDiffFn) {
   if (task.status === 'done') return 3;
   if (!task.dueDate) return 2;
-  const diff = dayDiff(task.getDeadline());
-  if (!task.isOverdue() && diff >= 0 && diff <= 1) return 0;
-  if (task.isOverdue()) return 1;
+  if (task.isOverdue()) return 0;
+  const fn = typeof dayDiffFn === 'function' ? dayDiffFn : (dayDiff || fallbackDayDiff);
+  const diff = fn(task.getDeadline());
+  if (diff >= 0 && diff <= 1) return 1;
   return 2;
 }
-function orderClassTasks(list) {
-  const sorted = sortTasks(list);
-  return sorted.slice().sort((a, b) => classUrgencyBucket(a) - classUrgencyBucket(b));
+export function orderClassTasks(list, sortTasksFn = sortTasks, dayDiffFn = dayDiff) {
+  const sorted = typeof sortTasksFn === 'function' ? sortTasksFn(list) : list.slice();
+  return sorted.slice().sort((a, b) => classUrgencyBucket(a, dayDiffFn) - classUrgencyBucket(b, dayDiffFn));
 }
-const CLASS_BUCKET_LABELS = ['Due today & tomorrow', 'Overdue this week', 'Upcoming', 'Done'];
+const CLASS_BUCKET_LABELS = ['Overdue this week', 'Due today & tomorrow', 'Upcoming', 'Done'];
 function bucketed(list, bucketOf, labelOf, rowOf) {
   const keys = new Set(list.map(bucketOf));
   const nodes = [];
@@ -507,7 +514,7 @@ export function renderClassTasks() {
   });
   board.querySelectorAll('.kanban-column').forEach(updateColumn);
 
-  dom.classListEl.replaceChildren(...bucketed(visible, classUrgencyBucket, (b) => CLASS_BUCKET_LABELS[b] || '', (t) => createTaskRow(t, liveCat)));
+  dom.classListEl.replaceChildren(...bucketed(visible, (t) => classUrgencyBucket(t), (b) => CLASS_BUCKET_LABELS[b] || '', (t) => createTaskRow(t, liveCat)));
   if (!visible.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
@@ -806,19 +813,27 @@ export function summarizeMine(allTasks, nowMs = Date.now(), dayDiffFn = dayDiff)
     else open.push({ t, d: t.getDueTimestamp() });
   }
   const datedEntries = open.filter((x) => x.d).sort((a, b) => a.d - b.d);
-  const next = datedEntries.find((x) => x.d.getTime() >= nowMs) || datedEntries[0] || null;
+  const overdueEntries = datedEntries.filter((x) => x.d.getTime() < nowMs);
+  const upcomingEntries = datedEntries.filter((x) => x.d.getTime() >= nowMs);
   const labelText = open.length ? 'left for you' : "left. You're caught up.";
   let nextText = '';
   if (!open.length) {
     nextText = 'Nothing due right now. Older tasks are in Past.';
+  } else if (!datedEntries.length) {
+    nextText = 'No due dates on what is left.';
+  } else if (overdueEntries.length && upcomingEntries.length) {
+    const nextUp = upcomingEntries[0];
+    nextText = `${overdueEntries.length} overdue · Next: ${nextUp.t.title} · ${formatMineWhen(nextUp.t, nextUp.d, diffFn)}`;
+  } else if (overdueEntries.length) {
+    const firstOverdue = overdueEntries[0];
+    nextText = overdueEntries.length === 1
+      ? `1 overdue · ${firstOverdue.t.title} was due ${formatMineWhen(firstOverdue.t, firstOverdue.d, diffFn)}`
+      : `${overdueEntries.length} overdue · Earliest: ${firstOverdue.t.title} (${formatMineWhen(firstOverdue.t, firstOverdue.d, diffFn)})`;
   } else {
-    nextText = !next
-      ? 'No due dates on what is left.'
-      : next.d.getTime() >= nowMs
-        ? `Next: ${next.t.title} · ${formatMineWhen(next.t, next.d, diffFn)}`
-        : `${next.t.title} was due ${formatMineWhen(next.t, next.d, diffFn)}`;
+    const nextUp = upcomingEntries[0];
+    nextText = `Next: ${nextUp.t.title} · ${formatMineWhen(nextUp.t, nextUp.d, diffFn)}`;
   }
-  return { hidden: !tasks.length, clear: !open.length, count: open.length, olderOverdue, labelText, nextText };
+  return { hidden: !tasks.length, clear: !open.length, count: open.length, overdueCount: overdueEntries.length, olderOverdue, labelText, nextText };
 }
 function renderMine(all) {
   const mineEl = document.querySelector('#mine');
