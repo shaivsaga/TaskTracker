@@ -640,7 +640,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .history-item { padding: 12px 0; border-top: 1px solid var(--ln); }
 .history-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
 .history-label { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 600; line-height: 20px; }
-.history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .history-actions .is-danger { margin-left: auto; }
 .history-detail { margin-top: 8px; color: var(--mu); font-size: 14px; line-height: 20px; }
 .history-bar .text-button.is-danger, .history-item .text-button.is-danger { border-color: var(--er); color: var(--er); }
