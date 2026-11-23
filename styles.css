@@ -64,7 +64,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 .brand b { display: none; font: 400 12px/20px 'Press Start 2P', monospace; text-transform: uppercase; letter-spacing: .02em; }
 /* Phone-only logo row at the top of the page; the header brand is hidden there because the header is the bottom tab bar. */
 .brand-m { display: none; }
-.section-badge { display: inline-flex; align-items: center; flex: none; padding: 2px 6px; border: 2px solid var(--ac); background: var(--sf2); color: var(--tx); font: 400 10px/16px 'Press Start 2P', monospace; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.section-badge { display: inline-flex; align-items: center; flex: none; padding: 2px 6px; border: 2px solid var(--ac); background: var(--sf2); color: var(--tx); font: 400 12px/16px 'Press Start 2P', monospace; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
 .nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .tn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; min-width: 40px; padding: 0 3px; border: 2px solid transparent; color: var(--mu); font: 600 14px/20px 'Plus Jakarta Sans', system-ui, sans-serif; }
 .tn .sp { filter: saturate(.7); }
@@ -82,15 +82,9 @@ main[tabindex="-1"]:focus { outline: 0; }
 /* The title and the line under it read as one group; the gap the page column adds is pulled in by half. */
 h1.ttl { margin-bottom: -8px; }
 
-@media (max-width: 374px) {
-  .tb { gap: 2px; padding: 0 max(6px, env(safe-area-inset-right)) 0 max(6px, env(safe-area-inset-left)); }
-  .ib { width: 36px; }
-  .brand { padding: 0; }
-  .tn { min-width: 36px; padding: 0; }
-}
 @media (min-width: 720px) {
   .tb { padding: 0 40px; gap: 8px; }
-  /* Icon-only from 720 to 1099: the wordmark starts at 1100, so the link needs its own 44px floor. */
+  /* Icon-only from 720 to 959: the wordmark starts at 960, so the link needs its own 44px floor. */
   .brand { min-width: 44px; }
   .ib { width: 44px; }
   .nav { gap: 4px; }
@@ -108,9 +102,12 @@ h1.ttl { margin-bottom: -8px; }
   .nav { gap: 2px; }
   .tn { gap: 6px; padding: 0 8px; }
 }
-@media (min-width: 1100px) {
+/* lint-allow:px 960px -- tablet wordmark appears once the 5-tab bar fits TaskTracker + Section badge */
+@media (min-width: 960px) {
   .brand b { display: block; }
   .brand { padding: 0 12px 0 0; }
+}
+@media (min-width: 1100px) {
   /* Bar content shares the page column's edges: 40px of page padding inside the 1120px column. */
   .tb { padding-inline: max(40px, calc((100% - 1120px) / 2 + 40px)); }
 }
@@ -137,18 +134,21 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 #page-class-tasks .search input { flex: 1 1 auto; width: auto; min-width: 0; }
 #page-class-tasks .view-tabs { margin-left: auto; }
 .utility-page .page-heading { margin-bottom: 24px; }
-/* Wide pages (board, calendar) and reading pages (lists, Done, Past) keep their own widths, all centred. */
-#page-my-tasks, #page-class-tasks, #page-calendar { width: 100%; max-width: 1120px; margin-inline: auto; }
+/* Wide pages (board, calendar) and reading pages (lists, Done, Past) share the same left column edge. */
+#page-my-tasks, #page-class-tasks, #page-calendar { width: 100%; max-width: 1120px; margin-inline: 0 auto; }
 /* lint-allow:px 880px -- the mockup reading column for Done and Past; no 880px scale value exists */
-#page-done, #page-past { width: 100%; max-width: 880px; margin-inline: auto; }
+#page-done, #page-past { width: 100%; max-width: 880px; margin-inline: 0 auto; }
 /* lint-allow:px 880px -- List views reuse that same reading column */
 #page-my-tasks[data-view="list"], #page-class-tasks[data-view="list"] { max-width: 880px; }
 /* The shared page title sits above the sections, so it takes the narrow column's width whenever a narrow page is showing.
    Desktop only: on phones the title is off-canvas (see the phone-fold section), and a stretched 100% box made the
    absolutely positioned title 320px wide inside a 288px column, which scrolled the page 16px sideways. */
 /* lint-allow:px 880px -- the title tracks the reading column above so its edge lines up */
+#preview-banner { width: 100%; max-width: 1120px; margin-inline: 0 auto; }
 @media (min-width: 720px) {
-  main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: auto; }
+  main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #breadcrumb-current { width: 100%; max-width: 880px; margin-inline: 0 auto; }
+  /* lint-allow:px 880px -- keeps preview banner aligned with reading column pages */
+  main.page-container:is(:has(#page-done:not([hidden])), :has(#page-past:not([hidden])), :has(#page-class-tasks[data-view="list"]:not([hidden])), :has(#page-my-tasks[data-view="list"]:not([hidden]))) > #preview-banner { max-width: 880px; }
 }
 /* [[/section:shell]] */
 
@@ -189,8 +189,8 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 .search input::placeholder { color: var(--mu); opacity: 1; }
 
 .class-filters { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.class-filters select, #preset-select { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
-.class-filters select:focus-visible, #preset-select:focus-visible { border-color: var(--ac); }
+.class-filters select, #preset-select, #cal-subject-filter, #admin-subject-filter { min-height: 44px; max-width: 100%; padding: 0 8px; border: 2px solid var(--mu); background: var(--oa); color: var(--tx); font: inherit; font-size: 14px; }
+.class-filters select:focus-visible, #preset-select:focus-visible, #cal-subject-filter:focus-visible, #admin-subject-filter:focus-visible { border-color: var(--ac); }
 @media (min-width: 720px) {
   #page-class-tasks[data-view="board"] #class-status-filter { display: none; }
 }
@@ -608,7 +608,7 @@ main.page-container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 2
 /* The Change chip is an action among value chips: underlined, never filled like a subject. */
 .quick-chip-btn.is-change { text-decoration: underline; text-underline-offset: 3px; }
 .quick-code { color: var(--mu); font-size: 12px; }
-.quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-family: 'Press Start 2P', monospace; font-size: 12px; line-height: 20px; }
+.quick-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; color: var(--mu); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 12px; line-height: 20px; }
 kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; background: var(--sf); font-size: 12px; }
 /* [[/section:quick-add]] */
 
@@ -661,12 +661,25 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .history-bar .text-button.is-danger:hover, .history-item .text-button.is-danger:hover { border-color: var(--er); background: var(--erb); color: var(--er); }
 .text-button.is-danger[data-armed], #preset-delete[data-armed], #admin-bar #btn-discard[data-armed] { color: var(--oa); background: var(--er); border-color: var(--er); box-shadow: 0 2px 0 var(--sh); text-decoration: none; }
 .text-button.is-danger[data-armed]:hover, #preset-delete[data-armed]:hover, #admin-bar #btn-discard[data-armed]:hover { color: var(--oa); background: var(--er); border-color: var(--er); }
-.subject-row .history-head { gap: 8px 12px; }
+.subject-row { display: grid; gap: 8px; }
+.subject-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.subject-row-id { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.subject-code { font-size: 12px; font-weight: 700; line-height: 16px; color: var(--mu); letter-spacing: 0.04em; }
 .subject-row .search { flex: 1 1 160px; min-width: 120px; }
 .subject-row .search input { width: 100%; }
+.subject-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 0; }
+.subject-colour-tray { display: grid; gap: 12px; padding: 12px; border: 2px solid var(--ln); background: var(--sf2); }
+.subject-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.subject-custom-colour { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.subject-custom-colour .search { flex: 0 1 120px; min-width: 104px; }
 .subject-row input[type="color"] { width: 44px; height: 44px; padding: 2px; border: 2px solid var(--mu); background: var(--oa); cursor: pointer; }
 .subject-swatch { width: 44px; height: 44px; padding: 0; border: 2px solid var(--mu); box-shadow: inset 0 0 0 4px var(--sf); cursor: pointer; }
 .subject-swatch:hover, .subject-swatch[aria-pressed="true"] { border-color: var(--ac); }
+.publish-diff { display: grid; gap: 12px; max-height: 240px; padding: 12px; border: 2px solid var(--ln); background: var(--sf2); overflow-y: auto; }
+.publish-diff-group { display: grid; gap: 4px; }
+.publish-diff-title { margin: 0; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; text-transform: uppercase; letter-spacing: 0.04em; }
+.publish-diff-list { margin: 0; padding-left: 20px; font-size: 14px; line-height: 20px; }
+.publish-diff-meta { color: var(--mu); font-size: 12px; }
 /* [[/section:history]] */
 
 /* [[section:calendar]] */
@@ -723,8 +736,17 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .cal-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 /* the mockup's dot ring: outline 1px var(--pl) (mockup 135/316), which its dark --pl makes invisible */
 .cal-dot { flex: none; width: 8px; height: 8px; background: var(--tag, var(--mu)); outline: 1px solid var(--pl); }
+.cal-filters { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
+.cal-filters .text-button { min-height: 44px; padding: 0 8px; }
 .cal-more { display: inline-flex; align-items: center; min-height: 24px; padding: 0 4px; background: transparent; color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; text-align: left; cursor: pointer; }
 .cal-more:hover { color: var(--tx); }
+.cal-done-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--ok); }
+.cal-done-mark svg { width: 12px; height: 12px; stroke-width: 3; }
+.cal-day-popover { position: fixed; z-index: 120; display: grid; gap: 8px; width: min(320px, calc(100vw - 16px)); max-height: min(320px, calc(100vh - 32px)); padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 4px 0 var(--sh); overflow-y: auto; }
+.cal-popover-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-popover-title { margin: 0; font-size: 14px; font-weight: 700; line-height: 20px; color: var(--tx); }
+.cal-popover-list { display: grid; gap: 8px; }
+.cal-day-popover .cal-time { display: inline; }
 
 /* Phone month view: day cells are tap targets that show dots; the picked day's tasks list below the grid. */
 .cal-day.is-tappable { position: relative; justify-items: center; align-content: start; gap: 4px; min-height: 56px; padding: 4px; cursor: pointer; }
@@ -791,7 +813,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .brand-m { position: sticky; top: 0; z-index: 5; display: flex; align-self: stretch; height: 56px; margin: 0 -16px 0; padding: 0 72px 0 16px; background: var(--bg); border-bottom: 2px solid var(--ln); }
   .brand-m b { display: block; }
   .brand-m:has(.section-badge) { flex-wrap: wrap; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; gap: 4px 8px; }
-  .brand-m .section-badge { padding: 2px 6px; font-size: 8px; line-height: 12px; }
+  .brand-m .section-badge { padding: 2px 6px; }
   .nav { flex: 1; justify-content: space-around; gap: 4px; }
   .tn { flex: 1 1 0; max-width: 72px; height: 56px; min-width: 44px; flex-direction: column; gap: 2px; }
   /* The current tab is a filled block with its accent bar along the bottom (the base rule's
@@ -887,6 +909,8 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   #page-calendar .cal-nav { grid-area: 1 / 2; justify-self: end; }
   #page-calendar .view-tabs { grid-area: 2 / 1; justify-self: start; }
   #page-calendar #cal-today { grid-area: 2 / 2; justify-self: end; align-self: stretch; }
+  #page-calendar .cal-filters { grid-column: 1 / -1; grid-row: 3; }
+  #page-calendar #cal-subject-filter { flex: 1 1 auto; min-width: 0; }
   .cal[data-mode="month"] .cal-day.is-tappable { min-height: 52px; }
   .cal[data-mode="month"] .cal-day.is-tappable:has(.cal-plus) { min-height: 72px; }
   .cal[data-mode="month"] .cal-dow { padding: 8px 0; text-align: center; }
@@ -1049,6 +1073,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .settings-row > div:not(.view-tabs) { flex: 1 1 auto; min-width: 0; }
 .settings-row > .view-tabs { flex: none; }
 .settings-row > .secondary-button, .settings-row > .danger-button { flex: none; min-width: 88px; height: 44px; padding: 0 12px; font-size: 12px; line-height: 16px; }
+.settings-shortcuts { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; line-height: 20px; }
 .settings-title { margin: 0; color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; }
 /* The mockup's .sub (mockup 54), the second line of a settings row. */
 .settings-desc { margin: 4px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; }
@@ -1122,6 +1147,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 
 /* [[section:transfer]] */
 /* ---------- Transfer ---------- */
+.transfer-admin-box { display: grid; gap: 8px; }
 /* lint-allow:hex #FFFFFF -- QR codes need a white quiet zone in both themes */
 .transfer-qr-frame { display: grid; justify-self: center; width: fit-content; max-width: 100%; padding: 8px; border: 2px solid var(--ln); background: #FFFFFF; }
 .transfer-qr-frame canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; }

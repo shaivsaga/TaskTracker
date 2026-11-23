@@ -11,7 +11,8 @@ let setPage = null;
 let closeSettings = null;
 
 let tourIndex = -1;
-let tourTimer = null;
+let tourObserver = null;
+let tourScrollHandler = null;
 let tourSampleStatus = 'not_started';
 
 const TOUR_KEY = 'class_tasks_tour_seen';
@@ -97,11 +98,14 @@ function renderTourSample() {
     });
     menu.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { e.stopPropagation(); closeMenu(true); return; }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
         e.preventDefault();
         const opts = [...menu.children];
         const i = opts.indexOf(document.activeElement);
-        opts[(i + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length].focus();
+        const nextIdx = e.key === 'Home' ? 0
+          : e.key === 'End' ? opts.length - 1
+          : (i + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length;
+        opts[nextIdx].focus();
       }
     });
     head.appendChild(menu);
@@ -109,16 +113,17 @@ function renderTourSample() {
     document.addEventListener('click', onOutside, true);
     (menu.querySelector('.is-active') || menu.firstChild).focus();
   });
+  const sampleCode = (Array.isArray(state.catalog) ? state.catalog.find((item) => item && item.active !== false)?.code : '') || 'GENMATH';
   const title = document.createElement('h3');
   title.className = 'task-card-title';
-  title.textContent = 'Sample: GENMATH worksheet';
+  title.textContent = `Sample: ${sampleCode} worksheet`;
   head.append(check, title);
   const foot = document.createElement('div');
   foot.className = 'task-card-footer';
   const dueBadge = document.createElement('span');
   dueBadge.className = 'due-badge';
   dueBadge.textContent = STATUS_LABELS[s];
-  foot.append(createSubjectTag('GENMATH'), dueBadge);
+  foot.append(createSubjectTag(sampleCode), dueBadge);
   card.append(head, foot);
   dom.tourSample.replaceChildren(card);
 }
@@ -168,6 +173,14 @@ function showTourStep(i) {
   $('#tour-next').focus();
 }
 
+function teardownTourTracking() {
+  if (tourObserver) { tourObserver.disconnect(); tourObserver = null; }
+  if (tourScrollHandler) {
+    window.removeEventListener('scroll', tourScrollHandler, true);
+    tourScrollHandler = null;
+  }
+}
+
 export function startTour() {
   if (!dom.tourOverlay.hidden) return;
   hideTourCue();
@@ -178,15 +191,21 @@ export function startTour() {
   document.body.style.overflow = 'hidden';
   showTourStep(0);
 
-  clearInterval(tourTimer);
-  tourTimer = setInterval(() => { if (tourIndex >= 0) placeTour(tourTarget()); }, 400);
+  teardownTourTracking();
+  const reposition = () => { if (tourIndex >= 0) placeTour(tourTarget()); };
+  if (typeof ResizeObserver === 'function') {
+    tourObserver = new ResizeObserver(reposition);
+    const mainEl = document.querySelector('main');
+    if (mainEl) tourObserver.observe(mainEl);
+  }
+  tourScrollHandler = reposition;
+  window.addEventListener('scroll', tourScrollHandler, { passive: true, capture: true });
 }
 
 function endTour() {
   if (dom.tourOverlay.hidden || dom.tourOverlay.classList.contains('is-closing')) return;
   try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) {}
-  clearInterval(tourTimer);
-  tourTimer = null;
+  teardownTourTracking();
   tourIndex = -1;
   document.body.style.overflow = '';
   hideOverlay(dom.tourOverlay);

@@ -57,6 +57,75 @@ const describeDiff = (d) => [
   d.subjectsChanged && 'subjects changed',
 ].filter(Boolean).join(', ') || 'No changes';
 
+export function computePublishDiff(pubBoard, draftSnap, opts = {}) {
+  const pubList = Array.isArray(pubBoard?.tasks) ? pubBoard.tasks : [];
+  const draftList = opts.clearBoard ? [] : (Array.isArray(draftSnap?.tasks) ? draftSnap.tasks : []);
+  const pubMap = new Map(pubList.map((t) => [String(t.id), t]));
+  const draftMap = new Map(draftList.map((t) => [String(t.id), t]));
+  const added = [];
+  const edited = [];
+  const removed = [];
+
+  for (const dt of draftList) {
+    const id = String(dt.id);
+    const pt = pubMap.get(id);
+    if (!pt) {
+      added.push({ id, title: dt.title || '', subject: dt.subject || '' });
+      continue;
+    }
+    const fields = [];
+    if ((pt.title || '') !== (dt.title || '')) fields.push('title');
+    if ((pt.subject || '') !== (dt.subject || '')) fields.push('subject');
+    if ((pt.dueDate || '') !== (dt.dueDate || '') || (pt.endDate || '') !== (dt.endDate || '') || (pt.dueTime || '') !== (dt.dueTime || '')) {
+      fields.push('due date');
+    }
+    if ((pt.notes || '') !== (dt.notes || '')) fields.push('notes');
+    if (JSON.stringify(pt.files || []) !== JSON.stringify(dt.files || [])) fields.push('files');
+    if ((pt.closedAt || 0) !== (dt.closedAt || 0)) fields.push('archive state');
+    if (fields.length) edited.push({ id, title: dt.title || pt.title || '', subject: dt.subject || '', fields });
+  }
+  for (const pt of pubList) {
+    const id = String(pt.id);
+    if (!draftMap.has(id)) removed.push({ id, title: pt.title || '', subject: pt.subject || '' });
+  }
+
+  const pubAnn = Array.isArray(pubBoard?.announcements) ? pubBoard.announcements : [];
+  const draftAnn = Array.isArray(draftSnap?.announcements) ? draftSnap.announcements : [];
+  const pubAnnMap = new Map(pubAnn.map((a) => [String(a.id), a]));
+  const draftAnnMap = new Map(draftAnn.map((a) => [String(a.id), a]));
+  const annChanged = !opts.clearBoard && JSON.stringify(pubAnn) !== JSON.stringify(draftAnn);
+  const annAdded = opts.clearBoard ? [] : draftAnn.filter((a) => !pubAnnMap.has(String(a.id))).map((a) => a.text || '');
+  const annRemoved = opts.clearBoard ? [] : pubAnn.filter((a) => !draftAnnMap.has(String(a.id))).map((a) => a.text || '');
+
+  const pubSubs = Array.isArray(pubBoard?.subjects) ? pubBoard.subjects : [];
+  const draftSubs = opts.clearBoard ? pubSubs : (Array.isArray(draftSnap?.subjects) ? draftSnap.subjects : []);
+  const pubSubMap = new Map(pubSubs.map((s) => [s.code, s]));
+  const draftSubMap = new Map(draftSubs.map((s) => [s.code, s]));
+  const subChanges = { added: [], updated: [], retired: [], restored: [], removed: [] };
+  if (!opts.clearBoard) {
+    for (const s of draftSubs) {
+      const prev = pubSubMap.get(s.code);
+      if (!prev) subChanges.added.push(s.code);
+      else {
+        if (prev.name !== s.name || String(prev.color || '').toLowerCase() !== String(s.color || '').toLowerCase()) subChanges.updated.push(s.code);
+        if (prev.active !== false && s.active === false) subChanges.retired.push(s.code);
+        else if (prev.active === false && s.active !== false) subChanges.restored.push(s.code);
+      }
+    }
+    for (const s of pubSubs) {
+      if (!draftSubMap.has(s.code)) subChanges.removed.push(s.code);
+    }
+  }
+
+  return {
+    added,
+    edited,
+    removed,
+    announcements: { changed: annChanged, added: annAdded, removed: annRemoved, liveCount: pubAnn.length, draftCount: draftAnn.length },
+    subjects: subChanges,
+  };
+}
+
 export function diffDraft() {
   const defs = (list) => new Map(list.map((t) => [t.id, JSON.stringify(t.toJSON())]));
   const pub = defs(state.publishedTasks);
@@ -70,8 +139,8 @@ export function diffDraft() {
   pub.forEach((_, id) => { if (!cur.has(id)) removed++; });
   const ann = JSON.stringify(state.announcements) !== JSON.stringify(state.publishedAnnouncements);
 
-  const publishedCatalog = state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [];
-  const subjectsChanged = catalogSignature(state.draftSubjects) !== catalogSignature(publishedCatalog);
+  const pubCat = state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [];
+  const subjectsChanged = catalogSignature(state.draftSubjects) !== catalogSignature(pubCat);
   return {
     added, edited, removed, ann, subjectsChanged, changed,
     total: added + edited + removed + (ann ? 1 : 0) + (subjectsChanged ? 1 : 0),
@@ -135,18 +204,83 @@ function syncPublishClear() {
   $('#publish-submit').disabled = clear && !clearPhraseOk();
 }
 
-function openPublishDialog() {
+function renderPublishDiff() {
+  const host = $('#publish-diff');
+  if (!host) return;
+  host.replaceChildren();
+  const clear = isClearBoardPublish();
+  const pubBoard = {
+    tasks: state.publishedTasks.map((t) => t.toJSON()),
+    announcements: state.publishedAnnouncements,
+    subjects: state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [],
+  };
+  const d = computePublishDiff(pubBoard, snapshot(), { clearBoard: clear });
+  const addGroup = (label, items, formatter) => {
+    if (!items.length) return;
+    const grp = document.createElement('div');
+    grp.className = 'publish-diff-group';
+    const h = document.createElement('p');
+    h.className = 'publish-diff-title';
+    h.textContent = `${label} (${items.length})`;
+    const ul = document.createElement('ul');
+    ul.className = 'publish-diff-list';
+    items.forEach((item) => {
+      const li = document.createElement('li');
+      formatter(li, item);
+      ul.appendChild(li);
+    });
+    grp.append(h, ul);
+    host.appendChild(grp);
+  };
+  const taskLabel = (item) => (item.subject ? `${subjectDisplayName(state.catalog, item.subject)} · ` : '') + (item.title || 'Untitled');
+  addGroup('Added tasks', d.added, (li, item) => { li.textContent = taskLabel(item); });
+  addGroup('Edited tasks', d.edited, (li, item) => {
+    li.append(document.createTextNode(taskLabel(item)));
+    if (item.fields.length) {
+      const meta = document.createElement('span');
+      meta.className = 'publish-diff-meta';
+      meta.textContent = ` — changed: ${item.fields.join(', ')}`;
+      li.appendChild(meta);
+    }
+  });
+  addGroup('Removed tasks', d.removed, (li, item) => { li.textContent = taskLabel(item); });
+  if (d.announcements.changed) {
+    const annRows = [];
+    d.announcements.added.forEach((t) => annRows.push(`Added: ${t}`));
+    d.announcements.removed.forEach((t) => annRows.push(`Removed: ${t}`));
+    if (!annRows.length) annRows.push(`Updated pinned announcements (${d.announcements.draftCount} live after publish)`);
+    addGroup('Announcements', annRows, (li, txt) => { li.textContent = txt; });
+  }
+  const subParts = [
+    ...d.subjects.added.map((c) => `Added ${c}`),
+    ...d.subjects.updated.map((c) => `Updated ${c}`),
+    ...d.subjects.retired.map((c) => `Retired ${c}`),
+    ...d.subjects.restored.map((c) => `Restored ${c}`),
+    ...d.subjects.removed.map((c) => `Removed ${c}`),
+  ];
+  addGroup('Subjects', subParts, (li, txt) => { li.textContent = txt; });
+  host.hidden = host.children.length === 0;
+}
+
+function updatePublishPreview() {
   const d = diffDraft();
-  if (!d.total) { showToast('Nothing to publish'); return; }
   const undated = myTasks.filter((t) => !t.dueDate).length;
   const n = state.publishedTasks.length;
   $('#publish-summary').textContent = isClearBoardPublish()
     ? `This removes all ${n} published task${n === 1 ? '' : 's'} from the class board.` + (d.ann ? ' Draft announcement changes stay unpublished until a normal publish.' : '')
     : `${describeDiff(d)}.` + (undated ? ` ${undated} task${undated === 1 ? ' has' : 's have'} no due date.` : '');
+  renderPublishDiff();
+  syncPublishClear();
+}
+
+function openPublishDialog() {
+  const d = diffDraft();
+  if (!d.total) { showToast('Nothing to publish'); return; }
+  updatePublishPreview();
   $('#publish-note').value = '';
   $('#publish-clear-input').value = '';
   $('#publish-error').hidden = true;
-  syncPublishClear();
+  $('#publish-conflict').hidden = true;
   dom.publishOverlay._returnFocus = document.activeElement;
   openOverlay(dom.publishOverlay);
   $('#publish-note').focus();
@@ -272,6 +406,7 @@ $('#publish-rebase').addEventListener('click', async () => {
   }
   setPublished(board);
   updateAdminBar(diffDraft());
+  updatePublishPreview();
   showToast('Now publishing over the newer board. Review your draft, then publish again.');
   $('#publish-submit').focus();
 });

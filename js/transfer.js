@@ -21,9 +21,11 @@ let STATUS_ORDER = null;
 let activeTransfer = null;
 let transferTimer = null;
 let transferBusy = false;
+let transferSeq = 0;
 let transferQrOk = false;
 let pendingImport = null;
 
+export const MAX_DRAFT_TRANSFER_BYTES = 700000;
 const TRANSFER_API = 'transfer.php';
 const TRANSFER_TOKEN_RE = /^[a-f0-9]{32}$/;
 
@@ -41,28 +43,76 @@ export function takeTransferToken() {
 
 const transferHeaders = { 'Content-Type': 'application/json' };
 
-export function buildTransferPayload(activeSection = currentSection() || 'a') {
-  const payload = { v: 1, section: activeSection, progress: state.progress };
-  if (state.isAdmin && myTasks) {
+export function prepareTransferPayload({
+  activeSection = currentSection() || 'a',
+  progressData = {},
+  draft = null,
+  isAdmin = false,
+  includeDraft = false,
+} = {}) {
+  const payload = { v: 1, section: activeSection, progress: progressData };
+  if (!isAdmin || !includeDraft || !draft) {
+    return { ok: true, payload, draftIncluded: false, draftBytes: 0 };
+  }
+  const encoded = new TextEncoder().encode(JSON.stringify(draft));
+  const draftBytes = encoded.length;
+  if (draftBytes >= MAX_DRAFT_TRANSFER_BYTES) {
+    return {
+      ok: false,
+      draftIncluded: false,
+      draftBytes,
+      error: `Your unpublished admin draft is too large to include (${Math.ceil(draftBytes / 1000)} KB; limit is ${Math.floor(MAX_DRAFT_TRANSFER_BYTES / 1000)} KB). Publish from this device or trim large embedded images before transferring with the draft.`,
+    };
+  }
+  payload.draft = draft;
+  return { ok: true, payload, draftIncluded: true, draftBytes };
+}
 
-    const draft = {
+export function buildTransferPayload(activeSection = currentSection() || 'a', opts = {}) {
+  const draft = (state.isAdmin && myTasks)
+    ? {
       schemaVersion: 2,
       tasks: myTasks.map((t) => t.toJSON()),
       announcements: state.announcements,
       subjects: state.draftSubjects,
-    };
-
-    if (JSON.stringify(draft).length < 700000) payload.draft = draft;
-  }
-  return payload;
+    }
+    : null;
+  const prepared = prepareTransferPayload({
+    activeSection,
+    progressData: state.progress,
+    draft,
+    isAdmin: state.isAdmin,
+    includeDraft: Boolean(opts && opts.includeDraft),
+  });
+  if (!prepared.ok) throw new Error(prepared.error);
+  return prepared.payload;
 }
 
 function transferUrl(token) {
   return location.origin + location.pathname.replace(/[^/]*$/, '') + '?transfer=' + token;
 }
 
+function syncTransferDraftUi() {
+  const box = $('#transfer-admin-box');
+  if (!box) return;
+  box.hidden = !state.isAdmin;
+  const chk = $('#transfer-include-draft');
+  const note = $('#transfer-draft-note');
+  if (!state.isAdmin) {
+    if (chk) chk.checked = false;
+    return;
+  }
+  const include = Boolean(chk && chk.checked);
+  if (note) {
+    note.textContent = include
+      ? 'Includes your unpublished draft tasks, announcements, and subjects alongside your task progress.'
+      : 'Your progress only. Your unpublished draft stays on this device unless you check this box.';
+  }
+}
+
 function setTransferView(view, message) {
   const ready = view === 'ready';
+  const includeDraft = Boolean(state.isAdmin && $('#transfer-include-draft')?.checked);
   $('#transfer-qr-frame').hidden = !ready || !transferQrOk;
   $('#transfer-link-row').hidden = !ready;
   $('#transfer-cancel-link').hidden = !ready;
@@ -71,9 +121,11 @@ function setTransferView(view, message) {
   if (view === 'error') $('#transfer-error').textContent = message || 'Something went wrong.';
   $('#transfer-intro').textContent = ready
     ? (transferQrOk
-      ? 'Scan this code or open the link on your other device. It works for 10 minutes.'
+      ? (includeDraft
+        ? 'Scan this code or open the link on your other device. Includes your unpublished draft; works for 10 minutes.'
+        : 'Scan this code or open the link on your other device. It works for 10 minutes.')
       : 'The QR code could not be drawn. Open the link on your other device. It works for 10 minutes.')
-    : view === 'loading' ? 'Creating a link for your progress.'
+    : view === 'loading' ? (includeDraft ? 'Creating a link for your progress and unpublished draft.' : 'Creating a link for your progress.')
     : 'Create a new link whenever you need one.';
   if (view === 'loading') $('#transfer-countdown').textContent = 'Creating link…';
   else if (view === 'expired') $('#transfer-countdown').textContent = 'This link has expired.';
@@ -106,22 +158,36 @@ function showTransferLink() {
 }
 
 async function createTransfer() {
-  if (transferBusy) return;
+  const seq = ++transferSeq;
+  const includeDraft = Boolean(state.isAdmin && $('#transfer-include-draft')?.checked);
+  let payload;
+  try {
+    payload = buildTransferPayload(currentSection() || 'a', { includeDraft });
+  } catch (ex) {
+    clearInterval(transferTimer);
+    transferTimer = null;
+    activeTransfer = null;
+    setTransferView('error', ex.message);
+    return;
+  }
   transferBusy = true;
   setTransferView('loading');
   try {
     const res = await fetch(TRANSFER_API, {
       method: 'POST', headers: transferHeaders, cache: 'no-store',
-      body: JSON.stringify({ payload: buildTransferPayload() }),
+      body: JSON.stringify({ payload }),
     });
     const out = await res.json().catch(() => ({}));
+    if (seq !== transferSeq) return;
     if (!res.ok) throw new Error(out.error || 'Could not create the link.');
     if (!TRANSFER_TOKEN_RE.test(out.token || '') || !Number.isFinite(out.expiresIn)) throw new Error('Unexpected response from the server.');
-    activeTransfer = { token: out.token, expiresAt: Date.now() + out.expiresIn * 1000 };
+    activeTransfer = { token: out.token, expiresAt: Date.now() + out.expiresIn * 1000, includeDraft };
     if (!dom.transferOverlay.hidden) showTransferLink();
   } catch (ex) {
-    setTransferView('error', ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message);
-  } finally { transferBusy = false; }
+    if (seq === transferSeq) setTransferView('error', ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message);
+  } finally {
+    if (seq === transferSeq) transferBusy = false;
+  }
 }
 
 async function cancelTransfer() {
@@ -160,10 +226,21 @@ async function copyTransferLink() {
 function openTransfer() {
   closeSettings();
   dom.transferOverlay._returnFocus = document.activeElement;
-  openOverlay(dom.transferOverlay);
-  $('#transfer-close').focus();
-  if (activeTransfer && activeTransfer.expiresAt > Date.now()) showTransferLink();
-  else { activeTransfer = null; createTransfer(); }
+  const chk = $('#transfer-include-draft');
+  if (activeTransfer && activeTransfer.expiresAt > Date.now()) {
+    if (chk) chk.checked = Boolean(activeTransfer.includeDraft);
+    syncTransferDraftUi();
+    openOverlay(dom.transferOverlay);
+    $('#transfer-close').focus();
+    showTransferLink();
+  } else {
+    if (chk) chk.checked = false;
+    syncTransferDraftUi();
+    openOverlay(dom.transferOverlay);
+    $('#transfer-close').focus();
+    activeTransfer = null;
+    createTransfer();
+  }
 }
 
 function closeTransfer() {
@@ -324,6 +401,17 @@ $('#transfer-done').addEventListener('click', closeTransfer);
 $('#transfer-new').addEventListener('click', createTransfer);
 $('#transfer-cancel-link').addEventListener('click', cancelTransfer);
 $('#transfer-copy').addEventListener('click', copyTransferLink);
+$('#transfer-include-draft')?.addEventListener('change', () => {
+  syncTransferDraftUi();
+  if (activeTransfer) {
+    const oldToken = activeTransfer.token;
+    clearInterval(transferTimer);
+    transferTimer = null;
+    activeTransfer = null;
+    fetch(TRANSFER_API, { method: 'POST', headers: transferHeaders, body: JSON.stringify({ cancel: oldToken }) }).catch(() => {});
+  }
+  createTransfer();
+});
 $('#transfer-link').addEventListener('focus', (e) => e.target.select());
 dom.transferOverlay.addEventListener('click', (e) => { if (e.target === dom.transferOverlay) closeTransfer(); });
 $('#import-apply').addEventListener('click', applyImport);

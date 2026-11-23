@@ -40,14 +40,15 @@ export function init(deps) {
   dom.navItems.forEach((item) => {
     item.addEventListener('click', (event) => {
       event.preventDefault();
-      if (state.previewing) setPreview(false);
+      if (state.previewing && item.dataset.page === 'my-tasks') setPreview(false, { skipNav: true });
       setPage(item.dataset.page, 'push');
     });
   });
 
   NAV_PAGES = dom.navItems.map((item) => item.dataset.page);
   window.addEventListener('hashchange', () => {
-    if (state.previewing) setPreview(false);
-    setPage(pageFromHash(window.location.hash, NAV_PAGES, state.isAdmin), false);
+    const nextPage = pageFromHash(window.location.hash, NAV_PAGES, state.isAdmin);
+    if (state.previewing && nextPage === 'my-tasks') setPreview(false, { skipNav: true });
+    setPage(nextPage, false);
   });
 }

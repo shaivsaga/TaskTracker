@@ -130,15 +130,18 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
   check('class filters reset on reload', reloaded && r.subject === '' && r.status === '' && r.search === '' && r.progress === beforeReload,
     'rows ' + r.rows + ' subject "' + r.subject + '" status "' + r.status + '" progress unchanged ' + (r.progress === beforeReload));
 
-  // Desktop Board hides only the Status select; Subject and search filter both views, and List keeps both values.
-  await boot(cdp, 1280, { storage: { class_tasks_view_class: 'board', class_tasks_progress: done } });
-  r = await read(cdp);
-  const statusHiddenOnBoard = await cdp.evaluate(`getComputedStyle(document.getElementById('class-status-filter')).display === 'none'`);
-  check('class board hides status filter only', r.filtersDisplay !== 'none' && statusHiddenOnBoard && r.boardVisible && !r.listVisible,
-    'filters ' + r.filtersDisplay + ' statusHidden ' + statusHiddenOnBoard + ' board ' + r.boardVisible + ' list ' + r.listVisible);
+  // Desktop Board hides only the Status select; Subject and search filter both views, and List -> Board clears Status.
+  await boot(cdp, 1280, { storage: { ...asList, class_tasks_progress: done } });
   await setValue(cdp, sleep, 'class-subject-filter', 'GENSCI', 'change');
   await setValue(cdp, sleep, 'class-status-filter', 'not_started', 'change');
   r = await read(cdp);
+  const statusOnList = r.rows === 3 && r.subject === 'GENSCI' && r.status === 'not_started';
+  await click(cdp, '#page-class-tasks .view-tab[data-view="board"]');
+  await tick(sleep);
+  r = await read(cdp);
+  const statusHiddenOnBoard = await cdp.evaluate(`getComputedStyle(document.getElementById('class-status-filter')).display === 'none'`);
+  check('class board hides status filter and clears status', statusOnList && r.filtersDisplay !== 'none' && statusHiddenOnBoard && r.boardVisible && !r.listVisible && r.status === '',
+    'statusOnList ' + statusOnList + ' filters ' + r.filtersDisplay + ' statusHidden ' + statusHiddenOnBoard + ' status "' + r.status + '"');
   check('class board applies subject filter and ignores status', r.board === 3, 'board ' + r.board + ' subject "' + r.subject + '" status "' + r.status + '"');
   await setValue(cdp, sleep, 'class-subject-filter', '', 'change');
   await setValue(cdp, sleep, 'class-task-search', 'statistical', 'input');
@@ -149,7 +152,7 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
   await click(cdp, '#page-class-tasks .view-tab[data-view="list"]');
   await tick(sleep);
   r = await read(cdp);
-  check('class list keeps values', r.view === 'list' && r.rows === 3 && r.subject === 'GENSCI' && r.status === 'not_started',
+  check('class list keeps subject and cleared status', r.view === 'list' && r.rows >= 3 && r.subject === 'GENSCI' && r.status === '',
     'rows ' + r.rows + ' subject "' + r.subject + '" status "' + r.status + '"');
 
   // Regular In progress -> Done leaves the filtered list; focus, live feedback and Undo recover it.
@@ -171,7 +174,7 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
     && r.activeTask === 'fx003' && JSON.parse(r.progress || '{}').fx003?.status === 'in_progress',
     'rows ' + r.rows + ' focus task ' + r.activeTask + ' status ' + r.status);
 
-  // Confirmed Done -> Not started has the same filtered-removal feedback and Undo path.
+  // Reopening Done -> Not started acts immediately with the same filtered-removal feedback and Undo path.
   await boot(cdp, 1280, { storage: { ...asList, class_tasks_progress: done } });
   await setValue(cdp, sleep, 'class-status-filter', 'done', 'change');
   await focus(cdp, '#class-task-list .task-row[data-task-id="fx003"] .status-check');
@@ -179,17 +182,15 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
   await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
   await pressKey(cdp, 'ArrowUp', 'ArrowUp', 38);
   await pressEnter(cdp);
-  await pressKey(cdp, 'Tab', 'Tab', 9);
-  await pressEnter(cdp);
   await sleep(300);
   r = await read(cdp);
-  check('class confirmed removal', r.rows === 0 && r.activeId === 'class-status-filter' && r.toast
+  check('class reopened removal', r.rows === 0 && r.activeId === 'class-status-filter' && r.toast
     && /Marked not started/.test(r.toastText) && /Hidden by the Status filter/.test(r.toastText),
     'rows ' + r.rows + ' focus ' + r.activeId + ' toast "' + r.toastText + '"');
   await click(cdp, '#toast-action');
   await sleep(250);
   r = await read(cdp);
-  check('class confirmed undo', r.rows === 1 && r.rowIds[0] === 'fx003' && r.status === 'done'
+  check('class reopened undo', r.rows === 1 && r.rowIds[0] === 'fx003' && r.status === 'done'
     && r.activeTask === 'fx003' && JSON.parse(r.progress || '{}').fx003?.status === 'done',
     'rows ' + r.rows + ' focus task ' + r.activeTask + ' status ' + r.status);
 
@@ -239,9 +240,11 @@ export async function runClassFilterChecks({ cdp, boot, check, click, sleep, pre
     && desktopAdmin.tabs !== 'none' && desktopAdmin.saved === 'board',
     'view ' + desktopAdmin.view + ' board ' + desktopAdmin.boardVisible + ' list ' + desktopAdmin.listVisible + ' saved ' + desktopAdmin.saved);
 
-  // Empty public announcements disappear without removing the admin composer.
+  // Empty public announcements in Preview disappear without removing the admin composer.
   for (const width of [375, 1280]) {
-    await boot(cdp, width, { admin: true, storage: { class_tasks_draft: JSON.stringify({ tasks: fixture.tasks, announcements: [] }) } });
+    await boot(cdp, width, { admin: true, hash: 'my-tasks', storage: { class_tasks_draft: JSON.stringify({ tasks: fixture.tasks, announcements: [] }) } });
+    await click(cdp, '#btn-preview');
+    await waitFor(cdp, sleep, `!!document.querySelector('#page-class-tasks:not([hidden])')`);
     const hidden = await cdp.evaluate(`(() => { const box = document.getElementById('announce-public');
       return getComputedStyle(box).display === 'none' && box.getClientRects().length === 0; })()`);
     await click(cdp, '.nav-item[data-page="my-tasks"]');

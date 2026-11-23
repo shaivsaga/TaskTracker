@@ -145,7 +145,9 @@ function onListClick(e) {
   } else if (btn.dataset.act === 'swatch') {
     openPaletteCode = null;
     edit(code, { color: btn.dataset.color });
-    focusRow(code);
+    const toggle = dom.subjectList.querySelector(`button[data-act="palette"][data-code="${CSS.escape(code)}"]`);
+    if (toggle) toggle.focus();
+    else focusRow(code);
   }
 }
 
@@ -170,6 +172,20 @@ function onListInput(e) {
 }
 
 function onListKeydown(e) {
+  if (e.key === 'Escape' && openPaletteCode) {
+    const row = e.target.closest('.subject-row');
+    const code = e.target.closest('.subject-colour-tray')?.dataset.code
+      || row?.querySelector('button[data-act="palette"]')?.dataset.code;
+    if (code === openPaletteCode) {
+      e.preventDefault();
+      e.stopPropagation();
+      openPaletteCode = null;
+      render();
+      const toggle = dom.subjectList.querySelector(`button[data-act="palette"][data-code="${CSS.escape(code)}"]`);
+      if (toggle) toggle.focus();
+      return;
+    }
+  }
   const input = e.target.closest('input[data-new-field]');
   if (!input || !pendingNew) return;
   if (e.key === 'Enter') {
@@ -286,15 +302,17 @@ export function render() {
 
   for (const s of state.draftSubjects) {
     const li = el('li', 'history-item subject-row');
-    const head = el('div', 'history-head');
-    head.appendChild(el('span', 'history-label', s.code));
+    const head = el('div', 'subject-row-head');
+    const idGroup = el('div', 'subject-row-id');
 
     const chip = el('span', 'subject-tag');
     chip.style.setProperty('--tag', s.color);
     chip.style.setProperty('--tag-ink', subjectTextColor(s.color));
     chip.textContent = s.name;
-    head.appendChild(chip);
-    if (!s.active) head.appendChild(el('span', 'history-detail', 'retired'));
+    idGroup.appendChild(chip);
+    idGroup.appendChild(el('span', 'subject-code', s.code));
+    if (!s.active) idGroup.appendChild(el('span', 'history-detail', 'retired'));
+    head.appendChild(idGroup);
 
     const nameWrap = el('label', 'search');
     const nameInput = document.createElement('input');
@@ -307,55 +325,18 @@ export function render() {
     nameWrap.appendChild(nameInput);
     head.appendChild(nameWrap);
 
-    const hexWrap = el('label', 'search');
-    const hexInput = document.createElement('input');
-    hexInput.type = 'text';
-    hexInput.value = s.color;
-    hexInput.maxLength = 7;
-    hexInput.spellcheck = false;
-    hexInput.dataset.code = s.code;
-    hexInput.dataset.field = 'color';
-    hexInput.setAttribute('aria-label', `Colour for ${s.code}`);
-    hexWrap.appendChild(hexInput);
-    head.appendChild(hexWrap);
-
-    const picker = document.createElement('input');
-    picker.type = 'color';
-    picker.value = s.color;
-    picker.dataset.code = s.code;
-    picker.dataset.field = 'color';
-    picker.setAttribute('aria-label', `Pick a colour for ${s.code}`);
-    head.appendChild(picker);
-
+    const actions = el('div', 'subject-row-actions');
     const paletteOpen = openPaletteCode === s.code;
     const paletteId = `palette-${s.code}`;
-    const paletteBtn = el('button', 'text-button', paletteOpen ? 'Hide palette' : 'Palette');
+    const paletteBtn = el('button', 'text-button', 'Colour');
     paletteBtn.type = 'button';
     paletteBtn.dataset.act = 'palette';
     paletteBtn.dataset.code = s.code;
-    paletteBtn.setAttribute('aria-label', `${paletteOpen ? 'Hide' : 'Show'} palette for ${s.code}`);
+    paletteBtn.setAttribute('aria-label', `Colour options for ${s.code}`);
     paletteBtn.setAttribute('aria-expanded', String(paletteOpen));
     paletteBtn.setAttribute('aria-controls', paletteId);
-    head.appendChild(paletteBtn);
+    actions.appendChild(paletteBtn);
 
-    const swatches = el('div', 'history-bar');
-    swatches.id = paletteId;
-    swatches.hidden = !paletteOpen;
-    swatches.setAttribute('role', 'group');
-    swatches.setAttribute('aria-label', `Palette for ${s.code}`);
-    for (const color of PALETTE) {
-      const b = el('button', 'subject-swatch', '');
-      b.type = 'button';
-      b.style.background = color;
-      b.dataset.act = 'swatch';
-      b.dataset.code = s.code;
-      b.dataset.color = color;
-      b.setAttribute('aria-label', `Use ${color} for ${s.code}`);
-      b.setAttribute('aria-pressed', String(color === s.color));
-      swatches.appendChild(b);
-    }
-    head.appendChild(swatches);
-    const actions = el('div', 'history-bar');
     const retire = el('button', 'text-button', s.active ? 'Retire' : 'Restore to choices');
     retire.type = 'button';
     retire.dataset.act = 'retire';
@@ -371,8 +352,55 @@ export function render() {
       actions.appendChild(remove);
     }
     head.appendChild(actions);
-
     li.appendChild(head);
+
+    const tray = el('div', 'subject-colour-tray');
+    tray.id = paletteId;
+    tray.hidden = !paletteOpen;
+    tray.dataset.code = s.code;
+    tray.setAttribute('role', 'region');
+    tray.setAttribute('aria-label', `Colour options for ${s.code}`);
+
+    const swatches = el('div', 'subject-swatches');
+    swatches.setAttribute('role', 'group');
+    swatches.setAttribute('aria-label', `Palette for ${s.code}`);
+    for (const color of PALETTE) {
+      const b = el('button', 'subject-swatch', '');
+      b.type = 'button';
+      b.style.background = color;
+      b.dataset.act = 'swatch';
+      b.dataset.code = s.code;
+      b.dataset.color = color;
+      b.setAttribute('aria-label', `Use ${color} for ${s.code}`);
+      b.setAttribute('aria-pressed', String(color === s.color));
+      swatches.appendChild(b);
+    }
+    tray.appendChild(swatches);
+
+    const custom = el('div', 'subject-custom-colour');
+    const picker = document.createElement('input');
+    picker.type = 'color';
+    picker.value = s.color;
+    picker.dataset.code = s.code;
+    picker.dataset.field = 'color';
+    picker.setAttribute('aria-label', `Pick a custom colour for ${s.code}`);
+    custom.appendChild(picker);
+
+    const hexWrap = el('label', 'search');
+    const hexInput = document.createElement('input');
+    hexInput.type = 'text';
+    hexInput.value = s.color;
+    hexInput.maxLength = 7;
+    hexInput.spellcheck = false;
+    hexInput.dataset.code = s.code;
+    hexInput.dataset.field = 'color';
+    hexInput.setAttribute('aria-label', `Hex colour for ${s.code}`);
+    hexWrap.appendChild(hexInput);
+    custom.appendChild(hexWrap);
+
+    tray.appendChild(custom);
+    li.appendChild(tray);
+
     const err = rowError.get(s.code);
     if (err) {
       const p = el('p', 'form-error', err);

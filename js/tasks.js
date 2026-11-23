@@ -96,7 +96,7 @@ function ensureConfirmDialog() {
   return overlay;
 }
 
-export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, openerHint, taskId }) {
+export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, openerHint, taskId, danger = false }) {
   const overlay = ensureConfirmDialog();
   if (!overlay.hidden) { onCancel?.(); return; }
   const okBtn = overlay.querySelector('[data-confirm="ok"]');
@@ -106,12 +106,14 @@ export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, op
   overlay.querySelector('#confirm-title').textContent = title;
   overlay.querySelector('#confirm-message').textContent = message;
   okBtn.textContent = okLabel;
+  okBtn.className = danger ? 'danger-button is-solid' : 'primary-button';
 
   const close = (accept) => {
     overlay.removeEventListener('keydown', onKey, true);
     overlay.removeEventListener('click', onBackdrop);
     okBtn.onclick = null;
     cancelBtn.onclick = null;
+    okBtn.className = 'primary-button';
     motion.hideOverlay(overlay);
     if (accept) onConfirm();
     else onCancel?.();
@@ -144,13 +146,6 @@ export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, op
   overlay.addEventListener('keydown', onKey, true);
   motion.openOverlay(overlay);
   cancelBtn.focus();
-}
-function confirmReopen(task, newStatus, onConfirm, openerHint) {
-  confirmDialog({
-    title: 'Reopen this task?',
-    message: `\u201C${task.title}\u201D will move from Done to ${STATUS_LABELS[newStatus]}.`,
-    okLabel: 'Reopen', onConfirm, openerHint, taskId: task.id,
-  });
 }
 
 export function saveTasks() {
@@ -232,7 +227,7 @@ function createTaskIndicators(task) {
   return wrap;
 }
 
-function createTaskCard(task) {
+function createTaskCard(task, catalogList = state.catalog) {
   const article = document.createElement('article');
   article.className = 'task-card';
   article.dataset.taskId = task.id;
@@ -277,7 +272,7 @@ function createTaskCard(task) {
   if (task.subject || task.dueDate || indicators) {
     const footer = document.createElement('div');
     footer.className = 'task-card-footer';
-    if (task.subject) footer.appendChild(createSubjectTag(task.subject));
+    if (task.subject) footer.appendChild(createSubjectTag(task.subject, catalogList));
     if (indicators) footer.appendChild(indicators);
     if (task.dueDate) {
       const diff = dayDiff(task.getDeadline());
@@ -309,6 +304,11 @@ function createTaskCard(task) {
 async function deleteTask(task) {
   const index = myTasks.indexOf(task);
   if (index === -1) return false;
+  const activePastRow = document.activeElement?.closest?.('#past-list .done-row');
+  const pastRows = activePastRow ? [...document.querySelectorAll('#past-list .done-row')] : [];
+  const pastIdx = activePastRow ? pastRows.indexOf(activePastRow) : -1;
+  const nextPastId = pastIdx >= 0 ? (pastRows[pastIdx + 1]?.dataset.taskId || pastRows[pastIdx - 1]?.dataset.taskId || '') : '';
+  const prevScrollY = window.scrollY;
   const archive = state.isAdmin && !state.previewing ? await store.archiveTask(task) : { ok: true };
   if (!archive.ok) {
     showToast('Could not save this task to the recycle bin. It was not deleted.');
@@ -324,7 +324,13 @@ async function deleteTask(task) {
     return false;
   }
   renderAllTasks();
-  showToast('Task deleted. A copy stays in the recycle bin.', 'Undo', () => undoDelete(task, index));
+  if (activePastRow) {
+    const nextBtn = nextPastId && document.querySelector(`#past-list .done-row[data-task-id="${nextPastId}"] .text-button`);
+    if (nextBtn) nextBtn.focus({ preventScroll: true });
+    else focusFallbackControl();
+    if (window.scrollY !== prevScrollY) window.scrollTo(0, prevScrollY);
+  }
+  showToast('Task moved to recycle bin.', 'Undo', () => undoDelete(task, index));
   return true;
 }
 
@@ -388,11 +394,11 @@ export function showSkeletons() {
 function classSubjectCodes(all) {
   return [...new Set(all.map((t) => t.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
-function syncClassSubjectOptions(all) {
+function syncClassSubjectOptions(all, catalogList = state.catalog) {
   const select = document.querySelector('#class-subject-filter');
   if (!select) return;
   const codes = classSubjectCodes(all);
-  const labels = codes.map((code) => subjectDisplayName(state.catalog, code));
+  const labels = codes.map((code) => subjectDisplayName(catalogList, code));
   const current = [...select.options].slice(1);
   if (current.length !== codes.length || current.some((o, i) => o.value !== codes[i] || o.textContent !== labels[i])) {
     select.replaceChildren();
@@ -487,20 +493,21 @@ export function renderClassTasks() {
   board.querySelectorAll('.column-content').forEach((c) => {
     c.querySelectorAll('.task-card, .skeleton').forEach((n) => n.remove());
   });
-  const all = (state.previewing ? myTasks : state.publishedTasks).filter((t) => !t.isPast());
+  const all = classTasksSource().filter((t) => !t.isPast());
+  const liveCat = activeClassCatalog();
   const q = state.classSearchQuery.trim().toLowerCase();
-  syncClassSubjectOptions(all);
+  syncClassSubjectOptions(all, liveCat);
   document.querySelector('#class-status-filter').value = state.classStatusFilter;
-  const searched = orderClassTasks(q ? all.filter((t) => matchesClassSearch(t, q)) : all);
+  const searched = orderClassTasks(q ? all.filter((t) => matchesClassSearch(t, q, liveCat)) : all);
   const boardTasks = state.classSubjectFilter ? searched.filter((t) => t.subject === state.classSubjectFilter) : searched;
   const visible = searched.filter(matchesClassFilters);
   boardTasks.forEach((task) => {
     const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
-    if (col) col.appendChild(createTaskCard(task));
+    if (col) col.appendChild(createTaskCard(task, liveCat));
   });
   board.querySelectorAll('.kanban-column').forEach(updateColumn);
 
-  dom.classListEl.replaceChildren(...bucketed(visible, classUrgencyBucket, (b) => CLASS_BUCKET_LABELS[b] || '', createTaskRow));
+  dom.classListEl.replaceChildren(...bucketed(visible, classUrgencyBucket, (b) => CLASS_BUCKET_LABELS[b] || '', (t) => createTaskRow(t, liveCat)));
   if (!visible.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
@@ -519,14 +526,23 @@ export function renderClassTasks() {
   }
 }
 
-export const recordSource = () => ((state.isAdmin || state.previewing) ? myTasks : state.publishedTasks);
+export const classTasksSource = () => (state.previewing ? myTasks : state.publishedTasks);
+export const pastTasksSource = () => ((state.previewing || state.isAdmin) ? myTasks : state.publishedTasks);
+export const recordSource = () => classTasksSource();
+export const activeClassCatalog = () => (state.isAdmin && !state.previewing && Array.isArray(state.publishedCatalog) && state.publishedCatalog.length
+  ? state.publishedCatalog
+  : state.catalog);
+export const activePastCatalog = () => (state.isAdmin && !state.previewing ? state.catalog : activeClassCatalog());
+
 function renderPastPage() {
   const host = document.querySelector('#past-list');
   if (!host) return;
+  const draftBanner = document.querySelector('#past-draft-banner');
+  if (draftBanner) draftBanner.hidden = !(state.isAdmin && !state.previewing);
   host.replaceChildren();
 
   const dueAt = (t) => { const d = t.getDueTimestamp(); return d ? d.getTime() : -Infinity; };
-  const past = recordSource().filter((t) => t.isPast())
+  const past = pastTasksSource().filter((t) => t.isPast())
     .sort((a, b) => (dueAt(b) - dueAt(a)) || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
   if (!past.length) {
     const none = document.createElement('p');
@@ -537,13 +553,12 @@ function renderPastPage() {
   }
   const canEdit = state.isAdmin && !state.previewing;
 
-  const mkBtn = (label, fn, confirmLabel) => {
+  const mkBtn = (label, fn, isDanger = false) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = confirmLabel ? 'text-button is-danger' : 'text-button';
+    b.className = isDanger ? 'text-button is-danger' : 'text-button';
     b.textContent = label;
-    if (confirmLabel) armInlineConfirm(b, label, confirmLabel, fn);
-    else b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+    b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
     return b;
   };
   const pastBucket = (t) => {
@@ -580,10 +595,11 @@ function renderPastPage() {
           showToast('Task restored');
         }
       }));
-      actions.appendChild(mkBtn('Delete', () => deleteTask(task), 'Confirm deleting this task'));
+      actions.appendChild(mkBtn('Delete', () => deleteTask(task), true));
     }
     row.addEventListener('click', () => openTaskDialog(task));
-    row.append(title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), tag, actions);
+    const pastCat = activePastCatalog();
+    row.append(title, task.subject ? createSubjectTag(task.subject, pastCat) : document.createElement('span'), tag, actions);
     return row;
   };
   host.replaceChildren(...bucketed(past, pastBucket, pastLabel, createPastRow));
@@ -642,16 +658,6 @@ export function armInlineConfirm(btn, label, confirmLabel, onConfirm) {
   });
 }
 
-function reopenWithConfirm(btn, task) {
-  armInlineConfirm(btn, btn.textContent, 'Confirm marking this task not done', () => {
-    const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-    setStatus(task, 'not_started');
-    renderAllTasks();
-
-    if (!focusTaskControl(task.id)) focusFallbackControl();
-    showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
-  });
-}
 function renderDonePage() {
   const host = document.querySelector('#done-list');
   const done = sortTasks(recordSource().filter((t) => t.status === 'done'));
@@ -690,18 +696,33 @@ function renderDonePage() {
     undo.type = 'button';
     undo.className = 'text-button';
     undo.textContent = 'Mark not done';
-    reopenWithConfirm(undo, task);
+    undo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
+      const prevScrollY = window.scrollY;
+      const rows = [...document.querySelectorAll('#done-list .done-row')];
+      const idx = rows.indexOf(row);
+      const nextId = rows[idx + 1]?.dataset.taskId || rows[idx - 1]?.dataset.taskId || '';
+      setStatus(task, 'not_started');
+      renderAllTasks();
+      const nextCtrl = nextId && document.querySelector(`#done-list .done-row[data-task-id="${nextId}"] .text-button`);
+      if (nextCtrl) nextCtrl.focus({ preventScroll: true });
+      else if (!focusTaskControl(task.id)) focusFallbackControl();
+      if (window.scrollY !== prevScrollY) window.scrollTo(0, prevScrollY);
+      showToast(statusChangeMessage('not_started'), 'Undo', () => restoreProgress(task.id, prev));
+    });
     actions.appendChild(undo);
     row.addEventListener('click', () => openTaskDialog(task));
-    row.append(dot, title, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), when, actions);
+    const liveCat = activeClassCatalog();
+    row.append(dot, title, task.subject ? createSubjectTag(task.subject, liveCat) : document.createElement('span'), when, actions);
     return row;
   };
   host.replaceChildren(...bucketed(done, doneBucket, (k) => DONE_BUCKET_LABELS[k] || '', createDoneRow));
 }
 
-function subjectCodesMatching(q) {
+function subjectCodesMatching(q, catalogList = state.catalog) {
   const out = new Set();
-  for (const s of Array.isArray(state.catalog) ? state.catalog : []) {
+  for (const s of Array.isArray(catalogList) ? catalogList : []) {
     const name = String(s && s.name || '').toLowerCase();
     const code = String(s && s.code || '').toLowerCase();
     if (code.includes(q) || name.includes(q)) out.add(s.code);
@@ -709,15 +730,61 @@ function subjectCodesMatching(q) {
   return out;
 }
 
+const ADMIN_BUCKET_LABELS = ['Overdue', 'Due soon', 'Later', 'No due date'];
+function draftUrgencyBucket(task) {
+  if (task.status !== 'done' && task.isOverdue()) return 0;
+  if (task.status !== 'done' && task.dueDate && dayDiff(task.getDeadline()) <= 3) return 1;
+  if (task.dueDate) return 2;
+  return 3;
+}
+function orderDraftTasks(list) {
+  return sortTasks(list).slice().sort((a, b) => draftUrgencyBucket(a) - draftUrgencyBucket(b));
+}
+function syncAdminSubjectOptions(all) {
+  const select = document.querySelector('#admin-subject-filter');
+  if (!select) return;
+  const codes = classSubjectCodes(all);
+  const labels = codes.map((code) => subjectDisplayName(state.catalog, code));
+  const current = [...select.options].slice(1);
+  if (current.length !== codes.length || current.some((o, i) => o.value !== codes[i] || o.textContent !== labels[i])) {
+    select.replaceChildren();
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'Subject: All';
+    select.appendChild(allOpt);
+    codes.forEach((code, i) => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = labels[i];
+      select.appendChild(opt);
+    });
+  }
+  if (state.adminSubjectFilter && !codes.includes(state.adminSubjectFilter)) state.adminSubjectFilter = '';
+  select.value = state.adminSubjectFilter;
+}
+function clearAdminFilters() {
+  state.searchQuery = '';
+  state.adminSubjectFilter = '';
+  const search = document.querySelector('#task-search');
+  const subject = document.querySelector('#admin-subject-filter');
+  if (search) search.value = '';
+  if (subject) subject.value = '';
+  renderAllTasks();
+  if (search) search.focus();
+}
+
 function getVisibleTasks() {
   const q = state.searchQuery.trim().toLowerCase();
   const active = myTasks.filter((t) => !t.isPast());
+  const bySubject = state.adminSubjectFilter
+    ? active.filter((t) => t.subject === state.adminSubjectFilter)
+    : active;
   return sortTasks(q
-    ? active.filter((t) => {
-      const named = subjectCodesMatching(q);
+    ? bySubject.filter((t) => {
+      const named = subjectCodesMatching(q, state.catalog);
       return t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q) || named.has(t.subject);
     })
-    : active);
+    : bySubject);
 }
 function formatMineWhen(task, d, dayDiffFn) {
   const n = dayDiffFn(d);
@@ -767,12 +834,11 @@ function renderMine(all) {
   document.querySelector('#mine-next').textContent = s.nextText;
 }
 function updateOverview() {
-  const open = myTasks.filter((t) => t.status !== 'done' && !t.isPast());
+  const active = myTasks.filter((t) => !t.isPast());
+  const open = active.filter((t) => t.status !== 'done');
   const dueToday = open.filter((t) => t.dueDate && dayDiff(t.getDeadline()) === 0).length;
   const overdue = open.filter((t) => t.dueDate && t.isOverdue()).length;
-  const inProgress = myTasks.filter((t) => t.status === 'in_progress' && !t.isPast()).length;
-  document.querySelector('#sum-open').textContent = `${open.length} open`;
-  document.querySelector('#sum-progress').textContent = `${inProgress} in progress`;
+  document.querySelector('#sum-open').textContent = `${active.length} active`;
   const sumToday = document.querySelector('#sum-today');
   sumToday.textContent = `${dueToday} due today`;
   sumToday.hidden = dueToday === 0;
@@ -780,7 +846,7 @@ function updateOverview() {
   sumOverdue.textContent = `${overdue} overdue`;
   sumOverdue.hidden = overdue === 0;
 
-  const classAll = (state.previewing ? myTasks : state.publishedTasks) || [];
+  const classAll = classTasksSource() || [];
   renderMine(classAll);
   const classTasks = classAll.filter((t) => !t.isPast());
   const classOpen = classTasks.filter((t) => t.status !== 'done');
@@ -808,11 +874,11 @@ function plainNotes(task) {
   notesTextCache.set(task, { html: task.notes, text });
   return text;
 }
-function matchesClassSearch(task, q) {
+function matchesClassSearch(task, q, catalogList = activeClassCatalog()) {
   return task.title.toLowerCase().includes(q) || task.subject.toLowerCase().includes(q)
-    || subjectCodesMatching(q).has(task.subject) || plainNotes(task).includes(q);
+    || subjectCodesMatching(q, catalogList).has(task.subject) || plainNotes(task).includes(q);
 }
-function createTaskRow(task) {
+function createTaskRow(task, catalogList = state.catalog) {
   const row = document.createElement('div');
   row.className = 'task-row';
   row.dataset.taskId = task.id;
@@ -853,18 +919,24 @@ function createTaskRow(task) {
   del.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-trash-2"/></svg>';
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteTask(task); });
 
-  row.append(check, main, task.subject ? createSubjectTag(task.subject) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
+  row.append(check, main, task.subject ? createSubjectTag(task.subject, catalogList) : document.createElement('span'), due, isEditable(task) ? del : document.createElement('span'));
   row.addEventListener('click', () => openTaskDialog(task, null, false));
   return row;
 }
 function renderTaskList() {
   dom.taskListEl.innerHTML = '';
   const visible = getVisibleTasks();
-  visible.forEach((task) => dom.taskListEl.appendChild(createTaskRow(task)));
-  if (visible.length === 0 && state.searchQuery.trim()) {
+  dom.taskListEl.replaceChildren(...bucketed(orderDraftTasks(visible), draftUrgencyBucket, (b) => ADMIN_BUCKET_LABELS[b] || '', (t) => createTaskRow(t, state.catalog)));
+  if (visible.length === 0 && (state.searchQuery.trim() || state.adminSubjectFilter)) {
     const none = document.createElement('p');
     none.className = 'list-empty';
-    none.textContent = 'No tasks match your search.';
+    none.append('No draft tasks match these filters. ');
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'text-button';
+    clear.textContent = 'Clear filters';
+    clear.addEventListener('click', clearAdminFilters);
+    none.appendChild(clear);
     dom.taskListEl.appendChild(none);
   }
   const add = document.createElement('button');
@@ -879,13 +951,14 @@ export function renderAllTasks() {
     const diff = publish.diffDraft();
     changedIds = diff.changed;
     publish.updateAdminBar(diff);
+    syncAdminSubjectOptions(myTasks.filter((t) => !t.isPast()));
   }
   document.querySelectorAll('#page-my-tasks .column-content').forEach((content) => {
     content.querySelectorAll('.task-card, .skeleton, .drop-placeholder').forEach((c) => c.remove());
   });
   getVisibleTasks().forEach((task) => {
     const content = document.querySelector(`#page-my-tasks .kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
-    if (content) content.appendChild(createTaskCard(task));
+    if (content) content.appendChild(createTaskCard(task, state.catalog));
   });
   document.querySelectorAll('#page-my-tasks .kanban-column').forEach(updateColumn);
   renderTaskList();
@@ -909,7 +982,7 @@ function updateDialogDue(task) {
   dom.dialogDueHint.textContent = task.status === 'done' ? '' : task.getDueHint();
   dom.dialogDueHint.classList.toggle('is-overdue', task.status !== 'done' && task.isOverdue());
   dom.dialogDateBtn.classList.toggle('empty-value', empty);
-  dom.dialogDateBtn.setAttribute('aria-label', empty ? 'Due: no due date' : `Due: ${task.getDueShort()}`);
+  dom.dialogDateBtn.setAttribute('aria-label', empty ? (editable ? 'Due: Add due date' : 'Due: No due date') : `Due: ${task.getDueShort()}`);
   dom.dialogDueClear.hidden = empty || !editable;
 }
 function updateDialogStatus(task) {
@@ -1008,6 +1081,11 @@ export function openTaskDialog(task) {
   refreshLinks(dom.dialogDoc);
   updateDialogSubject(task);
   renderDialogFiles(task);
+  const notesField = document.getElementById('dialog-notes-field');
+  if (notesField) {
+    const hasFiles = Array.isArray(task.files) && task.files.length > 0;
+    notesField.hidden = ro && !hasMeaningfulNotes(task.notes) && hasFiles;
+  }
   motion.openOverlay(dom.dialogOverlay);
   dom.dialogOverlay.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
@@ -1199,7 +1277,6 @@ function autosave() {
   flashSaved();
 }
 
-const isReopen = (task, status) => task.status === 'done' && status !== 'done';
 function updateColumn(columnEl) {
   const n = columnEl.querySelectorAll('.task-card').length;
   columnEl.querySelector('.column-count').textContent = `(${n})`;
@@ -1209,9 +1286,12 @@ function updateColumn(columnEl) {
   const emptyMsg = contentEl.querySelector('.column-empty');
   if (emptyMsg) {
     if (!emptyMsg.dataset.default) emptyMsg.dataset.default = emptyMsg.textContent;
-    const searching = columnEl.closest('#page-class-tasks') ? state.classSearchQuery.trim()
-      : columnEl.closest('#page-my-tasks') ? state.searchQuery.trim() : '';
-    emptyMsg.textContent = searching ? 'No tasks match your search.' : emptyMsg.dataset.default;
+    const filtered = columnEl.closest('#page-class-tasks')
+      ? Boolean(state.classSearchQuery.trim() || state.classSubjectFilter)
+      : columnEl.closest('#page-my-tasks')
+        ? Boolean(state.searchQuery.trim() || state.adminSubjectFilter)
+        : false;
+    emptyMsg.textContent = filtered ? 'No tasks match these filters.' : emptyMsg.dataset.default;
     emptyMsg.hidden = !isEmpty;
   }
 }
@@ -1264,20 +1344,14 @@ function handleDrop(e) {
 
   const newStatus = COLUMN_TO_STATUS[columnEl.dataset.status];
   if (newStatus && newStatus !== task.status) {
-    if (isReopen(task, newStatus)) {
-      confirmReopen(task, newStatus, () => {
-        const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-        setStatus(task, newStatus);
-        renderAllTasks();
-        showToast(statusChangeMessage(newStatus), 'Undo', () => restoreProgress(task.id, prev));
-      });
-    } else {
-      const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
-      setStatus(task, newStatus);
-      renderAllTasks();
-      if (newStatus === 'done') {
-        showToast(doneMessage(), 'Undo', () => restoreProgress(task.id, prev));
-      }
+    const prev = state.progress[task.id] ? { ...state.progress[task.id] } : null;
+    const reopened = task.status === 'done' && newStatus !== 'done';
+    setStatus(task, newStatus);
+    renderAllTasks();
+    if (reopened) {
+      showToast(statusChangeMessage(newStatus), 'Undo', () => restoreProgress(task.id, prev));
+    } else if (newStatus === 'done') {
+      showToast(doneMessage(), 'Undo', () => restoreProgress(task.id, prev));
     }
   }
 
@@ -1365,20 +1439,8 @@ function ensureStatusPopover() {
       const picked = statusPopoverTask;
       const next = opt.dataset.status;
       const pickedFrom = statusPopoverAnchor;
-      if (isReopen(picked, next)) {
-        closeStatusPopover();
-
-        confirmReopen(picked, next, () => {
-          const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
-          setStatus(picked, next);
-          if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
-          renderAllTasks();
-          const hiddenByFilter = !!state.classStatusFilter && next !== state.classStatusFilter && classListVisible();
-          showToast(hiddenByFilter ? `${statusChangeMessage(next)}. Hidden by the Status filter` : statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
-        }, pickedFrom);
-        return;
-      }
       const prev = state.progress[picked.id] ? { ...state.progress[picked.id] } : null;
+      const reopened = picked.status === 'done' && next !== 'done';
       const prevScrollY = window.scrollY;
       setStatus(picked, next);
       if (picked.id === state.currentTask?.id) { updateDialogStatus(picked); updateDialogDue(picked); flashSaved(); }
@@ -1389,6 +1451,8 @@ function ensureStatusPopover() {
       if (window.scrollY !== prevScrollY) window.scrollTo(0, prevScrollY);
       if (hiddenByFilter) {
         showToast(`${statusChangeMessage(next)}. Hidden by the Status filter`, 'Undo', () => restoreProgress(picked.id, prev));
+      } else if (reopened) {
+        showToast(statusChangeMessage(next), 'Undo', () => restoreProgress(picked.id, prev));
       } else if (next === 'done') {
         showToast(doneMessage(), 'Undo', () => restoreProgress(picked.id, prev));
       }
@@ -1463,11 +1527,12 @@ function createStatusCheck(task) {
 function updateDialogSubject(task) {
   dom.dialogSubjectBtn.innerHTML = '';
   dom.dialogSubjectBtn.classList.toggle('empty-value', !task.subject);
-  if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject));
+  const cat = isEditable(task) ? state.catalog : activeClassCatalog();
+  if (task.subject) dom.dialogSubjectBtn.appendChild(createSubjectTag(task.subject, cat));
   else dom.dialogSubjectBtn.textContent = isEditable(task) ? 'Add subject' : 'None';
   dom.dialogSubjectBtn.setAttribute('aria-label', task.subject
     ? `Subject: ${dom.dialogSubjectBtn.textContent.trim()}`
-    : `Subject: ${isEditable(task) ? 'none chosen' : 'none'}`);
+    : (isEditable(task) ? 'Subject: Add subject' : 'Subject: None'));
   closeSubjectDropdown(false);
   paintSubjectDropdown();
 }
@@ -1629,9 +1694,11 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (!state.statusPopoverEl || state.statusPopoverEl.hidden) return;
   if (e.key === 'Escape') { closeStatusPopover(true); return; }
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
     e.preventDefault();
-    statusPopoverIndex = (statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
+    statusPopoverIndex = e.key === 'Home' ? 0
+      : e.key === 'End' ? STATUS_ORDER.length - 1
+      : (statusPopoverIndex + (e.key === 'ArrowDown' ? 1 : -1) + STATUS_ORDER.length) % STATUS_ORDER.length;
     paintStatusPopover();
     state.statusPopoverEl.children[statusPopoverIndex].focus();
   }

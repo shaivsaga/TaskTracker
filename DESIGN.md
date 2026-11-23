@@ -120,6 +120,7 @@ Do:
 - Do use Royal Blue for selection, focus and in-progress only.
 - Do keep the pixel font to titles, micro-labels and numerals; keep dates and times in tabular Plus Jakarta Sans.
 - (+5 more)
+Subject Palette (dark ink `#14183A` on all 10 tags): CP104 sky `#58AFFC`, PKLP orange `#FF9F6B`, GENSCI cyan `#70D1FE`, EFFCOM green `#8FE3A8`, MABKOM sand `#D8C7A0`, THEOLOGY stone `#C3C7D6`, FINMATH101 mauve `#C9A6E0`, PE yellow `#F7CD54`, GENMATH pink `#FBA6F7`, PERDEV teal `#7FF0E0`.
 Map: assets/sprites-light.svg
 Map: assets/sprites-dark.svg
 Full: .impeccable/design-full.md (read a section when you need its detail)
