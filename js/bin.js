@@ -87,13 +87,13 @@ function render(data) {
     head.appendChild(el('span', 'history-label', label(row)));
     const detail = el('p', 'history-detail',
       `${row.everPublished ? 'Was published' : 'Never published'} · ${row.source === 'draft-delete' ? 'deleted draft' : 'removed from the board'}`);
-    const actions = el('div', 'history-bar');
+    const actions = el('div', 'history-actions');
     const restore = el('button', 'secondary-button', 'Restore');
     restore.type = 'button';
     restore.dataset.binAction = 'restore';
     restore.dataset.binId = row.binId;
     restore.setAttribute('aria-label', `Restore ${row.title || row.taskId} into the draft`);
-    const remove = el('button', 'text-button', 'Delete permanently');
+    const remove = el('button', 'text-button is-danger', 'Delete permanently');
     remove.type = 'button';
     remove.dataset.binAction = 'delete';
     remove.dataset.binId = row.binId;
@@ -117,6 +117,7 @@ async function onAction(action, binId, btn) {
   if (action === 'delete') {
     if (!armed || armed.binId !== binId) {
       armed = { binId, action };
+      btn.dataset.armed = '1';
       btn.textContent = 'Delete permanently?';
       say('Press again to delete this copy for good. Its id is never reused.');
       btn.focus();

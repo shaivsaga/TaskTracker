@@ -1,6 +1,6 @@
 # 8. Multi-section routing, storage, and auth
 
-**Status.** Accepted (supersedes [ADR 0005](0005-multi-section-deferred.md)). Plan only — not yet implemented.
+**Status.** Accepted and implemented (supersedes [ADR 0005](0005-multi-section-deferred.md); shipped in PRs #76–#78).
 
 We support additional operator-provisioned Sections (starting with Section B, expandable to C/D later) without adding accounts, a database, a build step, or migrating Section A's live data. Each non-root Section is served from an unlisted sub-path `/s/<id>/<token>/` backed by a stable Section ID (`b`), with its own `data/sections/<id>/` directory, its own `htpasswd` file, and its own nginx login rate-limit zone.
 

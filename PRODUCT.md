@@ -30,7 +30,8 @@ A zero-account, privacy-preserving class task board: shared tasks come from the 
 - **No framework or build step:** Plain HTML, CSS, and ES-module JavaScript; PHP 8.1+ backend with flat JSON storage (`data/current.json`) and no database.
 - **Frozen data contracts:** `data/current.json` schema and browser `localStorage` key names/shapes are frozen for backward compatibility with existing student state.
 - **Security & privacy boundaries:** No student accounts or sign-up; admin auth is isolated to `api/login.php` with HttpOnly session cookies; `data/`, `deploy/`, `.env`, and `api/.htpasswd` are never publicly served; notes and announcements are sanitized to a strict tag whitelist.
-- **Active near-term goal — Multi-section support:** Expanding beyond a single section so a second section gets its own isolated board, admin login, and unlisted rotatable address while the primary section keeps its short address and frozen storage keys (see [docs/multi-section-plan.md](docs/multi-section-plan.md)).
+- **Multi-section support (shipped):** Additional class sections get their own isolated board, admin login, and unlisted rotatable `/s/<id>/<token>/` address while the primary section keeps its short address and frozen storage keys (see [docs/multi-section-plan.md](docs/multi-section-plan.md)).
+- **Next planned capability — Class timetable / schedule:** A class timetable or schedule view integrated into the existing Calendar flow rather than adding a new navigation tab.
 - **Deploy safety:** Merging to `main` auto-deploys production; `index.html` asset cache-busting (`?v=<sha7>`) and inline script CSP hashes are CI/server-enforced.
 
 ## Brand Commitments
