@@ -99,6 +99,45 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     JSON.stringify({ slashFocused, ...roDialog }),
   );
 
+  for (const width of [320, 375, 390, 1280]) {
+    for (const theme of ['light', 'dark']) {
+      await boot(cdp, width, { storage: { class_tasks_theme: theme } });
+      const metadata = await cdp.evaluate(`(() => {
+        const rows = [...document.querySelectorAll('#class-task-list .task-row')]
+          .filter((row) => row.querySelector('.subject-tag') && row.querySelector('.task-row-due.is-overdue'));
+        return rows.map((row) => {
+          const badge = row.querySelector('.subject-tag');
+          const due = row.querySelector('.task-row-due');
+          const badgeBox = badge.getBoundingClientRect();
+          const dueBox = due.getBoundingClientRect();
+          const rowBox = row.getBoundingClientRect();
+          const style = getComputedStyle(row);
+          const rightEdge = rowBox.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
+          const bottomEdge = rowBox.bottom - parseFloat(style.paddingBottom) - parseFloat(style.borderBottomWidth);
+          const leftEdge = row.children[1].getBoundingClientRect().left;
+          return {
+            code: badge.textContent,
+            badgeFits: badge.scrollWidth <= badge.clientWidth + 1,
+            dueFits: due.scrollWidth <= due.clientWidth + 1,
+            inside: dueBox.right <= rowBox.right && dueBox.left >= badgeBox.right,
+            emptyTrackHidden: getComputedStyle(row.lastElementChild).display === 'none',
+            phonePlacement: innerWidth >= 720 || (
+              Math.abs(dueBox.right - rightEdge) <= 1
+              && Math.abs(dueBox.bottom - bottomEdge) <= 1
+              && Math.abs(badgeBox.left - leftEdge) <= 1
+              && Math.abs(badgeBox.bottom - dueBox.bottom) <= 1
+              && getComputedStyle(due).textAlign === 'left'
+            ),
+          };
+        });
+      })()`);
+      const hasLongCodes = ['FINMATH101', 'THEOLOGY'].every((code) => metadata.some((row) => row.code === code));
+      check('task row metadata ' + width + ' ' + theme, hasLongCodes && metadata.every(
+        (row) => row.badgeFits && row.dueFits && row.inside && row.emptyTrackHidden && row.phonePlacement,
+      ), JSON.stringify(metadata.filter((row) => !row.badgeFits || !row.dueFits || !row.inside || !row.emptyTrackHidden || !row.phonePlacement)));
+    }
+  }
+
   // 4. Done rows use static non-button checkmark; Past rows omit status-check completely.
   await boot(cdp, 1280, { hash: 'done', storage: { class_tasks_progress: JSON.stringify(progress) } });
   const doneRows = await cdp.evaluate(`(() => {
