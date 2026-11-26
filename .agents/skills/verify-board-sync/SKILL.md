@@ -36,7 +36,7 @@ Last confirmed in sync at commit: `667c455` (move this forward only after confir
 
 ## Run the check
 
-1. Run the TLA+ model checker (uses Java if installed, otherwise Docker `eclipse-temurin:21-jre-alpine`, with SHA-256 pinned `tla2tools.jar` v1.8.0):
+1. Run the TLA+ model checker (uses Java if installed, otherwise Docker `eclipse-temurin:21-jre-alpine`, with SHA-256 pinned `tla2tools.jar` v1.7.4):
 
 ```sh
 bash tests/formal/run-tlc.sh BoardSync.cfg

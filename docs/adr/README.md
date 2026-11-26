@@ -10,3 +10,4 @@ Short records of choices that are hard to reverse. Each says what was decided, w
 6. [app.js split into ES modules](0006-app-js-module-split.md)
 7. [Deletion authority, recycle bin and migration](0007-subjects-and-recovery.md)
 8. [Multi-section routing, storage, and auth](0008-multi-section.md)
+9. [Local insights, reminders, and S1b deferral](0009-local-insights-and-s1b-deferral.md)

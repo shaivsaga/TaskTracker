@@ -3,8 +3,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SPEC_DIR="$ROOT/tests/formal"
-TLA_VERSION="v1.8.0"
-TLA_SHA256="fdffef247f563ef6edbfd44958d2a82db79e7564e07cb673262d896353fa6713"
+# Pin the latest finalized stable release (v1.7.4, tag commit 5a47802b5c391f59ecdd44117981f4ff8c0656ba).
+# The previous v1.8.0 pin targeted a mutable prerelease whose tla2tools.jar asset was re-uploaded
+# on 2026-11-26, breaking checksum verification on clean CI runners.
+# Upstream v1.7.4 release-notes SHA-1: bee4a54f3ee3d4afc347c3240ec2d9e93b075104.
+TLA_VERSION="v1.7.4"
+TLA_SHA256="936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
 CACHE_DIR="${TLA_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/tasktracker-tla}"
 JAR_PATH="$CACHE_DIR/tla2tools-${TLA_VERSION}.jar"
 CFG="${1:-BoardSync.cfg}"
