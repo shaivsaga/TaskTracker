@@ -34,14 +34,14 @@ Structured verdict (JSON or Markdown):
 - Read-only inspection (`git diff`, `git show`, `read_file`, `batch_search`, `quick_outline`).
 
 ## MODEL SELECTION
-- **Primary (inside T3 Code — cross-provider diversity):** Codex `gpt-6.1-terra` (or `gpt-6.1-sol`) with `reasoningEffort: "medium"` (`STANDARD`) or `"high"` (`DEEP`) via `delegate_task`.
+- **Primary (inside T3 Code — cross-provider diversity, configurable via `TT_REVIEWER_MODEL`):** Codex **`gpt-6.2-astra`** with `reasoningEffort: "medium"` (`STANDARD`) or `"high"` (`DEEP`) via `delegate_task`. *(Note: `gpt-6.1-terra` was used in the V1 benchmarks on 2026-11-25; `gpt-6.2-astra` is the active default per owner directive 2026-11-26.)*
 - **Fallback (outside T3 Code or if Codex unavailable):** Fresh-context Antigravity `gemini-4-neon` (High) with zero prior implementation context.
-- **BANNED (never use):** `claude-opus-5-5*`, `claude-sonnet-5-5*`, and (unless explicitly prompted) `gpt-6.2-sol` / `gpt-6.2-astra`.
+- **BANNED:** NEVER use `claude-opus-5-5*` or `claude-sonnet-5-5*` (no exceptions). Do NOT use `gpt-6.1-terra`, `gpt-6.1-sol`, `gpt-6.2-sol`, or any other Codex model unless explicitly prompted by Markus.
 
 ## DEFINITION OF DONE
 - Every changed file and its direct callers inspected.
 - Every finding cites exact `file:line`, concrete failure scenario, and minimal fix.
-- Clear `APPROVE` or `REQUEST_CHANGES` verdict aligned with severity rules (`APPROVE` iff `P0 == 0` and `P1 == 0`).
+- Clear `APPROVE` or `REQUEST_CHANGES` verdict aligned with severity rules (`APPROVE` iff `P0 == 0` and `P1 == 0`). Unresolved `P0`/`P1` findings at budget exhaustion MUST block approval.
 
 ## ESCALATION CONDITIONS
 - Disagreement with the Orchestrator or Engineer on an architectural/security `P0`/`P1` issue after 1 rebuttal.

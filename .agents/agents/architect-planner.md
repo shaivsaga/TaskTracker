@@ -34,7 +34,7 @@ Structured JSON/Markdown plan containing:
 
 ## MODEL SELECTION
 - Primary: `gemini-4-neon` (High) — strong systems reasoning and invariant tracking.
-- In `DEEP` mode: optional cross-provider plan challenge by Codex `gpt-6.1-terra` (`reasoningEffort: "high"`).
+- In `DEEP` mode: optional cross-provider plan challenge by configured Codex reviewer (default `gpt-6.2-astra`, `reasoningEffort: "high"`).
 
 ## DEFINITION OF DONE
 - Every file in `files_to_modify` was actually read.

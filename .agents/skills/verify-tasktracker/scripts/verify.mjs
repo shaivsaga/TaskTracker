@@ -95,6 +95,38 @@ function buildShiftedFixture() {
   return tmpPath;
 }
 
+const PUBLIC_TOP_FILES = new Set([
+  '/',
+  '/index.html',
+  '/styles.css',
+  '/app.js',
+  '/logic.js',
+  '/attachments.js',
+  '/qr-draw.js',
+  '/qrcode.js',
+  '/favicon.ico',
+  '/favicon.svg',
+  '/apple-touch-icon.png',
+  '/data/current.json',
+]);
+
+const PUBLIC_API_ROUTES = new Set([
+  '/api/login.php',
+  '/api/logout.php',
+  '/api/publish.php',
+  '/api/upload.php',
+  '/api/versions.php',
+]);
+
+export function isAllowedPublicPath(urlPath) {
+  const clean = String(urlPath || '/').split('?')[0].split('#')[0];
+  if (PUBLIC_TOP_FILES.has(clean)) return true;
+  if (PUBLIC_API_ROUTES.has(clean)) return true;
+  if (/^\/js\/[A-Za-z0-9._-]+\.js$/.test(clean)) return true;
+  if (/^\/assets\/(?:sprites-(?:light|dark)\.svg|fonts\/[A-Za-z0-9._-]+\.(?:woff2?|ttf|otf))$/.test(clean)) return true;
+  return false;
+}
+
 async function withServer(explicitUrl, fn) {
   if (explicitUrl) return fn(String(explicitUrl).replace(/\/$/, ''));
   const fixturePath = buildShiftedFixture();
@@ -111,6 +143,11 @@ async function withServer(explicitUrl, fn) {
         return;
       }
       req.url = rest === '/' ? '/index.html' : rest;
+    }
+    if (!isAllowedPublicPath(req.url)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
     }
     auditServer.emit('request', req, res);
   });
@@ -952,13 +989,15 @@ async function runDrive(target, args) {
   process.exit(failed === 0 && errors.length === 0 ? 0 : 1);
 }
 
-const args = parseArgs(process.argv.slice(2));
-const cmd = args._[0];
-if (cmd === 'doctor') {
-  runDoctor().catch((e) => { console.error(e); process.exit(1); });
-} else if (cmd === 'drive') {
-  runDrive(args._[1] || 'all', args).catch((e) => { console.error(e); process.exit(1); });
-} else {
-  console.error('Usage: node verify.mjs <doctor|drive <feature|all>> [--out <dir>] [--url <baseUrl>] [--geckodriver-url <url>]');
-  process.exit(2);
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const args = parseArgs(process.argv.slice(2));
+  const cmd = args._[0];
+  if (cmd === 'doctor') {
+    runDoctor().catch((e) => { console.error(e); process.exit(1); });
+  } else if (cmd === 'drive') {
+    runDrive(args._[1] || 'all', args).catch((e) => { console.error(e); process.exit(1); });
+  } else {
+    console.error('Usage: node verify.mjs <doctor|drive <feature|all>> [--out <dir>] [--url <baseUrl>] [--geckodriver-url <url>]');
+    process.exit(2);
+  }
 }

@@ -1,19 +1,15 @@
 """
-Antigravity `run_workflow` orchestration script for TaskTracker STANDARD and DEEP modes.
+Non-ACP / interactive-IDE Antigravity `run_workflow` script for TaskTracker STANDARD and DEEP modes.
 
-Invoke via Antigravity's `run_workflow` tool:
-  ScriptPath="/opt/lampp/htdocs/tasktracker/.agents/workflows/orchestrate.py"
-  Args={
-    "task": "Short clear task goal",
-    "mode": "standard",          # "standard" | "deep"
-    "base_ref": "main",
-    "max_fix_cycles": 2,         # default: 2 (standard), 3 (deep)
-    "skip_internal_review": False,  # set True when Coordinator runs Codex gpt-6.1-terra review via T3 Code delegate_task
-    "approved_plan": None,       # pass approved plan JSON in DEEP mode after human plan approval
-  }
+IMPORTANT (V1 Benchmark Finding — 2026-11-25):
+  Under T3 Code ACP headless mode, `run_workflow` child agents stall on unprompted tool
+  approvals. Inside T3 Code ACP, follow `.agents/skills/tt-orchestrator/SKILL.md` Section 4
+  (read-only Workspace="inherit" Planner, shell-free Workspace="share" or inline Engineers,
+  parent-controlled sequential `verify-matrix.mjs`, and Codex `delegate_task` review).
 
 Hard model policy enforced in code:
-  NEVER uses claude-opus-5-5*, claude-sonnet-5-5*, or (unless explicitly prompted) gpt-6.2-sol / gpt-6.2-astra.
+  NEVER uses claude-opus-5-5*, claude-sonnet-5-5*, or (unless explicitly prompted)
+  gpt-6.2-sol, gpt-6.1-terra, or other non-default Codex models (active Codex review default: gpt-6.2-astra).
   Antigravity `run_workflow` agent() uses model tiers: "inherit" (Gemini 4 Neon), "pro", "flash", "flash_lite".
 """
 import json
@@ -26,7 +22,7 @@ BANNED_MODEL_PATTERNS = (
     "claude-opus-5-5",
     "claude-sonnet-5-5",
     "gpt-6.2-sol",
-    "gpt-6.2-astra",
+    "gpt-6.1-terra",
 )
 
 
@@ -56,7 +52,13 @@ if mode not in ("standard", "deep"):
     raise ValueError(f"orchestrate.py handles 'standard' or 'deep' (got '{mode}'). Run FAST inline.")
 
 base_ref = args.get("base_ref", "main")
-max_fix_cycles = int(args.get("max_fix_cycles", 3 if mode == "deep" else 2))
+tier_budget_cap = 3 if mode == "deep" else 2
+raw_cycles = int(args.get("max_fix_cycles", tier_budget_cap))
+if raw_cycles < 1 or raw_cycles > tier_budget_cap:
+    raise ValueError(
+        f"max_fix_cycles={raw_cycles} exceeds allowed {mode.upper()} budget (1..{tier_budget_cap})."
+    )
+max_fix_cycles = raw_cycles
 skip_internal_review = bool(args.get("skip_internal_review", False))
 approved_plan = args.get("approved_plan")
 
@@ -248,7 +250,7 @@ Never edit product files. Never fabricate results. Return the exact Evidence Led
 Repository root: {ROOT}
 Mode: {mode.upper()}
 Acceptance criteria: {json.dumps(plan['acceptance_criteria'])}
-Run `cd {ROOT} && git diff {base_ref}...HEAD` (and `git diff` if uncommitted) and inspect connected callers under {ROOT}. Do NOT edit files."""
+Run `cd {ROOT} && git diff {base_ref}` plus `git ls-files --others --exclude-standard` (excluding `.cursor/`) and inspect connected callers under {ROOT}. Do NOT edit files."""
         review_task = agent(
             review_prompt,
             schema=REVIEW_SCHEMA,
@@ -260,10 +262,12 @@ Run `cd {ROOT} && git diff {base_ref}...HEAD` (and `git diff` if uncommitted) an
     blockers = [
         f for f in last_review.get("findings", []) if f.get("severity") in ("P0", "P1")
     ]
-    verify_failed = last_verify.get("overall") == "FAIL"
+    review_deferred = last_review.get("verdict") == "DEFERRED_TO_EXTERNAL_CODEX_REVIEW"
+    review_approved = last_review.get("verdict") == "APPROVE" and not blockers
+    verify_passed = last_verify.get("overall") == "PASS"
 
-    if not blockers and not verify_failed:
-        log("Quality gates satisfied.")
+    if verify_passed and (review_approved or review_deferred):
+        log("Verification passed." + (" Awaiting external Codex review." if review_deferred else " Quality gates satisfied."))
         break
 
     cycle += 1
@@ -295,10 +299,27 @@ walkthrough = await agent(
     model=assert_model_allowed("inherit"),
 )
 
+unresolved_blockers = [
+    f for f in last_review.get("findings", []) if f.get("severity") in ("P0", "P1")
+]
+review_deferred = last_review.get("verdict") == "DEFERRED_TO_EXTERNAL_CODEX_REVIEW"
+review_approved = last_review.get("verdict") == "APPROVE" and not unresolved_blockers
+verify_passed = last_verify.get("overall") == "PASS"
+approval_blocked = not (review_approved and verify_passed)
+
+if review_deferred and verify_passed:
+    stage = "AWAITING_EXTERNAL_REVIEW"
+elif approval_blocked:
+    stage = "BLOCKED"
+else:
+    stage = "COMPLETE"
+
 result = {
-    "stage": "COMPLETE" if (not [f for f in last_review.get("findings", []) if f.get("severity") in ("P0", "P1")] and last_verify.get("overall") != "FAIL") else "ESCALATED",
+    "stage": stage,
+    "approval_blocked": approval_blocked,
     "mode": mode,
     "fix_cycles_used": cycle,
+    "max_fix_cycles": max_fix_cycles,
     "plan": plan,
     "implementation": impl_results,
     "review": last_review,

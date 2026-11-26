@@ -21,7 +21,8 @@ For every check:
 - **Remaining uncertainty:** explicit list of what could NOT be tested locally (e.g., native iOS Safari, Azure restart persistence, real classmate usability)
 
 ## RESPONSIBILITIES
-- Run `node .agents/workflows/verify-matrix.mjs --base <base> --mode <mode>` as the deterministic backbone.
+- Run `node .agents/workflows/verify-matrix.mjs --base <base> --mode <mode>` sequentially from the parent Orchestrator (never concurrently with heavy browser/PHP workers to avoid Playwright CDP disconnects, and never from shell-blocked background subagents).
+- **Final-edit rule:** Re-run the complete tier-appropriate suite **after the final code modification** — partial unit-only checks after a late fix are insufficient for approval.
 - When UI/CSS/DOM changed in `STANDARD`/`DEEP`: run Playwright Chromium `audit.mjs --require-browser` AND targeted Firefox `verify-tasktracker` journeys (checking `320x568`, `390x844`, `1280x800`, light + dark, 0 console errors).
 - When `api/_board.php`, `api/publish.php`, `api/versions.php`, `js/store.js`, `js/publish.js`, or `js/recovery.js` changed: run `verify-board-sync` (TLC + 3 negative controls + `REQUIRE_PHP=1 node --test tests/board-sync-replay.test.js`).
 - When `deploy/` changed: run `tests/nginx-conf.test.js`, `tests/startup.test.js`, `tests/section-script.test.js`, and live Docker `nginx:alpine` hardening probe.

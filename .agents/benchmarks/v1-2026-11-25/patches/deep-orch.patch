@@ -1,0 +1,886 @@
+diff --git a/api/_board.php b/api/_board.php
+index c31cb0e..01c4a76 100644
+--- a/api/_board.php
++++ b/api/_board.php
+@@ -149,6 +149,128 @@ function tt_subject_retired($code) {
+     return ['code' => (string)$code, 'name' => (string)$code, 'color' => '#c3c7d6', 'active' => false];
+ }
+ 
++// ---- schedule --------------------------------------------------------------------------------
++const TT_SCHEDULE_MAX_SLOTS = 80;
++const TT_SCHEDULE_TIME = '/^([01]\d|2[0-3]):([0-5]\d)$/D';
++
++// Validate an optional class schedule. Returns [normalized|null, null] or [null, error].
++// Absent/null is valid and backward-compatible; any malformed field rejects the whole schedule.
++function tt_schedule_validate($raw, $subjects) {
++    if ($raw === null) return [null, null];
++    if (!is_array($raw) || ($raw !== [] && array_is_list($raw))) return [null, 'schedule must be an object.'];
++    if (!array_key_exists('slots', $raw) || !is_array($raw['slots']) || ($raw['slots'] !== [] && !array_is_list($raw['slots']))) {
++        return [null, 'schedule.slots must be a list.'];
++    }
++    if (count($raw['slots']) > TT_SCHEDULE_MAX_SLOTS) {
++        return [null, 'Too many schedule slots (max ' . TT_SCHEDULE_MAX_SLOTS . ').'];
++    }
++
++    $out = [];
++    foreach (['term', 'sectionLabel', 'adviser', 'room'] as $field) {
++        if (!array_key_exists($field, $raw) || $raw[$field] === null) continue;
++        $val = $raw[$field];
++        if (!is_string($val) || !mb_check_encoding($val, 'UTF-8')) return [null, "schedule.$field must be a string."];
++        if (preg_match('/[\x00-\x1f\x7f]/', $val)) return [null, "schedule.$field has control characters."];
++        $val = trim($val);
++        if (mb_strlen($val) > 80) return [null, "schedule.$field must be at most 80 characters."];
++        if ($val !== '') $out[$field] = $val;
++    }
++
++    $knownSubjects = [];
++    foreach (is_array($subjects) ? $subjects : [] as $s) {
++        if (is_array($s) && is_string($s['code'] ?? null)) $knownSubjects[$s['code']] = true;
++    }
++
++    $byDay = [];
++    $slots = [];
++    foreach ($raw['slots'] as $i => $slot) {
++        $n = $i + 1;
++        if (!is_array($slot) || ($slot !== [] && array_is_list($slot))) {
++            return [null, "Schedule slot $n is not an object."];
++        }
++        $day = $slot['day'] ?? null;
++        if (!is_int($day) || $day < 1 || $day > 5) {
++            return [null, "Schedule slot $n needs a day from 1 (Mon) to 5 (Fri)."];
++        }
++        $start = $slot['start'] ?? null;
++        $end = $slot['end'] ?? null;
++        if (!is_string($start) || !preg_match(TT_SCHEDULE_TIME, $start, $ms)) {
++            return [null, "Schedule slot $n needs a valid 24-hour start time (HH:MM)."];
++        }
++        if (!is_string($end) || !preg_match(TT_SCHEDULE_TIME, $end, $me)) {
++            return [null, "Schedule slot $n needs a valid 24-hour end time (HH:MM)."];
++        }
++        $startMin = ((int)$ms[1]) * 60 + (int)$ms[2];
++        $endMin = ((int)$me[1]) * 60 + (int)$me[2];
++        if ($startMin >= $endMin) {
++            return [null, "Schedule slot $n end time must be after start time."];
++        }
++        foreach ($byDay[$day] ?? [] as $existing) {
++            if ($startMin < $existing[1] && $existing[0] < $endMin) {
++                return [null, "Schedule slot $n overlaps another slot on day $day."];
++            }
++        }
++        $byDay[$day][] = [$startMin, $endMin];
++
++        $hasKind = array_key_exists('kind', $slot) && $slot['kind'] !== null;
++        if ($hasKind) {
++            $kind = $slot['kind'];
++            if (!is_string($kind) || !in_array($kind, ['subject', 'break', 'activity'], true)) {
++                return [null, "Schedule slot $n has an invalid kind."];
++            }
++        } elseif (array_key_exists('subject', $slot) && $slot['subject'] !== null && $slot['subject'] !== '') {
++            $kind = 'subject';
++        } else {
++            return [null, "Schedule slot $n needs a kind or subject."];
++        }
++
++        $entry = [
++            'day'   => $day,
++            'start' => $start,
++            'end'   => $end,
++            'kind'  => $kind,
++        ];
++
++        if ($kind === 'subject') {
++            $subj = $slot['subject'] ?? null;
++            if (!is_string($subj) || $subj === '') {
++                return [null, "Schedule slot $n needs a subject."];
++            }
++            if (!isset($knownSubjects[$subj])) {
++                return [null, "Schedule slot $n uses subject \"$subj\", which is not in the catalog."];
++            }
++            $entry['subject'] = $subj;
++        } else {
++            $label = $slot['label'] ?? null;
++            if (!is_string($label) || !mb_check_encoding($label, 'UTF-8') || preg_match('/[\x00-\x1f\x7f]/', $label)) {
++                return [null, "Schedule slot $n needs a valid label."];
++            }
++            $label = trim($label);
++            if ($label === '' || mb_strlen($label) > 40) {
++                return [null, "Schedule slot $n needs a label of 1-40 characters."];
++            }
++            $entry['label'] = $label;
++        }
++
++        if (array_key_exists('teacher', $slot) && $slot['teacher'] !== null) {
++            $teacher = $slot['teacher'];
++            if (!is_string($teacher) || !mb_check_encoding($teacher, 'UTF-8') || preg_match('/[\x00-\x1f\x7f]/', $teacher)) {
++                return [null, "Schedule slot $n has an invalid teacher."];
++            }
++            $teacher = trim($teacher);
++            if (mb_strlen($teacher) > 80) {
++                return [null, "Schedule slot $n teacher must be at most 80 characters."];
++            }
++            if ($teacher !== '') $entry['teacher'] = $teacher;
++        }
++
++        $slots[] = $entry;
++    }
++
++    $out['slots'] = $slots;
++    return [$out, null];
++}
++
+ // ---- identifiers -----------------------------------------------------------------------------
+ const TT_SAFE_ID = '/^[\w.\-]{1,64}$/D';
+ 
+diff --git a/api/publish.php b/api/publish.php
+index 10788be..3f54e82 100644
+--- a/api/publish.php
++++ b/api/publish.php
+@@ -81,6 +81,12 @@ $idErr = tt_taskids_validate($in['tasks']);
+ if ($idErr !== null) fail(422, $idErr);
+ $coverErr = tt_subjects_cover($in['tasks'], $subjects);
+ if ($coverErr !== null) fail(422, $coverErr);
++$hasSchedule = array_key_exists('schedule', $in);
++$schedule = null;
++if ($hasSchedule && $in['schedule'] !== null) {
++  [$schedule, $schedErr] = tt_schedule_validate($in['schedule'], $subjects);
++  if ($schedErr !== null) fail(422, $schedErr);
++}
+ 
+ @ignore_user_abort(true);  // a client disconnect must not stop the script between snapshot and rename
+ 
+@@ -119,14 +125,16 @@ try {
+ 
+   // One canonical body hash: an exact transport retry replays the stored result, a different body
+   // with the same token is a conflict. The receipt is bounded to the latest operation.
+-  $bodyHash = tt_hash_value([
++  $hashPayload = [
+     'baseRevision'  => $in['baseRevision'],
+     'tasks'         => $in['tasks'],
+     'announcements' => $anns,
+     'subjects'      => $subjects,
+     'note'          => $note,
+     'clearBoard'    => $clear,
+-  ]);
++  ];
++  if ($hasSchedule) $hashPayload['schedule'] = $schedule;
++  $bodyHash = tt_hash_value($hashPayload);
+   $receipt = tt_receipt($admin, $in['operationId'], $bodyHash);
+   if ($receipt === 'conflict') fail(409, 'That operation id was already used for a different change. Reload and try again.', ['code' => 'operation_conflict', 'latestRevision' => $liveRevision]);
+   if ($receipt === 'replay') {
+@@ -168,9 +176,21 @@ try {
+     fail(409, 'Cannot verify the published board (no current.json); refusing to clear it.');
+   }
+ 
+-  // Clear-board removes assignments only; the live announcements and the catalog are carried over.
++  // Clear-board removes assignments only; the live announcements, catalog and schedule are carried over.
+   $nextAnnouncements = $clear !== null ? array_values(is_array($liveBoard['announcements'] ?? null) ? $liveBoard['announcements'] : []) : array_values($anns);
+-  if ($clear !== null && !$in['subjects']) $subjects = $liveSubjects;
++  if ($clear !== null && $liveSubjects) $subjects = $liveSubjects;
++  $liveSchedule = is_array($liveBoard['schedule'] ?? null) ? $liveBoard['schedule'] : null;
++  if ($clear !== null) {
++    $nextSchedule = $liveSchedule;
++  } elseif ($hasSchedule) {
++    $nextSchedule = $schedule;
++  } else {
++    $nextSchedule = $liveSchedule;
++  }
++  if ($nextSchedule !== null) {
++    [$nextSchedule, $liveSchedErr] = tt_schedule_validate($nextSchedule, $subjects);
++    if ($liveSchedErr !== null) fail(422, $liveSchedErr);
++  }
+ 
+   // Every live definition this publish removes is archived before the board can lose it - whatever
+   // the reason it disappeared (deletion, an old snapshot, an import or a typed clear).
+@@ -201,6 +221,7 @@ try {
+         'deletedTasks'  => $markers,
+         'note'          => 'Backup before clearing board',
+       ];
++      if (is_array($liveBoard['schedule'] ?? null)) $backup['schedule'] = $liveBoard['schedule'];
+       if (!tt_write_json_atomic($verDir . '/' . tt_next_snapshot_id($verDir, $now) . '.json', $backup)) {
+         fail(500, 'Cannot save a backup of the live board; nothing was changed.');
+       }
+@@ -222,6 +243,7 @@ try {
+     'subjects'      => array_values($subjects),
+     'deletedTasks'  => array_values($markers),
+   ];
++  if ($nextSchedule !== null) $nextBoard['schedule'] = $nextSchedule;
+ 
+   $finalAdmin = $archiveAdmin;
+   $finalAdmin['lastOperation'] = [
+diff --git a/js/publish.js b/js/publish.js
+index b123a6c..14415ef 100644
+--- a/js/publish.js
++++ b/js/publish.js
+@@ -43,18 +43,41 @@ export function createPublishIntent(makeId = newOperationId) {
+ 
+ const publishIntent = createPublishIntent();
+ 
+-export const snapshot = () => ({
+-  schemaVersion: 2,
+-  tasks: myTasks.map((t) => t.toJSON()),
+-  announcements: JSON.parse(JSON.stringify(state.announcements)),
+-  subjects: JSON.parse(JSON.stringify(state.draftSubjects)),
+-});
+-const describeDiff = (d) => [
++function canonicalSchedule(s) {
++  if (!s || typeof s !== 'object' || Array.isArray(s)) return null;
++  const canon = (v) => {
++    if (Array.isArray(v)) return v.map(canon);
++    if (v && typeof v === 'object') {
++      const out = {};
++      for (const k of Object.keys(v).sort()) {
++        if (v[k] !== undefined) out[k] = canon(v[k]);
++      }
++      return out;
++    }
++    return v;
++  };
++  return JSON.stringify(canon(s));
++}
++
++export const snapshot = () => {
++  const snap = {
++    schemaVersion: 2,
++    tasks: (Array.isArray(myTasks) ? myTasks : []).map((t) => t.toJSON()),
++    announcements: JSON.parse(JSON.stringify(state.announcements)),
++    subjects: JSON.parse(JSON.stringify(state.draftSubjects)),
++  };
++  if (state.draftSchedule !== undefined) {
++    snap.schedule = state.draftSchedule ? JSON.parse(JSON.stringify(state.draftSchedule)) : null;
++  }
++  return snap;
++};
++export const describeDiff = (d) => [
+   d.added && `${d.added} added`,
+   d.edited && `${d.edited} edited`,
+   d.removed && `${d.removed} removed`,
+   d.ann && 'announcements changed',
+   d.subjectsChanged && 'subjects changed',
++  d.scheduleChanged && 'schedule changed',
+ ].filter(Boolean).join(', ') || 'No changes';
+ 
+ export function computePublishDiff(pubBoard, draftSnap, opts = {}) {
+@@ -117,17 +140,23 @@ export function computePublishDiff(pubBoard, draftSnap, opts = {}) {
+     }
+   }
+ 
++  const scheduleChanged = !opts.clearBoard
++    && canonicalSchedule(pubBoard?.schedule) !== canonicalSchedule(draftSnap?.schedule);
++  const subChanged = subChanges.added.length + subChanges.updated.length + subChanges.retired.length + subChanges.restored.length + subChanges.removed.length > 0;
++
+   return {
+     added,
+     edited,
+     removed,
+     announcements: { changed: annChanged, added: annAdded, removed: annRemoved, liveCount: pubAnn.length, draftCount: draftAnn.length },
+     subjects: subChanges,
++    scheduleChanged,
++    total: added.length + edited.length + removed.length + (annChanged ? 1 : 0) + (subChanged ? 1 : 0) + (scheduleChanged ? 1 : 0),
+   };
+ }
+ 
+ export function diffDraft() {
+-  const defs = (list) => new Map(list.map((t) => [t.id, JSON.stringify(t.toJSON())]));
++  const defs = (list) => new Map((Array.isArray(list) ? list : []).map((t) => [t.id, JSON.stringify(t.toJSON())]));
+   const pub = defs(state.publishedTasks);
+   const cur = defs(myTasks);
+   const changed = new Set();
+@@ -141,9 +170,12 @@ export function diffDraft() {
+ 
+   const pubCat = state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [];
+   const subjectsChanged = catalogSignature(state.draftSubjects) !== catalogSignature(pubCat);
++  const pubSchedule = state.liveBoard?.schedule ?? null;
++  const scheduleChanged = state.draftSchedule !== undefined
++    && canonicalSchedule(state.draftSchedule) !== canonicalSchedule(pubSchedule);
+   return {
+-    added, edited, removed, ann, subjectsChanged, changed,
+-    total: added + edited + removed + (ann ? 1 : 0) + (subjectsChanged ? 1 : 0),
++    added, edited, removed, ann, subjectsChanged, scheduleChanged, changed,
++    total: added + edited + removed + (ann ? 1 : 0) + (subjectsChanged ? 1 : 0) + (scheduleChanged ? 1 : 0),
+   };
+ }
+ 
+@@ -213,8 +245,13 @@ function renderPublishDiff() {
+     tasks: state.publishedTasks.map((t) => t.toJSON()),
+     announcements: state.publishedAnnouncements,
+     subjects: state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [],
++    schedule: state.liveBoard && state.liveBoard.schedule ? state.liveBoard.schedule : null,
+   };
+-  const d = computePublishDiff(pubBoard, snapshot(), { clearBoard: clear });
++  const draftSnap = snapshot();
++  if (!Object.prototype.hasOwnProperty.call(draftSnap, 'schedule')) {
++    draftSnap.schedule = pubBoard.schedule;
++  }
++  const d = computePublishDiff(pubBoard, draftSnap, { clearBoard: clear });
+   const addGroup = (label, items, formatter) => {
+     if (!items.length) return;
+     const grp = document.createElement('div');
+@@ -259,6 +296,7 @@ function renderPublishDiff() {
+     ...d.subjects.removed.map((c) => `Removed ${c}`),
+   ];
+   addGroup('Subjects', subParts, (li, txt) => { li.textContent = txt; });
++  if (d.scheduleChanged) addGroup('Schedule', ['Class schedule updated'], (li, txt) => { li.textContent = txt; });
+   host.hidden = host.children.length === 0;
+ }
+ 
+@@ -330,7 +368,10 @@ function renderHistory() {
+     preview.addEventListener('click', () => { detail.hidden = !detail.hidden; });
+     restore.addEventListener('click', async () => {
+       const before = snapshot();
+-      if (!(await restoreDraft(it.snap))) return;
++      const targetSnap = it.kind === 'Checkpoint'
++        ? it.snap
++        : { ...it.snap, schedule: it.snap.schedule ?? null };
++      if (!(await restoreDraft(targetSnap))) return;
+       hideOverlay(dom.historyOverlay);
+       showToast('Restored to draft. Nothing is live until you publish.', 'Undo', () => restoreDraft(before));
+     });
+@@ -444,14 +485,18 @@ $('#publish-form').addEventListener('submit', async (e) => {
+     }
+     const sentSubjects = body.subjects ?? (catalog ? catalog.forPublish(body.tasks) : []);
+     const baseRevision = state.verifiedRevision;
+-    const intentKey = JSON.stringify({
++    const hasBodySchedule = Object.prototype.hasOwnProperty.call(body, 'schedule');
++    const sentSchedule = hasBodySchedule ? canonicalSchedule(body.schedule) : undefined;
++    const intentPayload = {
+       baseRevision,
+       tasks: body.tasks,
+       announcements: body.announcements,
+       subjects: sentSubjects,
+       note: body.note,
+       clearBoard: body.clearBoard || null,
+-    });
++    };
++    if (hasBodySchedule) intentPayload.schedule = body.schedule;
++    const intentKey = JSON.stringify(intentPayload);
+     body = {
+       schemaVersion: 2,
+       operationId: publishIntent.operationIdFor(intentKey),
+@@ -489,12 +534,18 @@ $('#publish-form').addEventListener('submit', async (e) => {
+     writeJSON(KEYS.cache, board);
+ 
+     store.adoptAuthoritativeBoard(board, { onPersistError: () => showToast('Could not update saved progress on this device.') });
++    state.liveBoard = board;
++    const editedDuringPublish = JSON.stringify(snapshot()) !== sentFingerprint;
++    if (!clearing && state.draftSchedule !== undefined && sentSchedule !== undefined && canonicalSchedule(state.draftSchedule) === sentSchedule) {
++      state.draftSchedule = board.schedule ? JSON.parse(JSON.stringify(board.schedule)) : null;
++      saveTasks();
++    }
+     setPublished(board);
+     hideOverlay(dom.publishOverlay);
+     renderAllTasks();
+     renderAnnouncements();
+ 
+-    if (JSON.stringify(snapshot()) !== sentFingerprint) showToast('Published. Your newer edits are still unpublished.');
++    if (editedDuringPublish) showToast('Published. Your newer edits are still unpublished.');
+     else showToast('Published');
+   } catch (ex) {
+     err.textContent = ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message;
+@@ -550,6 +601,7 @@ const runDiscard = async () => {
+     tasks: state.publishedTasks.map((t) => t.toJSON()),
+     announcements: state.publishedAnnouncements,
+     subjects: state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [],
++    schedule: state.liveBoard?.schedule ?? null,
+   });
+   if (ok) showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
+ };
+diff --git a/js/state.js b/js/state.js
+index 78d7a9b..14a5de0 100644
+--- a/js/state.js
++++ b/js/state.js
+@@ -20,4 +20,5 @@ export const state = {
+   catalog: [],
+   publishedCatalog: [],
+   draftSubjects: [],
++  draftSchedule: undefined,
+ };
+diff --git a/js/store.js b/js/store.js
+index e198fba..db4111b 100644
+--- a/js/store.js
++++ b/js/store.js
+@@ -11,11 +11,20 @@ export function normalizeBoard(data) {
+   if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.tasks)) return null;
+   if (data.announcements != null && !Array.isArray(data.announcements)) return null;
+   const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
+-  return {
++  const out = {
+     ...data,
+     tasks: data.tasks.filter(isObj),
+     announcements: (data.announcements || []).filter((a) => isObj(a) && typeof a.text === 'string' && Number.isFinite(a.createdAt)),
+   };
++  if (isObj(data.schedule) && Array.isArray(data.schedule.slots)) {
++    out.schedule = {
++      ...data.schedule,
++      slots: data.schedule.slots.filter(isObj),
++    };
++  } else if ('schedule' in out) {
++    delete out.schedule;
++  }
++  return out;
+ }
+ 
+ function subjectSnapshotFor(stateObj, code) {
+@@ -189,6 +198,16 @@ export function createBoardStore({
+         syncCatalog?.(checked.subjects);
+       }
+     }
++    const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
++    if (snap && Object.prototype.hasOwnProperty.call(snap, 'schedule')) {
++      stateObj.draftSchedule = isObj(snap.schedule) && Array.isArray(snap.schedule.slots)
++        ? JSON.parse(JSON.stringify({ ...snap.schedule, slots: snap.schedule.slots.filter(isObj) }))
++        : null;
++    } else if (snap && snap.publishedAt !== undefined) {
++      stateObj.draftSchedule = null;
++    } else {
++      stateObj.draftSchedule = undefined;
++    }
+     applyProgress?.(myTasks);
+     const saved = saveTasks ? saveTasks() : true;
+     renderAllTasks?.();
+diff --git a/js/tasks.js b/js/tasks.js
+index cff7504..b41c87d 100644
+--- a/js/tasks.js
++++ b/js/tasks.js
+@@ -151,13 +151,15 @@ export function confirmDialog({ title, message, okLabel, onConfirm, onCancel, op
+ export function saveTasks() {
+   const steps = [];
+   const progressOk = writeJSON(KEYS.progress, state.progress);
+-  const draftOk = !state.isAdmin || writeJSON(KEYS.draft, {
++  const draftPayload = {
+     schemaVersion: 2,
+     tasks: myTasks.map((t) => t.toJSON()),
+     announcements: state.announcements,
+     subjects: state.draftSubjects,
+     baseRevision: Number.isSafeInteger(state.verifiedRevision) ? state.verifiedRevision : null,
+-  });
++  };
++  if (state.draftSchedule !== undefined) draftPayload.schedule = state.draftSchedule;
++  const draftOk = !state.isAdmin || writeJSON(KEYS.draft, draftPayload);
+   if (!progressOk) steps.push('progress');
+   if (!draftOk) steps.push('draft');
+   if (steps.length) showToast(`Could not save this device's ${steps.join(' and ')}. Storage may be full.`);
+@@ -188,6 +190,14 @@ export function loadTasks() {
+   state.announcements = Array.isArray(draft.announcements) ? draft.announcements : [];
+ 
+   state.draftSubjects = Array.isArray(draft.subjects) ? draft.subjects : [];
++  if (draft && Object.prototype.hasOwnProperty.call(draft, 'schedule')) {
++    const rawSched = draft.schedule;
++    state.draftSchedule = rawSched && typeof rawSched === 'object' && !Array.isArray(rawSched) && Array.isArray(rawSched.slots)
++      ? { ...rawSched, slots: rawSched.slots.filter((s) => s && typeof s === 'object' && !Array.isArray(s)) }
++      : null;
++  } else {
++    state.draftSchedule = undefined;
++  }
+   applyProgress(myTasks);
+ }
+ 
+diff --git a/tests/php/run.php b/tests/php/run.php
+index e696603..a97e5b2 100644
+--- a/tests/php/run.php
++++ b/tests/php/run.php
+@@ -1114,4 +1114,209 @@ if (!$sbS) {
+         $all400 && count($secDirs) === 1 && basename($secDirs[0]) === 'b');
+ }
+ 
++// ---------------------------------------------------------------------------
++// J. Optional class schedule validation, persistence, and idempotent replay contract.
++// ---------------------------------------------------------------------------
++$schedSubjects = [
++    ['code' => 'CP104', 'name' => 'Computer Programming', 'color' => '#58affc', 'active' => true],
++    ['code' => 'PKLP', 'name' => 'PKLP', 'color' => '#8fe3a8', 'active' => true],
++];
++
++[$schedNull, $schedNullErr] = tt_schedule_validate(null, $schedSubjects);
++check('schedule: null schedule is valid and returns null', $schedNull === null && $schedNullErr === null);
++
++$validSched = [
++    'term' => '2ND TERM – AY 2026-2027',
++    'sectionLabel' => 'DSCT11-A',
++    'adviser' => 'Mr. Jomari V. Borja',
++    'room' => '92C ST. SCHO',
++    'slots' => [
++        ['day' => 1, 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104', 'teacher' => 'Mr. James Robert A. Salud'],
++        ['day' => 1, 'start' => '08:30', 'end' => '09:30', 'kind' => 'subject', 'subject' => 'PKLP'],
++        ['day' => 1, 'start' => '09:30', 'end' => '09:50', 'kind' => 'break', 'label' => 'RECESS'],
++        ['day' => 5, 'start' => '13:50', 'end' => '14:50', 'kind' => 'activity', 'label' => 'CLUB'],
++        ['day' => 2, 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104'],
++    ],
++];
++[$normSched, $normErr] = tt_schedule_validate($validSched, $schedSubjects);
++check('schedule: valid schedule with touching slots, default subject kind, break and activity is accepted',
++    $normErr === null && is_array($normSched)
++    && ($normSched['term'] ?? null) === '2ND TERM – AY 2026-2027'
++    && ($normSched['slots'][0]['kind'] ?? null) === 'subject'
++    && ($normSched['slots'][0]['subject'] ?? null) === 'CP104'
++    && ($normSched['slots'][0]['teacher'] ?? null) === 'Mr. James Robert A. Salud'
++    && ($normSched['slots'][2]['kind'] ?? null) === 'break'
++    && ($normSched['slots'][2]['label'] ?? null) === 'RECESS'
++    && ($normSched['slots'][3]['kind'] ?? null) === 'activity');
++
++$overlapSched = [
++    'slots' => [
++        ['day' => 1, 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104'],
++        ['day' => 1, 'start' => '08:00', 'end' => '09:00', 'subject' => 'PKLP'],
++    ],
++];
++check('schedule: overlapping slots on the same day are rejected',
++    tt_schedule_validate($overlapSched, $schedSubjects)[1] !== null);
++
++$unknownSubjSched = [
++    'slots' => [
++        ['day' => 1, 'start' => '07:30', 'end' => '08:30', 'subject' => 'NOPE'],
++    ],
++];
++check('schedule: unknown subject code is rejected',
++    tt_schedule_validate($unknownSubjSched, $schedSubjects)[1] !== null);
++
++$badSchedules = [
++    'non-object string' => 'invalid',
++    'missing slots' => ['term' => 'T2'],
++    'day 0' => ['slots' => [['day' => 0, 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104']]],
++    'day 6' => ['slots' => [['day' => 6, 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104']]],
++    'string day' => ['slots' => [['day' => '1', 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104']]],
++    'non-padded start' => ['slots' => [['day' => 1, 'start' => '7:30', 'end' => '08:30', 'subject' => 'CP104']]],
++    'invalid 24h time' => ['slots' => [['day' => 1, 'start' => '07:30', 'end' => '24:00', 'subject' => 'CP104']]],
++    'start equals end' => ['slots' => [['day' => 1, 'start' => '08:30', 'end' => '08:30', 'subject' => 'CP104']]],
++    'start after end' => ['slots' => [['day' => 1, 'start' => '09:30', 'end' => '08:30', 'subject' => 'CP104']]],
++    'invalid kind' => ['slots' => [['day' => 1, 'start' => '07:30', 'end' => '08:30', 'kind' => 'other', 'label' => 'X']]],
++    'break without label' => ['slots' => [['day' => 1, 'start' => '09:30', 'end' => '09:50', 'kind' => 'break']]],
++    'label over 40 chars' => ['slots' => [['day' => 1, 'start' => '09:30', 'end' => '09:50', 'kind' => 'activity', 'label' => str_repeat('a', 41)]]],
++    'term over 80 chars' => ['term' => str_repeat('a', 81), 'slots' => []],
++    'teacher over 80 chars' => ['slots' => [['day' => 1, 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104', 'teacher' => str_repeat('a', 81)]]],
++    'control char in room' => ['room' => "92C\nBAD", 'slots' => []],
++];
++foreach ($badSchedules as $label => $badCase) {
++    check('schedule: rejects ' . $label, tt_schedule_validate($badCase, $schedSubjects)[1] !== null);
++}
++$tooManySlots = [];
++for ($i = 0; $i < 81; $i++) {
++    $d = intdiv($i, 20) + 1;
++    $m = ($i % 20) * 30;
++    $tooManySlots[] = [
++        'day' => $d,
++        'start' => sprintf('%02d:%02d', intdiv($m, 60), $m % 60),
++        'end' => sprintf('%02d:%02d', intdiv($m + 20, 60), ($m + 20) % 60),
++        'kind' => 'break',
++        'label' => 'B',
++    ];
++}
++check('schedule: rejects more than 80 slots', tt_schedule_validate(['slots' => $tooManySlots], $schedSubjects)[1] !== null);
++
++$sbSch = tt_e2e_start();
++if (!$sbSch) {
++    echo "skip: schedule publish/replay end-to-end (needs proc_open + allow_url_fopen + a loopback listener)\n";
++} else {
++    register_shutdown_function(function () use ($sbSch) { tt_e2e_stop($sbSch); });
++    $boardSch = fn() => tt_e2e_json_file($sbSch, 'data/current.json');
++    $rawSch = fn(array $payload) => tt_e2e_req($sbSch, 'POST', '/api/publish.php', json_encode($payload));
++
++    // Omitted schedule stays valid, omits the schedule key when no live schedule exists, and uses the exact legacy 6-key bodyHash.
++    $opLegacy = bin2hex(random_bytes(16));
++    $legacyTasks = [['id' => 's-1', 'title' => 'Intro', 'subject' => 'CP104']];
++    $legacyBody = [
++        'schemaVersion' => 2, 'operationId' => $opLegacy, 'baseRevision' => 0,
++        'tasks' => $legacyTasks, 'announcements' => [], 'subjects' => $schedSubjects,
++    ];
++    $r0 = $rawSch($legacyBody);
++    $b0 = $boardSch();
++    $admin0 = tt_e2e_json_file($sbSch, 'data/admin/state.json');
++    $expectedLegacyHash = tt_hash_value([
++        'baseRevision' => 0,
++        'tasks' => $legacyTasks,
++        'announcements' => [],
++        'subjects' => $schedSubjects,
++        'note' => '',
++        'clearBoard' => null,
++    ]);
++    $r0Replay = $rawSch($legacyBody);
++    check('e2e schedule: omitted schedule publishes cleanly, omits schedule key, and keeps exact legacy 6-key bodyHash',
++        $r0 !== null && $r0['status'] === 200 && is_array($b0) && !array_key_exists('schedule', $b0)
++        && ($admin0['lastOperation']['hash'] ?? null) === $expectedLegacyHash
++        && $r0Replay !== null && $r0Replay['status'] === 200 && ($r0Replay['json']['replayed'] ?? false) === true);
++
++    // Publish with valid schedule + idempotent replay + conflict on mutated schedule.
++    $opSch = bin2hex(random_bytes(16));
++    $bodySch = [
++        'schemaVersion' => 2, 'operationId' => $opSch, 'baseRevision' => 1,
++        'tasks' => $legacyTasks,
++        'announcements' => [], 'subjects' => $schedSubjects, 'schedule' => $validSched,
++    ];
++    $r1 = $rawSch($bodySch);
++    $b1 = $boardSch();
++    $snaps1 = tt_e2e_count($sbSch, 'data/versions/*.json');
++    check('e2e schedule: publish persists normalized schedule into current.json',
++        $r1 !== null && $r1['status'] === 200 && is_array($b1)
++        && ($b1['revision'] ?? null) === 2
++        && ($b1['schedule']['sectionLabel'] ?? null) === 'DSCT11-A'
++        && count($b1['schedule']['slots'] ?? []) === 5
++        && ($b1['schedule']['slots'][0]['kind'] ?? null) === 'subject');
++
++    $rReplay = $rawSch($bodySch);
++    check('e2e schedule: exact operationId replay with schedule returns replayed:true without advancing revision',
++        $rReplay !== null && $rReplay['status'] === 200
++        && ($rReplay['json']['replayed'] ?? false) === true
++        && ($boardSch()['revision'] ?? null) === 2
++        && tt_e2e_count($sbSch, 'data/versions/*.json') === $snaps1);
++
++    $mutatedSch = $bodySch;
++    $mutatedSch['schedule']['room'] = 'DIFFERENT ROOM';
++    $rConflict = $rawSch($mutatedSch);
++    check('e2e schedule: same operationId with modified schedule returns 409 operation_conflict',
++        $rConflict !== null && $rConflict['status'] === 409
++        && ($rConflict['json']['code'] ?? null) === 'operation_conflict');
++
++    // Invalid schedules return 422 without modifying current.json.
++    $bytesBeforeBad = tt_e2e_bytes($sbSch, 'data/current.json');
++    $rOverlap = $rawSch([
++        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 2,
++        'tasks' => $legacyTasks,
++        'announcements' => [], 'subjects' => $schedSubjects, 'schedule' => $overlapSched,
++    ]);
++    $rUnknown = $rawSch([
++        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 2,
++        'tasks' => $legacyTasks,
++        'announcements' => [], 'subjects' => $schedSubjects, 'schedule' => $unknownSubjSched,
++    ]);
++    check('e2e schedule: overlapping slot and unknown subject return 422 and leave current.json untouched',
++        $rOverlap !== null && $rOverlap['status'] === 422
++        && $rUnknown !== null && $rUnknown['status'] === 422
++        && tt_e2e_bytes($sbSch, 'data/current.json') === $bytesBeforeBad);
++
++    // Omitting schedule on a later publish preserves the live schedule (pre-feature clients never erase it).
++    $rPreserve = $rawSch([
++        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 2,
++        'tasks' => [['id' => 's-1', 'title' => 'Intro updated', 'subject' => 'CP104']],
++        'announcements' => [], 'subjects' => $schedSubjects,
++    ]);
++    $bPreserve = $boardSch();
++    check('e2e schedule: omitted schedule preserves existing live schedule',
++        $rPreserve !== null && $rPreserve['status'] === 200
++        && ($bPreserve['revision'] ?? null) === 3
++        && ($bPreserve['schedule']['sectionLabel'] ?? null) === 'DSCT11-A'
++        && count($bPreserve['schedule']['slots'] ?? []) === 5);
++
++    // clearBoard with a draft catalog missing a scheduled subject preserves live catalog + schedule cleanly.
++    $rClear = $rawSch([
++        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 3,
++        'tasks' => [], 'announcements' => [], 'subjects' => [$schedSubjects[1]],
++        'clearBoard' => ['confirm' => 'CLEAR BOARD', 'expectedCount' => 1],
++    ]);
++    $bClear = $boardSch();
++    $clearCodes = array_map(fn($s) => $s['code'] ?? null, is_array($bClear['subjects'] ?? null) ? $bClear['subjects'] : []);
++    check('e2e schedule: clearBoard preserves live catalog and schedule even when draft catalog omits a scheduled subject',
++        $rClear !== null && $rClear['status'] === 200
++        && ($bClear['revision'] ?? null) === 4
++        && ($bClear['tasks'] ?? null) === []
++        && in_array('CP104', $clearCodes, true) && in_array('PKLP', $clearCodes, true)
++        && ($bClear['schedule']['sectionLabel'] ?? null) === 'DSCT11-A');
++
++    // Publishing with explicit schedule:null removes live schedule from current.json.
++    $rDrop = $rawSch([
++        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 4,
++        'tasks' => [], 'announcements' => [], 'subjects' => $schedSubjects, 'schedule' => null,
++    ]);
++    $bDrop = $boardSch();
++    check('e2e schedule: explicit schedule:null removes live schedule from current.json',
++        $rDrop !== null && $rDrop['status'] === 200 && is_array($bDrop)
++        && ($bDrop['revision'] ?? null) === 5 && !array_key_exists('schedule', $bDrop));
++}
++
+ exit($fails ? 1 : 0);
+\ No newline at end of file
+diff --git a/tests/publish-diff.test.js b/tests/publish-diff.test.js
+index dc54df9..a95c743 100644
+--- a/tests/publish-diff.test.js
++++ b/tests/publish-diff.test.js
+@@ -5,7 +5,9 @@ globalThis.document = undefined;
+ globalThis.window = undefined;
+ globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+ 
+-const { computePublishDiff } = await import('../js/publish.js');
++const { computePublishDiff, describeDiff, diffDraft, snapshot } = await import('../js/publish.js');
++const { normalizeBoard } = await import('../js/store.js');
++const { state } = await import('../js/state.js');
+ 
+ test('computePublishDiff lists named added, edited (with changed fields), removed tasks, announcements, and subjects', () => {
+   const pubBoard = {
+@@ -54,4 +56,139 @@ test('computePublishDiff lists named added, edited (with changed fields), remove
+   assert.equal(cleared.edited.length, 0);
+   assert.equal(cleared.removed.length, 3);
+   assert.equal(cleared.announcements.changed, false);
++  assert.equal(cleared.scheduleChanged, false);
++});
++
++test('computePublishDiff detects scheduleChanged, counts it in total, and describeDiff summarizes it', () => {
++  const baseBoard = {
++    tasks: [{ id: 't1', title: 'Essay', subject: 'CP104', dueDate: '2026-11-10', notes: '' }],
++    announcements: [],
++    subjects: [{ code: 'CP104', name: 'CP104', color: '#58affc', active: true }],
++  };
++  const scheduleA = {
++    term: '2ND TERM',
++    sectionLabel: 'DSCT11-A',
++    slots: [{ day: 1, start: '07:30', end: '08:30', kind: 'subject', subject: 'CP104' }],
++  };
++  const scheduleASameDifferentKeyOrder = {
++    slots: [{ subject: 'CP104', kind: 'subject', end: '08:30', start: '07:30', day: 1 }],
++    sectionLabel: 'DSCT11-A',
++    term: '2ND TERM',
++  };
++  const scheduleB = {
++    term: '2ND TERM',
++    sectionLabel: 'DSCT11-A',
++    slots: [{ day: 1, start: '07:30', end: '09:30', kind: 'subject', subject: 'CP104' }],
++  };
++
++  const none = computePublishDiff(baseBoard, baseBoard);
++  assert.equal(none.scheduleChanged, false);
++  assert.equal(none.total, 0);
++
++  const sameOrder = computePublishDiff({ ...baseBoard, schedule: scheduleA }, { ...baseBoard, schedule: scheduleASameDifferentKeyOrder });
++  assert.equal(sameOrder.scheduleChanged, false);
++  assert.equal(sameOrder.total, 0);
++
++  const added = computePublishDiff(baseBoard, { ...baseBoard, schedule: scheduleA });
++  assert.equal(added.scheduleChanged, true);
++  assert.equal(added.total, 1);
++
++  const modified = computePublishDiff({ ...baseBoard, schedule: scheduleA }, { ...baseBoard, schedule: scheduleB });
++  assert.equal(modified.scheduleChanged, true);
++  assert.equal(modified.total, 1);
++
++  const removed = computePublishDiff({ ...baseBoard, schedule: scheduleA }, baseBoard);
++  assert.equal(removed.scheduleChanged, true);
++  assert.equal(removed.total, 1);
++
++  const cleared = computePublishDiff({ ...baseBoard, schedule: scheduleA }, { ...baseBoard, schedule: scheduleB }, { clearBoard: true });
++  assert.equal(cleared.scheduleChanged, false);
++
++  assert.equal(describeDiff({ scheduleChanged: true }), 'schedule changed');
++  assert.equal(describeDiff({ added: 2, scheduleChanged: true }), '2 added, schedule changed');
++  assert.equal(describeDiff({ scheduleChanged: false }), 'No changes');
++});
++
++test('normalizeBoard preserves optional schedule and omits null or malformed schedule', () => {
++  const sched = {
++    term: '2ND TERM',
++    slots: [{ day: 1, start: '07:30', end: '08:30', kind: 'subject', subject: 'CP104' }, 'bad-slot'],
++  };
++  const withSched = normalizeBoard({ tasks: [], announcements: [], schedule: sched });
++  assert.equal(withSched.schedule.term, '2ND TERM');
++  assert.deepEqual(withSched.schedule.slots, [{ day: 1, start: '07:30', end: '08:30', kind: 'subject', subject: 'CP104' }]);
++
++  const withoutSched = normalizeBoard({ tasks: [], announcements: [] });
++  assert.equal('schedule' in withoutSched, false);
++
++  const nullSched = normalizeBoard({ tasks: [], announcements: [], schedule: null });
++  assert.equal('schedule' in nullSched, false);
++
++  const badSched = normalizeBoard({ tasks: [], announcements: [], schedule: { term: 'No slots' } });
++  assert.equal('schedule' in badSched, false);
++});
++
++test('diffDraft detects draftSchedule vs liveBoard.schedule and counts it in total', () => {
++  const prevLive = state.liveBoard;
++  const prevDraft = state.draftSchedule;
++  const prevTasks = state.publishedTasks;
++  const prevAnns = state.publishedAnnouncements;
++  const prevDraftAnns = state.announcements;
++  const prevSubs = state.draftSubjects;
++  try {
++    state.publishedTasks = [];
++    state.publishedAnnouncements = [];
++    state.announcements = [];
++    state.draftSubjects = [];
++    const schedA = { term: 'T2', slots: [{ day: 1, start: '07:30', end: '08:30', kind: 'subject', subject: 'CP104' }] };
++    const schedB = { term: 'T2', slots: [{ day: 1, start: '08:30', end: '09:30', kind: 'subject', subject: 'CP104' }] };
++
++    state.liveBoard = { tasks: [], announcements: [], subjects: [] };
++    state.draftSchedule = undefined;
++    assert.equal(diffDraft().scheduleChanged, false);
++    assert.equal(diffDraft().total, 0);
++    assert.equal('schedule' in snapshot(), false);
++
++    // Legacy draft (undefined draftSchedule) against a live schedule must NOT report a false deletion or emit schedule.
++    state.liveBoard = { tasks: [], announcements: [], subjects: [], schedule: schedA };
++    state.draftSchedule = undefined;
++    assert.equal(diffDraft().scheduleChanged, false);
++    assert.equal(diffDraft().total, 0);
++    assert.equal('schedule' in snapshot(), false);
++
++    // Explicit null draftSchedule against a live schedule reports scheduleChanged:true and emits schedule:null.
++    state.draftSchedule = null;
++    const clearedLive = diffDraft();
++    assert.equal(clearedLive.scheduleChanged, true);
++    assert.equal(clearedLive.total, 1);
++    assert.equal(describeDiff(clearedLive), 'schedule changed');
++    assert.equal(snapshot().schedule, null);
++
++    state.liveBoard = { tasks: [], announcements: [], subjects: [] };
++    state.draftSchedule = null;
++    assert.equal(diffDraft().scheduleChanged, false);
++    assert.equal(diffDraft().total, 0);
++
++    state.draftSchedule = schedA;
++    const added = diffDraft();
++    assert.equal(added.scheduleChanged, true);
++    assert.equal(added.total, 1);
++    assert.equal(describeDiff(added), 'schedule changed');
++    assert.deepEqual(snapshot().schedule, schedA);
++
++    state.liveBoard = { tasks: [], announcements: [], subjects: [], schedule: schedA };
++    assert.equal(diffDraft().scheduleChanged, false);
++    assert.equal(diffDraft().total, 0);
++
++    state.draftSchedule = schedB;
++    assert.equal(diffDraft().scheduleChanged, true);
++    assert.equal(diffDraft().total, 1);
++  } finally {
++    state.liveBoard = prevLive;
++    state.draftSchedule = prevDraft;
++    state.publishedTasks = prevTasks;
++    state.publishedAnnouncements = prevAnns;
++    state.announcements = prevDraftAnns;
++    state.draftSubjects = prevSubs;
++  }
+ });
+diff --git a/tests/store.test.js b/tests/store.test.js
+index 3cdf9ab..73a76da 100644
+--- a/tests/store.test.js
++++ b/tests/store.test.js
+@@ -183,3 +183,35 @@ test('normalizeBoard rejects non-board values and filters invalid announcements'
+   assert.equal(b.tasks.length, 1);
+   assert.equal(b.announcements.length, 1);
+ });
++
++test('replaceDraft updates draftSchedule, clears it to null on history snapshots without schedule, and keeps undefined on schedule-less drafts', async () => {
++  const { store, stateObj } = makeEnv();
++  const FakeTask = { fromJSON: (o) => ({ ...o, toJSON: () => ({ ...o }) }) };
++  const myTasks = [];
++  const sched = {
++    term: '2ND TERM',
++    slots: [{ day: 1, start: '07:30', end: '08:30', kind: 'subject', subject: 'CP104' }],
++  };
++
++  const withSched = await store.replaceDraft(
++    { tasks: [], announcements: [], schedule: sched },
++    { myTasks, Task: FakeTask },
++  );
++  assert.equal(withSched.ok, true);
++  assert.deepEqual(stateObj.draftSchedule, sched);
++  assert.notEqual(stateObj.draftSchedule, sched, 'draftSchedule is cloned, not aliased');
++
++  const historyWithoutSched = await store.replaceDraft(
++    { tasks: [], announcements: [], publishedAt: 1700000000 },
++    { myTasks, Task: FakeTask },
++  );
++  assert.equal(historyWithoutSched.ok, true);
++  assert.equal(stateObj.draftSchedule, null);
++
++  const legacyDraft = await store.replaceDraft(
++    { tasks: [], announcements: [] },
++    { myTasks, Task: FakeTask },
++  );
++  assert.equal(legacyDraft.ok, true);
++  assert.equal(stateObj.draftSchedule, undefined);
++});

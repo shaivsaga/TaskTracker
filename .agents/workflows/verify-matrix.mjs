@@ -18,6 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 function parseArgs(argv) {
   const out = {
     base: 'main',
+    baseExplicit: false,
     files: [],
     mode: 'standard',
     dryRun: false,
@@ -27,8 +28,10 @@ function parseArgs(argv) {
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--base' && argv[i + 1]) out.base = argv[++i];
-    else if (a === '--files' && argv[i + 1]) {
+    if (a === '--base' && argv[i + 1]) {
+      out.base = argv[++i];
+      out.baseExplicit = true;
+    } else if (a === '--files' && argv[i + 1]) {
       out.files.push(...argv[++i].split(',').map((s) => s.trim()).filter(Boolean));
     } else if (a === '--mode' && argv[i + 1]) out.mode = argv[++i].toLowerCase();
     else if (a === '--dry-run') out.dryRun = true;
@@ -50,7 +53,21 @@ function hasCommand(cmd) {
   return r.status === 0;
 }
 
+function hasDockerDaemon() {
+  if (!hasCommand('docker')) return false;
+  const r = spawnSync('docker', ['info'], { encoding: 'utf8', timeout: 8000 });
+  return r.status === 0;
+}
+
+function assertBaseRef(base) {
+  const verifyBase = spawnSync('git', ['rev-parse', '--verify', `${base}^{commit}`], { cwd: ROOT, encoding: 'utf8' });
+  if (verifyBase.status !== 0) {
+    throw new Error(`Cannot resolve git base ref "${base}": ${(verifyBase.stderr || verifyBase.stdout || '').trim()}`);
+  }
+}
+
 function getChangedFiles(base) {
+  assertBaseRef(base);
   const set = new Set();
   for (const args of [
     ['diff', '--name-only', `${base}...HEAD`],
@@ -58,13 +75,11 @@ function getChangedFiles(base) {
     ['diff', '--cached', '--name-only'],
     ['ls-files', '--others', '--exclude-standard'],
   ]) {
-    try {
-      const out = execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
-      for (const line of out.split('\n')) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('.cursor/')) set.add(trimmed);
-      }
-    } catch {}
+    const out = execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+    for (const line of out.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('.cursor/')) set.add(trimmed);
+    }
   }
   return [...set].sort();
 }
@@ -94,14 +109,16 @@ export function buildCheckPlan({ files, mode, skipBrowser = false }) {
   const touchesJsHtmlCss = norm.some((f) =>
     /^(index\.html|styles\.css|app\.js|logic\.js|attachments\.js|qr-draw\.js|js\/|assets\/|tests\/.+\.m?js$)/.test(f),
   );
-  const touchesUi = norm.some((f) => /^(index\.html|styles\.css|app\.js|logic\.js|js\/|assets\/)/.test(f));
+  const touchesUi = norm.some((f) =>
+    /^(index\.html|styles\.css|app\.js|logic\.js|attachments\.js|qr-draw\.js|js\/|assets\/)/.test(f),
+  );
   const touchesPhp = norm.some((f) => /^(api\/|transfer\.php$|tests\/php\/)/.test(f));
   const touchesBoardSync = norm.some((f) =>
     /^(api\/_board\.php|api\/publish\.php|api\/versions\.php|js\/store\.js|js\/publish\.js|js\/recovery\.js|tests\/formal\/)/.test(f),
   );
   const touchesDeploy = norm.some((f) => /^deploy\//.test(f));
   const touchesWorkflows = norm.some((f) => /^\.github\/workflows\//.test(f));
-  const touchesOrchestration = norm.some((f) => /^(AGENTS\.md|\.agents\/(?:agents|workflows|rules)\/)/.test(f));
+  const touchesOrchestration = norm.some((f) => /^(AGENTS\.md|\.agents\/(?:agents|workflows|rules|skills)\/)/.test(f));
 
   const checks = [];
   const phpBin = resolvePhpBin();
@@ -155,62 +172,87 @@ export function buildCheckPlan({ files, mode, skipBrowser = false }) {
     });
   }
 
-  if (touchesUi && mode !== 'fast' && !skipBrowser) {
+  if (touchesUi && mode !== 'fast') {
+    const skipReason = skipBrowser ? 'Skipped via --skip-browser flag' : null;
     checks.push({
       id: 'playwright-audit',
       what: 'Real-browser Chromium audit (320-1280px, light/dark, keyboard, focus, filters)',
       cmd: 'node',
       args: ['tests/e2e/audit.mjs', '--require-browser'],
+      unavailableReason: skipReason,
       expected: 'Exit 0 with 0 failures and 0 console errors',
     });
 
     const ffScript = fs.existsSync(path.join(ROOT, '.agents/skills/verify-tasktracker/scripts/verify.mjs'))
       ? '.agents/skills/verify-tasktracker/scripts/verify.mjs'
       : '.cursor/skills/verify-tasktracker/scripts/verify.mjs';
-    if (fs.existsSync(path.join(ROOT, ffScript))) {
-      const features = mapFirefoxFeatures(norm, mode);
-      const outDir = path.join(os.tmpdir(), `tt-verify-ff-${Date.now()}`);
-      for (const feat of features) {
-        checks.push({
-          id: `firefox-${feat}`,
-          what: `Real headless Firefox journey (${feat}, desktop/90% zoom/phone, isolated server)`,
-          cmd: 'node',
-          args: [ffScript, 'drive', feat, '--out', path.join(outDir, feat)],
-          artifactDir: path.join(outDir, feat),
-          expected: 'Exit 0 with all checks passed and 0 console errors',
-        });
-      }
+    const ffExists = fs.existsSync(path.join(ROOT, ffScript));
+    const features = mapFirefoxFeatures(norm, mode);
+    const outDir = path.join(os.tmpdir(), `tt-verify-ff-${Date.now()}`);
+    for (const feat of features) {
+      checks.push({
+        id: `firefox-${feat}`,
+        what: `Real headless Firefox journey (${feat}, desktop/90% zoom/phone, isolated server)`,
+        cmd: 'node',
+        args: [ffScript, 'drive', feat, '--out', path.join(outDir, feat)],
+        artifactDir: path.join(outDir, feat),
+        unavailableReason: skipReason || (ffExists ? null : 'verify-tasktracker script not found'),
+        expected: 'Exit 0 with all checks passed and 0 console errors',
+      });
     }
   }
 
   if (touchesBoardSync) {
-    const canRunTlc = hasCommand('java') || hasCommand('docker');
+    const canRunTlc = hasCommand('java') || hasDockerDaemon();
     checks.push({
       id: 'tlc-board-sync',
       what: 'TLA+ formal model check of BoardSync.tla invariants',
       cmd: 'bash',
       args: ['tests/formal/run-tlc.sh', 'BoardSync.cfg'],
-      unavailableReason: canRunTlc ? null : 'Neither java nor docker is installed to run TLC',
+      unavailableReason: canRunTlc ? null : 'Neither java nor a reachable docker daemon is available to run TLC',
       expected: 'Exit 0 with 0 invariant violations',
+    });
+    checks.push({
+      id: 'tlc-negative-controls',
+      what: 'TLA+ negative controls (BugDropMarkerCheck, BugFreshOpOnRetry, BugSkipBaseCheck must violate)',
+      cmd: 'bash',
+      args: [
+        '-c',
+        'set -e; for pair in "BugDropMarkerCheck:ClientRejectsDroppedMarker" "BugFreshOpOnRetry:IdempotentPostCommitRetry" "BugSkipBaseCheck:NoStaleOverwrite"; do flag="${pair%%:*}"; inv="${pair##*:}"; cfg="BoardSync-${flag}.cfg"; sed "s/${flag} = FALSE/${flag} = TRUE/" tests/formal/BoardSync.cfg > "tests/formal/${cfg}"; out="$(bash tests/formal/run-tlc.sh "${cfg}" 2>&1 || true)"; rm -f "tests/formal/${cfg}"; echo "$out" | grep -q "Invariant ${inv} is violated" || { echo "Negative control ${flag} did not violate ${inv}"; exit 1; }; done',
+      ],
+      unavailableReason: canRunTlc ? null : 'Neither java nor a reachable docker daemon is available to run TLC negative controls',
+      expected: 'All 3 injected bug controls violate their expected invariants',
     });
     checks.push({
       id: 'board-sync-replay',
       what: 'Real PHP + JS trace replay of BoardSync protocol',
       cmd: 'node',
       args: ['--test', 'tests/board-sync-replay.test.js'],
-      env: { ...process.env, REQUIRE_PHP: '1', ...(phpBin ? { PHP_BIN: phpBin } : {}) },
+      extraEnv: { REQUIRE_PHP: '1', ...(phpBin ? { PHP_BIN: phpBin } : {}) },
       unavailableReason: phpBin ? null : 'PHP binary missing for REQUIRE_PHP=1 replay',
       expected: 'Exit 0 with all replay scenarios passing',
     });
   }
 
   if (touchesDeploy) {
+    const dockerOk = hasDockerDaemon();
     checks.push({
       id: 'deploy-tests',
       what: 'Nginx config, startup script, and section script contract tests',
       cmd: 'node',
       args: ['--test', 'tests/nginx-conf.test.js', 'tests/startup.test.js', 'tests/section-script.test.js'],
       expected: 'Exit 0 with 0 failures',
+    });
+    checks.push({
+      id: 'docker-nginx-hardening',
+      what: 'Live Docker nginx:alpine config test + deploy/verify-hardening.mjs probe',
+      cmd: 'bash',
+      args: [
+        '-c',
+        'set -e; TMP_ROOT=$(mktemp -d); TMP_SEC=$(mktemp -d); TMP_CONF=$(mktemp -d); CID="tt-nginx-vm-$$"; trap \'docker rm -f "$CID" >/dev/null 2>&1 || true; rm -rf "$TMP_ROOT" "$TMP_SEC" "$TMP_CONF"\' EXIT; mkdir -p "$TMP_ROOT/wwwroot/data" "$TMP_ROOT/wwwroot/api" "$TMP_ROOT/wwwroot/tests/php"; for f in index.html styles.css app.js logic.js attachments.js qr-draw.js qrcode.js favicon.ico favicon.svg apple-touch-icon.png; do [ -f "$f" ] && cp "$f" "$TMP_ROOT/wwwroot/$f"; done; printf \'{"publishedAt":1700000000,"tasks":[],"announcements":[]}\' > "$TMP_ROOT/wwwroot/data/current.json"; printf \'<?php http_response_code(401); ?>\\n\' > "$TMP_ROOT/wwwroot/api/login.php"; touch "$TMP_ROOT/wwwroot/tests/php/run.php"; printf \'admin:$apr1$testtest$abcdefghijklmnopqrstuv\\n\' > "$TMP_SEC/htpasswd"; printf \'pid /tmp/nginx.pid;\\nevents {}\\nhttp { access_log off; gzip on; include /etc/nginx/mime.types; include /etc/nginx/conf.d/nginx-default.conf; }\\n\' > "$TMP_CONF/nginx.conf"; docker run -d --name "$CID" -p 127.0.0.1:18080:8080 -v "$TMP_CONF/nginx.conf:/etc/nginx/nginx.conf:ro" -v "$PWD/deploy/nginx-default.conf:/etc/nginx/conf.d/nginx-default.conf:ro" -v "$TMP_ROOT/wwwroot:/home/site/wwwroot:ro" -v "$TMP_SEC/htpasswd:/home/site/secure/htpasswd:ro" nginx:alpine >/dev/null; for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18080/ >/dev/null 2>&1 && break; sleep 0.5; done; node deploy/verify-hardening.mjs http://127.0.0.1:18080',
+      ],
+      unavailableReason: dockerOk ? null : 'Docker daemon unavailable for live nginx:alpine hardening probe',
+      expected: 'Exit 0 with all nginx hardening checks passing',
     });
   }
 
@@ -224,28 +266,30 @@ function tailLines(str, maxLines = 25) {
 }
 
 function runCheck(check) {
-  const displayCmd = `${check.cmd} ${check.args.join(' ')}`;
-  if (check.unavailableReason) {
+  const { extraEnv, env, ...safeCheck } = check;
+  const displayCmd = `${safeCheck.cmd} ${safeCheck.args.join(' ')}`;
+  if (safeCheck.unavailableReason) {
     return {
-      ...check,
+      ...safeCheck,
       displayCmd,
       status: 'UNVERIFIED',
       evidenceTier: '[inferred]',
       exitCode: null,
       durationMs: 0,
-      actual: `Blocked: ${check.unavailableReason}`,
+      actual: `Blocked: ${safeCheck.unavailableReason}`,
       logTail: '',
     };
   }
+  const execEnv = extraEnv ? { ...process.env, ...extraEnv } : process.env;
   const t0 = Date.now();
-  const res = check.shell
-    ? spawnSync(displayCmd, { cwd: ROOT, shell: true, encoding: 'utf8', env: check.env || process.env, timeout: 240000 })
-    : spawnSync(check.cmd, check.args, { cwd: ROOT, encoding: 'utf8', env: check.env || process.env, timeout: 240000 });
+  const res = safeCheck.shell
+    ? spawnSync(displayCmd, { cwd: ROOT, shell: true, encoding: 'utf8', env: execEnv, timeout: 240000 })
+    : spawnSync(safeCheck.cmd, safeCheck.args, { cwd: ROOT, encoding: 'utf8', env: execEnv, timeout: 240000 });
   const durationMs = Date.now() - t0;
   const combined = [res.stdout, res.stderr].filter(Boolean).join('\n');
   const passed = res.status === 0 && !res.error;
   return {
-    ...check,
+    ...safeCheck,
     displayCmd,
     status: passed ? 'PASS' : 'FAIL',
     evidenceTier: '[agent-test]',
@@ -297,6 +341,7 @@ function formatMarkdown(report) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = parseArgs(process.argv.slice(2));
+  if (args.baseExplicit) assertBaseRef(args.base);
   const files = args.files.length ? args.files : getChangedFiles(args.base);
   const plan = buildCheckPlan({ files, mode: args.mode, skipBrowser: args.skipBrowser });
 
@@ -332,5 +377,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const output = args.json ? JSON.stringify(report, null, 2) : formatMarkdown(report);
   if (args.outFile) fs.writeFileSync(args.outFile, output);
   console.log(output);
-  process.exit(counts.fail > 0 ? 1 : 0);
+  process.exit(counts.fail > 0 || counts.unverified > 0 ? 1 : 0);
 }

@@ -14,10 +14,11 @@ A concise, structured Technical Walkthrough anchored in the actual diff:
 1. **What changed & why** (2–3 sentences).
 2. **Files & components involved** (clickable paths + role of each file).
 3. **Data / control flow** (short step-by-step trace or 4–6 node flow showing how a user click or HTTP request moves through the changed code).
-4. **What could go wrong** (top 1–2 realistic failure modes).
-5. **How to reproduce & debug it yourself** (exact DevTools breakpoint / Network / `localStorage` inspection / CLI command).
-6. **One underlying engineering concept** (connecting this specific TaskTracker change to a durable CS/systems principle, e.g., optimistic concurrency, idempotency keys, event delegation/composedPath, CSS stacking/grid tracks, atomic rename).
-7. **Comprehension check (`DEEP` mode only):** 1–2 short, concrete questions grounded in this exact change to test understanding (no busywork quizzes).
+4. **Architectural decisions & trade-offs** (why this seam/design was chosen over the obvious alternative, and which invariant it protects).
+5. **What could go wrong (failure modes)** (top 1–2 realistic failure modes).
+6. **How to reproduce & debug it yourself** (exact DevTools breakpoint / Network / `localStorage` inspection / CLI command).
+7. **One underlying engineering concept** (connecting this specific TaskTracker change to a durable CS/systems principle, e.g., optimistic concurrency, idempotency keys, event delegation/composedPath, CSS stacking/grid tracks, atomic rename).
+8. **Comprehension check (`DEEP` mode only):** 1–2 short, concrete questions grounded in this exact change to test understanding (no busywork quizzes).
 
 ## RESPONSIBILITIES
 - Keep explanations proportional: ~12–18 lines for `STANDARD`; slightly deeper + 1–2 questions for `DEEP`.

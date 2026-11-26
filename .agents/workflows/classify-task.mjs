@@ -14,14 +14,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const DEEP_PATHS = [
-  /^api\/_board\.php$/,
-  /^api\/publish\.php$/,
-  /^api\/versions\.php$/,
-  /^api\/_session\.php$/,
-  /^api\/login\.php$/,
-  /^api\/logout\.php$/,
-  /^api\/upload\.php$/,
-  /^api\/migrate-subjects\.php$/,
+  /^data\//,
+  /^api\/.+\.php$/,
   /^transfer\.php$/,
   /^deploy\//,
   /^\.github\/workflows\//,
@@ -30,6 +24,10 @@ const DEEP_PATHS = [
   /^js\/recovery\.js$/,
   /^js\/transfer\.js$/,
   /^tests\/formal\//,
+  /^tests\/startup\.test\.js$/,
+  /^tests\/php\//,
+  /^tests\/module-state\.test\.js$/,
+  /^tests\/e2e\/golden\//,
 ];
 
 const STANDARD_PATHS = [
@@ -70,8 +68,27 @@ const STANDARD_KEYWORDS = [
   /\b(?:bug|regression|broken|race condition|state)\b/i,
 ];
 
+const DEFAULT_REVIEWER_MODEL = 'gpt-6.2-astra';
+const ALWAYS_BANNED_RE = /claude-(?:opus|sonnet)-5-5/i;
+
+export function resolveReviewerModel(override = '') {
+  const requested = String(override || process.env.TT_REVIEWER_MODEL || DEFAULT_REVIEWER_MODEL).trim();
+  if (ALWAYS_BANNED_RE.test(requested)) {
+    throw new Error(`Banned reviewer model "${requested}" is permanently prohibited (no exceptions).`);
+  }
+  const isCodex = /^gpt-/i.test(requested);
+  const requiresExplicitPrompt = isCodex && requested.toLowerCase() !== DEFAULT_REVIEWER_MODEL;
+  return {
+    provider: isCodex ? 'codex' : 'antigravity',
+    model: requested,
+    defaultModel: DEFAULT_REVIEWER_MODEL,
+    validatedBenchmarkModel: 'gpt-6.1-terra',
+    requiresExplicitPrompt,
+  };
+}
+
 function parseArgs(argv) {
-  const out = { task: '', files: [], gitDiff: null, json: false };
+  const out = { task: '', files: [], gitDiff: null, reviewerModel: '', json: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--task' && argv[i + 1]) out.task = argv[++i];
@@ -79,42 +96,32 @@ function parseArgs(argv) {
       out.files.push(...argv[++i].split(',').map((s) => s.trim()).filter(Boolean));
     } else if (a === '--git-diff') {
       out.gitDiff = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : 'main';
+    } else if (a === '--reviewer-model' && argv[i + 1]) {
+      out.reviewerModel = argv[++i];
     } else if (a === '--json') out.json = true;
   }
   return out;
 }
 
 function getGitDiffFiles(baseRef) {
+  execFileSync('git', ['rev-parse', '--verify', `${baseRef}^{commit}`], { cwd: ROOT, encoding: 'utf8' });
   const files = new Set();
-  try {
-    const diffOut = execFileSync('git', ['diff', '--name-only', `${baseRef}...HEAD`], {
-      cwd: ROOT,
-      encoding: 'utf8',
-    });
-    for (const line of diffOut.split('\n')) if (line.trim()) files.add(line.trim());
-  } catch {}
-  try {
-    const wtOut = execFileSync('git', ['diff', '--name-only'], { cwd: ROOT, encoding: 'utf8' });
-    for (const line of wtOut.split('\n')) if (line.trim()) files.add(line.trim());
-  } catch {}
-  try {
-    const stagedOut = execFileSync('git', ['diff', '--cached', '--name-only'], { cwd: ROOT, encoding: 'utf8' });
-    for (const line of stagedOut.split('\n')) if (line.trim()) files.add(line.trim());
-  } catch {}
-  try {
-    const untrackedOut = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {
-      cwd: ROOT,
-      encoding: 'utf8',
-    });
-    for (const line of untrackedOut.split('\n')) {
+  for (const args of [
+    ['diff', '--name-only', `${baseRef}...HEAD`],
+    ['diff', '--name-only'],
+    ['diff', '--cached', '--name-only'],
+    ['ls-files', '--others', '--exclude-standard'],
+  ]) {
+    const out = execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+    for (const line of out.split('\n')) {
       const trimmed = line.trim();
       if (trimmed && !trimmed.startsWith('.cursor/')) files.add(trimmed);
     }
-  } catch {}
+  }
   return [...files].sort();
 }
 
-export function classifyTask({ task = '', files = [] }) {
+export function classifyTask({ task = '', files = [], reviewerModel = '' }) {
   const normFiles = [...new Set(files.map((f) => f.replace(/^\.?\//, '').replace(/\\/g, '/')))];
   const reasons = [];
   const protectedBoundaries = new Set();
@@ -217,6 +224,8 @@ export function classifyTask({ task = '', files = [] }) {
     );
   }
 
+  const reviewer = resolveReviewerModel(reviewerModel);
+
   return {
     recommendedMode: mode,
     rationale: reasons.length ? reasons : ['Localized, low-risk scope with no protected contract boundaries.'],
@@ -227,24 +236,37 @@ export function classifyTask({ task = '', files = [] }) {
     parallelImplementationPossible: mode !== 'FAST' && touchesFrontend && touchesBackend,
     maxFixCycles: mode === 'DEEP' ? 3 : mode === 'STANDARD' ? 2 : 1,
     requiresPlanApproval: mode === 'DEEP',
+    requiresFinalEditVerification: true,
+    blockApprovalOnUnresolvedP1: true,
     requiresWalkthrough: mode !== 'FAST',
     requiresComprehensionQuestions: mode === 'DEEP',
+    reviewer: {
+      ...reviewer,
+      reasoningEffort: mode === 'DEEP' ? 'high' : 'medium',
+      fallback: { provider: 'antigravity', model: 'gemini-4-neon' },
+    },
     requiredChecks: [...new Set(requiredChecks)],
-    bannedModels: ['claude-opus-5-5*', 'claude-sonnet-5-5*', 'gpt-6.2-sol (unless prompted)', 'gpt-6.2-astra (unless prompted)'],
+    bannedModels: [
+      'claude-opus-5-5*',
+      'claude-sonnet-5-5*',
+      'gpt-6.2-sol (unless prompted)',
+      'gpt-6.1-terra / other non-6.2-astra Codex models (unless prompted)',
+    ],
   };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = parseArgs(process.argv.slice(2));
   const files = [...args.files, ...(args.gitDiff ? getGitDiffFiles(args.gitDiff) : [])];
-  const result = classifyTask({ task: args.task, files });
+  const result = classifyTask({ task: args.task, files, reviewerModel: args.reviewerModel });
 
   if (args.json) {
     console.log(JSON.stringify(result, null, 2));
   } else {
     console.log(`Recommended Mode : ${result.recommendedMode}`);
-    console.log(`Max Fix Cycles   : ${result.maxFixCycles}`);
+    console.log(`Max Fix Cycles   : ${result.maxFixCycles} (unresolved P0/P1 blocks approval)`);
     console.log(`Plan Approval    : ${result.requiresPlanApproval ? 'REQUIRED before edits' : 'Orchestrator-managed'}`);
+    console.log(`Reviewer Model   : ${result.reviewer.provider}/${result.reviewer.model} (${result.reviewer.reasoningEffort})`);
     console.log(`Specialists      : ${result.specialists.join(', ')}`);
     console.log(`Parallel FE+BE   : ${result.parallelImplementationPossible ? 'Yes (if files disjoint)' : 'No'}`);
     if (result.protectedBoundaries.length) {

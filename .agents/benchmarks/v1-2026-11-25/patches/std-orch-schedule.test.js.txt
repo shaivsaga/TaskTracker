@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  buildScheduleTracks,
+  computeCurrentSlot,
+  formatTime12,
+  hasValidSchedule,
+} from '../js/schedule.js';
+
+const SAMPLE = {
+  term: '2ND TERM – AY 2026-2027',
+  sectionLabel: 'DSCT11-A',
+  adviser: 'Mr. Jomari V. Borja',
+  room: '92C ST. SCHO',
+  slots: [
+    { day: 1, start: '07:30', end: '08:30', subject: 'CP104', teacher: 'Mr. Salud' },
+    { day: 1, start: '08:30', end: '09:30', subject: 'PKLP', teacher: 'Mr. Silvano' },
+    { day: 1, start: '09:30', end: '09:50', kind: 'break', label: 'RECESS' },
+    { day: 3, start: '07:30', end: '09:30', subject: 'FINMATH101', teacher: 'Ms. Grospe' },
+    { day: 5, start: '13:50', end: '14:50', kind: 'activity', label: 'CLUB' },
+  ],
+};
+
+test('buildScheduleTracks merges multi-period blocks across sorted unique boundaries', () => {
+  const { boundaries, rows, placed } = buildScheduleTracks(SAMPLE.slots);
+  assert.deepEqual(boundaries, ['07:30', '08:30', '09:30', '09:50', '13:50', '14:50']);
+  assert.equal(rows.length, 5);
+  const finmath = placed.find((p) => p.slot.subject === 'FINMATH101');
+  assert.equal(finmath.rowStart, 1);
+  assert.equal(finmath.rowEnd, 3); // spans 07:30-08:30 and 08:30-09:30
+});
+
+test('computeCurrentSlot handles active, upcoming, after-hours, weekend, and missing schedules', () => {
+  const active = computeCurrentSlot(SAMPLE, new Date(2026, 10, 23, 8, 50)); // Mon 08:50
+  assert.equal(active.kind, 'active');
+  assert.equal(active.current.subject, 'PKLP');
+  assert.equal(active.minutesLeft, 40);
+  assert.equal(active.next.label, 'RECESS');
+
+  const before = computeCurrentSlot(SAMPLE, new Date(2026, 10, 23, 7, 10)); // Mon 07:10
+  assert.equal(before.kind, 'upcoming');
+  assert.equal(before.next.subject, 'CP104');
+  assert.equal(before.minutesUntil, 20);
+
+  const after = computeCurrentSlot(SAMPLE, new Date(2026, 10, 23, 15, 30)); // Mon 15:30
+  assert.equal(after.kind, 'done');
+  assert.equal(after.nextDaySlot.subject, 'FINMATH101'); // Wed (skips Tue with no slots)
+
+  const sat = computeCurrentSlot(SAMPLE, new Date(2026, 10, 28, 10, 0)); // Saturday
+  assert.equal(sat.kind, 'done');
+  assert.equal(sat.nextDaySlot.subject, 'CP104');
+
+  assert.equal(hasValidSchedule(null), false);
+  assert.equal(hasValidSchedule({ slots: [] }), false);
+  assert.equal(computeCurrentSlot(null).kind, 'empty');
+});
+
+test('formatTime12 formats 24h HH:MM strings cleanly', () => {
+  assert.equal(formatTime12('07:30'), '7:30 AM');
+  assert.equal(formatTime12('12:00'), '12:00 PM');
+  assert.equal(formatTime12('13:50'), '1:50 PM');
+});

@@ -1,0 +1,127 @@
+diff --git a/app.js b/app.js
+index d9ce32e..ced88f8 100644
+--- a/app.js
++++ b/app.js
+@@ -389,51 +389,67 @@ function openDuePicker(opts) {
+   function renderGrid() {
+     monthEl.textContent = s.view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+     grid.replaceChildren();
++    const headRow = document.createElement('div');
++    headRow.className = 'dp-row';
++    headRow.setAttribute('role', 'row');
+     ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach((l) => {
+       const c = document.createElement('span');
+       c.className = 'dp-dow';
++      c.setAttribute('role', 'columnheader');
+       c.textContent = l;
+-      grid.appendChild(c);
++      headRow.appendChild(c);
+     });
++    grid.appendChild(headRow);
+     const start = new Date(s.view.getFullYear(), s.view.getMonth(), 1 - s.view.getDay());
+-    for (let i = 0; i < 42; i++) {
+-      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+-      const b = document.createElement('button');
+-      const t = d.getTime();
+-      const sTime = s.date ? s.date.getTime() : null;
+-      const eTime = s.rangeMode && s.endDate ? s.endDate.getTime() : null;
+-      const isStart = sTime !== null && t === sTime;
+-      const isEnd = eTime !== null && t === eTime;
+-      const selected = isStart || isEnd;
+-      const inRange = sTime !== null && eTime !== null && t > sTime && t < eTime;
+-      b.type = 'button';
+-      b.className = 'dp-day';
+-      b.textContent = d.getDate();
+-      b.setAttribute('aria-label', d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
+-      b.setAttribute('aria-pressed', String(selected));
+-      if (d.getMonth() !== s.view.getMonth()) b.classList.add('is-outside');
+-      if (dayDiff(d) === 0) b.classList.add('is-today');
+-      if (isStart) b.classList.add('is-range-start');
+-      if (isEnd) b.classList.add('is-range-end');
+-      if (inRange) b.classList.add('is-in-range');
+-      if (selected) b.classList.add('is-selected');
+-      b.addEventListener('click', () => {
+-        if (!s.rangeMode) {
+-          s.date = d;
+-          s.endDate = null;
+-        } else if (s.activeField === 'end' && s.date) {
+-          if (t < s.date.getTime()) { s.endDate = s.date; s.date = d; }
+-          else { s.endDate = d; }
+-        } else {
+-          s.date = d;
+-          if (s.endDate && t > s.endDate.getTime()) s.endDate = null;
+-          s.activeField = 'end';
+-        }
+-        syncFields();
+-        renderGrid();
+-        emit();
+-      });
+-      grid.appendChild(b);
++    for (let week = 0; week < 6; week++) {
++      const row = document.createElement('div');
++      row.className = 'dp-row';
++      row.setAttribute('role', 'row');
++      for (let col = 0; col < 7; col++) {
++        const i = week * 7 + col;
++        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
++        const cell = document.createElement('div');
++        cell.className = 'dp-cell';
++        cell.setAttribute('role', 'gridcell');
++        const b = document.createElement('button');
++        const t = d.getTime();
++        const sTime = s.date ? s.date.getTime() : null;
++        const eTime = s.rangeMode && s.endDate ? s.endDate.getTime() : null;
++        const isStart = sTime !== null && t === sTime;
++        const isEnd = eTime !== null && t === eTime;
++        const selected = isStart || isEnd;
++        const inRange = sTime !== null && eTime !== null && t > sTime && t < eTime;
++        b.type = 'button';
++        b.className = 'dp-day';
++        b.textContent = d.getDate();
++        b.setAttribute('aria-label', d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
++        b.setAttribute('aria-pressed', String(selected));
++        if (d.getMonth() !== s.view.getMonth()) b.classList.add('is-outside');
++        if (dayDiff(d) === 0) b.classList.add('is-today');
++        if (isStart) b.classList.add('is-range-start');
++        if (isEnd) b.classList.add('is-range-end');
++        if (inRange) b.classList.add('is-in-range');
++        if (selected) b.classList.add('is-selected');
++        b.addEventListener('click', () => {
++          if (!s.rangeMode) {
++            s.date = d;
++            s.endDate = null;
++          } else if (s.activeField === 'end' && s.date) {
++            if (t < s.date.getTime()) { s.endDate = s.date; s.date = d; }
++            else { s.endDate = d; }
++          } else {
++            s.date = d;
++            if (s.endDate && t > s.endDate.getTime()) s.endDate = null;
++            s.activeField = 'end';
++          }
++          syncFields();
++          renderGrid();
++          emit();
++        });
++        cell.appendChild(b);
++        row.appendChild(cell);
++      }
++      grid.appendChild(row);
+     }
+   }
+ 
+diff --git a/styles.css b/styles.css
+index d4742e1..b6c3247 100644
+--- a/styles.css
++++ b/styles.css
+@@ -626,8 +626,10 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
+ .dp-nav:hover { border-color: var(--ac); color: var(--tx); }
+ .dp-nav svg { width: 16px; height: 16px; stroke-width: 2; }
+ .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
++.dp-row { display: contents; }
++.dp-cell { display: flex; }
+ .dp-dow { text-align: center; color: var(--mu); font-size: 12px; line-height: 24px; }
+-.dp-day { height: 36px; background: transparent; color: var(--tx); font-size: 12px; cursor: pointer; }
++.dp-day { width: 100%; min-height: 44px; background: transparent; color: var(--tx); font-size: 12px; cursor: pointer; }
+ .dp-day:hover { background: var(--sf2); }
+ .dp-day.is-outside { background: none; color: var(--mu); opacity: 1; }
+ .dp-day.is-today { box-shadow: inset 0 0 0 2px var(--ac); }

@@ -2,14 +2,13 @@
 name: tt-mentor
 description: >-
   Deliver a proportional, diff-anchored technical walkthrough for TaskTracker
-  changes to build Markus's independent software engineering and debugging
-  ability. Run inline at handoff for STANDARD tasks and as a deeper closing
-  pass with 1-2 comprehension questions for DEEP tasks.
+  STANDARD and DEEP tasks emphasizing data flow, architectural decisions,
+  failure modes, and independent debugging.
 ---
 
 # TaskTracker Technical Mentor
 
-Use this skill after verification passes on `STANDARD` and `DEEP` tasks (skip on `FAST` unless Markus asks).
+Use this skill after final verification passes on `STANDARD` and `DEEP` tasks (skip on `FAST` unless Markus asks).
 
 ## Walkthrough Template
 
@@ -22,7 +21,8 @@ Keep `STANDARD` walkthroughs tight (~12–20 lines total). Expand slightly for `
 - **Files involved:**
   - `[file.js](file:///abs/path/file.js#L10-L40)` — <specific role in this change>
 - **Data / control flow:** `<Trigger>` → `<Function/Module>` → `<State/Storage/HTTP>` → `<Rendered DOM / Response>`
-- **What could go wrong:**
+- **Architectural decisions & trade-offs:** <Why this seam/approach was chosen over the obvious alternative, and what invariant it protects>
+- **What could go wrong (failure modes):**
   1. <Most likely realistic failure mode and how it manifests>
   2. <Second failure mode if applicable>
 - **How to reproduce & debug it yourself:**
