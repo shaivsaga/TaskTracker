@@ -1,0 +1,152 @@
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+export const SCHEDULE_DAYS = [
+  { day: 1, short: 'Mon', full: 'Monday' },
+  { day: 2, short: 'Tue', full: 'Tuesday' },
+  { day: 3, short: 'Wed', full: 'Wednesday' },
+  { day: 4, short: 'Thu', full: 'Thursday' },
+  { day: 5, short: 'Fri', full: 'Friday' },
+];
+
+export function scheduleMinutes(hhmm) {
+  const m = TIME_RE.exec(String(hhmm || ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+export function formatTime12(hhmm) {
+  const m = TIME_RE.exec(String(hhmm || ''));
+  if (!m) return String(hhmm || '');
+  const h24 = Number(m[1]);
+  const min = m[2];
+  const suffix = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 || 12;
+  return `${h12}:${min} ${suffix}`;
+}
+
+export function hasValidSchedule(schedule) {
+  return Boolean(
+    schedule
+    && typeof schedule === 'object'
+    && !Array.isArray(schedule)
+    && Array.isArray(schedule.slots)
+    && schedule.slots.length > 0,
+  );
+}
+
+export function normalizeScheduleSlots(slots) {
+  if (!Array.isArray(slots)) return [];
+  const valid = [];
+  for (const s of slots) {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) continue;
+    const day = Number(s.day);
+    const startMin = scheduleMinutes(s.start);
+    const endMin = scheduleMinutes(s.end);
+    if (!Number.isInteger(day) || day < 1 || day > 5) continue;
+    if (startMin === null || endMin === null || startMin >= endMin) continue;
+    const kind = s.kind === 'break' || s.kind === 'activity' ? s.kind : 'subject';
+    valid.push({
+      day,
+      start: s.start,
+      end: s.end,
+      startMin,
+      endMin,
+      kind,
+      subject: typeof s.subject === 'string' ? s.subject : '',
+      label: typeof s.label === 'string' ? s.label : '',
+      teacher: typeof s.teacher === 'string' ? s.teacher : '',
+    });
+  }
+  valid.sort((a, b) => a.day - b.day || a.startMin - b.startMin || a.endMin - b.endMin);
+  return valid;
+}
+
+export function buildScheduleTracks(slots) {
+  const clean = normalizeScheduleSlots(slots);
+  const boundarySet = new Set();
+  for (const s of clean) {
+    boundarySet.add(s.start);
+    boundarySet.add(s.end);
+  }
+  const boundaries = [...boundarySet].sort((a, b) => scheduleMinutes(a) - scheduleMinutes(b));
+  const indexByTime = new Map(boundaries.map((t, i) => [t, i]));
+  const rows = [];
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    rows.push({
+      start: boundaries[i],
+      end: boundaries[i + 1],
+      startIdx: i + 1,
+      endIdx: i + 2,
+    });
+  }
+  const placed = clean.map((slot) => ({
+    slot,
+    day: slot.day,
+    rowStart: indexByTime.get(slot.start) + 1,
+    rowEnd: indexByTime.get(slot.end) + 1,
+  }));
+  return { boundaries, rows, placed };
+}
+
+export function computeCurrentSlot(schedule, nowDate = new Date()) {
+  if (!hasValidSchedule(schedule)) return { kind: 'empty', current: null, next: null, minutesLeft: 0, minutesUntil: 0, nextDaySlot: null };
+  const clean = normalizeScheduleSlots(schedule.slots);
+  if (!clean.length) return { kind: 'empty', current: null, next: null, minutesLeft: 0, minutesUntil: 0, nextDaySlot: null };
+
+  const jsDay = nowDate.getDay(); // 0=Sun, 1..5=Mon..Fri, 6=Sat
+  const nowMin = nowDate.getHours() * 60 + nowDate.getMinutes();
+
+  const findNextSchoolDaySlot = (fromDay) => {
+    for (let offset = 1; offset <= 7; offset++) {
+      const candidate = ((fromDay - 1 + offset) % 7) + 1; // 1..7 where 1=Mon..5=Fri
+      if (candidate > 5) continue;
+      const hit = clean.find((s) => s.day === candidate);
+      if (hit) return hit;
+    }
+    return null;
+  };
+
+  if (jsDay >= 1 && jsDay <= 5) {
+    const todaySlots = clean.filter((s) => s.day === jsDay);
+    const activeIdx = todaySlots.findIndex((s) => nowMin >= s.startMin && nowMin < s.endMin);
+    if (activeIdx !== -1) {
+      const current = todaySlots[activeIdx];
+      return {
+        kind: 'active',
+        current,
+        minutesLeft: Math.max(1, current.endMin - nowMin),
+        next: todaySlots[activeIdx + 1] || null,
+        minutesUntil: 0,
+        nextDaySlot: null,
+      };
+    }
+    const upcoming = todaySlots.find((s) => s.startMin > nowMin) || null;
+    if (upcoming) {
+      return {
+        kind: 'upcoming',
+        current: null,
+        next: upcoming,
+        minutesLeft: 0,
+        minutesUntil: Math.max(1, upcoming.startMin - nowMin),
+        nextDaySlot: null,
+      };
+    }
+    return {
+      kind: 'done',
+      current: null,
+      next: null,
+      minutesLeft: 0,
+      minutesUntil: 0,
+      nextDaySlot: findNextSchoolDaySlot(jsDay),
+    };
+  }
+
+  const mondaySlot = clean.find((s) => s.day === 1) || clean[0] || null;
+  return {
+    kind: 'done',
+    current: null,
+    next: null,
+    minutesLeft: 0,
+    minutesUntil: 0,
+    nextDaySlot: mondaySlot,
+  };
+}

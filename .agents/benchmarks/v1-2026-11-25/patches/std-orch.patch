@@ -1,0 +1,441 @@
+diff --git a/index.html b/index.html
+index 4adb054..50f30e8 100644
+--- a/index.html
++++ b/index.html
+@@ -340,6 +340,7 @@
+                 <div class="view-tabs" role="group" aria-label="Calendar view">
+                   <button type="button" class="view-tab is-active" data-cal-mode="month" aria-pressed="true">Month</button>
+                   <button type="button" class="view-tab" data-cal-mode="week" aria-pressed="false">Week</button>
++                  <button type="button" class="view-tab" data-cal-mode="schedule" id="cal-mode-schedule" aria-pressed="false" hidden>Schedule</button>
+                 </div>
+                 <button class="secondary-button" type="button" id="cal-today">Today</button>
+                 <div class="cal-nav">
+@@ -350,6 +351,7 @@
+             </div>
+             <a id="cal-past-link" href="#past" hidden>View past tasks</a>
+             <div class="cal" id="cal-grid" data-mode="month"></div>
++            <div class="cal-schedule" id="cal-schedule" hidden></div>
+             <section class="cal-agenda" id="cal-agenda" aria-labelledby="cal-agenda-title" aria-live="polite" aria-atomic="true" hidden>
+               <h3 class="cal-agenda-title" id="cal-agenda-title"></h3>
+               <div class="cal-agenda-list" id="cal-agenda-list"></div>
+diff --git a/js/calendar.js b/js/calendar.js
+index 733c1f1..39e63a4 100644
+--- a/js/calendar.js
++++ b/js/calendar.js
+@@ -1,6 +1,14 @@
+ import { state } from './state.js';
+-import { plural } from './util.js';
+-import { subjectFor, subjectDisplayName } from './subjects.js';
++import { plural, readJSON, KEYS } from './util.js';
++import { subjectFor, subjectDisplayName, subjectTextColor } from './subjects.js';
++import {
++  SCHEDULE_DAYS,
++  hasValidSchedule,
++  normalizeScheduleSlots,
++  buildScheduleTracks,
++  computeCurrentSlot,
++  formatTime12,
++} from './schedule.js';
+ 
+ let recordSource = null;
+ let openTaskDialog = null;
+@@ -21,6 +29,237 @@ let popoverEl = null;
+ let popoverDateKey = '';
+ let popoverTriggerEl = null;
+ let popoverDocBound = false;
++let scheduleDay = 1;
++let scheduleFullWeek = false;
++let scheduleTimer = null;
++let schedulePageBound = false;
++
++function stopScheduleTimer() {
++  if (scheduleTimer !== null) {
++    clearInterval(scheduleTimer);
++    scheduleTimer = null;
++  }
++}
++
++function activeSchedule() {
++  const live = state.liveBoard?.schedule;
++  if (hasValidSchedule(live)) return live;
++  if (state.liveBoard === null) {
++    const cached = readJSON(KEYS.cache, null)?.schedule;
++    if (hasValidSchedule(cached)) return cached;
++  }
++  return null;
++}
++
++function defaultScheduleDay(now = new Date()) {
++  const d = now.getDay();
++  return d >= 1 && d <= 5 ? d : 1;
++}
++
++function scheduleSlotTitle(slot, catalog) {
++  if (slot.kind === 'subject' && slot.subject) return subjectDisplayName(catalog, slot.subject);
++  return slot.label || slot.subject || 'Class';
++}
++
++function renderScheduleView(schedule) {
++  const host = document.querySelector('#cal-schedule');
++  if (!host) return;
++  const focusedKey = host.contains(document.activeElement)
++    ? document.activeElement?.dataset?.schedControl || ''
++    : '';
++  const catalog = calCatalog();
++  const now = new Date();
++  const live = computeCurrentSlot(schedule, now);
++  const tracks = buildScheduleTracks(schedule.slots);
++  const allSlots = normalizeScheduleSlots(schedule.slots);
++  const activeKey = live.current ? `${live.current.day}|${live.current.start}|${live.current.end}` : '';
++
++  host.replaceChildren();
++
++  const metaParts = [schedule.term, schedule.room, schedule.adviser].filter((v) => typeof v === 'string' && v.trim());
++  if (metaParts.length) {
++    const meta = document.createElement('p');
++    meta.className = 'sched-meta';
++    meta.textContent = metaParts.join(' · ');
++    host.appendChild(meta);
++  }
++
++  const strip = document.createElement('section');
++  strip.className = 'sched-now';
++  strip.setAttribute('aria-label', 'Current class status');
++  const primary = document.createElement('p');
++  primary.className = 'sched-now-main';
++  const secondary = document.createElement('p');
++  secondary.className = 'sched-now-sub';
++
++  if (live.kind === 'active' && live.current) {
++    const title = scheduleSlotTitle(live.current, catalog);
++    const teacher = live.current.teacher ? ` (${live.current.teacher})` : '';
++    primary.textContent = `NOW · ${formatTime12(live.current.start)}–${formatTime12(live.current.end)} · ${title}${teacher} · ${live.minutesLeft} min left`;
++    if (live.next) {
++      secondary.textContent = `NEXT · ${formatTime12(live.next.start)}–${formatTime12(live.next.end)} · ${scheduleSlotTitle(live.next, catalog)}`;
++    } else {
++      secondary.textContent = 'Last slot today';
++    }
++  } else if (live.kind === 'upcoming' && live.next) {
++    primary.textContent = `NEXT · ${scheduleSlotTitle(live.next, catalog)} in ${live.minutesUntil} min`;
++    secondary.textContent = `Starts at ${formatTime12(live.next.start)}${live.next.teacher ? ` · ${live.next.teacher}` : ''}`;
++  } else {
++    primary.textContent = 'No more classes today';
++    if (live.nextDaySlot) {
++      const dayMeta = SCHEDULE_DAYS.find((d) => d.day === live.nextDaySlot.day);
++      secondary.textContent = `Next: ${dayMeta ? dayMeta.full : 'Next day'} ${formatTime12(live.nextDaySlot.start)} · ${scheduleSlotTitle(live.nextDaySlot, catalog)}`;
++    } else {
++      secondary.textContent = '';
++    }
++  }
++  strip.append(primary);
++  if (secondary.textContent) strip.append(secondary);
++  host.appendChild(strip);
++
++  const controls = document.createElement('div');
++  controls.className = 'sched-phone-bar';
++  const pills = document.createElement('div');
++  pills.className = 'sched-day-pills';
++  pills.setAttribute('role', 'group');
++  pills.setAttribute('aria-label', 'Schedule day');
++  SCHEDULE_DAYS.forEach((d) => {
++    const btn = document.createElement('button');
++    btn.type = 'button';
++    btn.className = 'sched-day-pill' + (!scheduleFullWeek && scheduleDay === d.day ? ' is-active' : '');
++    btn.dataset.schedControl = `day-${d.day}`;
++    btn.textContent = d.short;
++    btn.setAttribute('aria-pressed', String(!scheduleFullWeek && scheduleDay === d.day));
++    btn.addEventListener('click', () => {
++      scheduleFullWeek = false;
++      scheduleDay = d.day;
++      renderScheduleView(schedule);
++    });
++    pills.appendChild(btn);
++  });
++  const fullToggle = document.createElement('button');
++  fullToggle.type = 'button';
++  fullToggle.className = 'secondary-button sched-full-toggle';
++  fullToggle.dataset.schedControl = 'full-week';
++  fullToggle.textContent = scheduleFullWeek ? 'Day view' : 'Full week';
++  fullToggle.setAttribute('aria-pressed', String(scheduleFullWeek));
++  fullToggle.addEventListener('click', () => {
++    scheduleFullWeek = !scheduleFullWeek;
++    renderScheduleView(schedule);
++  });
++  controls.append(pills, fullToggle);
++  host.appendChild(controls);
++
++  const restoreFocus = () => {
++    if (!focusedKey) return;
++    host.querySelector(`[data-sched-control="${focusedKey}"]`)?.focus();
++  };
++
++  if (calPhone?.matches && !scheduleFullWeek) {
++    const daySlots = allSlots.filter((s) => s.day === scheduleDay);
++    const list = document.createElement('div');
++    list.className = 'sched-day-list';
++    list.setAttribute('role', 'list');
++    if (!daySlots.length) {
++      const empty = document.createElement('p');
++      empty.className = 'list-empty';
++      empty.textContent = 'No classes scheduled for this day.';
++      list.appendChild(empty);
++    } else {
++      daySlots.forEach((slot) => {
++        const card = document.createElement('div');
++        card.className = 'sched-card' + (slot.kind !== 'subject' ? ' is-non-subject' : '');
++        card.setAttribute('role', 'listitem');
++        if (`${slot.day}|${slot.start}|${slot.end}` === activeKey) card.classList.add('is-active');
++        if (slot.kind === 'subject' && slot.subject) {
++          const def = subjectFor(catalog, slot.subject);
++          if (def?.color) {
++            card.style.background = def.color;
++            card.style.color = subjectTextColor(def.color);
++          }
++        }
++        const timeEl = document.createElement('span');
++        timeEl.className = 'sched-card-time';
++        timeEl.textContent = `${formatTime12(slot.start)} – ${formatTime12(slot.end)}`;
++        const nameEl = document.createElement('strong');
++        nameEl.className = 'sched-card-title';
++        nameEl.textContent = scheduleSlotTitle(slot, catalog);
++        card.append(timeEl, nameEl);
++        if (slot.teacher) {
++          const teacherEl = document.createElement('span');
++          teacherEl.className = 'sched-card-teacher';
++          teacherEl.textContent = slot.teacher;
++          card.appendChild(teacherEl);
++        }
++        list.appendChild(card);
++      });
++    }
++    host.appendChild(list);
++    restoreFocus();
++    return;
++  }
++
++  const wrap = document.createElement('div');
++  wrap.className = 'sched-grid-wrap';
++  const grid = document.createElement('div');
++  grid.className = 'sched-grid';
++  grid.style.gridTemplateRows = `auto repeat(${Math.max(1, tracks.rows.length)}, minmax(52px, auto))`;
++
++  const corner = document.createElement('div');
++  corner.className = 'sched-head';
++  corner.textContent = 'TIME';
++  corner.style.gridColumn = '1';
++  corner.style.gridRow = '1';
++  grid.appendChild(corner);
++
++  SCHEDULE_DAYS.forEach((d, idx) => {
++    const h = document.createElement('div');
++    h.className = 'sched-head';
++    h.textContent = d.short.toUpperCase();
++    h.style.gridColumn = String(idx + 2);
++    h.style.gridRow = '1';
++    grid.appendChild(h);
++  });
++
++  tracks.rows.forEach((r) => {
++    const tCell = document.createElement('div');
++    tCell.className = 'sched-time';
++    tCell.textContent = `${formatTime12(r.start)}–${formatTime12(r.end)}`;
++    tCell.style.gridColumn = '1';
++    tCell.style.gridRow = `${r.startIdx + 1} / ${r.endIdx + 1}`;
++    grid.appendChild(tCell);
++  });
++
++  tracks.placed.forEach(({ slot, day, rowStart, rowEnd }) => {
++    const cell = document.createElement('div');
++    cell.className = 'sched-slot' + (slot.kind !== 'subject' ? ' is-non-subject' : '');
++    if (`${slot.day}|${slot.start}|${slot.end}` === activeKey) cell.classList.add('is-active');
++    cell.style.gridColumn = String(day + 1);
++    cell.style.gridRow = `${rowStart + 1} / ${rowEnd + 1}`;
++    if (slot.kind === 'subject' && slot.subject) {
++      const def = subjectFor(catalog, slot.subject);
++      if (def?.color) {
++        cell.style.background = def.color;
++        cell.style.color = subjectTextColor(def.color);
++      }
++    }
++    const titleEl = document.createElement('strong');
++    titleEl.className = 'sched-slot-title';
++    titleEl.textContent = scheduleSlotTitle(slot, catalog);
++    cell.appendChild(titleEl);
++    if (slot.teacher) {
++      const teacherEl = document.createElement('span');
++      teacherEl.className = 'sched-slot-teacher';
++      teacherEl.textContent = slot.teacher;
++      cell.appendChild(teacherEl);
++    }
++    grid.appendChild(cell);
++  });
++
++  wrap.appendChild(grid);
++  host.appendChild(wrap);
++  restoreFocus();
++}
+ 
+ export function invalidateAgenda() {
+   calAgendaSig = '';
+@@ -318,9 +557,65 @@ export function renderCalendar() {
+   const grid = document.querySelector('#cal-grid');
+   if (!grid) return;
+   closeDayPopover(false);
++  const schedule = activeSchedule();
++  const schedTab = document.querySelector('#cal-mode-schedule');
++  const schedHost = document.querySelector('#cal-schedule');
++  const todayBtn = document.querySelector('#cal-today');
++  const navEl = document.querySelector('#page-calendar .cal-nav');
++  const filtersEl = document.querySelector('#page-calendar .cal-filters');
++  const archive = document.querySelector('#cal-past-link');
++  const agendaEl = document.querySelector('#cal-agenda');
++  const emptyEl = document.querySelector('#cal-empty');
++  const pageEl = document.querySelector('#page-calendar');
++
++  if (schedTab) schedTab.hidden = !schedule;
++  if (calMode === 'schedule' && !schedule) {
++    calMode = 'month';
++    syncCalTabs();
++  }
++  if (pageEl) pageEl.dataset.calMode = calMode;
++
++  if (calMode === 'schedule' && schedule) {
++    grid.dataset.mode = 'schedule';
++    if (todayBtn) todayBtn.hidden = true;
++    if (navEl) navEl.hidden = true;
++    if (filtersEl) filtersEl.hidden = true;
++    if (archive) archive.hidden = true;
++    grid.hidden = true;
++    if (agendaEl) agendaEl.hidden = true;
++    if (emptyEl) emptyEl.hidden = true;
++    if (schedHost) schedHost.hidden = false;
++    document.querySelector('#cal-title').textContent = schedule.sectionLabel
++      ? `Class schedule · ${schedule.sectionLabel}`
++      : 'Class schedule';
++    renderScheduleView(schedule);
++    if (pageEl && !pageEl.hidden) {
++      if (scheduleTimer === null) {
++        scheduleTimer = setInterval(() => {
++          const curPage = document.querySelector('#page-calendar');
++          const curSched = activeSchedule();
++          if (calMode === 'schedule' && curPage && !curPage.hidden && curSched) {
++            renderScheduleView(curSched);
++          } else {
++            stopScheduleTimer();
++          }
++        }, 60000);
++      }
++    } else {
++      stopScheduleTimer();
++    }
++    return;
++  }
++
++  stopScheduleTimer();
++  if (todayBtn) todayBtn.hidden = false;
++  if (navEl) navEl.hidden = false;
++  if (filtersEl) filtersEl.hidden = false;
++  grid.hidden = false;
++  if (schedHost) schedHost.hidden = true;
++
+   const { start, days } = calRange();
+   const records = recordSource();
+-  const archive = document.querySelector('#cal-past-link');
+   if (archive) archive.hidden = !records.some((task) => task.isPast());
+   const allDated = records.filter((task) => task.dueDate && !task.isPast());
+   syncCalSubjectFilter(allDated);
+@@ -391,14 +686,15 @@ export function renderCalendar() {
+     }
+     grid.appendChild(cell);
+   }
+-  const emptyEl = document.querySelector('#cal-empty');
+-  emptyEl.hidden = dated.length > 0;
+-  if (!emptyEl.hidden) {
+-    emptyEl.textContent = calSubjectFilter && allDated.length > 0
+-      ? `No dated tasks for ${subjectDisplayName(calCatalog(), calSubjectFilter)}.`
+-      : (state.isAdmin && !state.previewing
+-        ? 'No live dated tasks have been posted yet.'
+-        : 'No dated tasks have been posted yet.');
++  if (emptyEl) {
++    emptyEl.hidden = dated.length > 0;
++    if (!emptyEl.hidden) {
++      emptyEl.textContent = calSubjectFilter && allDated.length > 0
++        ? `No dated tasks for ${subjectDisplayName(calCatalog(), calSubjectFilter)}.`
++        : (state.isAdmin && !state.previewing
++          ? 'No live dated tasks have been posted yet.'
++          : 'No dated tasks have been posted yet.');
++    }
+   }
+   if (focusedDay) calFocus(focusedDay);
+   renderCalAgenda();
+@@ -425,6 +721,9 @@ export function init(deps) {
+   calAgendaSig = '';
+   calSubjectFilter = '';
+   calSubjectSig = '';
++  scheduleDay = defaultScheduleDay(todayDate());
++  scheduleFullWeek = false;
++  stopScheduleTimer();
+   closeDayPopover(false);
+   calPhone = window.matchMedia('(max-width: 719px)');
+   document.querySelector('#cal-prev').addEventListener('click', () => calStep(-1));
+@@ -443,4 +742,14 @@ export function init(deps) {
+   });
+   calPhone.addEventListener('change', renderCalendar);
+   document.querySelectorAll('[data-cal-mode]').forEach((b) => b.addEventListener('click', () => { calMode = b.dataset.calMode; syncCalTabs(); renderCalendar(); }));
++  if (!schedulePageBound) {
++    schedulePageBound = true;
++    document.addEventListener('app:page-shown', (e) => {
++      if (e.detail?.page === 'calendar') {
++        if (calMode === 'schedule') renderCalendar();
++      } else {
++        stopScheduleTimer();
++      }
++    });
++  }
+ }
+diff --git a/styles.css b/styles.css
+index d4742e1..8f51353 100644
+--- a/styles.css
++++ b/styles.css
+@@ -1267,5 +1267,41 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
+    announcement already fits one line at 375, so the visible difference is at 320). */
+ @media (max-width: 374px) {
+   #announce-public.is-collapsed .announce-text { -webkit-line-clamp: 1; max-height: 20px; }
++  #page-calendar:has(#cal-mode-schedule:not([hidden])) .view-tab { padding: 0 8px; font-size: 12px; }
+ }
+ /* [[/section:phone-fold]] */
++
++/* [[section:schedule]] */
++.cal-schedule { display: grid; gap: 12px; }
++.sched-meta { margin: 0; color: var(--mu); font-size: 12px; line-height: 16px; }
++.sched-now { padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
++.sched-now-main { margin: 0; color: var(--tx); font-size: 14px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums; }
++.sched-now-sub { margin: 4px 0 0; color: var(--mu); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
++.sched-phone-bar { display: none; }
++.sched-grid-wrap { overflow-x: auto; border: 2px solid var(--ln); background: var(--sf); }
++.sched-grid { display: grid; grid-template-columns: 112px repeat(5, minmax(110px, 1fr)); }
++.sched-head { padding: 8px; border-right: 1px solid var(--ln); border-bottom: 2px solid var(--ln); background: var(--sf2); color: var(--tx); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: .04em; text-align: center; }
++.sched-time { display: flex; align-items: center; padding: 8px; border-right: 1px solid var(--ln); border-bottom: 1px solid var(--ln); background: var(--sf2); color: var(--mu); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
++.sched-slot { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 8px; border-right: 1px solid var(--ln); border-bottom: 1px solid var(--ln); background: var(--sf); color: var(--tx); min-width: 0; }
++.sched-slot.is-non-subject { background: var(--sf2); color: var(--mu); text-align: center; }
++.sched-slot.is-active { box-shadow: inset 0 0 0 2px var(--ac); }
++.sched-slot-title { font-size: 13px; font-weight: 700; line-height: 18px; overflow-wrap: anywhere; }
++.sched-slot-teacher { font-size: 11px; line-height: 15px; overflow-wrap: anywhere; }
++.sched-day-list { display: grid; gap: 8px; }
++.sched-card { display: grid; gap: 2px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); color: var(--tx); }
++.sched-card.is-non-subject { background: var(--sf2); color: var(--mu); }
++.sched-card.is-active { border-color: var(--ac); box-shadow: inset 0 0 0 2px var(--ac), 0 2px 0 var(--ac); }
++.sched-card-time { font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; }
++.sched-card-title { font-size: 15px; font-weight: 700; line-height: 20px; }
++.sched-card-teacher { font-size: 12px; line-height: 16px; }
++@media (max-width: 719px) {
++  #page-calendar[data-cal-mode="schedule"] .cal-title,
++  #page-calendar[data-cal-mode="schedule"] .view-tabs { grid-column: 1 / -1; justify-self: start; }
++  .sched-phone-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
++  .sched-day-pills { display: grid; grid-template-columns: repeat(5, minmax(44px, 1fr)); gap: 4px; flex: 1 1 236px; }
++  .sched-day-pill { min-width: 44px; min-height: 44px; padding: 0 4px; border: 2px solid var(--ln); background: var(--sf); color: var(--tx); font-size: 12px; font-weight: 700; cursor: pointer; }
++  .sched-day-pill.is-active { border-color: var(--ac); background: var(--acs); }
++  .sched-full-toggle { min-height: 44px; }
++  .sched-grid { min-width: 620px; }
++}
++/* [[/section:schedule]] */
