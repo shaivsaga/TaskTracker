@@ -1209,4 +1209,180 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && optOutCleaned && syncedOff,
     JSON.stringify({ defaultInsights, overlayOpened, restoredToInsightsBtn, eventCountAfterNoop, hiddenState, afterClear, failedProgressSave, degradedCheck, syncedOff }),
   );
+
+  // 17. .dp-grid WAI-ARIA APG grid/roving-tabindex/Escape layering/Variant A sizing & #dialog-files-field 6/10 attachments.
+  const makeFiles = (n) => Array.from({ length: n }, (_, i) => ({
+    id: `${String(i + 1).padStart(32, 'a')}.pdf`,
+    name: i === 0
+      ? 'very-long-assignment-rubric-semester-2-final-revision-2026-section-a.pdf'
+      : `handout-${i + 1}-chapter-${i + 3}.pdf`,
+    size: (i + 1) * 142000,
+  }));
+  const a11yDraft = JSON.parse(draft);
+  a11yDraft.tasks = [
+    { id: 'a11y-6files', title: 'Six attachments empty notes', dueDate: '2026-11-12', notes: '', subject: 'CP104', files: makeFiles(6) },
+    { id: 'a11y-10files', title: 'Ten attachments max cap', dueDate: '2026-11-12', notes: '<div>Notes present alongside 10 files.</div>', subject: 'GENSCI', files: makeFiles(10) },
+    ...(a11yDraft.tasks || []),
+  ];
+
+  await boot(cdp, 320, {
+    height: 568,
+    admin: true,
+    hash: 'my-tasks',
+    storage: { class_tasks_draft: JSON.stringify(a11yDraft), class_tasks_tour_seen: '1' },
+  });
+  await click(cdp, '#task-list [data-task-id="a11y-6files"] .task-row-title');
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === false`);
+  await click(cdp, '#dialog-date-btn');
+  await waitUntil(cdp, `!!document.querySelector('.due-picker .dp-grid')`);
+
+  const picker320 = await cdp.evaluate(`(() => {
+    const grid = document.querySelector('.dp-grid');
+    const rows = [...grid.children];
+    const headCols = [...rows[0].children];
+    const bodyCells = rows.slice(1).flatMap((r) => [...r.children]);
+    const dayBtns = [...grid.querySelectorAll('.dp-day')];
+    const tabZero = dayBtns.filter((b) => b.tabIndex === 0);
+    const dr = dayBtns[0].getBoundingClientRect();
+    const pr = document.querySelector('.due-picker').getBoundingClientRect();
+    const firstFocusedDate = tabZero[0]?.dataset.date || '';
+    tabZero[0]?.focus();
+    return {
+      gridRole: grid.getAttribute('role'),
+      labelledBy: grid.getAttribute('aria-labelledby'),
+      monthIdOk: document.getElementById('dp-month-label')?.textContent?.length > 0,
+      rowCount: rows.length,
+      allRowsRole: rows.every((r) => r.getAttribute('role') === 'row'),
+      headCount: headCols.length,
+      headOk: headCols.every((c) => c.getAttribute('role') === 'columnheader' && (c.getAttribute('aria-label') || '').length >= 6),
+      cellCount: bodyCells.length,
+      cellsOk: bodyCells.every((c) => c.getAttribute('role') === 'gridcell' && ['true', 'false'].includes(c.getAttribute('aria-selected'))),
+      tabZeroCount: tabZero.length,
+      tabMinusCount: dayBtns.filter((b) => b.tabIndex === -1).length,
+      firstFocusedDate,
+      dayW: +dr.width.toFixed(1),
+      dayH: +dr.height.toFixed(1),
+      pickerLeft: Math.round(pr.left),
+      pickerRightGap: Math.round(window.innerWidth - pr.right),
+      gridOverflow: grid.scrollWidth - grid.clientWidth,
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  })()`);
+
+  await pressKey(cdp, 'ArrowRight', 'ArrowRight', 39);
+  const afterRight = await cdp.evaluate(`document.activeElement?.dataset?.date || ''`);
+  await pressKey(cdp, 'ArrowDown', 'ArrowDown', 40);
+  const afterDown = await cdp.evaluate(`document.activeElement?.dataset?.date || ''`);
+  await pressKey(cdp, 'Home', 'Home', 36);
+  const afterHome = await cdp.evaluate(`({ d: document.activeElement?.dataset?.date || '', day: document.activeElement ? new Date(document.activeElement.dataset.date + 'T12:00:00').getDay() : -1 })`);
+  await pressKey(cdp, 'End', 'End', 35);
+  const afterEnd = await cdp.evaluate(`({ d: document.activeElement?.dataset?.date || '', day: document.activeElement ? new Date(document.activeElement.dataset.date + 'T12:00:00').getDay() : -1 })`);
+  await pressKey(cdp, 'PageDown', 'PageDown', 34);
+  const afterPageDown = await cdp.evaluate(`({ month: document.getElementById('dp-month-label')?.textContent?.trim(), d: document.activeElement?.dataset?.date || '' })`);
+  await pressKey(cdp, ' ', 'Space', 32);
+  const afterSelect = await cdp.evaluate(`({ stillFocused: document.activeElement?.classList?.contains('dp-day'), selected: document.activeElement?.closest('[role="gridcell"]')?.getAttribute('aria-selected') })`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `!document.querySelector('.due-picker')`);
+  const afterPickerEsc = await cdp.evaluate(`({ dialogOpen: !document.getElementById('task-dialog-overlay').hidden, activeId: document.activeElement?.id || '' })`);
+
+  await cdp.setMetrics(375, 667, 1);
+  await click(cdp, '#dialog-date-btn');
+  await waitUntil(cdp, `!!document.querySelector('.due-picker .dp-day')`);
+  const picker375 = await cdp.evaluate(`(() => {
+    const dr = document.querySelector('.dp-day').getBoundingClientRect();
+    return { dayW: +dr.width.toFixed(1), dayH: +dr.height.toFixed(1), pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  })()`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `!document.querySelector('.due-picker')`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === true`);
+
+  // Check #dialog-files-field with 6 and 10 files in editable & read-only at 320 and 640 (200% zoom).
+  await cdp.setMetrics(320, 568, 1);
+  await click(cdp, '#task-list [data-task-id="a11y-10files"] .task-row-title');
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === false`);
+  const files10Admin320 = await cdp.evaluate(`(() => {
+    const field = document.getElementById('dialog-files-field');
+    const label = document.getElementById('dialog-files-label');
+    const list = document.getElementById('dialog-files');
+    const attach = document.getElementById('dialog-attach-btn');
+    const rms = [...list.querySelectorAll('button')];
+    const items = [...list.querySelectorAll('.file-item')];
+    return {
+      filesHidden: field.hidden,
+      notesHidden: document.getElementById('dialog-notes-field')?.hidden,
+      orphanLabel: !!field.querySelector('label:not([for])'),
+      labelledBy: list.getAttribute('aria-labelledby'),
+      labelText: label?.textContent?.trim(),
+      attachDisabled: attach.disabled,
+      attachText: attach.textContent.trim(),
+      itemCount: items.length,
+      allRemoveUniqueNamed: rms.length === 10 && new Set(rms.map((b) => b.getAttribute('aria-label'))).size === 10 && rms.every((b) => b.textContent.trim() === 'Remove' && (b.getAttribute('aria-label') || '').startsWith('Remove ')),
+      maxItemOv: Math.max(...items.map((el) => el.scrollWidth - el.clientWidth)),
+      bodyOv: document.querySelector('#task-dialog-overlay .dialog-body').scrollWidth - document.querySelector('#task-dialog-overlay .dialog-body').clientWidth,
+    };
+  })()`);
+
+  // Removing 1 file keeps focus inside #dialog-files and re-enables #dialog-attach-btn at 9 / 10.
+  await cdp.evaluate(`document.querySelector('#dialog-files .file-item button').click()`);
+  const afterRemove1 = await cdp.evaluate(`({
+    labelText: document.getElementById('dialog-files-label')?.textContent?.trim(),
+    attachDisabled: document.getElementById('dialog-attach-btn')?.disabled,
+    focusInList: document.getElementById('dialog-files')?.contains(document.activeElement),
+  })`);
+  await click(cdp, '#toast-action');
+  await waitUntil(cdp, `document.getElementById('dialog-files')?.children?.length === 10`);
+
+  await cdp.setMetrics(640, 900, 1);
+  const files10Admin640 = await cdp.evaluate(`(() => {
+    const dlg = document.querySelector('#task-dialog-overlay .task-dialog');
+    const body = dlg.querySelector('.dialog-body');
+    const footer = dlg.querySelector('.dialog-footer');
+    return {
+      dlgH: Math.round(dlg.getBoundingClientRect().height),
+      footerOk: footer.getBoundingClientRect().bottom <= window.innerHeight + 1,
+      bodyOv: body.scrollWidth - body.clientWidth,
+    };
+  })()`);
+  await click(cdp, '#dialog-close');
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === true`);
+
+  // Read-only preview mode: 6 files + empty notes hides notes and shows all 6 files; 10 files shows both.
+  await click(cdp, '#btn-preview');
+  await waitUntil(cdp, `!!document.querySelector('#page-class-tasks:not([hidden])') && !!document.querySelector('#class-task-list [data-task-id="a11y-6files"]')`);
+  await click(cdp, '#class-task-list [data-task-id="a11y-6files"] .task-row-title');
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === false`);
+  const ro6 = await cdp.evaluate(`({
+    filesHidden: document.getElementById('dialog-files-field')?.hidden,
+    notesHidden: document.getElementById('dialog-notes-field')?.hidden,
+    labelText: document.getElementById('dialog-files-label')?.textContent?.trim(),
+    attachHidden: document.getElementById('dialog-attach-btn')?.hidden,
+    itemCount: document.getElementById('dialog-files')?.children?.length,
+    rmCount: document.querySelectorAll('#dialog-files button').length,
+  })`);
+  await click(cdp, '#dialog-close');
+  await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === true`);
+
+  check(
+    'PR A .dp-grid WAI-ARIA APG grid/roving-tabindex/Escape/sizing and #dialog-files-field 6/10 attachments',
+    picker320.gridRole === 'grid' && picker320.labelledBy === 'dp-month-label' && picker320.monthIdOk
+      && picker320.rowCount === 7 && picker320.allRowsRole && picker320.headCount === 7 && picker320.headOk
+      && picker320.cellCount === 42 && picker320.cellsOk && picker320.tabZeroCount === 1 && picker320.tabMinusCount === 41
+      && picker320.dayW >= 41.5 && picker320.dayH >= 44 && picker320.gridOverflow === 0 && picker320.pageOverflow === 0
+      && picker375.dayW >= 44 && picker375.dayH >= 44 && picker375.pageOverflow === 0
+      && afterRight !== picker320.firstFocusedDate && afterDown !== afterRight
+      && afterHome.day === 0 && afterEnd.day === 6 && afterPageDown.month !== ''
+      && afterSelect.stillFocused && afterSelect.selected === 'true'
+      && afterPickerEsc.dialogOpen && afterPickerEsc.activeId === 'dialog-date-btn'
+      && files10Admin320.filesHidden === false && files10Admin320.notesHidden === false && !files10Admin320.orphanLabel
+      && files10Admin320.labelledBy === 'dialog-files-label' && files10Admin320.labelText === 'Files (10 / 10)'
+      && files10Admin320.attachDisabled && files10Admin320.attachText === 'Max 10 files'
+      && files10Admin320.itemCount === 10 && files10Admin320.allRemoveUniqueNamed
+      && files10Admin320.maxItemOv <= 0 && files10Admin320.bodyOv <= 0
+      && afterRemove1.labelText === 'Files (9 / 10)' && afterRemove1.attachDisabled === false && afterRemove1.focusInList
+      && files10Admin640.footerOk && files10Admin640.bodyOv <= 0
+      && ro6.filesHidden === false && ro6.notesHidden === true && ro6.labelText === 'Files (6)'
+      && ro6.attachHidden === true && ro6.itemCount === 6 && ro6.rmCount === 0,
+    JSON.stringify({ picker320, picker375, afterRight, afterDown, afterHome, afterEnd, afterPageDown, afterSelect, afterPickerEsc, files10Admin320, afterRemove1, files10Admin640, ro6 }),
+  );
 }

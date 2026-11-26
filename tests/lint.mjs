@@ -373,7 +373,7 @@ function checkForbiddenComments(rel, src, errors) {
 
 function checkHtmlAndCssStructure(root, html, css, errors) {
   const propsStart = html.indexOf('class="dialog-controls"');
-  const propsEnd = propsStart >= 0 ? html.indexOf('id="dialog-doc"', propsStart) : -1;
+  const propsEnd = propsStart >= 0 ? html.indexOf('class="dialog-footer"', propsStart) : -1;
   const propsSlice = propsStart >= 0 && propsEnd > propsStart ? html.slice(propsStart, propsEnd) : html;
   for (const m of propsSlice.matchAll(/<label\b([^>]*class="[^"]*\bfield-label\b[^"]*"[^>]*)>/gi)) {
     if (!/\bfor\s*=/.test(m[1])) {
@@ -381,7 +381,7 @@ function checkHtmlAndCssStructure(root, html, css, errors) {
         rule: 'no-orphan-field-label',
         file: 'index.html',
         line: lineAt(html, (propsStart >= 0 ? propsStart : 0) + m.index),
-        message: 'Replace orphan <label class="field-label"> in .dialog-controls with <span class="field-label" id="..."> linked via aria-labelledby on its control.',
+        message: 'Replace orphan <label class="field-label"> in task dialog body with <span class="field-label" id="..."> linked via aria-labelledby on its control.',
       });
     }
   }
