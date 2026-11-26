@@ -1027,4 +1027,186 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && fold320P1.foldClearance >= 12 && !fold320P1.overflowX,
     JSON.stringify({ trustCheck, fold320P1 }),
   );
+
+  // 16. PR 3: Variant A Insights UI, cluster cues, 3-control privacy settings, focus trap, degraded storage, cross-tab sync.
+  await boot(cdp, 320, { hash: 'class-tasks' });
+  await waitUntil(cdp, `!!document.querySelector('#mine-insights-btn:not([hidden])') && !!document.querySelector('#class-task-list .task-row')`);
+  const defaultInsights = await cdp.evaluate(`(() => {
+    const btn = document.getElementById('mine-insights-btn');
+    const br = btn.getBoundingClientRect();
+    const row = document.querySelector('#class-task-list .task-row');
+    const rr = row.getBoundingClientRect();
+    const tb = document.querySelector('.tb').getBoundingClientRect();
+    const cues = [...document.querySelectorAll('#class-task-list .task-insight-cue')].map((el) => ({
+      id: el.closest('[data-task-id]')?.dataset?.taskId,
+      text: el.textContent.trim(),
+    }));
+    const standaloneCue = document.querySelector('#class-task-list [data-task-id="fx016"] .task-insight-cue');
+    const overdueCue = document.querySelector('#class-task-list [data-task-id="fx003"] .task-insight-cue');
+    return {
+      btnW: Math.round(br.width),
+      btnH: Math.round(br.height),
+      foldClearance: Math.round(tb.top - rr.bottom),
+      overflowX: document.documentElement.scrollWidth > window.innerWidth,
+      actKeyDefault: localStorage.getItem('class_tasks_activity'),
+      clusterCueCount: cues.length,
+      fx013Cue: document.querySelector('#class-task-list [data-task-id="fx013"] .task-insight-cue')?.textContent?.trim() || null,
+      standaloneHasCue: !!standaloneCue,
+      overdueHasCue: !!overdueCue,
+    };
+  })()`);
+
+  await click(cdp, '#mine-insights-btn');
+  await waitUntil(cdp, `document.getElementById('insights-overlay')?.hidden === false`);
+  const overlayOpened = await cdp.evaluate(`(() => {
+    const ov = document.getElementById('insights-overlay');
+    return {
+      focusedId: document.activeElement?.id || '',
+      summary: document.getElementById('insights-workload-summary')?.textContent?.trim() || '',
+      noticesCount: document.querySelectorAll('#insights-notices-list li').length,
+      actText: document.getElementById('insights-activity-content')?.textContent?.trim() || '',
+      footerText: document.querySelector('.insights-footer-note')?.textContent?.trim() || '',
+      overflowX: document.documentElement.scrollWidth > window.innerWidth,
+    };
+  })()`);
+  await pressKey(cdp, 'Escape', 'Escape', 27);
+  await waitUntil(cdp, `document.getElementById('insights-overlay')?.hidden === true`);
+  const restoredToInsightsBtn = await cdp.evaluate(`document.activeElement?.id === 'mine-insights-btn'`);
+
+  await click(cdp, '#settings-open');
+  await waitUntil(cdp, `document.getElementById('settings-overlay')?.hidden === false`);
+  const clearDisabledInitially = await cdp.evaluate(`document.getElementById('settings-insights-clear-start')?.disabled === true`);
+  await click(cdp, '#insights-activity-seg [data-insights-activity="on"]');
+  await waitUntil(cdp, `JSON.parse(localStorage.getItem('class_tasks_insights_prefs') || '{}').activityOptIn === true`);
+  await click(cdp, '#settings-close');
+  await waitUntil(cdp, `document.getElementById('settings-overlay')?.hidden === true`);
+
+  // Genuine transition records once; clicking same status again does not append a duplicate event.
+  await click(cdp, '#class-task-list [data-task-id="fx013"] .status-check');
+  await waitUntil(cdp, `!!document.querySelector('.status-popover:not([hidden])')`);
+  await click(cdp, '.status-popover button[data-status="in_progress"]');
+  await waitUntil(cdp, `JSON.parse(localStorage.getItem('class_tasks_activity') || '{}')?.tasks?.fx013?.e?.length === 1`);
+  await click(cdp, '#class-task-list [data-task-id="fx013"] .status-check');
+  await waitUntil(cdp, `!!document.querySelector('.status-popover:not([hidden])')`);
+  await click(cdp, '.status-popover button[data-status="in_progress"]');
+  const eventCountAfterNoop = await cdp.evaluate(`JSON.parse(localStorage.getItem('class_tasks_activity') || '{}')?.tasks?.fx013?.e?.length`);
+
+  await click(cdp, '#mine-insights-btn');
+  await waitUntil(cdp, `document.getElementById('insights-overlay')?.hidden === false`);
+  const optedInOverlayAct = await cdp.evaluate(`document.getElementById('insights-activity-content')?.textContent?.trim() || ''`);
+  await click(cdp, '#insights-open-settings');
+  await waitUntil(cdp, `document.getElementById('settings-overlay')?.hidden === false`);
+
+  // Toggle Show Insights Off -> keeps activity, hides button and task cues.
+  await click(cdp, '#insights-show-seg [data-insights-show="off"]');
+  await waitUntil(cdp, `document.getElementById('mine-insights-btn')?.hidden === true`);
+  const hiddenState = await cdp.evaluate(`({
+    btnHidden: document.getElementById('mine-insights-btn')?.hidden,
+    cueCount: document.querySelectorAll('#class-task-list .task-insight-cue').length,
+    activityStillStored: !!JSON.parse(localStorage.getItem('class_tasks_activity') || '{}')?.tasks?.fx013,
+  })`);
+  await click(cdp, '#insights-show-seg [data-insights-show="on"]');
+  await waitUntil(cdp, `document.getElementById('mine-insights-btn')?.hidden === false`);
+
+  // Clear history -> deletes activity while keeping activityOptIn: true.
+  await click(cdp, '#settings-insights-clear-start');
+  await waitUntil(cdp, `document.getElementById('settings-insights-clear-confirm')?.hidden === false`);
+  await click(cdp, '#settings-insights-clear-confirm-btn');
+  await waitUntil(cdp, `localStorage.getItem('class_tasks_activity') === null`);
+  const afterClear = await cdp.evaluate(`({
+    actKey: localStorage.getItem('class_tasks_activity'),
+    optInKept: JSON.parse(localStorage.getItem('class_tasks_insights_prefs') || '{}').activityOptIn === true,
+    clearDisabled: document.getElementById('settings-insights-clear-start')?.disabled === true,
+  })`);
+  await click(cdp, '#settings-close');
+  await waitUntil(cdp, `document.getElementById('settings-overlay')?.hidden === true`);
+
+  // Failed progress save (saveTasks() === false) must not record an activity transition.
+  await click(cdp, '#settings-open');
+  await waitUntil(cdp, `document.getElementById('settings-overlay')?.hidden === false`);
+  await click(cdp, '#insights-activity-seg [data-insights-activity="on"]');
+  await waitUntil(cdp, `JSON.parse(localStorage.getItem('class_tasks_insights_prefs') || '{}').activityOptIn === true`);
+  await click(cdp, '#settings-close');
+  await waitUntil(cdp, `document.getElementById('settings-overlay')?.hidden === true`);
+
+  const failedProgressSave = await cdp.evaluate(`(() => {
+    const beforeAct = localStorage.getItem('class_tasks_activity');
+    const origSet = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (String(k).includes('progress')) {
+        const err = new Error('Quota');
+        err.name = 'QuotaExceededError';
+        throw err;
+      }
+      return origSet.call(this, k, v);
+    };
+    try {
+      document.querySelector('#class-task-list [data-task-id="fx014"] .status-check').click();
+      const opt = document.querySelector('.status-popover button[data-status="done"]');
+      if (opt) opt.click();
+      return {
+        unchanged: localStorage.getItem('class_tasks_activity') === beforeAct,
+        noFx014: !JSON.parse(localStorage.getItem('class_tasks_activity') || '{}')?.tasks?.fx014,
+      };
+    } finally {
+      Storage.prototype.setItem = origSet;
+    }
+  })()`);
+
+  // Record again, then test deletion failure warning and immediate deletion on opt-out recovery.
+  await click(cdp, '#class-task-list [data-task-id="fx013"] .status-check');
+  await waitUntil(cdp, `!!document.querySelector('.status-popover:not([hidden])')`);
+  await click(cdp, '.status-popover button[data-status="done"]');
+  await waitUntil(cdp, `!!localStorage.getItem('class_tasks_activity')`);
+
+  const degradedCheck = await cdp.evaluate(`(() => {
+    const origRemove = Storage.prototype.removeItem;
+    Storage.prototype.removeItem = function () {
+      const err = new Error('Blocked');
+      err.name = 'SecurityError';
+      throw err;
+    };
+    try {
+      document.getElementById('settings-open').click();
+      document.querySelector('#insights-activity-seg [data-insights-activity="off"]').click();
+      const statusEl = document.getElementById('settings-insights-status');
+      const warnRole = statusEl.getAttribute('role');
+      const warnText = statusEl.textContent.trim();
+      const warnHidden = statusEl.hidden;
+      return { warnRole, warnText, warnHidden };
+    } finally {
+      Storage.prototype.removeItem = origRemove;
+    }
+  })()`);
+  // Normal opt-out after storage recovers immediately deletes activity, and storage event syncs UI.
+  await click(cdp, '#insights-activity-seg [data-insights-activity="off"]');
+  await waitUntil(cdp, `localStorage.getItem('class_tasks_activity') === null`);
+  const optOutCleaned = await cdp.evaluate(`localStorage.getItem('class_tasks_activity') === null`);
+  await click(cdp, '#settings-close');
+  await waitUntil(cdp, `document.getElementById('settings-overlay')?.hidden === true`);
+
+  // Cross-tab storage event updates button & cues without page reload.
+  await cdp.evaluate(`(() => {
+    localStorage.setItem('class_tasks_insights_prefs', JSON.stringify({ v: 1, showInsights: false, activityOptIn: false }));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'class_tasks_insights_prefs' }));
+  })()`);
+  await waitUntil(cdp, `document.getElementById('mine-insights-btn')?.hidden === true`);
+  const syncedOff = await cdp.evaluate(`document.getElementById('mine-insights-btn')?.hidden === true && document.querySelectorAll('#class-task-list .task-insight-cue').length === 0`);
+
+  check(
+    'PR 3 Variant A Insights UI, cluster cues, 3-control privacy lifecycle, degraded warning, cross-tab sync',
+    defaultInsights.btnW >= 44 && defaultInsights.btnH >= 44 && defaultInsights.foldClearance >= 12 && !defaultInsights.overflowX
+      && defaultInsights.actKeyDefault === null && defaultInsights.clusterCueCount > 0 && !!defaultInsights.fx013Cue
+      && !defaultInsights.standaloneHasCue && !defaultInsights.overdueHasCue
+      && overlayOpened.focusedId === 'insights-close' && overlayOpened.noticesCount > 0
+      && overlayOpened.actText.includes('Off by default') && overlayOpened.footerText === 'Saved on this device only'
+      && !overlayOpened.overflowX && restoredToInsightsBtn && clearDisabledInitially
+      && eventCountAfterNoop === 1 && optedInOverlayAct.includes('Status changes') && optedInOverlayAct.includes('Last marked done') && !optedInOverlayAct.includes('Currently done') && !/score|risk|streak|%/i.test(optedInOverlayAct)
+      && hiddenState.btnHidden && hiddenState.cueCount === 0 && hiddenState.activityStillStored
+      && afterClear.actKey === null && afterClear.optInKept && afterClear.clearDisabled
+      && degradedCheck.warnHidden === false && degradedCheck.warnRole === 'alert' && /suspended|could not be confirmed/i.test(degradedCheck.warnText)
+      && failedProgressSave.unchanged && failedProgressSave.noFx014
+      && optOutCleaned && syncedOff,
+    JSON.stringify({ defaultInsights, overlayOpened, restoredToInsightsBtn, eventCountAfterNoop, hiddenState, afterClear, failedProgressSave, degradedCheck, syncedOff }),
+  );
 }

@@ -20,6 +20,7 @@ let TTFiles = null;
 let openDuePicker = null;
 let calendar = null;
 let publish = null;
+let insightsUi = null;
 
 let changedIds = new Set();
 let confirmOverlayEl = null;
@@ -69,13 +70,16 @@ export function applyProgress(list) {
   list.forEach((t) => { const p = state.progress[t.id]; t.status = p ? p.status : 'not_started'; t.movedAt = p ? p.movedAt : 0; });
 }
 export function setStatus(task, status) {
-
-  motion.begin(task.id, state.progress[task.id]?.status || 'not_started', status);
+  const prevStatus = state.progress[task.id]?.status || 'not_started';
+  motion.begin(task.id, prevStatus, status);
   state.progress[task.id] = { status, movedAt: Date.now() };
   if (status === 'done') navigator.vibrate?.(12);
   applyProgress(myTasks);
   applyProgress(state.publishedTasks);
-  saveTasks();
+  const saved = saveTasks();
+  if (saved && prevStatus !== status) {
+    try { insightsUi?.recordTransition?.(task, status); } catch (e) {}
+  }
 }
 function ensureConfirmDialog() {
   if (confirmOverlayEl) return confirmOverlayEl;
@@ -191,6 +195,21 @@ export function loadTasks() {
   applyProgress(myTasks);
 }
 
+export function reloadProgressFromStorage() {
+  const next = readJSON(KEYS.progress, {});
+  state.progress = next && typeof next === 'object' && !Array.isArray(next) ? next : {};
+  applyProgress(myTasks);
+  applyProgress(state.publishedTasks);
+  if (state.currentTask && dom.dialogOverlay && !dom.dialogOverlay.hidden && !dom.dialogOverlay.classList.contains('is-closing')) {
+    const p = state.progress[state.currentTask.id];
+    state.currentTask.status = p ? p.status : 'not_started';
+    state.currentTask.movedAt = p ? p.movedAt : 0;
+    updateDialogStatus(state.currentTask);
+    updateDialogDue(state.currentTask);
+  }
+  renderAllTasks();
+}
+
 export function hasMeaningfulNotes(notes) {
   if (typeof notes !== 'string' || !notes) return false;
   if (/<img\b[^>]*\bsrc\s*=\s*["']?(?:data:image\/|uploads\/)/i.test(notes)) return true;
@@ -227,7 +246,7 @@ function createTaskIndicators(task) {
   return wrap;
 }
 
-function createTaskCard(task, catalogList = state.catalog) {
+function createTaskCard(task, catalogList = state.catalog, opts = null) {
   const article = document.createElement('article');
   article.className = 'task-card';
   article.dataset.taskId = task.id;
@@ -269,11 +288,22 @@ function createTaskCard(task, catalogList = state.catalog) {
   article.appendChild(header);
 
   const indicators = createTaskIndicators(task);
-  if (task.subject || task.dueDate || indicators) {
+  const dueText = task.dueDate ? (task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel()) : '';
+  let insightCue = null;
+  if (opts && opts.showInsights) {
+    try { insightCue = insightsUi?.getTaskCue?.(task, dueText) || null; } catch (e) {}
+  }
+  if (task.subject || task.dueDate || indicators || insightCue) {
     const footer = document.createElement('div');
     footer.className = 'task-card-footer';
     if (task.subject) footer.appendChild(createSubjectTag(task.subject, catalogList));
     if (indicators) footer.appendChild(indicators);
+    if (insightCue) {
+      const cueEl = document.createElement('span');
+      cueEl.className = 'task-insight-cue';
+      cueEl.textContent = insightCue;
+      footer.appendChild(cueEl);
+    }
     if (task.dueDate) {
       const diff = dayDiff(task.getDeadline());
       const isDone = task.status === 'done';
@@ -287,7 +317,7 @@ function createTaskCard(task, catalogList = state.catalog) {
       use.setAttribute('href', '#i-' + (diff < 0 && !isDone ? 'alarm-clock' : 'calendar'));
       icon.appendChild(use);
       const label = document.createElement('span');
-      label.textContent = isDone ? task.getDueDateDisplay() : task.getDueLabel();
+      label.textContent = dueText;
       if (!isDone) due.title = overdueNow ? `Overdue · ${task.getDueShort()}` : task.getDueShort();
       due.append(icon, label);
       footer.appendChild(due);
@@ -496,6 +526,7 @@ function createRowDate(text, iconName) {
   return due;
 }
 export function renderClassTasks() {
+  try { insightsUi?.refresh?.(); } catch (e) {}
   const board = document.querySelector('#class-board');
   board.querySelectorAll('.column-content').forEach((c) => {
     c.querySelectorAll('.task-card, .skeleton').forEach((n) => n.remove());
@@ -510,11 +541,11 @@ export function renderClassTasks() {
   const visible = searched.filter(matchesClassFilters);
   boardTasks.forEach((task) => {
     const col = board.querySelector(`.kanban-column[data-status="${STATUS_TO_COLUMN[task.status] || 'todo'}"] .column-content`);
-    if (col) col.appendChild(createTaskCard(task, liveCat));
+    if (col) col.appendChild(createTaskCard(task, liveCat, { showInsights: true }));
   });
   board.querySelectorAll('.kanban-column').forEach(updateColumn);
 
-  dom.classListEl.replaceChildren(...bucketed(visible, (t) => classUrgencyBucket(t), (b) => CLASS_BUCKET_LABELS[b] || '', (t) => createTaskRow(t, liveCat)));
+  dom.classListEl.replaceChildren(...bucketed(visible, (t) => classUrgencyBucket(t), (b) => CLASS_BUCKET_LABELS[b] || '', (t) => createTaskRow(t, liveCat, { showInsights: true })));
   if (!visible.length) {
     const none = document.createElement('p');
     none.className = 'list-empty';
@@ -893,7 +924,7 @@ function matchesClassSearch(task, q, catalogList = activeClassCatalog()) {
   return task.title.toLowerCase().includes(q) || task.subject.toLowerCase().includes(q)
     || subjectCodesMatching(q, catalogList).has(task.subject) || plainNotes(task).includes(q);
 }
-function createTaskRow(task, catalogList = state.catalog) {
+function createTaskRow(task, catalogList = state.catalog, opts = null) {
   const row = document.createElement('div');
   row.className = 'task-row';
   row.dataset.taskId = task.id;
@@ -919,8 +950,19 @@ function createTaskRow(task, catalogList = state.catalog) {
   const overdue = task.dueDate && task.status !== 'done' && task.isOverdue();
 
   const soon = !!task.dueDate && task.status !== 'done' && !overdue && dayDiff(task.getDeadline()) <= 3;
+  const dueText = task.dueDate ? (task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel()) : '';
+  let insightCue = null;
+  if (opts && opts.showInsights) {
+    try { insightCue = insightsUi?.getTaskCue?.(task, dueText) || null; } catch (e) {}
+  }
+  if (insightCue) {
+    const cueEl = document.createElement('span');
+    cueEl.className = 'task-insight-cue';
+    cueEl.textContent = insightCue;
+    main.appendChild(cueEl);
+  }
   const due = createRowDate(
-    task.status === 'done' ? task.getDueDateDisplay() : task.getDueLabel(),
+    dueText,
     task.dueDate ? (overdue ? 'alarm-clock' : 'calendar') : ''
   );
   if (overdue) due.classList.add('is-overdue');
@@ -1575,6 +1617,7 @@ export function init(deps) {
   openDuePicker = deps.openDuePicker;
   calendar = deps.calendar;
   publish = deps.publish;
+  insightsUi = deps.insightsUi || null;
 
 dom.toastEl.addEventListener('focusin', () => clearTimeout(toastTimer));
 dom.toastEl.addEventListener('focusout', () => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 3000); });

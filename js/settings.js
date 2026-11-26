@@ -10,6 +10,7 @@ let showToast = null;
 let JSON_POST = null;
 let ADMIN_KEY = null;
 let SIGNED_OUT_KEY = null;
+let onOpenSettings = null;
 
 const THEME_COLOR = { light: '#F4EFE2', dark: '#0F1226' };
 const systemQuery = typeof window !== 'undefined' && window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
@@ -91,19 +92,23 @@ function showResetConfirm(show, focus = true) {
   if (focus) (show ? dom.resetInput : dom.resetStart).focus();
 }
 
-function openSettings() {
+export function openSettings(returnEl = null) {
   showResetConfirm(false, false);
   paintThemeChoice();
+  try { onOpenSettings?.(); } catch (e) {}
   $('#settings-logout-row').hidden = !state.isAdmin;
   $('#settings-login-row').hidden = state.isAdmin || !adminHint();
+  dom.settingsOverlay._returnFocus = returnEl || dom.settingsOpen;
   openOverlay(dom.settingsOverlay);
   $('#settings-close').focus();
   document.getElementById('reset-admin-note').hidden = !state.isAdmin;
 }
 
 export function closeSettings() {
-  hideOverlay(dom.settingsOverlay);
-  dom.settingsOpen.focus();
+  const released = hideOverlay(dom.settingsOverlay);
+  const canRestore = released && released.isConnected && !released.disabled
+    && !released.closest?.('[hidden]') && (typeof released.getClientRects !== 'function' || released.getClientRects().length > 0);
+  (canRestore ? released : dom.settingsOpen).focus();
 }
 
 export function resetSectionStorage({
@@ -159,6 +164,7 @@ export function init(deps) {
   JSON_POST = deps.JSON_POST;
   ADMIN_KEY = deps.ADMIN_KEY;
   SIGNED_OUT_KEY = deps.SIGNED_OUT_KEY;
+  onOpenSettings = typeof deps.onOpenSettings === 'function' ? deps.onOpenSettings : null;
 applyChoice(savedChoice());
 dom.themeToggle.addEventListener('click', () => {
   setChoice(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
@@ -168,7 +174,7 @@ $('#theme-seg').addEventListener('click', (e) => {
   if (b) setChoice(b.dataset.themeChoice);
 });
 if (systemQuery) systemQuery.addEventListener('change', () => { if (savedChoice() === 'system') applyChoice('system'); });
-dom.settingsOpen.addEventListener('click', openSettings);
+dom.settingsOpen.addEventListener('click', () => openSettings(dom.settingsOpen));
 
 $('#settings-logout').addEventListener('click', logoutAdmin);
 $('#settings-login').addEventListener('click', async (e) => {

@@ -97,12 +97,18 @@
           <section class="page is-visible" id="page-class-tasks" data-page-view="class-tasks" aria-label="Tasks">
             <div class="page-heading">
               <p class="page-supporting-copy">Tasks posted for the class. Your progress is saved on this device only.</p>
-              <div class="mine" id="mine" aria-label="Your progress" aria-live="polite" aria-atomic="true" hidden>
-                <p class="mine-n" id="mine-n">0</p>
-                <div class="mine-t">
-                  <p class="mine-l" id="mine-l"></p>
-                  <p class="mine-next" id="mine-next"></p>
+              <div class="mine" id="mine" aria-label="Your progress" hidden>
+                <div class="mine-summary" aria-live="polite" aria-atomic="true">
+                  <p class="mine-n" id="mine-n">0</p>
+                  <div class="mine-t">
+                    <p class="mine-l" id="mine-l"></p>
+                    <p class="mine-next" id="mine-next"></p>
+                  </div>
                 </div>
+                <button class="secondary-button mine-insights-btn" type="button" id="mine-insights-btn" aria-haspopup="dialog" aria-controls="insights-overlay" hidden>
+                  <span>Insights</span>
+                  <span class="mine-insights-dot" id="mine-insights-dot" aria-hidden="true" hidden></span>
+                </button>
               </div>
               <div class="page-actions">
                 <label class="search">
@@ -484,6 +490,41 @@
               <button class="view-tab" type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
             </div>
           </div>
+          <div class="settings-row" id="settings-insights-show-row">
+            <div>
+              <p class="settings-title" id="settings-insights-show-label">Show Insights</p>
+              <p class="settings-desc">Show the Insights button and deadline cluster cues on your task list. Hiding keeps any saved activity history.</p>
+            </div>
+            <div class="view-tabs insights-seg" role="group" aria-labelledby="settings-insights-show-label" id="insights-show-seg">
+              <button class="view-tab" type="button" data-insights-show="on" aria-pressed="true">On</button>
+              <button class="view-tab" type="button" data-insights-show="off" aria-pressed="false">Off</button>
+            </div>
+          </div>
+          <div class="settings-row" id="settings-insights-activity-row">
+            <div>
+              <p class="settings-title" id="settings-insights-activity-label">Record local activity history</p>
+              <p class="settings-desc" id="settings-insights-activity-desc">Off by default. Saves your task status changes on this device only. Turning this off deletes saved history immediately.</p>
+            </div>
+            <div class="view-tabs insights-seg" role="group" aria-labelledby="settings-insights-activity-label" id="insights-activity-seg">
+              <button class="view-tab" type="button" data-insights-activity="off" aria-pressed="true">Off</button>
+              <button class="view-tab" type="button" data-insights-activity="on" aria-pressed="false">On</button>
+            </div>
+          </div>
+          <div class="settings-row" id="settings-insights-clear-row">
+            <div>
+              <p class="settings-title">Clear activity history</p>
+              <p class="settings-desc" id="settings-insights-clear-desc">Deletes saved status-change history on this device while keeping activity recording turned on.</p>
+            </div>
+            <button class="danger-button" type="button" id="settings-insights-clear-start" disabled>Clear</button>
+          </div>
+          <div class="settings-confirm" id="settings-insights-clear-confirm" hidden>
+            <p class="settings-desc" id="settings-insights-clear-prompt">Delete saved activity history on this device? Recording stays turned on if enabled.</p>
+            <div class="settings-confirm-actions">
+              <button class="text-button" type="button" id="settings-insights-clear-cancel">Cancel</button>
+              <button class="danger-button is-solid" type="button" id="settings-insights-clear-confirm-btn">Clear history</button>
+            </div>
+          </div>
+          <p class="settings-insights-status" id="settings-insights-status" role="status" aria-live="polite" hidden></p>
           <div class="settings-row">
             <div>
               <p class="settings-title">Replay tour</p>
@@ -543,6 +584,35 @@
               <button class="danger-button is-solid" type="submit" id="settings-reset-submit" disabled>Reset all data</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="task-dialog-overlay" id="insights-overlay" hidden>
+      <div class="task-dialog" role="dialog" aria-modal="true" aria-labelledby="insights-title">
+        <div class="dialog-header">
+          <h2 class="dialog-heading" id="insights-title">Insights</h2>
+          <button class="panel-close" type="button" id="insights-close" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="dialog-body insights-body">
+          <p class="form-error" id="insights-degraded-banner" role="alert" hidden></p>
+          <section class="insights-section" id="insights-workload-section" aria-labelledby="insights-workload-heading">
+            <h3 class="field-label" id="insights-workload-heading">Workload</h3>
+            <p class="dialog-summary" id="insights-workload-summary"></p>
+            <ul class="insights-list" id="insights-notices-list"></ul>
+          </section>
+          <section class="insights-section" id="insights-subjects-section" aria-labelledby="insights-subjects-heading" hidden>
+            <h3 class="field-label" id="insights-subjects-heading">Open tasks by subject</h3>
+            <ul class="insights-subjects" id="insights-subjects-list"></ul>
+          </section>
+          <section class="insights-section" id="insights-activity-section" aria-labelledby="insights-activity-heading">
+            <h3 class="field-label" id="insights-activity-heading">Local activity history</h3>
+            <div id="insights-activity-content"></div>
+          </section>
+        </div>
+        <div class="dialog-footer insights-footer">
+          <p class="insights-footer-note">Saved on this device only</p>
+          <button class="secondary-button" type="button" id="insights-open-settings">Settings</button>
         </div>
       </div>
     </div>
