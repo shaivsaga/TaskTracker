@@ -9,6 +9,7 @@ let toInputValue = null;
 let dayDiff = null;
 let subjects = null;
 let clampPopoverPosition = null;
+let scheduleModule = null;
 let calPhone = null;
 let calMode = 'month';
 let calAnchor = null;
@@ -162,7 +163,17 @@ function calKey(e, d) {
   else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); calSelect(d, true); }
 }
 
+function syncScheduleTabVisibility() {
+  const tab = document.querySelector('#cal-schedule-tab');
+  const visible = Boolean(scheduleModule && scheduleModule.hasVisibleSchedule());
+  if (tab) tab.hidden = !visible;
+  if (!visible && calMode === 'schedule') {
+    calMode = 'month';
+  }
+}
+
 function syncCalTabs() {
+  syncScheduleTabVisibility();
   document.querySelectorAll('[data-cal-mode]').forEach((b) => {
     const on = b.dataset.calMode === calMode;
     b.classList.toggle('is-active', on);
@@ -318,9 +329,44 @@ export function renderCalendar() {
   const grid = document.querySelector('#cal-grid');
   if (!grid) return;
   closeDayPopover(false);
+  syncCalTabs();
+  const isSchedule = calMode === 'schedule';
+  const schedEl = document.querySelector('#cal-schedule');
+  const todayBtn = document.querySelector('#cal-today');
+  const navBox = document.querySelector('#page-calendar .cal-nav');
+  const filtersBox = document.querySelector('#page-calendar .cal-filters');
+  const archive = document.querySelector('#cal-past-link');
+  const agendaEl = document.querySelector('#cal-agenda');
+  const emptyEl = document.querySelector('#cal-empty');
+
+  if (todayBtn) todayBtn.hidden = isSchedule;
+  if (navBox) navBox.hidden = isSchedule;
+  if (filtersBox) filtersBox.hidden = isSchedule;
+  grid.hidden = isSchedule;
+  grid.dataset.mode = calMode;
+
+  if (isSchedule) {
+    if (archive) archive.hidden = true;
+    if (agendaEl) agendaEl.hidden = true;
+    if (emptyEl) emptyEl.hidden = true;
+    const titleEl = document.querySelector('#cal-title');
+    if (titleEl) {
+      titleEl.textContent = scheduleModule && scheduleModule.getTitleText
+        ? scheduleModule.getTitleText()
+        : 'Class Schedule';
+    }
+    if (schedEl) {
+      schedEl.hidden = false;
+      scheduleModule?.render();
+    }
+    return;
+  }
+
+  if (schedEl) schedEl.hidden = true;
+  scheduleModule?.stopTimer();
+
   const { start, days } = calRange();
   const records = recordSource();
-  const archive = document.querySelector('#cal-past-link');
   if (archive) archive.hidden = !records.some((task) => task.isPast());
   const allDated = records.filter((task) => task.dueDate && !task.isPast());
   syncCalSubjectFilter(allDated);
@@ -340,7 +386,6 @@ export function renderCalendar() {
   const period = calMode === 'week' ? 'week' : 'month';
   document.querySelector('#cal-prev').setAttribute('aria-label', `Previous ${period}`);
   document.querySelector('#cal-next').setAttribute('aria-label', `Next ${period}`);
-  grid.dataset.mode = calMode;
   grid.setAttribute('role', 'region');
   grid.setAttribute('aria-labelledby', 'cal-title');
   const focusedDay = grid.contains(document.activeElement) ? document.activeElement.dataset.date : '';
@@ -391,7 +436,6 @@ export function renderCalendar() {
     }
     grid.appendChild(cell);
   }
-  const emptyEl = document.querySelector('#cal-empty');
   emptyEl.hidden = dated.length > 0;
   if (!emptyEl.hidden) {
     emptyEl.textContent = calSubjectFilter && allDated.length > 0
@@ -419,6 +463,7 @@ export function init(deps) {
   dayDiff = deps.dayDiff;
   subjects = deps.subjects;
   clampPopoverPosition = deps.clampPopoverPosition || null;
+  scheduleModule = deps.schedule || null;
   calMode = 'month';
   calAnchor = todayDate();
   calSelected = null;
@@ -443,4 +488,5 @@ export function init(deps) {
   });
   calPhone.addEventListener('change', renderCalendar);
   document.querySelectorAll('[data-cal-mode]').forEach((b) => b.addEventListener('click', () => { calMode = b.dataset.calMode; syncCalTabs(); renderCalendar(); }));
+  syncCalTabs();
 }

@@ -1420,4 +1420,115 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && ro6.attachHidden === true && ro6.itemCount === 6 && ro6.rmCount === 0,
     JSON.stringify({ picker320, picker375, dpTabWrap, dpShiftTabWrap, afterDpClear, outerTabTrap, afterRight, afterDown, afterHome, afterEnd, afterPageDown, afterSelect, afterPickerEsc, files10Admin320, afterRemove1, files10Admin640, ro6 }),
   );
+
+  // 18. PR B: Calendar defaults to month (A2), hides Schedule tab when unpublished, Admin panel edits + overlap guard + Preview + 320px/1280px layout + A4 copy.
+  await boot(cdp, 1280, { hash: 'calendar' });
+  const coldStuCal = await cdp.evaluate(`(() => ({
+    mode: document.getElementById('cal-grid')?.dataset?.mode,
+    schedTabHidden: document.getElementById('cal-schedule-tab')?.hidden === true,
+  }))()`);
+
+  const draftObj = JSON.parse(draft);
+  await boot(cdp, 1280, {
+    admin: true,
+    hash: 'my-tasks',
+    storage: { class_tasks_draft: JSON.stringify(draftObj) },
+  });
+  await click(cdp, '#schedule-toggle');
+  await waitUntil(cdp, `document.getElementById('schedule-body')?.hidden === false`);
+  await cdp.evaluate(`(() => {
+    const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
+    set('schedule-term', '2ND TERM – AY 2026-2027');
+    set('schedule-section', 'DSCT11-A');
+    set('schedule-adviser', 'Mr. Jomari V. Borja');
+    set('schedule-room', '92C ST. SCHO');
+  })()`);
+
+  const addSlotViaForm = async (day, start, end, kind, subjOrLbl, teacher = '') => {
+    await click(cdp, `#schedule-day-tabs [data-sched-day="${day}"]`);
+    await cdp.evaluate(`(() => {
+      document.getElementById('schedule-slot-start').value = ${JSON.stringify(start)};
+      document.getElementById('schedule-slot-end').value = ${JSON.stringify(end)};
+      const kEl = document.getElementById('schedule-slot-kind');
+      kEl.value = ${JSON.stringify(kind)};
+      kEl.dispatchEvent(new Event('change', { bubbles: true }));
+      if (${JSON.stringify(kind)} === 'subject') document.getElementById('schedule-slot-subject').value = ${JSON.stringify(subjOrLbl)};
+      else document.getElementById('schedule-slot-label').value = ${JSON.stringify(subjOrLbl)};
+      document.getElementById('schedule-slot-teacher').value = ${JSON.stringify(teacher)};
+    })()`);
+    await click(cdp, '#schedule-slot-submit');
+  };
+
+  await addSlotViaForm(1, '07:30', '08:30', 'subject', 'CP104', 'Mr. Salud');
+  await addSlotViaForm(1, '09:30', '09:50', 'break', 'RECESS');
+  await addSlotViaForm(3, '07:30', '09:30', 'subject', 'FINMATH101', 'Ms. Grospe');
+  // Attempt overlapping slot on Mon 08:00-09:00 -> rejected inline, slot count stays 2 on Mon.
+  await addSlotViaForm(1, '08:00', '09:00', 'subject', 'PKLP');
+  const overlapCheck = await cdp.evaluate(`({
+    status: document.getElementById('schedule-status')?.textContent || '',
+    monRows: document.querySelectorAll('#schedule-slot-list .sched-editor-row').length,
+  })`);
+
+  // Enter Preview -> Calendar -> Schedule at 1280px (desktop grid, merged FINMATH101 rowSpan=2, A4 Sunday/after-hours copy)
+  await click(cdp, '#btn-preview');
+  await waitUntil(cdp, `document.getElementById('preview-banner')?.hidden === false`);
+  await click(cdp, '.nav-item[data-page="calendar"]');
+  await waitUntil(cdp, `!document.getElementById('page-calendar').hidden && document.getElementById('cal-schedule-tab')?.hidden === false`);
+  await click(cdp, '#cal-schedule-tab');
+  await waitUntil(cdp, `document.getElementById('cal-schedule')?.hidden === false && !!document.querySelector('#cal-schedule .sched-grid')`);
+  const schedDesktop = await cdp.evaluate(`(() => {
+    const fin = document.querySelector('#cal-schedule .sched-cell[data-day="3"][data-start="07:30"]');
+    const wrap = document.querySelector('#cal-schedule .sched-grid-wrap');
+    return {
+      title: document.getElementById('cal-title')?.textContent?.trim() || '',
+      nowCopy: document.querySelector('#cal-schedule .sched-now-main')?.textContent?.trim() || '',
+      finSpan: fin ? Number(fin.dataset.rowSpan) : 0,
+      gridScrollsDesktop: wrap ? wrap.scrollWidth > wrap.clientWidth + 1 : true,
+      overflowDesktop: document.documentElement.scrollWidth > window.innerWidth + 1,
+    };
+  })()`);
+
+  // Same schedule state at 320px phone -> day pills >= 44px, zero page overflow in day list and Full week scroll mode
+  await cdp.setMetrics(320, 568);
+  await click(cdp, '#cal-schedule .sched-day-pill[data-sched-phone-day="3"]');
+  const phoneDay = await cdp.evaluate(`(() => {
+    const pills = [...document.querySelectorAll('#cal-schedule .sched-day-pill')];
+    return {
+      pillCount: pills.length,
+      minPillH: pills.reduce((m, el) => Math.min(m, el.getBoundingClientRect().height), 999),
+      wedText: document.querySelector('#cal-schedule .sched-day-list')?.textContent || '',
+      overflowPhone: document.documentElement.scrollWidth > window.innerWidth + 1,
+    };
+  })()`);
+  await click(cdp, '#cal-schedule .sched-fullweek-btn');
+  const phoneFull = await cdp.evaluate(`({
+    fullPressed: document.querySelector('#cal-schedule .sched-fullweek-btn')?.getAttribute('aria-pressed'),
+    hasFullWrap: !!document.querySelector('#cal-schedule .sched-grid-wrap.is-phone-full'),
+    overflowFull: document.documentElement.scrollWidth > window.innerWidth + 1,
+  })`);
+  await cdp.setMetrics(1280, 900);
+
+  // Exit preview and Discard schedule draft
+  await click(cdp, '#preview-exit');
+  await waitUntil(cdp, `!document.getElementById('page-my-tasks').hidden`);
+  await click(cdp, '#btn-discard');
+  await click(cdp, '#btn-discard');
+  await waitUntil(cdp, `!document.getElementById('schedule-panel') || JSON.parse(localStorage.getItem('class_tasks_draft') || '{}').schedule === undefined`);
+  const afterDiscard = await cdp.evaluate(`({
+    draftHasSched: Object.hasOwn(JSON.parse(localStorage.getItem('class_tasks_draft') || '{}'), 'schedule'),
+    schedRows: document.querySelectorAll('#schedule-slot-list .sched-editor-row').length,
+  })`);
+
+  check(
+    'PR B class timetable: month default (A2), overlap guard, A4 copy, merged 2h cell, 320px/1280px layout, and discard lifecycle',
+    coldStuCal.mode === 'month' && coldStuCal.schedTabHidden
+      && /overlap/i.test(overlapCheck.status) && overlapCheck.monRows === 2
+      && schedDesktop.title === 'Class Schedule · DSCT11-A'
+      && /No more classes today · Next: Mon 7:30 AM — CP104/.test(schedDesktop.nowCopy)
+      && schedDesktop.finSpan === 2 && !schedDesktop.gridScrollsDesktop && !schedDesktop.overflowDesktop
+      && phoneDay.pillCount === 5 && phoneDay.minPillH >= 44 && phoneDay.wedText.includes('FINMATH101') && !phoneDay.overflowPhone
+      && phoneFull.fullPressed === 'true' && phoneFull.hasFullWrap && !phoneFull.overflowFull
+      && !afterDiscard.draftHasSched && afterDiscard.schedRows === 0,
+    JSON.stringify({ coldStuCal, overlapCheck, schedDesktop, phoneDay, phoneFull, afterDiscard }),
+  );
 }

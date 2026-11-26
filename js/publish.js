@@ -21,6 +21,10 @@ let setPage = null;
 let adoptInlineImages = null;
 let rewriteNotes = null;
 let files = null;
+let canonicalSchedule = null;
+let validateSchedule = null;
+let renderScheduleEditor = null;
+let renderScheduleView = null;
 
 let lastSavedAt = null;
 let serverVersions = [];
@@ -43,11 +47,37 @@ export function createPublishIntent(makeId = newOperationId) {
 
 const publishIntent = createPublishIntent();
 
+function fallbackCanonicalSchedule(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !Array.isArray(raw.slots)) return null;
+  const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  const slots = raw.slots
+    .filter((x) => x && typeof x === 'object' && !Array.isArray(x))
+    .map((x) => {
+      const kind = x.kind || (x.subject ? 'subject' : 'activity');
+      const out = { day: x.day, start: x.start, end: x.end, kind };
+      if (kind === 'subject') out.subject = x.subject;
+      else out.label = str(x.label);
+      if (str(x.teacher)) out.teacher = str(x.teacher);
+      return out;
+    })
+    .sort((a, b) => (a.day - b.day) || String(a.start).localeCompare(String(b.start)) || String(a.end).localeCompare(String(b.end)));
+  return {
+    term: str(raw.term),
+    sectionLabel: str(raw.sectionLabel),
+    adviser: str(raw.adviser),
+    room: str(raw.room),
+    slots,
+  };
+}
+
+const scheduleSig = (s) => JSON.stringify((canonicalSchedule || fallbackCanonicalSchedule)(s));
+
 export const snapshot = () => ({
   schemaVersion: 2,
   tasks: myTasks.map((t) => t.toJSON()),
   announcements: JSON.parse(JSON.stringify(state.announcements)),
   subjects: JSON.parse(JSON.stringify(state.draftSubjects)),
+  schedule: state.draftSchedule ? JSON.parse(JSON.stringify(state.draftSchedule)) : null,
 });
 const describeDiff = (d) => [
   d.added && `${d.added} added`,
@@ -55,6 +85,7 @@ const describeDiff = (d) => [
   d.removed && `${d.removed} removed`,
   d.ann && 'announcements changed',
   d.subjectsChanged && 'subjects changed',
+  d.scheduleChanged && 'schedule changed',
 ].filter(Boolean).join(', ') || 'No changes';
 
 export function computePublishDiff(pubBoard, draftSnap, opts = {}) {
@@ -117,12 +148,24 @@ export function computePublishDiff(pubBoard, draftSnap, opts = {}) {
     }
   }
 
+  const canonFn = opts.canonicalSchedule || canonicalSchedule || fallbackCanonicalSchedule;
+  const pubSched = canonFn(pubBoard && pubBoard.schedule);
+  const draftSched = canonFn(draftSnap && draftSnap.schedule);
+  const schedChanged = !opts.clearBoard && JSON.stringify(pubSched) !== JSON.stringify(draftSched);
+  const schedAction = !schedChanged ? 'none' : (!pubSched && draftSched ? 'added' : (pubSched && !draftSched ? 'cleared' : 'updated'));
+  const scheduleDiff = {
+    changed: schedChanged,
+    action: schedAction,
+    slotCount: draftSched && Array.isArray(draftSched.slots) ? draftSched.slots.length : 0,
+  };
+
   return {
     added,
     edited,
     removed,
     announcements: { changed: annChanged, added: annAdded, removed: annRemoved, liveCount: pubAnn.length, draftCount: draftAnn.length },
     subjects: subChanges,
+    schedule: scheduleDiff,
   };
 }
 
@@ -141,9 +184,10 @@ export function diffDraft() {
 
   const pubCat = state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [];
   const subjectsChanged = catalogSignature(state.draftSubjects) !== catalogSignature(pubCat);
+  const scheduleChanged = scheduleSig(state.draftSchedule) !== scheduleSig(state.publishedSchedule);
   return {
-    added, edited, removed, ann, subjectsChanged, changed,
-    total: added + edited + removed + (ann ? 1 : 0) + (subjectsChanged ? 1 : 0),
+    added, edited, removed, ann, subjectsChanged, scheduleChanged, changed,
+    total: added + edited + removed + (ann ? 1 : 0) + (subjectsChanged ? 1 : 0) + (scheduleChanged ? 1 : 0),
   };
 }
 
@@ -172,6 +216,7 @@ export function updateAdminBar(diff) {
 export async function restoreDraft(snap) {
   const out = await store.replaceDraft(snap, {
     myTasks, Task, syncCatalog, applyProgress, saveTasks, renderAllTasks, renderAnnouncements, showToast,
+    validateSchedule, renderScheduleEditor, renderScheduleView,
   });
   return out.ok;
 }
@@ -192,6 +237,7 @@ export function setPreview(on) {
   if (on) setPage('class-tasks');
   renderAllTasks();
   renderAnnouncements();
+  renderScheduleView?.();
 }
 
 const CLEAR_PHRASE = 'CLEAR BOARD';
@@ -213,6 +259,7 @@ function renderPublishDiff() {
     tasks: state.publishedTasks.map((t) => t.toJSON()),
     announcements: state.publishedAnnouncements,
     subjects: state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [],
+    schedule: state.publishedSchedule,
   };
   const d = computePublishDiff(pubBoard, snapshot(), { clearBoard: clear });
   const addGroup = (label, items, formatter) => {
@@ -259,6 +306,14 @@ function renderPublishDiff() {
     ...d.subjects.removed.map((c) => `Removed ${c}`),
   ];
   addGroup('Subjects', subParts, (li, txt) => { li.textContent = txt; });
+  if (d.schedule && d.schedule.changed) {
+    const msg = d.schedule.action === 'added'
+      ? `Added class schedule (${d.schedule.slotCount} slot${d.schedule.slotCount === 1 ? '' : 's'})`
+      : (d.schedule.action === 'cleared'
+        ? 'Cleared class schedule'
+        : `Updated class schedule (${d.schedule.slotCount} slot${d.schedule.slotCount === 1 ? '' : 's'})`);
+    addGroup('Schedule', [msg], (li, txt) => { li.textContent = txt; });
+  }
   host.hidden = host.children.length === 0;
 }
 
@@ -388,6 +443,10 @@ export function init(deps) {
   rewriteNotes = deps.rewriteNotes;
   files = deps.files;
   armInlineConfirm = deps.armInlineConfirm || null;
+  canonicalSchedule = deps.canonicalSchedule || null;
+  validateSchedule = deps.validateSchedule || null;
+  renderScheduleEditor = deps.renderScheduleEditor || null;
+  renderScheduleView = deps.renderScheduleView || null;
 $('#publish-clear-input').addEventListener('input', syncPublishClear);
 
 $('#publish-rebase').addEventListener('click', async () => {
@@ -438,7 +497,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
       body = { ...snap, note };
     }
 
-    const unknown = catalog && catalog.unknownFor ? catalog.unknownFor(body.tasks) : [];
+    const unknown = catalog && catalog.unknownFor ? catalog.unknownFor(body.tasks, clearing ? null : body.schedule) : [];
     if (unknown.length) {
       throw new Error(`These subjects are not configured: ${unknown.join(', ')}. Add them to the catalogue before publishing.`);
     }
@@ -449,6 +508,7 @@ $('#publish-form').addEventListener('submit', async (e) => {
       tasks: body.tasks,
       announcements: body.announcements,
       subjects: sentSubjects,
+      schedule: clearing ? '__inherited__' : (body.schedule ?? null),
       note: body.note,
       clearBoard: body.clearBoard || null,
     });
@@ -488,13 +548,23 @@ $('#publish-form').addEventListener('submit', async (e) => {
     if (!board) throw new Error('Published, but the response was unreadable. Reload to check.');
     writeJSON(KEYS.cache, board);
 
+    const cleanMatch = JSON.stringify(snapshot()) === sentFingerprint;
+    if (!clearing && cleanMatch) {
+      state.hasDraftSchedule = false;
+    }
     store.adoptAuthoritativeBoard(board, { onPersistError: () => showToast('Could not update saved progress on this device.') });
     setPublished(board);
+    if (!clearing && cleanMatch) {
+      saveTasks();
+    }
     hideOverlay(dom.publishOverlay);
     renderAllTasks();
     renderAnnouncements();
+    renderScheduleEditor?.();
+    renderScheduleView?.();
+    updateAdminBar(diffDraft());
 
-    if (JSON.stringify(snapshot()) !== sentFingerprint) showToast('Published. Your newer edits are still unpublished.');
+    if (!cleanMatch) showToast('Published. Your newer edits are still unpublished.');
     else showToast('Published');
   } catch (ex) {
     err.textContent = ex.message === 'Failed to fetch' ? 'Cannot reach the server.' : ex.message;
@@ -550,8 +620,14 @@ const runDiscard = async () => {
     tasks: state.publishedTasks.map((t) => t.toJSON()),
     announcements: state.publishedAnnouncements,
     subjects: state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [],
+    schedule: state.publishedSchedule ? JSON.parse(JSON.stringify(state.publishedSchedule)) : null,
   });
-  if (ok) showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
+  if (ok) {
+    state.hasDraftSchedule = false;
+    saveTasks();
+    updateAdminBar(diffDraft());
+    showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
+  }
 };
 if (armInlineConfirm) armInlineConfirm($('#btn-discard'), 'Discard changes', 'Confirm discarding unpublished changes', runDiscard);
 else $('#btn-discard').addEventListener('click', runDiscard);

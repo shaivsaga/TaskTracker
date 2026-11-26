@@ -137,12 +137,20 @@ test('TLC trace 2 & 3 (real PHP + js/store.js + js/publish.js): post-rename cras
     fs.writeFileSync(path.join(dir, 'data', '.fault'), 'post-current-rename');
     const intent = createPublishIntent();
     const subjects = [{ code: 'CS', name: 'Computer Science', color: '#58affc', active: true }];
+    const schedule = {
+      term: '2ND TERM',
+      sectionLabel: 'DSCT11-A',
+      adviser: 'Mr. Borja',
+      room: '92C ST. SCHO',
+      slots: [{ day: 1, start: '07:30', end: '08:30', kind: 'subject', subject: 'CS' }],
+    };
     const draftPayload = {
       schemaVersion: 2,
       baseRevision: 1,
       tasks: [{ id: 't2', title: 'Task 2', subject: 'CS' }],
       announcements: [],
       subjects,
+      schedule,
       note: 'Drop t1',
     };
     const intentKey = JSON.stringify(draftPayload);
@@ -169,6 +177,7 @@ test('TLC trace 2 & 3 (real PHP + js/store.js + js/publish.js): post-rename cras
     assert.equal(retryRes.status, 200);
     assert.equal(retryBody.replayed, true);
     assert.equal(retryBody.current.revision, 2);
+    assert.deepEqual(retryBody.current.schedule, schedule);
     // Changing an unused subject changes intentKey so a new operationId is allocated instead of triggering 409 operation_conflict
     const changedSubjectsKey = JSON.stringify({
       ...draftPayload,
@@ -216,12 +225,13 @@ test('TLC trace 2 & 3 (real PHP + js/store.js + js/publish.js): post-rename cras
     });
     assert.equal(delRes.status, 200);
 
-    // Step 5: Student fetches authoritative board -> t1 progress erased, t2 preserved; resurrection forbidden
+    // Step 5: Student fetches authoritative board -> t1 progress erased, t2 + schedule preserved; resurrection forbidden
     const load3 = await stuStore.fetchBoard();
     assert.equal(load3.authoritative, true);
     assert.equal(stuState.verifiedRevision, 3);
     assert.deepEqual(stuState.verifiedDeletedIds, ['t1']);
     assert.deepEqual(Object.keys(stuState.progress), ['t2']);
+    assert.deepEqual(stuState.liveBoard.schedule, schedule);
 
     const resurrectRes = await adminFetch('api/publish.php', {
       method: 'POST',

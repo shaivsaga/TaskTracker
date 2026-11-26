@@ -160,6 +160,7 @@ export function saveTasks() {
     tasks: myTasks.map((t) => t.toJSON()),
     announcements: state.announcements,
     subjects: state.draftSubjects,
+    ...(state.hasDraftSchedule ? { schedule: state.draftSchedule } : {}),
     baseRevision: Number.isSafeInteger(state.verifiedRevision) ? state.verifiedRevision : null,
   });
   if (!progressOk) steps.push('progress');
@@ -192,6 +193,15 @@ export function loadTasks() {
   state.announcements = Array.isArray(draft.announcements) ? draft.announcements : [];
 
   state.draftSubjects = Array.isArray(draft.subjects) ? draft.subjects : [];
+  if (draft && Object.hasOwn(draft, 'schedule')) {
+    state.draftSchedule = draft.schedule && typeof draft.schedule === 'object' && !Array.isArray(draft.schedule)
+      ? draft.schedule
+      : null;
+    state.hasDraftSchedule = true;
+  } else {
+    state.draftSchedule = null;
+    state.hasDraftSchedule = false;
+  }
   applyProgress(myTasks);
 }
 

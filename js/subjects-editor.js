@@ -105,7 +105,7 @@ function confirmAddSubject() {
 function removeSubject(code) {
   const referenced = deps.referencedCodes().includes(code);
   if (referenced) {
-    dom.subjectStatus.textContent = `${code} is used by a task, so it is retired instead of removed.`;
+    dom.subjectStatus.textContent = `${code} is used by a task or schedule slot, so it is retired instead of removed.`;
     edit(code, { active: false });
     return;
   }

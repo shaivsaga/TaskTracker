@@ -12,11 +12,15 @@ export function normalizeBoard(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.tasks)) return null;
   if (data.announcements != null && !Array.isArray(data.announcements)) return null;
   const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
-  return {
+  const out = {
     ...data,
     tasks: data.tasks.filter(isObj),
     announcements: (data.announcements || []).filter((a) => isObj(a) && typeof a.text === 'string' && Number.isFinite(a.createdAt)),
   };
+  if (Object.hasOwn(out, 'schedule') && !(isObj(out.schedule) && Array.isArray(out.schedule.slots))) {
+    delete out.schedule;
+  }
+  return out;
 }
 
 function subjectSnapshotFor(stateObj, code) {
@@ -195,7 +199,10 @@ export function createBoardStore({
   }
 
   async function replaceDraft(snap, hooks) {
-    const { myTasks, Task, syncCatalog, applyProgress, saveTasks, renderAllTasks, renderAnnouncements, showToast } = hooks;
+    const {
+      myTasks, Task, syncCatalog, applyProgress, saveTasks, renderAllTasks, renderAnnouncements, showToast,
+      validateSchedule, renderScheduleEditor, renderScheduleView,
+    } = hooks;
     const incoming = Array.isArray(snap && snap.tasks) ? snap.tasks : [];
     const keep = new Set(incoming.map((t) => String(t && t.id)));
     const publishedIds = new Set(stateObj.publishedTasks.map((t) => String(t.id)));
@@ -231,10 +238,27 @@ export function createBoardStore({
         syncCatalog?.(checked.subjects);
       }
     }
+    if (snap && Object.hasOwn(snap, 'schedule')) {
+      if (snap.schedule === null) {
+        stateObj.draftSchedule = null;
+        stateObj.hasDraftSchedule = true;
+      } else if (typeof validateSchedule === 'function') {
+        const checkedSched = validateSchedule(snap.schedule);
+        if (!checkedSched.error) {
+          stateObj.draftSchedule = checkedSched.schedule;
+          stateObj.hasDraftSchedule = true;
+        }
+      } else if (snap.schedule && typeof snap.schedule === 'object' && !Array.isArray(snap.schedule) && Array.isArray(snap.schedule.slots)) {
+        stateObj.draftSchedule = JSON.parse(JSON.stringify(snap.schedule));
+        stateObj.hasDraftSchedule = true;
+      }
+    }
     applyProgress?.(myTasks);
     const saved = saveTasks ? saveTasks() : true;
     renderAllTasks?.();
     renderAnnouncements?.();
+    renderScheduleEditor?.();
+    renderScheduleView?.();
     return { ok: true, saved, recovered: prepared.recovered };
   }
 

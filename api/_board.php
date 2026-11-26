@@ -149,6 +149,154 @@ function tt_subject_retired($code) {
     return ['code' => (string)$code, 'name' => (string)$code, 'color' => '#c3c7d6', 'active' => false];
 }
 
+// ---- schedule --------------------------------------------------------------------------------
+const TT_SCHEDULE_MAX_SLOTS = 80;
+const TT_SCHEDULE_MAX_META = 80;
+const TT_SCHEDULE_MAX_LABEL = 40;
+const TT_SCHEDULE_TIME = '/^([01]\d|2[0-3]):[0-5]\d$/D';
+
+// Validate a class schedule object (mirrors logic.js validateSchedule()). Returns [schedule, null]
+// or [null, error]. Null yields [null, null].
+function tt_schedule_validate($raw) {
+    if ($raw === null) return [null, null];
+    if (!is_array($raw) || ($raw !== [] && array_is_list($raw))) {
+        return [null, 'Schedule must be an object.'];
+    }
+    $meta = [];
+    foreach (['term', 'sectionLabel', 'adviser', 'room'] as $field) {
+        $val = $raw[$field] ?? null;
+        if ($val === null) {
+            $meta[$field] = '';
+            continue;
+        }
+        if (!is_string($val) || !mb_check_encoding($val, 'UTF-8')) {
+            return [null, "Schedule $field must be text."];
+        }
+        $trimmed = trim($val);
+        if (mb_strlen($trimmed, 'UTF-8') > TT_SCHEDULE_MAX_META) {
+            return [null, "Schedule $field must be " . TT_SCHEDULE_MAX_META . ' characters or fewer.'];
+        }
+        if (preg_match('/[\x00-\x1f\x7f]/', $trimmed)) {
+            return [null, "Schedule $field has control characters."];
+        }
+        $meta[$field] = $trimmed;
+    }
+    if (!array_key_exists('slots', $raw) || !is_array($raw['slots']) || ($raw['slots'] !== [] && !array_is_list($raw['slots']))) {
+        return [null, 'Schedule slots must be a list.'];
+    }
+    if (count($raw['slots']) > TT_SCHEDULE_MAX_SLOTS) {
+        return [null, 'Too many schedule slots (max ' . TT_SCHEDULE_MAX_SLOTS . ').'];
+    }
+    $dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    $parsed = [];
+    foreach ($raw['slots'] as $i => $slot) {
+        $n = $i + 1;
+        if (!is_array($slot) || ($slot !== [] && array_is_list($slot))) {
+            return [null, "Schedule slot $n is not an object."];
+        }
+        $day = $slot['day'] ?? null;
+        if (!is_int($day) || $day < 1 || $day > 5) {
+            return [null, "Slot $n needs an integer day from 1 (Mon) to 5 (Fri)."];
+        }
+        $start = $slot['start'] ?? null;
+        $end = $slot['end'] ?? null;
+        if (!is_string($start) || !preg_match(TT_SCHEDULE_TIME, $start)) {
+            return [null, "Slot $n needs a 24-hour start time like 07:30."];
+        }
+        if (!is_string($end) || !preg_match(TT_SCHEDULE_TIME, $end)) {
+            return [null, "Slot $n needs a 24-hour end time like 08:30."];
+        }
+        if (strcmp($start, $end) >= 0) {
+            return [null, "Slot $n end time must be after start time."];
+        }
+        $kind = $slot['kind'] ?? null;
+        if ($kind === null && !array_key_exists('kind', $slot)) {
+            if (is_string($slot['subject'] ?? null) && trim($slot['subject']) !== '') {
+                $kind = 'subject';
+            } else {
+                return [null, "Slot $n needs a kind (subject, break, or activity)."];
+            }
+        }
+        if (!in_array($kind, ['subject', 'break', 'activity'], true)) {
+            return [null, "Slot $n has an invalid kind."];
+        }
+        $teacher = '';
+        if (array_key_exists('teacher', $slot) && $slot['teacher'] !== null) {
+            if (!is_string($slot['teacher']) || !mb_check_encoding($slot['teacher'], 'UTF-8')) {
+                return [null, "Slot $n teacher must be text."];
+            }
+            $teacher = trim($slot['teacher']);
+            if (mb_strlen($teacher, 'UTF-8') > TT_SCHEDULE_MAX_META) {
+                return [null, "Slot $n teacher must be " . TT_SCHEDULE_MAX_META . ' characters or fewer.'];
+            }
+            if (preg_match('/[\x00-\x1f\x7f]/', $teacher)) {
+                return [null, "Slot $n teacher has control characters."];
+            }
+        }
+        $out = ['day' => $day, 'start' => $start, 'end' => $end, 'kind' => $kind];
+        if ($kind === 'subject') {
+            $subj = $slot['subject'] ?? null;
+            if (!is_string($subj) || !preg_match(TT_SUBJECT_CODE, $subj)) {
+                return [null, "Slot $n needs a valid subject code."];
+            }
+            if (in_array(strtolower($subj), ['__proto__', 'prototype', 'constructor'], true)) {
+                return [null, "Slot $n uses a reserved subject code."];
+            }
+            $out['subject'] = $subj;
+        } else {
+            $lbl = $slot['label'] ?? null;
+            if (!is_string($lbl) || !mb_check_encoding($lbl, 'UTF-8')) {
+                return [null, "Slot $n needs a label."];
+            }
+            $lbl = trim($lbl);
+            $len = mb_strlen($lbl, 'UTF-8');
+            if ($len === 0 || $len > TT_SCHEDULE_MAX_LABEL) {
+                return [null, "Slot $n needs a label of 1-" . TT_SCHEDULE_MAX_LABEL . ' characters.'];
+            }
+            if (preg_match('/[\x00-\x1f\x7f]/', $lbl)) {
+                return [null, "Slot $n label has control characters."];
+            }
+            $out['label'] = $lbl;
+        }
+        if ($teacher !== '') $out['teacher'] = $teacher;
+        $parsed[] = $out;
+    }
+
+    usort($parsed, function ($a, $b) {
+        return ($a['day'] <=> $b['day']) ?: strcmp($a['start'], $b['start']) ?: strcmp($a['end'], $b['end']);
+    });
+    for ($i = 1; $i < count($parsed); $i++) {
+        $prev = $parsed[$i - 1];
+        $cur = $parsed[$i];
+        if ($prev['day'] === $cur['day'] && strcmp($prev['end'], $cur['start']) > 0) {
+            return [null, "Schedule slots overlap on {$dayNames[$cur['day']]} ({$prev['start']}-{$prev['end']} and {$cur['start']}-{$cur['end']})."];
+        }
+    }
+
+    return [[
+        'term'         => $meta['term'],
+        'sectionLabel' => $meta['sectionLabel'],
+        'adviser'      => $meta['adviser'],
+        'room'         => $meta['room'],
+        'slots'        => $parsed,
+    ], null];
+}
+
+// Every schedule slot of kind "subject" must resolve in the submitted catalog.
+function tt_schedule_subjects_cover($schedule, $subjects) {
+    if ($schedule === null || !is_array($schedule['slots'] ?? null)) return null;
+    $known = [];
+    foreach ($subjects as $s) $known[$s['code']] = true;
+    foreach ($schedule['slots'] as $i => $slot) {
+        if (($slot['kind'] ?? null) !== 'subject') continue;
+        $code = $slot['subject'] ?? '';
+        if (!isset($known[$code])) {
+            return 'Schedule slot ' . ($i + 1) . " uses subject \"$code\", which is not in the catalog.";
+        }
+    }
+    return null;
+}
+
 // ---- identifiers -----------------------------------------------------------------------------
 const TT_SAFE_ID = '/^[\w.\-]{1,64}$/D';
 

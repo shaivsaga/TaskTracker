@@ -90,4 +90,18 @@ export function cacheDom() {
   dom.insightsClearCancel = document.querySelector('#settings-insights-clear-cancel');
   dom.insightsClearConfirmBtn = document.querySelector('#settings-insights-clear-confirm-btn');
   dom.insightsSettingsStatus = document.querySelector('#settings-insights-status');
+  dom.calScheduleTab = document.querySelector('#cal-schedule-tab');
+  dom.calSchedule = document.querySelector('#cal-schedule');
+  dom.schedulePanel = document.querySelector('#schedule-panel');
+  dom.scheduleToggle = document.querySelector('#schedule-toggle');
+  dom.scheduleBody = document.querySelector('#schedule-body');
+  dom.scheduleTerm = document.querySelector('#schedule-term');
+  dom.scheduleSection = document.querySelector('#schedule-section');
+  dom.scheduleAdviser = document.querySelector('#schedule-adviser');
+  dom.scheduleRoom = document.querySelector('#schedule-room');
+  dom.scheduleDayTabs = document.querySelector('#schedule-day-tabs');
+  dom.scheduleSlotList = document.querySelector('#schedule-slot-list');
+  dom.scheduleAddForm = document.querySelector('#schedule-add-form');
+  dom.scheduleClearBtn = document.querySelector('#schedule-clear-btn');
+  dom.scheduleStatus = document.querySelector('#schedule-status');
 }

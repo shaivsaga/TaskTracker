@@ -14,7 +14,15 @@ import {
   pageFromHash,
   taskIdOk,
   STATUS_LABELS,
-  statusChangeMessage
+  statusChangeMessage,
+  SCHEDULE_MAX_SLOTS,
+  SCHEDULE_MAX_META,
+  SCHEDULE_MAX_LABEL,
+  SCHEDULE_KINDS,
+  validateSchedule,
+  canonicalSchedule,
+  resolveCurrentSlot,
+  buildWeekGrid
 } from '../logic.js';
 import { summarizeMine, classUrgencyBucket, orderClassTasks } from '../js/tasks.js';
 
@@ -370,4 +378,15 @@ test('classUrgencyBucket and orderClassTasks place Overdue this week ahead of Du
     const ordered = orderClassTasks([done, undated, upcoming, dueTomorrow, dueLaterToday, rangeEndingTomorrow, overdueToday], sortTasks, dayDiff);
     assert.deepEqual(ordered.map((t) => t.id), ['o1', 't1', 't2', 'r1', 'u1', 'n1', 'd1']);
   });
+});
+
+test('logic.js exports pure class schedule constants and helpers', () => {
+  assert.equal(SCHEDULE_MAX_SLOTS, 80);
+  assert.equal(SCHEDULE_MAX_META, 80);
+  assert.equal(SCHEDULE_MAX_LABEL, 40);
+  assert.deepEqual(SCHEDULE_KINDS, ['subject', 'break', 'activity']);
+  assert.equal(typeof validateSchedule, 'function');
+  assert.equal(typeof canonicalSchedule, 'function');
+  assert.equal(typeof resolveCurrentSlot, 'function');
+  assert.equal(typeof buildWeekGrid, 'function');
 });

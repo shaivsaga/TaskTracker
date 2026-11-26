@@ -75,6 +75,7 @@ export function buildTransferPayload(activeSection = currentSection() || 'a', op
       tasks: myTasks.map((t) => t.toJSON()),
       announcements: state.announcements,
       subjects: state.draftSubjects,
+      ...(state.hasDraftSchedule ? { schedule: state.draftSchedule } : {}),
     }
     : null;
   const prepared = prepareTransferPayload({
@@ -105,7 +106,7 @@ function syncTransferDraftUi() {
   const include = Boolean(chk && chk.checked);
   if (note) {
     note.textContent = include
-      ? 'Includes your unpublished draft tasks, announcements, and subjects alongside your task progress.'
+      ? 'Includes your unpublished draft tasks, announcements, subjects, and schedule alongside your task progress.'
       : 'Your progress only. Your unpublished draft stays on this device unless you check this box.';
   }
 }
