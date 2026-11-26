@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createBoardStore, normalizeBoard } from '../js/store.js';
+import { createInsightsRuntimeState, getInsightsStorageStatus } from '../js/insights-store.js';
 
 function makeEnv({ fetchFn, writeOk = true } = {}) {
   const mem = new Map();
@@ -182,4 +183,92 @@ test('normalizeBoard rejects non-board values and filters invalid announcements'
   });
   assert.equal(b.tasks.length, 1);
   assert.equal(b.announcements.length, 1);
+});
+
+test('applyDeletionAuthority prunes activity when progress had 0 hits and isolates activity failures from progress authority', () => {
+  const mem = new Map();
+  const actMap = new Map([
+    ['class_tasks_activity', JSON.stringify({
+      v: 1,
+      tasks: {
+        gone: { s: 'CS', d: null, r: 0, e: [[2, 10]], lastSec: 10 },
+        keep: { s: 'CS', d: null, r: 0, e: [[1, 20]], lastSec: 20 },
+      },
+    })],
+  ]);
+  const rt1 = createInsightsRuntimeState();
+  const stateObj1 = { progress: { keep: { status: 'in_progress', movedAt: 5 } }, verifiedDeletedIds: ['gone'] };
+  const store1 = createBoardStore({
+    read: (k, fb) => (mem.has(k) ? mem.get(k) : fb),
+    write: (k, v) => { mem.set(k, structuredClone(v)); return true; },
+    stateObj: stateObj1,
+    storage: {
+      getItem: (k) => (actMap.has(k) ? actMap.get(k) : null),
+      setItem: (k, v) => actMap.set(k, String(v)),
+      removeItem: (k) => actMap.delete(k),
+    },
+    runtimeState: rt1,
+  });
+
+  const out1 = store1.applyDeletionAuthority();
+  assert.equal(out1.ok, true);
+  assert.deepEqual(out1.removed, []);
+  assert.deepEqual(Object.keys(JSON.parse(actMap.get('class_tasks_activity')).tasks), ['keep']);
+
+  // Dual failure in activity storage must never roll back KEYS.progress, and must retry cleanup on recovery
+  const progMem = new Map();
+  const rt2 = createInsightsRuntimeState();
+  const actSeed = JSON.stringify({
+    v: 1,
+    tasks: {
+      gone: { s: '', d: null, r: 0, e: [[2, 10]], lastSec: 10 },
+      keep: { s: '', d: null, r: 0, e: [[1, 20]], lastSec: 20 },
+    },
+  });
+  const dualMap = new Map([['class_tasks_activity', actSeed]]);
+  let failActivityOps = true;
+  const degradedReports = [];
+  const stateObj2 = {
+    progress: { gone: { status: 'done', movedAt: 10 }, keep: { status: 'in_progress', movedAt: 20 } },
+    verifiedDeletedIds: ['gone'],
+  };
+  const store2 = createBoardStore({
+    read: (k, fb) => (progMem.has(k) ? progMem.get(k) : fb),
+    write: (k, v) => { progMem.set(k, structuredClone(v)); return true; },
+    stateObj: stateObj2,
+    storage: {
+      getItem: (k) => {
+        if (failActivityOps && k === 'class_tasks_activity') throw Object.assign(new Error('denied'), { name: 'SecurityError' });
+        return dualMap.has(k) ? dualMap.get(k) : null;
+      },
+      setItem: (k, v) => {
+        if (failActivityOps && k === 'class_tasks_activity') throw Object.assign(new Error('denied'), { name: 'SecurityError' });
+        dualMap.set(k, String(v));
+      },
+      removeItem: (k) => {
+        if (failActivityOps && k === 'class_tasks_activity') throw Object.assign(new Error('denied'), { name: 'SecurityError' });
+        dualMap.delete(k);
+      },
+    },
+    runtimeState: rt2,
+  });
+
+  const out2 = store2.applyDeletionAuthority({ onActivityDegraded: (info) => degradedReports.push(info) });
+  assert.equal(out2.ok, true, 'progress deletion authority stays intact');
+  assert.deepEqual(out2.removed, ['gone']);
+  assert.deepEqual(Object.keys(stateObj2.progress), ['keep']);
+  assert.deepEqual(Object.keys(progMem.get('class_tasks_progress')), ['keep']);
+  assert.equal(degradedReports.length, 1);
+  assert.equal(degradedReports[0].deleted, false);
+  assert.equal(degradedReports[0].pendingCleanup, true);
+  assert.equal(getInsightsStorageStatus({ runtimeState: rt2 }).activitySuspended, true);
+
+  // Storage recovers -> next authority run retries queued cleanup cleanly
+  failActivityOps = false;
+  const out3 = store2.applyDeletionAuthority({ onActivityDegraded: (info) => degradedReports.push(info) });
+  assert.equal(out3.ok, true);
+  assert.deepEqual(Object.keys(JSON.parse(dualMap.get('class_tasks_activity')).tasks), ['keep']);
+  assert.equal(getInsightsStorageStatus({ runtimeState: rt2 }).activitySuspended, false);
+  assert.equal(getInsightsStorageStatus({ runtimeState: rt2 }).degraded, false);
+  assert.equal(degradedReports.length, 1);
 });

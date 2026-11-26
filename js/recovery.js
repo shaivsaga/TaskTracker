@@ -15,19 +15,32 @@ function markerIds(deletedIds) {
   return out;
 }
 
-export function filterDeletedProgress(progress, deletedIds) {
-  const source = isObject(progress) ? progress : {};
+function filterIdMap(source, deletedIds) {
+  const obj = isObject(source) ? source : {};
   const ids = markerIds(deletedIds);
-  if (ids === null || ids.length === 0) return { progress: { ...source }, removed: [] };
+  if (ids === null || ids.length === 0) return { next: { ...obj }, removed: [] };
 
   const gone = new Set(ids);
   const next = {};
   const removed = [];
-  for (const [id, value] of Object.entries(source)) {
+  for (const [id, value] of Object.entries(obj)) {
     if (gone.has(id)) { removed.push(id); continue; }
     next[id] = value;
   }
+  return { next, removed };
+}
+
+export function filterDeletedProgress(progress, deletedIds) {
+  const { next, removed } = filterIdMap(progress, deletedIds);
   return { progress: next, removed };
+}
+
+export function filterDeletedActivity(activity, deletedIds) {
+  if (!isObject(activity) || !isObject(activity.tasks)) {
+    return { activity: null, removed: [] };
+  }
+  const { next, removed } = filterIdMap(activity.tasks, deletedIds);
+  return { activity: { ...activity, tasks: next }, removed };
 }
 
 export function nextAuthority(known, board) {

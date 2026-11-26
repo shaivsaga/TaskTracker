@@ -112,9 +112,10 @@ export function resetSectionStorage({
   adminKey = ADMIN_KEY || sectionKey('class_tasks_admin', section),
   signedOutKey = SIGNED_OUT_KEY || sectionKey('class_tasks_signed_out', section),
   cacheKey = keysForSection(section).cache,
+  insightsPrefsKey = sectionKey('class_tasks_insights_prefs', section),
 } = {}) {
   const prefix = sectionKey('class_tasks_', section);
-  const keep = new Set([...DEVICE_KEEP, adminKey, signedOutKey, cacheKey].filter(Boolean));
+  const keep = new Set([...DEVICE_KEEP, adminKey, signedOutKey, cacheKey, insightsPrefsKey].filter(Boolean));
   try {
     storageKeys(storage)
       .filter((k) => k.startsWith(prefix) && !keep.has(k))
