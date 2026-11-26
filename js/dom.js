@@ -71,4 +71,22 @@ export function cacheDom() {
   dom.tourSample = document.querySelector('#tour-sample');
   dom.transferOverlay = document.querySelector('#transfer-overlay');
   dom.importOverlay = document.querySelector('#import-overlay');
+  dom.mineInsightsBtn = document.querySelector('#mine-insights-btn');
+  dom.mineInsightsDot = document.querySelector('#mine-insights-dot');
+  dom.insightsOverlay = document.querySelector('#insights-overlay');
+  dom.insightsClose = document.querySelector('#insights-close');
+  dom.insightsDegradedBanner = document.querySelector('#insights-degraded-banner');
+  dom.insightsWorkloadSummary = document.querySelector('#insights-workload-summary');
+  dom.insightsNoticesList = document.querySelector('#insights-notices-list');
+  dom.insightsSubjectsSection = document.querySelector('#insights-subjects-section');
+  dom.insightsSubjectsList = document.querySelector('#insights-subjects-list');
+  dom.insightsActivityContent = document.querySelector('#insights-activity-content');
+  dom.insightsOpenSettings = document.querySelector('#insights-open-settings');
+  dom.insightsShowSeg = document.querySelector('#insights-show-seg');
+  dom.insightsActivitySeg = document.querySelector('#insights-activity-seg');
+  dom.insightsClearStart = document.querySelector('#settings-insights-clear-start');
+  dom.insightsClearConfirm = document.querySelector('#settings-insights-clear-confirm');
+  dom.insightsClearCancel = document.querySelector('#settings-insights-clear-cancel');
+  dom.insightsClearConfirmBtn = document.querySelector('#settings-insights-clear-confirm-btn');
+  dom.insightsSettingsStatus = document.querySelector('#settings-insights-status');
 }

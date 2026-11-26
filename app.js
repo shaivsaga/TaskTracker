@@ -22,6 +22,7 @@ import * as bin from './js/bin.js';
 import * as subjects from './js/subjects.js';
 import * as subjectsEditor from './js/subjects-editor.js';
 import { selectNoticeChanges } from './js/update-notice.js';
+import { insightsUi } from './js/insights-ui.js';
 
 cacheDom();
 
@@ -61,7 +62,7 @@ const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.inclu
 
 tasks.init({
   Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, sanitizeDoc, clampPopoverPosition, myTasks,
-  isEditable, createSubjectTag, startNewTask, TTFiles, openDuePicker, calendar, publish,
+  isEditable, createSubjectTag, startNewTask, TTFiles, openDuePicker, calendar, publish, insightsUi,
 });
 
 function setPublished(data) {
@@ -154,6 +155,7 @@ async function loadPublished() {
   const note = document.querySelector('#sync-note');
   const { board, authoritative, offline, cleaned } = await store.fetchBoard({
     onPersistError: () => tasks.showToast('Could not update saved progress on this device.'),
+    onActivityDegraded: (res) => insightsUi.handleStorageDegraded(res),
   });
   note.hidden = !offline;
 
@@ -586,6 +588,18 @@ dom.dialogDuplicate.addEventListener('click', () => {
 settings.init({
   $, adminHint, signIn, showToast: tasks.showToast,
   JSON_POST, ADMIN_KEY, SIGNED_OUT_KEY,
+  onOpenSettings: () => insightsUi.syncSettings(),
+});
+
+insightsUi.init({
+  getTasks: tasks.classTasksSource,
+  getProgress: () => state.progress,
+  getCatalog: tasks.activeClassCatalog,
+  createSubjectTag,
+  renderClassTasks: tasks.renderClassTasks,
+  renderAllTasks: tasks.renderAllTasks,
+  openSettings: settings.openSettings,
+  reloadProgressFromStorage: tasks.reloadProgressFromStorage,
 });
 
 tour.init({
@@ -600,7 +614,7 @@ transfer.init({
   snapshot: publish.snapshot, restoreDraft: publish.restoreDraft, mergeProgress, Task, taskIdOk, STATUS_ORDER: tasks.STATUS_ORDER,
 });
 
-const TRAP_SELECTORS = ['.confirm-overlay', '#notice-overlay', '#import-overlay', '#transfer-overlay', '#tour-overlay', '#quick-overlay', '#publish-overlay', '#history-overlay', '#settings-overlay', '#task-dialog-overlay'];
+const TRAP_SELECTORS = ['.confirm-overlay', '#notice-overlay', '#import-overlay', '#transfer-overlay', '#tour-overlay', '#quick-overlay', '#publish-overlay', '#history-overlay', '#insights-overlay', '#settings-overlay', '#task-dialog-overlay'];
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;
