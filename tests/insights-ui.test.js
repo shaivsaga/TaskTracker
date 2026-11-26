@@ -369,6 +369,8 @@ test('three separate settings controls: opt-in recording, show/hide keeping hist
   h.controller.openInsights(h.uiDom.mineInsightsBtn);
   const actText = h.uiDom.insightsActivityContent.textContent;
   assert.match(actText, /Status changes/);
+  assert.match(actText, /Last marked done/);
+  assert.doesNotMatch(actText, /Currently done/);
   assert.match(actText, /2/);
   assert.doesNotMatch(actText, /risk|score|streak|%/i);
   h.controller.closeInsights(true);
@@ -545,5 +547,54 @@ test('activity read failure when opted in surfaces degraded warning immediately 
   assert.equal(h.uiDom.insightsSettingsStatus.classList.contains('is-warning'), true);
   assert.equal(h.uiDom.insightsSettingsStatus.getAttribute('role'), 'alert');
   assert.match(h.uiDom.insightsSettingsStatus.textContent, /suspended/i);
+  h.controller.dispose();
+});
+
+test('degraded-storage and pending-cleanup warnings always override stale non-warning notices', () => {
+  const { storage, mode } = makeStorage();
+  const keys = insightsKeysFor('');
+  const h = makeHarness({
+    tasks: [makeTask('w1', '2026-11-12')],
+    storage,
+    nowMs: Date.UTC(2026, 10, 8, 12, 0, 0),
+  });
+
+  h.uiDom.settingsOverlay.hidden = false;
+  h.controller.syncSettings();
+  h.buttons.showOffBtn.dispatchEvent({ type: 'click', target: h.buttons.showOffBtn });
+  assert.equal(h.uiDom.insightsSettingsStatus.classList.contains('is-warning'), false);
+  assert.equal(h.uiDom.insightsSettingsStatus.getAttribute('role'), 'status');
+  assert.match(h.uiDom.insightsSettingsStatus.textContent, /hidden on your task list/i);
+
+  // Subsequent degraded state via handleStorageDegraded overrides stale calm notice immediately.
+  h.rt.degraded = true;
+  h.rt.activitySuspended = true;
+  h.rt.lastWarning = 'Browser storage is degraded; local activity processing is suspended.';
+  h.controller.handleStorageDegraded({ degraded: true, warning: h.rt.lastWarning });
+  assert.equal(h.uiDom.insightsSettingsStatus.hidden, false);
+  assert.equal(h.uiDom.insightsSettingsStatus.classList.contains('is-warning'), true);
+  assert.equal(h.uiDom.insightsSettingsStatus.getAttribute('role'), 'alert');
+  assert.equal(h.uiDom.insightsSettingsStatus.textContent, 'Browser storage is degraded; local activity processing is suspended.');
+
+  // Also check pending cleanup precedence over a subsequent Show Insights success toggle.
+  h.rt.degraded = false;
+  h.rt.activitySuspended = false;
+  h.rt.lastWarning = null;
+  storage.setItem(keys.prefs, JSON.stringify({ v: 1, showInsights: false, activityOptIn: true }));
+  storage.setItem(keys.activity, JSON.stringify({ v: 1, tasks: { w1: { s: 'GENSCI', d: null, r: 0, e: [[1, 1794139200]], lastSec: 1794139200 } } }));
+  mode.failRemove = true;
+  h.controller.syncSettings();
+  h.buttons.showOnBtn.dispatchEvent({ type: 'click', target: h.buttons.showOnBtn });
+  assert.equal(h.uiDom.insightsSettingsStatus.classList.contains('is-warning'), false);
+  assert.match(h.uiDom.insightsSettingsStatus.textContent, /enabled on your task list/i);
+  h.rt.pendingActivityPurge = true;
+  h.rt.activitySuspended = true;
+  h.rt.lastWarning = 'Pending activity deletion could not be confirmed.';
+  h.controller.syncSettings();
+  assert.equal(h.uiDom.insightsSettingsStatus.classList.contains('is-warning'), true);
+  assert.equal(h.uiDom.insightsSettingsStatus.getAttribute('role'), 'alert');
+  assert.equal(h.uiDom.insightsSettingsStatus.textContent, 'Could not purge pending activity history; deletion could not be confirmed.');
+
+  mode.failRemove = false;
   h.controller.dispose();
 });

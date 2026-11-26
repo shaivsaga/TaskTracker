@@ -1201,7 +1201,7 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && overlayOpened.focusedId === 'insights-close' && overlayOpened.noticesCount > 0
       && overlayOpened.actText.includes('Off by default') && overlayOpened.footerText === 'Saved on this device only'
       && !overlayOpened.overflowX && restoredToInsightsBtn && clearDisabledInitially
-      && eventCountAfterNoop === 1 && optedInOverlayAct.includes('Status changes') && !/score|risk|streak|%/i.test(optedInOverlayAct)
+      && eventCountAfterNoop === 1 && optedInOverlayAct.includes('Status changes') && optedInOverlayAct.includes('Last marked done') && !optedInOverlayAct.includes('Currently done') && !/score|risk|streak|%/i.test(optedInOverlayAct)
       && hiddenState.btnHidden && hiddenState.cueCount === 0 && hiddenState.activityStillStored
       && afterClear.actKey === null && afterClear.optInKept && afterClear.clearDisabled
       && degradedCheck.warnHidden === false && degradedCheck.warnRole === 'alert' && /suspended|could not be confirmed/i.test(degradedCheck.warnText)

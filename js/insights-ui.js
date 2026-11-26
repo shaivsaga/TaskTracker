@@ -208,7 +208,7 @@ export function createInsightsController() {
     const items = [
       { label: 'Status changes', value: String(summary.transitionCount) },
       { label: 'Tasks updated', value: String(summary.trackedTasks) },
-      { label: 'Currently done', value: String(summary.completedCount) },
+      { label: 'Last marked done', value: String(summary.completedCount) },
       { label: 'Last check-in', value: formatCheckInTime(summary.lastCheckInSec) },
     ];
     for (const metric of items) {
@@ -346,15 +346,17 @@ export function createInsightsController() {
     let text = '';
     let isWarning = false;
 
-    if (actionNotice && actionNotice.text) {
+    if (hasPendingCleanupState(st) || st.activitySuspended || st.degraded || !storageTarget.available) {
+      if (actionNotice && !actionNotice.isWarning) actionNotice = null;
+      text = (actionNotice && actionNotice.isWarning && actionNotice.text)
+        || st.lastWarning
+        || (!storageTarget.available
+          ? 'Browser storage is unavailable; local activity history is disabled while deterministic insights run in memory.'
+          : 'Browser storage is degraded; local activity processing is suspended.');
+      isWarning = true;
+    } else if (actionNotice && actionNotice.text) {
       text = actionNotice.text;
       isWarning = Boolean(actionNotice.isWarning);
-    } else if (hasPendingCleanupState(st) || st.activitySuspended || st.degraded) {
-      text = st.lastWarning || 'Browser storage is degraded; local activity processing is suspended.';
-      isWarning = true;
-    } else if (!storageTarget.available) {
-      text = 'Browser storage is unavailable; local activity history is disabled while deterministic insights run in memory.';
-      isWarning = true;
     }
 
     statusEl.hidden = !text;
