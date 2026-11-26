@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SECTION_PATH_RE, currentSection, sectionKey, keysForSection } from '../js/util.js';
 import { resetSectionStorage, mountSectionBadges } from '../js/settings.js';
-import { buildTransferPayload, transferSectionError, validateTransfer, checkIncomingTransfer } from '../js/transfer.js';
+import { buildTransferPayload, prepareTransferPayload, transferSectionError, validateTransfer, checkIncomingTransfer } from '../js/transfer.js';
 import { state } from '../js/state.js';
 import { Task, taskIdOk } from '../logic.js';
 
@@ -121,6 +121,8 @@ test('resetSectionStorage isolates resets per Section and keeps device-wide pref
     class_tasks_draft: '{"tasks":[]}',
     class_tasks_checkpoints: '[]',
     class_tasks_seen: '{"a1":1}',
+    class_tasks_activity: '{"v":1,"tasks":{"a1":{"e":[[2,10]],"r":0,"lastSec":10}}}',
+    class_tasks_insights_prefs: '{"v":1,"showInsights":true,"activityOptIn":false}',
     class_tasks_mvp: '[]',
     class_tasks_admin: '1',
     class_tasks_signed_out: '1',
@@ -129,6 +131,8 @@ test('resetSectionStorage isolates resets per Section and keeps device-wide pref
     b_class_tasks_draft: '{"tasks":[]}',
     b_class_tasks_checkpoints: '[]',
     b_class_tasks_seen: '{"b1":1}',
+    b_class_tasks_activity: '{"v":1,"tasks":{"b1":{"e":[[2,10]],"r":0,"lastSec":10}}}',
+    b_class_tasks_insights_prefs: '{"v":1,"showInsights":true,"activityOptIn":true}',
     b_class_tasks_admin: '1',
     b_class_tasks_signed_out: '1',
     b_class_tasks_published_cache: '{"tasks":[]}',
@@ -142,14 +146,14 @@ test('resetSectionStorage isolates resets per Section and keeps device-wide pref
 
   const sA = makeStorage(seed);
   assert.equal(resetSectionStorage({ storage: sA, section: '' }), true);
-  for (const cleared of ['class_tasks_progress', 'class_tasks_draft', 'class_tasks_checkpoints', 'class_tasks_seen', 'class_tasks_mvp']) {
+  for (const cleared of ['class_tasks_progress', 'class_tasks_draft', 'class_tasks_checkpoints', 'class_tasks_seen', 'class_tasks_activity', 'class_tasks_mvp']) {
     assert.equal(sA.has(cleared), false, `A reset should remove ${cleared}`);
   }
   for (const kept of [
-    'class_tasks_admin', 'class_tasks_signed_out', 'class_tasks_published_cache',
+    'class_tasks_admin', 'class_tasks_signed_out', 'class_tasks_published_cache', 'class_tasks_insights_prefs',
     'class_tasks_theme', 'class_tasks_sidebar', 'class_tasks_view_class', 'class_tasks_view_admin', 'class_tasks_tour_seen',
-    'b_class_tasks_progress', 'b_class_tasks_draft', 'b_class_tasks_checkpoints', 'b_class_tasks_seen',
-    'b_class_tasks_admin', 'b_class_tasks_signed_out', 'b_class_tasks_published_cache',
+    'b_class_tasks_progress', 'b_class_tasks_draft', 'b_class_tasks_checkpoints', 'b_class_tasks_seen', 'b_class_tasks_activity',
+    'b_class_tasks_admin', 'b_class_tasks_signed_out', 'b_class_tasks_published_cache', 'b_class_tasks_insights_prefs',
     'unrelated_key',
   ]) {
     assert.equal(sA.has(kept), true, `A reset must preserve ${kept}`);
@@ -157,18 +161,26 @@ test('resetSectionStorage isolates resets per Section and keeps device-wide pref
 
   const sB = makeStorage(seed);
   assert.equal(resetSectionStorage({ storage: sB, section: 'b' }), true);
-  for (const cleared of ['b_class_tasks_progress', 'b_class_tasks_draft', 'b_class_tasks_checkpoints', 'b_class_tasks_seen']) {
+  for (const cleared of ['b_class_tasks_progress', 'b_class_tasks_draft', 'b_class_tasks_checkpoints', 'b_class_tasks_seen', 'b_class_tasks_activity']) {
     assert.equal(sB.has(cleared), false, `B reset should remove ${cleared}`);
   }
   for (const kept of [
-    'b_class_tasks_admin', 'b_class_tasks_signed_out', 'b_class_tasks_published_cache',
+    'b_class_tasks_admin', 'b_class_tasks_signed_out', 'b_class_tasks_published_cache', 'b_class_tasks_insights_prefs',
     'class_tasks_theme', 'class_tasks_sidebar', 'class_tasks_view_class', 'class_tasks_view_admin', 'class_tasks_tour_seen',
-    'class_tasks_progress', 'class_tasks_draft', 'class_tasks_checkpoints', 'class_tasks_seen', 'class_tasks_mvp',
+    'class_tasks_progress', 'class_tasks_draft', 'class_tasks_checkpoints', 'class_tasks_seen', 'class_tasks_activity', 'class_tasks_insights_prefs', 'class_tasks_mvp',
     'class_tasks_admin', 'class_tasks_signed_out', 'class_tasks_published_cache',
     'unrelated_key',
   ]) {
     assert.equal(sB.has(kept), true, `B reset must preserve ${kept}`);
   }
+
+  const transferCheck = prepareTransferPayload({
+    activeSection: 'b',
+    progressData: { b1: { status: 'done', movedAt: 100 } },
+    isAdmin: false,
+  });
+  assert.equal(transferCheck.ok, true);
+  assert.deepEqual(Object.keys(transferCheck.payload), ['v', 'section', 'progress']);
 });
 
 test('app.js scopes ADMIN_KEY, SIGNED_OUT_KEY, and SEEN_KEY per section while view & tour stay device-wide', () => {

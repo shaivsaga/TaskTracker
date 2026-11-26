@@ -10,7 +10,7 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { filterDeletedProgress, prepareRecoveredDraft, RECOVERED_PREFIX, MAX_TITLE } from '../js/recovery.js';
+import { filterDeletedProgress, filterDeletedActivity, prepareRecoveredDraft, RECOVERED_PREFIX, MAX_TITLE } from '../js/recovery.js';
 
 const entry = (status, movedAt) => ({ status, movedAt });
 
@@ -105,4 +105,27 @@ test('content without tasks, or with junk entries, still yields a usable draft',
   assert.deepEqual(prepareRecoveredDraft({}, [], () => 'x').content.tasks, []);
   const { content: next } = prepareRecoveredDraft({ tasks: [null, 'x', { id: 'a', title: 'A' }] }, [], () => 'x');
   assert.deepEqual(next.tasks, [{ id: 'a', title: 'A' }]);
+});
+
+test('filterDeletedActivity removes only exact deleted IDs immutably and handles invalid inputs cleanly', () => {
+  assert.deepEqual(filterDeletedActivity(null, ['a']), { activity: null, removed: [] });
+  assert.deepEqual(filterDeletedActivity({ v: 1 }, ['a']), { activity: null, removed: [] });
+
+  const activity = {
+    v: 1,
+    tasks: {
+      abc: { s: 'CS', d: null, r: 0, e: [[2, 10]], lastSec: 10 },
+      abcd: { s: 'CS', d: null, r: 0, e: [[1, 20]], lastSec: 20 },
+    },
+  };
+  const before = JSON.stringify(activity);
+  const res = filterDeletedActivity(activity, [{ id: 'abc', deletedAt: 100 }]);
+  assert.deepEqual(res.removed, ['abc']);
+  assert.deepEqual(Object.keys(res.activity.tasks), ['abcd']);
+  assert.equal(res.activity.v, 1);
+  assert.equal(JSON.stringify(activity), before, 'input activity object is not mutated');
+
+  const untouched = filterDeletedActivity(activity, 'malformed');
+  assert.deepEqual(untouched.removed, []);
+  assert.deepEqual(Object.keys(untouched.activity.tasks), ['abc', 'abcd']);
 });

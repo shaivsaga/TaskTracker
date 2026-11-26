@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { readJSON, writeJSON, KEYS, API } from './util.js';
 import { validateSubjects, subjectFor, retiredSubject } from './subjects.js';
 import { filterDeletedProgress, nextAuthority, prepareRecoveredDraft } from './recovery.js';
+import { pruneDeletedActivity } from './insights.js';
 
 export const newOperationId = () => (globalThis.crypto?.randomUUID
   ? globalThis.crypto.randomUUID().replace(/-/g, '')
@@ -32,8 +33,31 @@ export function createBoardStore({
   keys = KEYS,
   api = API,
   makeId = newOperationId,
+  storage = undefined,
+  section = undefined,
+  runtimeState = undefined,
+  pruneActivity = pruneDeletedActivity,
 } = {}) {
   let inflightAdmin = null;
+
+  function resolveActivityStorage() {
+    if (storage !== undefined) {
+      return {
+        active: true,
+        storage,
+        errorName: storage ? null : 'SecurityError',
+      };
+    }
+    try {
+      if (typeof window !== 'undefined' && 'localStorage' in window) {
+        const s = window.localStorage;
+        return { active: true, storage: s, errorName: s ? null : 'SecurityError' };
+      }
+    } catch (e) {
+      return { active: true, storage: null, errorName: e?.name || 'SecurityError' };
+    }
+    return { active: false, storage: null, errorName: null };
+  }
 
   function acceptAuthority(board) {
     const next = nextAuthority(
@@ -46,17 +70,35 @@ export function createBoardStore({
     return true;
   }
 
-  function applyDeletionAuthority({ onPersistError } = {}) {
+  function applyDeletionAuthority({ onPersistError, onActivityDegraded } = {}) {
     const before = stateObj.progress;
     const filtered = filterDeletedProgress(before, stateObj.verifiedDeletedIds);
-    if (!filtered.removed.length) return { ok: true, removed: [] };
-    stateObj.progress = filtered.progress;
-    if (!write(keys.progress, stateObj.progress)) {
-      stateObj.progress = before;
-      onPersistError?.();
-      return { ok: false, removed: [] };
+    let progressResult;
+    if (!filtered.removed.length) {
+      progressResult = { ok: true, removed: [] };
+    } else {
+      stateObj.progress = filtered.progress;
+      if (!write(keys.progress, stateObj.progress)) {
+        stateObj.progress = before;
+        onPersistError?.();
+        progressResult = { ok: false, removed: [] };
+      } else {
+        progressResult = { ok: true, removed: filtered.removed };
+      }
     }
-    return { ok: true, removed: filtered.removed };
+
+    const storageTarget = resolveActivityStorage();
+    if (storageTarget.active || runtimeState) {
+      const activityOut = pruneActivity(stateObj.verifiedDeletedIds, {
+        storage: storageTarget.storage,
+        section,
+        runtimeState,
+        errorName: storageTarget.errorName,
+      });
+      if (activityOut?.degraded) onActivityDegraded?.(activityOut);
+    }
+
+    return progressResult;
   }
 
   function adoptAuthoritativeBoard(board, opts) {
@@ -69,7 +111,7 @@ export function createBoardStore({
     return stateObj.verifiedDeletedIds.includes(String(id));
   }
 
-  async function fetchBoard({ fallbackToCache = true, onPersistError } = {}) {
+  async function fetchBoard({ fallbackToCache = true, onPersistError, onActivityDegraded } = {}) {
     let board = null;
     let authoritative = false;
     let offline = false;
@@ -91,7 +133,7 @@ export function createBoardStore({
     }
     let cleaned = false;
     if (authoritative) {
-      const applied = applyDeletionAuthority({ onPersistError });
+      const applied = applyDeletionAuthority({ onPersistError, onActivityDegraded });
       cleaned = applied.ok;
     }
     return { board, authoritative, offline, cleaned };
