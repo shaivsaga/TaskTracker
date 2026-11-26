@@ -8,6 +8,15 @@ F1 (ref-carry invariant) and F3 (hash validation) stay valid only as preconditio
 ever revived. F2 (migration locking) applies to any one-off data migration, including the
 second-section `data/` move.
 
+**Reassessment update, 2026-11-26.** Re-verified live `https://dsct.dev/data/current.json` at `8,839`
+bytes raw (`3,373` bytes gzip level `6`, `27` tasks, `0` base64 data URIs). Per
+[ADR 0009](adr/0009-local-insights-and-s1b-deferral.md), S1b stays deferred until live `current.json`
+crosses `150 KB` raw (or `40 KB` gzip-6), an admin draft crosses `350 KB`, or any single note exceeds
+`8 KB` — at which point architectural reassessment begins (migration subject to separate owner
+approval). Profiling `300 × 10 KB` boards also established that `2 KB` inline excerpts still push
+`current.json` to `684.91 KB` (`701,348` bytes > `700,000` byte `transfer.php` cap); cap excerpts at
+**`512 B`** if S1b is ever built.
+
 **Worktree:** `TT-ov-briefs` @ `ov/owner-briefs` (origin/main `2222eb4`) · **Date:** 2026-11-01
 **Documentation only.** Nothing here is implemented and no approval is assumed. Each section ends
 with the exact decision the owner must make.
@@ -286,6 +295,8 @@ publish time.
 ---
 
 ## Optimizing board (future) — externalized document bodies (parked, not built)
+
+> **2026-11-26 deferral & reassessment note:** Deferred per [ADR 0009](adr/0009-local-insights-and-s1b-deferral.md) until `current.json >= 150 KB` raw (`40 KB` gzip-6), any admin draft `>= 350 KB`, or any single note `> 8 KB`. Migration requires separate owner approval, and any future implementation must lower the inline `excerpt` cap below from `2 KB` to **`512 B`** so `300`-task boards fit under `transfer.php`'s `700 KB` limit.
 
 ### Current storage format
 
