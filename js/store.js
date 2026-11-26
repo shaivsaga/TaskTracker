@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { readJSON, writeJSON, KEYS, API } from './util.js';
 import { validateSubjects, subjectFor, retiredSubject } from './subjects.js';
 import { filterDeletedProgress, nextAuthority, prepareRecoveredDraft } from './recovery.js';
-import { pruneDeletedActivity } from './insights.js';
+import { pruneDeletedActivity } from './insights-store.js';
 
 export const newOperationId = () => (globalThis.crypto?.randomUUID
   ? globalThis.crypto.randomUUID().replace(/-/g, '')

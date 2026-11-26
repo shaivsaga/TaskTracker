@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createBoardStore, normalizeBoard } from '../js/store.js';
-import { createInsightsRuntimeState, getInsightsStorageStatus } from '../js/insights.js';
+import { createInsightsRuntimeState, getInsightsStorageStatus } from '../js/insights-store.js';
 
 function makeEnv({ fetchFn, writeOk = true } = {}) {
   const mem = new Map();

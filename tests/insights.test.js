@@ -7,15 +7,17 @@ import { fileURLToPath } from 'node:url';
 import { Task, makeDate } from '../logic.js';
 import { keysForSection } from '../js/util.js';
 import {
+  analyzeWorkload,
+  explainTaskIndicator,
+  summarizeActivityHistory,
+} from '../js/insights.js';
+import {
   INSIGHTS_SCHEMA_VERSION,
   ACTIVITY_SCHEMA_VERSION,
   MAX_ACTIVITY_EVENTS_PER_TASK,
   MAX_ACTIVITY_TASKS,
   DEFAULT_INSIGHTS_PREFS,
   insightsKeysFor,
-  analyzeWorkload,
-  explainTaskIndicator,
-  summarizeActivityHistory,
   createInsightsRuntimeState,
   getInsightsStorageStatus,
   pruneOldestActivity,
@@ -27,7 +29,7 @@ import {
   readActivityHistory,
   recordActivityTransition,
   pruneDeletedActivity,
-} from '../js/insights.js';
+} from '../js/insights-store.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -92,8 +94,29 @@ test('insightsKeysFor derives section-scoped prefs and activity keys without alt
   assert.deepEqual(Object.keys(keysForSection('b')), ['draft', 'progress', 'checkpoints', 'cache', 'legacy']);
 });
 
+test('pure analysis functions and recordActivityTransition require explicit finite timestamps without implicit clock fallback', () => {
+  assert.throws(() => analyzeWorkload([], null), TypeError);
+  assert.throws(() => analyzeWorkload([], null, NaN), TypeError);
+  assert.throws(() => analyzeWorkload([], null, undefined), TypeError);
+  assert.throws(() => summarizeActivityHistory(null), TypeError);
+  assert.throws(() => summarizeActivityHistory(null, Number.POSITIVE_INFINITY), TypeError);
+
+  const storage = makeFaultStorage();
+  const rt = createInsightsRuntimeState();
+  setActivityOptIn(true, { storage, runtimeState: rt });
+  const badTs = recordActivityTransition('t1', 'done', undefined, { storage, runtimeState: rt });
+  assert.equal(badTs.ok, false);
+  assert.equal(badTs.written, false);
+  assert.equal(badTs.reason, 'invalid_input');
+
+  const insightsSrc = fs.readFileSync(path.join(ROOT, 'js', 'insights.js'), 'utf8');
+  const storeSrc = fs.readFileSync(path.join(ROOT, 'js', 'insights-store.js'), 'utf8');
+  assert.equal(/Date\.now/.test(insightsSrc), false, 'js/insights.js must not call Date.now');
+  assert.equal(/Date\.now/.test(storeSrc), false, 'js/insights-store.js must not call Date.now');
+});
+
 test('analyzeWorkload excludes done, closed, expired, and malformed tasks with injectable clock', () => {
-  const nowMs = new Date(2026, 11, 1, 14, 0, 0).getTime(); // Dec 1 2026 14:00 local
+  const nowMs = new Date(2026, 11, 1, 14, 0, 0).getTime();
   const tasks = [
     null,
     { id: '' },
@@ -128,13 +151,13 @@ test('analyzeWorkload excludes done, closed, expired, and malformed tasks with i
   assert.equal(explainTaskIndicator(tasks[9], w), null);
 });
 
-test('analyzeWorkload uses range endDate, builds same-day and bounded 48h clusters without chaining', () => {
+test('analyzeWorkload uses range endDate, builds same-day and bounded 48h clusters without chaining, and labels future vs near clusters accurately', () => {
   const nowMs = new Date(2026, 11, 1, 9, 0, 0).getTime(); // Dec 1 2026 09:00 local
   const tasks = [
     // Range Nov 29 -> Dec 4 uses endDate (Dec 4), NOT dueDate (Nov 29)
     makeTask({ id: 'r1', dueDate: makeDate(2026, 10, 29), endDate: makeDate(2026, 11, 4), subject: 'BIO' }),
     makeTask({ id: 'd4', dueDate: makeDate(2026, 11, 4), subject: 'CHEM' }),
-    // Separate 48h pair: Dec 8 10:00 and Dec 10 08:00 (46h apart <= 48h)
+    // Future rolling 48h pair >1 week out: Dec 8 10:00 and Dec 10 08:00 (46h apart <= 48h)
     makeTask({ id: 'w1', dueDate: makeDate(2026, 11, 8), dueTime: '10:00', subject: 'PHYS' }),
     makeTask({ id: 'w2', dueDate: makeDate(2026, 11, 10), dueTime: '08:00', subject: 'PHYS' }),
     // Third task Dec 12 06:00 (46h after w2, 92h after w1): pairs with w2 but MUST NOT chain w1+w2+w3!
@@ -157,24 +180,53 @@ test('analyzeWorkload uses range endDate, builds same-day and bounded 48h cluste
 
   assert.equal(explainTaskIndicator(tasks[0], w), '2 due Dec 4');
   assert.equal(explainTaskIndicator(tasks[1], w), '2 due Dec 4');
-  assert.equal(explainTaskIndicator(tasks[2], w), '2 due in 48h');
+  assert.equal(explainTaskIndicator(tasks[2], w), '2 due Dec 8–10');
+  assert.equal(explainTaskIndicator(tasks[3], w), '2 due Dec 8–10');
+  assert.equal(explainTaskIndicator(tasks[4], w), '2 due Dec 10–12');
   assert.equal(explainTaskIndicator(tasks[5], w), null, 'standalone task returns null');
 
   const rollNotices = w.notices.filter((n) => n.kind === 'rolling_48h_cluster');
-  assert.equal(rollNotices.length, 2, 'rolling windows excluding duplicate same-day cluster');
+  assert.deepEqual(rollNotices.map((n) => n.text), ['2 tasks due Dec 8–10', '2 tasks due Dec 10–12']);
+});
+
+test('distant future rolling-48h clusters use date-range cues while immediate clusters within 48h of now use 48h wording', () => {
+  const nowMs = new Date(2026, 11, 1, 9, 0, 0).getTime(); // Dec 1 2026 09:00 local
+
+  // Regression: two tasks 3 weeks in the future within 48h of each other
+  const farA = makeTask({ id: 'far-a', dueDate: makeDate(2026, 11, 22), dueTime: '10:00' });
+  const farB = makeTask({ id: 'far-b', dueDate: makeDate(2026, 11, 23), dueTime: '18:00' });
+  const wFar = analyzeWorkload([farA, farB], null, nowMs);
+  assert.equal(explainTaskIndicator(farA, wFar), '2 due Dec 22–23');
+  assert.equal(explainTaskIndicator(farB, wFar), '2 due Dec 22–23');
+  assert.equal(wFar.notices.find((n) => n.kind === 'rolling_48h_cluster')?.text, '2 tasks due Dec 22–23');
+
+  // Cross-year future rolling cluster
+  const nyA = makeTask({ id: 'ny-a', dueDate: makeDate(2026, 11, 31), dueTime: '18:00' });
+  const nyB = makeTask({ id: 'ny-b', dueDate: makeDate(2027, 0, 1), dueTime: '18:00' });
+  const wCrossYear = analyzeWorkload([nyA, nyB], null, nowMs);
+  assert.equal(explainTaskIndicator(nyA, wCrossYear), '2 due Dec 31, 2026–Jan 1, 2027');
+
+  // Genuine immediate rolling 48h cluster (latest deadline <= nowMs + 48h)
+  const nearA = makeTask({ id: 'near-a', dueDate: makeDate(2026, 11, 1), dueTime: '20:00' });
+  const nearB = makeTask({ id: 'near-b', dueDate: makeDate(2026, 11, 2), dueTime: '18:00' });
+  const wNear = analyzeWorkload([nearA, nearB], null, nowMs);
+  assert.equal(explainTaskIndicator(nearA, wNear), '2 due in 48h');
+  assert.equal(explainTaskIndicator(nearB, wNear), '2 due in 48h');
+  assert.equal(wNear.notices.find((n) => n.kind === 'rolling_48h_cluster')?.text, '2 tasks due within 48h');
 });
 
 test('explainTaskIndicator returns null for standalone tasks and satisfies semantic non-duplication against Task.getDueLabel', () => {
   const realToday = new Date();
   const baseMs = new Date(realToday.getFullYear(), realToday.getMonth(), realToday.getDate(), 10, 0, 0).getTime();
   const targetPlus5 = new Date(realToday.getFullYear(), realToday.getMonth(), realToday.getDate() + 5);
-  const targetPlus6 = new Date(realToday.getFullYear(), realToday.getMonth(), realToday.getDate() + 6);
+  const targetPlus1 = new Date(realToday.getFullYear(), realToday.getMonth(), realToday.getDate() + 1);
   const targetTomorrow = new Date(realToday.getFullYear(), realToday.getMonth(), realToday.getDate() + 1);
 
   const soloTomorrow = makeTask({ id: 'solo-tmr', dueDate: targetTomorrow });
   const clusterA = makeTask({ id: 'c1', dueDate: targetPlus5 });
   const clusterB = makeTask({ id: 'c2', dueDate: targetPlus5 });
-  const nearC = makeTask({ id: 'c3', dueDate: targetPlus6 });
+  const nearToday = makeTask({ id: 'n0', dueDate: new Date(realToday.getFullYear(), realToday.getMonth(), realToday.getDate()), dueTime: '20:00' });
+  const nearTmr = makeTask({ id: 'n1', dueDate: targetPlus1, dueTime: '18:00' });
 
   const wSolo = analyzeWorkload([soloTomorrow], null, baseMs);
   assert.equal(explainTaskIndicator(soloTomorrow, wSolo, soloTomorrow.getDueLabel()), null);
@@ -182,14 +234,13 @@ test('explainTaskIndicator returns null for standalone tasks and satisfies seman
   const wCluster = analyzeWorkload([clusterA, clusterB], null, baseMs);
   const cueSameDay = explainTaskIndicator(clusterA, wCluster, clusterA.getDueLabel());
   assert.match(cueSameDay, /^2 due [A-Z][a-z]{2} \d+/);
-  // Semantic non-duplication: cross-task multiplicity cue differs semantically from single-task deadline pill
   assert.equal(/^\d+ due /.test(clusterA.getDueLabel()), false);
   assert.equal(explainTaskIndicator(clusterA, wCluster, cueSameDay), null, 'suppresses exact duplicate text');
 
-  const wRolling = analyzeWorkload([clusterA, nearC], null, baseMs);
-  const cue48h = explainTaskIndicator(clusterA, wRolling, clusterA.getDueLabel());
+  const wImmediate = analyzeWorkload([nearToday, nearTmr], null, baseMs);
+  const cue48h = explainTaskIndicator(nearTmr, wImmediate, nearTmr.getDueLabel());
   assert.equal(cue48h, '2 due in 48h');
-  assert.equal(/due in 48h/i.test(clusterA.getDueLabel()), false);
+  assert.equal(/due in 48h/i.test(nearTmr.getDueLabel()), false);
 });
 
 test('multi-timezone and DST boundaries remain calendar-accurate across UTC, NY DST, Manila, and Honolulu', () => {
@@ -198,20 +249,17 @@ test('multi-timezone and DST boundaries remain calendar-accurate across UTC, NY 
       import { Task, makeDate } from './logic.js';
       import { analyzeWorkload, explainTaskIndicator } from './js/insights.js';
 
-      // Spring-forward day in US/NY: 2026-03-08 (23h local day)
       const springNow = new Date(2026, 2, 8, 12, 0, 0).getTime();
       const tSpringToday = new Task({ id: 's0', dueDate: makeDate(2026, 2, 8) });
       const tSpringTmr = new Task({ id: 's1', dueDate: makeDate(2026, 2, 9) });
       const wSpring = analyzeWorkload([tSpringToday, tSpringTmr], null, springNow);
 
-      // Fall-back day in US/NY: 2026-11-01 (25h local day)
       const fallNow = new Date(2026, 10, 1, 0, 30, 0).getTime();
       const tFallToday = new Task({ id: 'f0', dueDate: makeDate(2026, 10, 1) });
       const tFallTmr1 = new Task({ id: 'f1', dueDate: makeDate(2026, 10, 2) });
       const tFallTmr2 = new Task({ id: 'f2', dueDate: makeDate(2026, 10, 2), dueTime: '18:00' });
       const wFall = analyzeWorkload([tFallToday, tFallTmr1, tFallTmr2], null, fallNow);
 
-      // Next-year boundary cluster label includes year
       const nyNow = new Date(2026, 11, 31, 10, 0, 0).getTime();
       const nyA = new Task({ id: 'ny1', dueDate: makeDate(2027, 0, 5) });
       const nyB = new Task({ id: 'ny2', dueDate: makeDate(2027, 0, 5) });
@@ -280,7 +328,107 @@ test('summarizeActivityHistory reports accurate factual counts and handles corru
   });
 });
 
-test('privacy consent lifecycle, 0-byte opt-out, immediate deletion, clear-history consent preservation, and section isolation', () => {
+test('readActivityHistory and recordActivityTransition strictly enforce persisted consent and reconcile orphaned activity', () => {
+  const stalePayload = JSON.stringify({ v: 1, tasks: { t1: { s: 'CS', d: null, r: 0, e: [[2, 10]], lastSec: 10 } } });
+
+  // 1. Orphaned activity with missing prefs, opted-out prefs, corrupt prefs, and unsupported v
+  for (const [label, seed] of [
+    ['missing prefs', { class_tasks_activity: stalePayload }],
+    ['opted-out prefs', { class_tasks_insights_prefs: JSON.stringify({ v: 1, showInsights: true, activityOptIn: false }), class_tasks_activity: stalePayload }],
+    ['corrupt prefs', { class_tasks_insights_prefs: '{bad-json', class_tasks_activity: stalePayload }],
+    ['unsupported v prefs', { class_tasks_insights_prefs: JSON.stringify({ v: 9, showInsights: true, activityOptIn: true }), class_tasks_activity: stalePayload }],
+  ]) {
+    const s1 = makeFaultStorage(seed);
+    assert.equal(readActivityHistory({ storage: s1, runtimeState: createInsightsRuntimeState() }), null, `${label}: read returns null`);
+    assert.equal(s1.has('class_tasks_activity'), false, `${label}: read reconciles orphaned activity`);
+
+    const s2 = makeFaultStorage(seed);
+    const recRes = recordActivityTransition('t2', 'done', 50, { storage: s2, runtimeState: createInsightsRuntimeState() });
+    assert.equal(recRes.written, false, `${label}: write refused`);
+    assert.equal(s2.has('class_tasks_activity'), false, `${label}: write reconciles orphaned activity`);
+  }
+
+  // 2. Clean opted-out storage writes/removes 0 keys on readActivityHistory and recordActivityTransition
+  const cleanStorage = makeFaultStorage();
+  const cleanRt = createInsightsRuntimeState();
+  assert.equal(readActivityHistory({ storage: cleanStorage, runtimeState: cleanRt }), null);
+  assert.equal(recordActivityTransition('t1', 'done', 100, { storage: cleanStorage, runtimeState: cleanRt }).written, false);
+  assert.equal(cleanStorage.ops.some((o) => o[0] === 'set' || o[0] === 'remove'), false);
+});
+
+test('cross-tab consent withdrawal and partial opt-out across fresh runtime reload never leak or over-claim durability', () => {
+  // Cross-tab scenario: Tab A & Tab B have separate runtime state sharing one storage backend
+  const shared = makeFaultStorage();
+  const tabA = createInsightsRuntimeState();
+  const tabB = createInsightsRuntimeState();
+
+  setActivityOptIn(true, { storage: shared, runtimeState: tabA });
+  recordActivityTransition('t1', 'in_progress', 1000, { storage: shared, runtimeState: tabA });
+  assert.equal(readActivityHistory({ storage: shared, runtimeState: tabB }).tasks.t1.e.length, 1);
+
+  // Tab A withdraws consent cleanly -> Tab B immediately sees withdrawal and reads null / writes 0 bytes
+  assert.equal(setActivityOptIn(false, { storage: shared, runtimeState: tabA }).durableConfirmed, true);
+  assert.equal(readActivityHistory({ storage: shared, runtimeState: tabB }), null);
+  const opsBefore = shared.ops.length;
+  assert.equal(recordActivityTransition('t1', 'done', 1100, { storage: shared, runtimeState: tabB }).written, false);
+  assert.equal(shared.ops.slice(opsBefore).some((o) => o[0] === 'set' || o[0] === 'remove'), false);
+
+  // Partial opt-out #1: prefs opt-out succeeded, activity deletion threw -> reload reconciles orphan once storage recovers
+  let failRemove = true;
+  const partialDelStore = makeFaultStorage({}, { failRemove: (k) => failRemove && k === 'class_tasks_activity' });
+  const rtTab1 = createInsightsRuntimeState();
+  setActivityOptIn(true, { storage: partialDelStore, runtimeState: rtTab1 });
+  recordActivityTransition('t1', 'done', 1000, { storage: partialDelStore, runtimeState: rtTab1 });
+
+  const outPartialDel = setActivityOptIn(false, { storage: partialDelStore, runtimeState: rtTab1 });
+  assert.equal(outPartialDel.ok, false);
+  assert.equal(outPartialDel.consentPersisted, true);
+  assert.equal(outPartialDel.deleted, false);
+  assert.equal(outPartialDel.durableConfirmed, false);
+  assert.equal(outPartialDel.suspended, true);
+  assert.ok(typeof outPartialDel.warning === 'string' && outPartialDel.warning.length > 0);
+  assert.equal(partialDelStore.has('class_tasks_activity'), true);
+
+  // Simulated browser reload while delete still fails: no stale data leaked
+  const reloadStillBroken = createInsightsRuntimeState();
+  assert.equal(readActivityHistory({ storage: partialDelStore, runtimeState: reloadStillBroken }), null);
+  assert.equal(getInsightsStorageStatus({ runtimeState: reloadStillBroken }).activitySuspended, true);
+
+  // Simulated browser reload after storage recovers: fresh runtime reconciles the leftover orphan from disk
+  failRemove = false;
+  const reloadRecovered = createInsightsRuntimeState();
+  assert.equal(readActivityHistory({ storage: partialDelStore, runtimeState: reloadRecovered }), null);
+  assert.equal(partialDelStore.has('class_tasks_activity'), false);
+  assert.equal(getInsightsStorageStatus({ runtimeState: reloadRecovered }).activitySuspended, false);
+
+  // Partial opt-out #2: activity deleted, prefs write threw -> honestly reports durableConfirmed: false + warning
+  let failPrefSet = true;
+  const partialPrefStore = makeFaultStorage({}, { failSet: (k) => failPrefSet && k === 'class_tasks_insights_prefs' });
+  const rtPref = createInsightsRuntimeState();
+  setActivityOptIn(true, { storage: partialPrefStore, runtimeState: rtPref });
+  recordActivityTransition('t1', 'done', 1000, { storage: partialPrefStore, runtimeState: rtPref });
+
+  const outPartialPref = setActivityOptIn(false, { storage: partialPrefStore, runtimeState: rtPref });
+  assert.equal(outPartialPref.ok, false);
+  assert.equal(outPartialPref.deleted, true);
+  assert.equal(outPartialPref.consentPersisted, false);
+  assert.equal(outPartialPref.durableConfirmed, false);
+  assert.equal(outPartialPref.suspended, true);
+  assert.match(outPartialPref.warning, /consent withdrawal could not be confirmed/i);
+  assert.equal(partialPrefStore.has('class_tasks_activity'), false);
+
+  // While same runtime stays open and pref write fails, writes are blocked and prefs stay false in memory
+  assert.equal(readActivityHistory({ storage: partialPrefStore, runtimeState: rtPref }), null);
+  assert.equal(recordActivityTransition('t2', 'done', 1200, { storage: partialPrefStore, runtimeState: rtPref }).written, false);
+
+  // Recovery finishes persisting opt-out preference
+  failPrefSet = false;
+  const resolved = readInsightsPrefs({ storage: partialPrefStore, runtimeState: rtPref });
+  assert.equal(resolved.activityOptIn, false);
+  assert.equal(JSON.parse(partialPrefStore.getItem('class_tasks_insights_prefs')).activityOptIn, false);
+});
+
+test('privacy consent lifecycle, immediate deletion, clear-history consent preservation, and section isolation', () => {
   const storage = makeFaultStorage();
   const rtA = createInsightsRuntimeState();
   const rtB = createInsightsRuntimeState();
@@ -288,40 +436,29 @@ test('privacy consent lifecycle, 0-byte opt-out, immediate deletion, clear-histo
   assert.deepEqual(readInsightsPrefs({ storage, section: '', runtimeState: rtA }), DEFAULT_INSIGHTS_PREFS);
   assert.equal(readActivityHistory({ storage, section: '', runtimeState: rtA }), null);
 
-  // Opted-out recording writes 0 bytes
-  const opsBefore = storage.ops.length;
-  const skipped = recordActivityTransition('t1', 'in_progress', 1000, { storage, section: '', runtimeState: rtA });
-  assert.equal(skipped.ok, true);
-  assert.equal(skipped.written, false);
-  assert.equal(storage.ops.slice(opsBefore).some((o) => o[0] === 'set'), false);
-  assert.equal(storage.has('class_tasks_activity'), false);
-
-  // Opt in & record transitions + reopenings + caps
   assert.equal(setActivityOptIn(true, { storage, section: '', runtimeState: rtA }).prefs.activityOptIn, true);
   assert.equal(storage.has('class_tasks_activity'), false, 'opting in writes prefs only until transition');
   recordActivityTransition('t1', 'in_progress', 1000, { storage, section: '', runtimeState: rtA, subject: 'CS' });
   recordActivityTransition('t1', 'done', 1100, { storage, section: '', runtimeState: rtA });
   recordActivityTransition('t1', 'in_progress', 1200, { storage, section: '', runtimeState: rtA });
-  let act = readActivityHistory({ storage, section: '', runtimeState: rtA });
+  const act = readActivityHistory({ storage, section: '', runtimeState: rtA });
   assert.equal(act.v, ACTIVITY_SCHEMA_VERSION);
   assert.equal(act.tasks.t1.r, 1);
   assert.equal(act.tasks.t1.s, 'CS');
   assert.equal(act.tasks.t1.e.length, 3);
 
-  // Section B isolation
   setActivityOptIn(true, { storage, section: 'b', runtimeState: rtB });
   recordActivityTransition('b1', 'done', 2000, { storage, section: 'b', runtimeState: rtB });
   assert.equal(storage.has('b_class_tasks_activity'), true);
 
-  // setShowInsights preserves stored activity and opt-in
   const hideRes = setShowInsights(false, { storage, section: '', runtimeState: rtA });
   assert.deepEqual(hideRes.prefs, { v: INSIGHTS_SCHEMA_VERSION, showInsights: false, activityOptIn: true });
   assert.equal(storage.has('class_tasks_activity'), true);
 
-  // clearActivityHistory deletes activity while preserving activityOptIn: true and showInsights
   const cleared = clearActivityHistory({ storage, section: '', runtimeState: rtA });
   assert.equal(cleared.ok, true);
   assert.equal(cleared.deleted, true);
+  assert.equal(cleared.durableConfirmed, true);
   assert.equal(storage.has('class_tasks_activity'), false);
   assert.deepEqual(readInsightsPrefs({ storage, section: '', runtimeState: rtA }), {
     v: INSIGHTS_SCHEMA_VERSION,
@@ -330,12 +467,12 @@ test('privacy consent lifecycle, 0-byte opt-out, immediate deletion, clear-histo
   });
   assert.equal(storage.has('b_class_tasks_activity'), true, 'Section B unaffected');
 
-  // Re-record works because activityOptIn remained true, then turning opt-in off immediately deletes activity
   recordActivityTransition('t2', 'done', 3000, { storage, section: '', runtimeState: rtA });
   assert.equal(storage.has('class_tasks_activity'), true);
   const optOut = setActivityOptIn(false, { storage, section: '', runtimeState: rtA });
   assert.equal(optOut.ok, true);
   assert.equal(optOut.deleted, true);
+  assert.equal(optOut.durableConfirmed, true);
   assert.equal(optOut.prefs.activityOptIn, false);
   assert.equal(storage.has('class_tasks_activity'), false);
   assert.equal(storage.has('b_class_tasks_activity'), true);
@@ -371,6 +508,7 @@ test('storage fault matrix: SecurityError, QuotaExceededError 50%-prune retry & 
   const rtCorrupt = createInsightsRuntimeState();
   assert.deepEqual(readInsightsPrefs({ storage: corruptStore, runtimeState: rtCorrupt }), DEFAULT_INSIGHTS_PREFS);
   assert.equal(readActivityHistory({ storage: corruptStore, runtimeState: rtCorrupt }), null);
+  assert.equal(corruptStore.has('class_tasks_activity'), false, 'unknown/corrupt activity reconciled on invalid prefs');
 
   // 2. QuotaExceededError: prune 50% and retry once without touching class_tasks_progress
   const initialTasks = {};
@@ -413,7 +551,7 @@ test('storage fault matrix: SecurityError, QuotaExceededError 50%-prune retry & 
   assert.equal(hardOut.degraded, true);
   assert.equal(hardQuota.getItem('class_tasks_progress'), '{"p1":{"status":"done","movedAt":5}}');
 
-  // 3. Dual write + delete failure: suspend, report degraded without claiming success, retry cleanup on recovery
+  // 3. Dual write + delete failure: suspend, report durableConfirmed: false & warning, retry cleanup on recovery
   let blocked = true;
   const flakyStore = makeFaultStorage(
     {
@@ -430,17 +568,19 @@ test('storage fault matrix: SecurityError, QuotaExceededError 50%-prune retry & 
 
   const failedOptOut = setActivityOptIn(false, { storage: flakyStore, runtimeState: rtFlaky });
   assert.equal(failedOptOut.ok, false);
-  assert.equal(failedOptOut.deleted, false, 'never claim deletion succeeded');
+  assert.equal(failedOptOut.deleted, false);
+  assert.equal(failedOptOut.consentPersisted, false);
+  assert.equal(failedOptOut.durableConfirmed, false);
   assert.equal(failedOptOut.degraded, true);
   assert.equal(failedOptOut.pendingCleanup, true);
+  assert.equal(failedOptOut.suspended, true);
+  assert.ok(typeof failedOptOut.warning === 'string' && failedOptOut.warning.length > 0);
   assert.equal(getInsightsStorageStatus({ runtimeState: rtFlaky }).activitySuspended, true);
 
-  // Writes must remain suspended while blocked
   const blockedWrite = recordActivityTransition('x', 'done', 99, { storage: flakyStore, runtimeState: rtFlaky });
   assert.equal(blockedWrite.ok, false);
   assert.equal(blockedWrite.written, false);
 
-  // Storage recovers: pending opt-out + purge automatically executes
   blocked = false;
   const recoveredPrefs = readInsightsPrefs({ storage: flakyStore, runtimeState: rtFlaky });
   assert.equal(recoveredPrefs.activityOptIn, false);
@@ -449,7 +589,7 @@ test('storage fault matrix: SecurityError, QuotaExceededError 50%-prune retry & 
   assert.equal(getInsightsStorageStatus({ runtimeState: rtFlaky }).activitySuspended, false);
 
   // 4. Dual failure on pruneDeletedActivity also queues & recovers without losing IDs
-  blocked = true;
+  setActivityOptIn(true, { storage: flakyStore, runtimeState: rtFlaky });
   flakyStore.raw.set('class_tasks_activity', JSON.stringify({
     v: 1,
     tasks: {
@@ -457,9 +597,11 @@ test('storage fault matrix: SecurityError, QuotaExceededError 50%-prune retry & 
       live1: { s: '', d: null, r: 0, e: [[1, 20]], lastSec: 20 },
     },
   }));
+  blocked = true;
   const failedPrune = pruneDeletedActivity(['dead1'], { storage: flakyStore, runtimeState: rtFlaky });
   assert.equal(failedPrune.ok, false);
   assert.equal(failedPrune.deleted, false);
+  assert.equal(failedPrune.durableConfirmed, false);
   assert.equal(failedPrune.degraded, true);
   assert.equal(failedPrune.pendingCleanup, true);
   assert.deepEqual(getInsightsStorageStatus({ runtimeState: rtFlaky }).pendingDeletedIds, ['dead1']);
@@ -468,23 +610,26 @@ test('storage fault matrix: SecurityError, QuotaExceededError 50%-prune retry & 
   const recoveredPrune = flushPendingActivityCleanup({ storage: flakyStore, runtimeState: rtFlaky });
   assert.equal(recoveredPrune.ok, true);
   assert.equal(recoveredPrune.deleted, true);
+  assert.equal(recoveredPrune.durableConfirmed, true);
   assert.equal(recoveredPrune.pendingCleanup, false);
   const remaining = readActivityHistory({ storage: flakyStore, runtimeState: rtFlaky });
   assert.deepEqual(Object.keys(remaining.tasks), ['live1']);
 });
 
-test('js/insights.js keeps PR 4 predictor, shadow evaluation, and experimental toggle completely out of PR 2', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'js', 'insights.js'), 'utf8');
-  for (const forbidden of [
-    /hybrid_burst/i,
-    /EmpiricalBayes/i,
-    /shadowEval/i,
-    /\bbrier\b/i,
-    /adaptiveBeta/i,
-    /\blogistic\b/i,
-    /\btStat\b/,
-    /experimentalToggle/i,
-  ]) {
-    assert.equal(forbidden.test(src), false, `PR 2 js/insights.js must not contain ${forbidden}`);
+test('js/insights.js and js/insights-store.js keep PR 4 predictor, shadow evaluation, and experimental toggle out of PR 2', () => {
+  for (const rel of ['js/insights.js', 'js/insights-store.js']) {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    for (const forbidden of [
+      /hybrid_burst/i,
+      /EmpiricalBayes/i,
+      /shadowEval/i,
+      /\bbrier\b/i,
+      /adaptiveBeta/i,
+      /\blogistic\b/i,
+      /\btStat\b/,
+      /experimentalToggle/i,
+    ]) {
+      assert.equal(forbidden.test(src), false, `PR 2 ${rel} must not contain ${forbidden}`);
+    }
   }
 });

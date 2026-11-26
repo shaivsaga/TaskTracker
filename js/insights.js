@@ -1,44 +1,16 @@
-import { currentSection, sectionKey } from './util.js';
-import { filterDeletedActivity } from './recovery.js';
-
-export const INSIGHTS_SCHEMA_VERSION = 1;
 export const ACTIVITY_SCHEMA_VERSION = 1;
-export const MAX_ACTIVITY_EVENTS_PER_TASK = 8;
-export const MAX_ACTIVITY_TASKS = 400;
-
-export const DEFAULT_INSIGHTS_PREFS = Object.freeze({
-  v: INSIGHTS_SCHEMA_VERSION,
-  showInsights: true,
-  activityOptIn: false,
-});
 
 const DAY_MS = 86400000;
 const HOUR_MS = 3600000;
 const WINDOW_48H_MS = 48 * HOUR_MS;
 const WINDOW_72H_MS = 72 * HOUR_MS;
 
-const STATUS_TO_CODE = Object.freeze({
-  not_started: 0,
-  in_progress: 1,
-  done: 2,
-});
-
-const defaultRuntimeBySection = new Map();
-
 const isPlainObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const isValidStatusCode = (c) => c === 0 || c === 1 || c === 2;
 
-function normalizeSection(section) {
-  const id = String(section ?? '').toLowerCase();
-  return id && id !== 'a' ? id : '';
-}
-
-function normalizeNowMs(nowMs) {
-  return Number.isFinite(nowMs) ? nowMs : Date.now();
-}
-
-function normalizeNowSec(nowSec) {
-  return Number.isFinite(nowSec) ? Math.floor(nowSec) : Math.floor(Date.now() / 1000);
+function requireFiniteNumber(value, message) {
+  if (!Number.isFinite(value)) throw new TypeError(message);
+  return value;
 }
 
 function localDayKey(d) {
@@ -57,6 +29,24 @@ function formatClusterDateLabel(d, refYear) {
       ? { month: 'short', day: 'numeric' }
       : { month: 'short', day: 'numeric', year: 'numeric' },
   );
+}
+
+function formatClusterDateRange(startDate, endDate, refYear) {
+  if (localDayKey(startDate) === localDayKey(endDate)) {
+    return formatClusterDateLabel(startDate, refYear);
+  }
+  const sy = startDate.getFullYear();
+  const ey = endDate.getFullYear();
+  if (sy !== ey) {
+    const f = { month: 'short', day: 'numeric', year: 'numeric' };
+    return `${startDate.toLocaleDateString('en-US', f)}–${endDate.toLocaleDateString('en-US', f)}`;
+  }
+  const fShort = { month: 'short', day: 'numeric' };
+  const yearSuffix = sy === refYear ? '' : `, ${sy}`;
+  if (startDate.getMonth() === endDate.getMonth()) {
+    return `${startDate.toLocaleDateString('en-US', fShort)}–${endDate.getDate()}${yearSuffix}`;
+  }
+  return `${startDate.toLocaleDateString('en-US', fShort)}–${endDate.toLocaleDateString('en-US', fShort)}${yearSuffix}`;
 }
 
 function parseYmdDate(raw) {
@@ -107,17 +97,16 @@ function taskStatusFor(task, progressMap) {
   return typeof task.status === 'string' ? task.status : 'not_started';
 }
 
-export function insightsKeysFor(section = currentSection()) {
-  const sec = normalizeSection(section);
-  return {
-    prefs: sectionKey('class_tasks_insights_prefs', sec),
-    activity: sectionKey('class_tasks_activity', sec),
-  };
+function pickBetterRollingMeta(prev, next) {
+  if (!prev) return next;
+  if (next.count !== prev.count) return next.count > prev.count ? next : prev;
+  if (next.within48hOfNow !== prev.within48hOfNow) return next.within48hOfNow ? next : prev;
+  return prev;
 }
 
-function computeRolling48hClusters(upcoming) {
+function computeRolling48hClusters(upcoming, resolvedNowMs, refYear) {
   const sorted = upcoming.slice().sort((a, b) => a.deadlineMs - b.deadlineMs || a.id.localeCompare(b.id));
-  const countsById = new Map();
+  const rollingById = new Map();
   const clusters = [];
   let r = 0;
   let bestEnd = -1;
@@ -128,25 +117,34 @@ function computeRolling48hClusters(upcoming) {
       r++;
     }
     const size = r - l + 1;
-    if (size >= 1) {
-      for (let k = l; k <= r; k++) {
-        const id = sorted[k].id;
-        countsById.set(id, Math.max(countsById.get(id) || 0, size));
-      }
-      if (size >= 2 && r > bestEnd) {
-        bestEnd = r;
-        const slice = sorted.slice(l, r + 1);
-        clusters.push({
-          kind: 'rolling_48h',
-          count: size,
-          taskIds: slice.map((item) => item.id),
-          earliestMs: slice[0].deadlineMs,
-          latestMs: slice[slice.length - 1].deadlineMs,
-        });
-      }
+    const first = sorted[l];
+    const last = sorted[r];
+    const within48hOfNow = size >= 2 && (last.deadlineMs - resolvedNowMs <= WINDOW_48H_MS);
+    const dateRangeLabel = size >= 2
+      ? formatClusterDateRange(first.deadlineDate, last.deadlineDate, refYear)
+      : null;
+
+    for (let k = l; k <= r; k++) {
+      const id = sorted[k].id;
+      const candidate = { count: size, within48hOfNow, dateRangeLabel };
+      rollingById.set(id, pickBetterRollingMeta(rollingById.get(id), candidate));
+    }
+
+    if (size >= 2 && r > bestEnd) {
+      bestEnd = r;
+      const slice = sorted.slice(l, r + 1);
+      clusters.push({
+        kind: 'rolling_48h',
+        count: size,
+        taskIds: slice.map((item) => item.id),
+        earliestMs: slice[0].deadlineMs,
+        latestMs: slice[slice.length - 1].deadlineMs,
+        within48hOfNow,
+        dateRangeLabel,
+      });
     }
   }
-  return { clusters, countsById };
+  return { clusters, rollingById };
 }
 
 function sameIdSet(a, b) {
@@ -156,7 +154,7 @@ function sameIdSet(a, b) {
 }
 
 export function analyzeWorkload(tasks, progress = null, nowMs) {
-  const resolvedNowMs = normalizeNowMs(nowMs);
+  const resolvedNowMs = requireFiniteNumber(nowMs, 'analyzeWorkload requires a finite nowMs timestamp');
   const nowDate = new Date(resolvedNowMs);
   const nowDayIdx = localDayIndex(nowDate);
   const nowYear = nowDate.getFullYear();
@@ -187,7 +185,7 @@ export function analyzeWorkload(tasks, progress = null, nowMs) {
     if (!deadlineDate || deadlineMs === null) {
       items.push({
         id,
-        subject,
+        deadlineDate: null,
         deadlineMs: null,
         hasDueTime: false,
         dayKey: null,
@@ -208,6 +206,8 @@ export function analyzeWorkload(tasks, progress = null, nowMs) {
         dateLabel: null,
         sameDayCount: 0,
         rolling48hCount: 0,
+        rolling48hWithinNow: false,
+        rolling48hRangeLabel: null,
       };
       continue;
     }
@@ -226,7 +226,7 @@ export function analyzeWorkload(tasks, progress = null, nowMs) {
 
     items.push({
       id,
-      subject,
+      deadlineDate,
       deadlineMs,
       hasDueTime,
       dayKey,
@@ -248,6 +248,8 @@ export function analyzeWorkload(tasks, progress = null, nowMs) {
       dateLabel,
       sameDayCount: 0,
       rolling48hCount: 0,
+      rolling48hWithinNow: false,
+      rolling48hRangeLabel: null,
     };
   }
 
@@ -307,9 +309,11 @@ export function analyzeWorkload(tasks, progress = null, nowMs) {
     }
   }
 
-  const { clusters: rolling48hClusters, countsById } = computeRolling48hClusters(upcomingDated);
-  for (const [id, count] of countsById.entries()) {
-    taskMetaById[id].rolling48hCount = count;
+  const { clusters: rolling48hClusters, rollingById } = computeRolling48hClusters(upcomingDated, resolvedNowMs, nowYear);
+  for (const [id, info] of rollingById.entries()) {
+    taskMetaById[id].rolling48hCount = info.count;
+    taskMetaById[id].rolling48hWithinNow = info.within48hOfNow;
+    taskMetaById[id].rolling48hRangeLabel = info.dateRangeLabel;
   }
 
   const subjectCounts = [...subjectMap.values()].sort((a, b) => {
@@ -344,7 +348,9 @@ export function analyzeWorkload(tasks, progress = null, nowMs) {
       kind: 'rolling_48h_cluster',
       count: cluster.count,
       taskIds: cluster.taskIds.slice(),
-      text: `${cluster.count} tasks due within 48h`,
+      text: cluster.within48hOfNow
+        ? `${cluster.count} tasks due within 48h`
+        : `${cluster.count} tasks due ${cluster.dateRangeLabel}`,
     });
   }
   if (notStartedSoonIds.length > 0) {
@@ -390,7 +396,8 @@ export function explainTaskIndicator(task, workload, existingPillText = '') {
   if (meta.sameDayCount >= 2 && meta.dateLabel) {
     candidate = `${meta.sameDayCount} due ${meta.dateLabel}`;
   } else if (meta.rolling48hCount >= 2) {
-    candidate = `${meta.rolling48hCount} due in 48h`;
+    if (meta.rolling48hWithinNow) candidate = `${meta.rolling48hCount} due in 48h`;
+    else if (meta.rolling48hRangeLabel) candidate = `${meta.rolling48hCount} due ${meta.rolling48hRangeLabel}`;
   }
   if (!candidate) return null;
 
@@ -400,6 +407,7 @@ export function explainTaskIndicator(task, workload, existingPillText = '') {
 }
 
 export function summarizeActivityHistory(activity, nowSec) {
+  const resolvedNowSec = Math.floor(requireFiniteNumber(nowSec, 'summarizeActivityHistory requires a finite nowSec timestamp'));
   const empty = {
     hasHistory: false,
     trackedTasks: 0,
@@ -414,7 +422,6 @@ export function summarizeActivityHistory(activity, nowSec) {
     return empty;
   }
 
-  const resolvedNowSec = normalizeNowSec(nowSec);
   const cutoffSec = resolvedNowSec - 7 * 86400;
 
   let trackedTasks = 0;
@@ -460,703 +467,5 @@ export function summarizeActivityHistory(activity, nowSec) {
     reopenCount,
     lastCheckInSec,
     recent7dTransitions,
-  };
-}
-
-export function createInsightsRuntimeState() {
-  return {
-    degraded: false,
-    lastError: null,
-    activitySuspended: false,
-    pendingActivityPurge: false,
-    pendingOptOut: false,
-    pendingDeletedIds: new Set(),
-  };
-}
-
-function getRuntimeState(section, explicitRuntimeState) {
-  if (explicitRuntimeState) return explicitRuntimeState;
-  const sec = normalizeSection(section);
-  let rt = defaultRuntimeBySection.get(sec);
-  if (!rt) {
-    rt = createInsightsRuntimeState();
-    defaultRuntimeBySection.set(sec, rt);
-  }
-  return rt;
-}
-
-export function getInsightsStorageStatus({ section = currentSection(), runtimeState } = {}) {
-  const rt = getRuntimeState(section, runtimeState);
-  return {
-    degraded: Boolean(rt.degraded),
-    lastError: rt.lastError,
-    activitySuspended: Boolean(rt.activitySuspended),
-    pendingActivityPurge: Boolean(rt.pendingActivityPurge),
-    pendingOptOut: Boolean(rt.pendingOptOut),
-    pendingDeletedIds: [...rt.pendingDeletedIds],
-  };
-}
-
-function resolveStorage(explicitStorage, explicitErrorName = null) {
-  if (explicitStorage !== undefined) {
-    return {
-      storage: explicitStorage,
-      errorName: explicitStorage ? explicitErrorName : (explicitErrorName || 'SecurityError'),
-    };
-  }
-  try {
-    const s = typeof window !== 'undefined' && 'localStorage' in window ? window.localStorage : null;
-    return { storage: s, errorName: s ? explicitErrorName : (explicitErrorName || 'StorageUnavailable') };
-  } catch (e) {
-    return { storage: null, errorName: e?.name || 'SecurityError' };
-  }
-}
-
-function errName(e, fallback = 'StorageError') {
-  return (e && typeof e.name === 'string' && e.name) ? e.name : fallback;
-}
-
-function isQuotaError(e) {
-  const name = errName(e, '');
-  const msg = e && typeof e.message === 'string' ? e.message : '';
-  return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED' || /quota/i.test(msg);
-}
-
-function storageGet(storage, key) {
-  if (!storage) return { ok: false, value: null, errorName: 'SecurityError' };
-  try {
-    return { ok: true, value: storage.getItem(key), errorName: null };
-  } catch (e) {
-    return { ok: false, value: null, errorName: errName(e) };
-  }
-}
-
-function storageSet(storage, key, raw) {
-  if (!storage) return { ok: false, quota: false, errorName: 'SecurityError' };
-  try {
-    storage.setItem(key, raw);
-    return { ok: true, quota: false, errorName: null };
-  } catch (e) {
-    return { ok: false, quota: isQuotaError(e), errorName: errName(e) };
-  }
-}
-
-function storageRemove(storage, key) {
-  if (!storage) return { ok: false, errorName: 'SecurityError' };
-  try {
-    storage.removeItem(key);
-    return { ok: true, errorName: null };
-  } catch (e) {
-    return { ok: false, errorName: errName(e) };
-  }
-}
-
-function markSuspended(rt, errorName) {
-  rt.degraded = true;
-  rt.activitySuspended = true;
-  rt.lastError = errorName || 'StorageError';
-}
-
-function clearDegradedIfClean(rt) {
-  if (!rt.pendingActivityPurge && !rt.pendingOptOut && rt.pendingDeletedIds.size === 0) {
-    rt.activitySuspended = false;
-    rt.degraded = false;
-    rt.lastError = null;
-  }
-}
-
-function parsePrefsRaw(raw) {
-  if (typeof raw !== 'string' || raw === '') return { valid: false, prefs: { ...DEFAULT_INSIGHTS_PREFS } };
-  try {
-    const parsed = JSON.parse(raw);
-    if (!isPlainObject(parsed) || parsed.v !== INSIGHTS_SCHEMA_VERSION) {
-      return { valid: false, prefs: { ...DEFAULT_INSIGHTS_PREFS } };
-    }
-    if (typeof parsed.showInsights !== 'boolean' || typeof parsed.activityOptIn !== 'boolean') {
-      return { valid: false, prefs: { ...DEFAULT_INSIGHTS_PREFS } };
-    }
-    return {
-      valid: true,
-      prefs: {
-        v: INSIGHTS_SCHEMA_VERSION,
-        showInsights: parsed.showInsights,
-        activityOptIn: parsed.activityOptIn,
-      },
-    };
-  } catch (e) {
-    return { valid: false, prefs: { ...DEFAULT_INSIGHTS_PREFS } };
-  }
-}
-
-function parseActivityRaw(raw) {
-  if (typeof raw !== 'string' || raw === '') return { valid: false, missing: true, activity: null };
-  try {
-    const parsed = JSON.parse(raw);
-    if (!isPlainObject(parsed) || parsed.v !== ACTIVITY_SCHEMA_VERSION || !isPlainObject(parsed.tasks)) {
-      return { valid: false, missing: false, activity: null };
-    }
-    return { valid: true, missing: false, activity: parsed };
-  } catch (e) {
-    return { valid: false, missing: false, activity: null };
-  }
-}
-
-export function pruneOldestActivity(activity, maxTasks = MAX_ACTIVITY_TASKS, pinnedId = null) {
-  const source = isPlainObject(activity) && isPlainObject(activity.tasks) ? activity.tasks : {};
-  const limit = Number.isInteger(maxTasks) && maxTasks >= 0 ? maxTasks : MAX_ACTIVITY_TASKS;
-  const entries = Object.entries(source).filter(([, v]) => isPlainObject(v));
-  if (entries.length <= limit) {
-    return { v: ACTIVITY_SCHEMA_VERSION, tasks: Object.fromEntries(entries) };
-  }
-  const pin = pinnedId !== null && pinnedId !== undefined ? String(pinnedId) : null;
-  entries.sort((a, b) => {
-    if (pin !== null) {
-      if (a[0] === pin && b[0] !== pin) return -1;
-      if (b[0] === pin && a[0] !== pin) return 1;
-    }
-    const la = Number.isFinite(a[1].lastSec) ? a[1].lastSec : -Infinity;
-    const lb = Number.isFinite(b[1].lastSec) ? b[1].lastSec : -Infinity;
-    if (la !== lb) return lb - la;
-    return a[0].localeCompare(b[0]);
-  });
-  return {
-    v: ACTIVITY_SCHEMA_VERSION,
-    tasks: Object.fromEntries(entries.slice(0, limit)),
-  };
-}
-
-function flushIdDeletions(storage, activityKey, rt) {
-  if (rt.pendingDeletedIds.size === 0) {
-    return { ok: true, deleted: false, fallbackCleared: false, removed: [], errorName: null };
-  }
-  const pendingIds = [...rt.pendingDeletedIds];
-  const readRes = storageGet(storage, activityKey);
-  if (!readRes.ok) {
-    const remRes = storageRemove(storage, activityKey);
-    if (remRes.ok) {
-      rt.pendingDeletedIds.clear();
-      return { ok: true, deleted: true, fallbackCleared: true, removed: [], errorName: readRes.errorName };
-    }
-    return { ok: false, deleted: false, fallbackCleared: false, removed: [], errorName: remRes.errorName || readRes.errorName };
-  }
-  if (readRes.value === null) {
-    rt.pendingDeletedIds.clear();
-    return { ok: true, deleted: false, fallbackCleared: false, removed: [], errorName: null };
-  }
-  const parsed = parseActivityRaw(readRes.value);
-  if (!parsed.valid) {
-    const remRes = storageRemove(storage, activityKey);
-    if (remRes.ok) {
-      rt.pendingDeletedIds.clear();
-      return { ok: true, deleted: true, fallbackCleared: true, removed: [], errorName: null };
-    }
-    return { ok: false, deleted: false, fallbackCleared: false, removed: [], errorName: remRes.errorName };
-  }
-  const filtered = filterDeletedActivity(parsed.activity, pendingIds);
-  if (!filtered.removed.length) {
-    rt.pendingDeletedIds.clear();
-    return { ok: true, deleted: false, fallbackCleared: false, removed: [], errorName: null };
-  }
-  const writeRes = storageSet(storage, activityKey, JSON.stringify(filtered.activity));
-  if (writeRes.ok) {
-    rt.pendingDeletedIds.clear();
-    return { ok: true, deleted: true, fallbackCleared: false, removed: filtered.removed, errorName: null };
-  }
-  const remRes = storageRemove(storage, activityKey);
-  if (remRes.ok) {
-    rt.pendingDeletedIds.clear();
-    return { ok: true, deleted: true, fallbackCleared: true, removed: filtered.removed, errorName: writeRes.errorName };
-  }
-  return { ok: false, deleted: false, fallbackCleared: false, removed: [], errorName: remRes.errorName || writeRes.errorName };
-}
-
-export function flushPendingActivityCleanup({
-  storage,
-  section = currentSection(),
-  runtimeState,
-  errorName = null,
-} = {}) {
-  const sec = normalizeSection(section);
-  const rt = getRuntimeState(sec, runtimeState);
-  const keys = insightsKeysFor(sec);
-  const resolved = resolveStorage(storage, errorName);
-
-  if (!rt.pendingActivityPurge && !rt.pendingOptOut && rt.pendingDeletedIds.size === 0) {
-    return {
-      ok: true,
-      cleaned: true,
-      deleted: false,
-      degraded: Boolean(rt.degraded),
-      pendingCleanup: false,
-    };
-  }
-
-  if (!resolved.storage) {
-    markSuspended(rt, resolved.errorName);
-    return {
-      ok: false,
-      cleaned: false,
-      deleted: false,
-      degraded: true,
-      pendingCleanup: true,
-    };
-  }
-
-  let deleted = false;
-  let fallbackCleared = false;
-
-  if (rt.pendingOptOut) {
-    const prefsRead = storageGet(resolved.storage, keys.prefs);
-    const current = prefsRead.ok ? parsePrefsRaw(prefsRead.value).prefs : { ...DEFAULT_INSIGHTS_PREFS };
-    const nextPrefs = {
-      v: INSIGHTS_SCHEMA_VERSION,
-      showInsights: current.showInsights,
-      activityOptIn: false,
-    };
-    const prefsWrite = storageSet(resolved.storage, keys.prefs, JSON.stringify(nextPrefs));
-    if (!prefsWrite.ok) {
-      markSuspended(rt, prefsWrite.errorName);
-      return {
-        ok: false,
-        cleaned: false,
-        deleted: false,
-        degraded: true,
-        pendingCleanup: true,
-      };
-    }
-    rt.pendingOptOut = false;
-  }
-
-  if (rt.pendingActivityPurge) {
-    const remRes = storageRemove(resolved.storage, keys.activity);
-    if (!remRes.ok) {
-      markSuspended(rt, remRes.errorName);
-      return {
-        ok: false,
-        cleaned: false,
-        deleted: false,
-        degraded: true,
-        pendingCleanup: true,
-      };
-    }
-    rt.pendingActivityPurge = false;
-    rt.pendingDeletedIds.clear();
-    deleted = true;
-  } else if (rt.pendingDeletedIds.size > 0) {
-    const idFlush = flushIdDeletions(resolved.storage, keys.activity, rt);
-    if (!idFlush.ok) {
-      markSuspended(rt, idFlush.errorName);
-      return {
-        ok: false,
-        cleaned: false,
-        deleted: false,
-        degraded: true,
-        pendingCleanup: true,
-      };
-    }
-    deleted = idFlush.deleted;
-    fallbackCleared = idFlush.fallbackCleared;
-  }
-
-  clearDegradedIfClean(rt);
-  if (fallbackCleared) {
-    rt.degraded = true;
-    rt.lastError = rt.lastError || 'ActivityFallbackCleared';
-  }
-  return {
-    ok: true,
-    cleaned: true,
-    deleted,
-    degraded: Boolean(rt.degraded),
-    pendingCleanup: false,
-  };
-}
-
-export function readInsightsPrefs({ storage, section = currentSection(), runtimeState, errorName = null } = {}) {
-  const sec = normalizeSection(section);
-  const rt = getRuntimeState(sec, runtimeState);
-  const keys = insightsKeysFor(sec);
-  const resolved = resolveStorage(storage, errorName);
-
-  if (rt.pendingActivityPurge || rt.pendingOptOut || rt.pendingDeletedIds.size > 0) {
-    flushPendingActivityCleanup({ storage: resolved.storage, section: sec, runtimeState: rt, errorName: resolved.errorName });
-  }
-
-  if (!resolved.storage) {
-    markSuspended(rt, resolved.errorName);
-    return { ...DEFAULT_INSIGHTS_PREFS };
-  }
-
-  const readRes = storageGet(resolved.storage, keys.prefs);
-  if (!readRes.ok) {
-    markSuspended(rt, readRes.errorName);
-    return { ...DEFAULT_INSIGHTS_PREFS };
-  }
-  if (readRes.value === null) {
-    return rt.pendingOptOut
-      ? { ...DEFAULT_INSIGHTS_PREFS, activityOptIn: false }
-      : { ...DEFAULT_INSIGHTS_PREFS };
-  }
-  const parsed = parsePrefsRaw(readRes.value);
-  if (rt.pendingOptOut) parsed.prefs.activityOptIn = false;
-  return parsed.prefs;
-}
-
-export function setShowInsights(enabled, { storage, section = currentSection(), runtimeState } = {}) {
-  const sec = normalizeSection(section);
-  const rt = getRuntimeState(sec, runtimeState);
-  const keys = insightsKeysFor(sec);
-  const resolved = resolveStorage(storage);
-
-  const current = readInsightsPrefs({ storage: resolved.storage, section: sec, runtimeState: rt });
-  const next = {
-    v: INSIGHTS_SCHEMA_VERSION,
-    showInsights: Boolean(enabled),
-    activityOptIn: rt.pendingOptOut ? false : current.activityOptIn,
-  };
-
-  if (!resolved.storage) {
-    rt.degraded = true;
-    rt.lastError = resolved.errorName;
-    return { ok: false, prefs: next, degraded: true };
-  }
-  const writeRes = storageSet(resolved.storage, keys.prefs, JSON.stringify(next));
-  if (!writeRes.ok) {
-    rt.degraded = true;
-    rt.lastError = writeRes.errorName;
-    return { ok: false, prefs: next, degraded: true };
-  }
-  if (!rt.activitySuspended && !rt.pendingActivityPurge && !rt.pendingOptOut && rt.pendingDeletedIds.size === 0) {
-    rt.degraded = false;
-    rt.lastError = null;
-  }
-  return { ok: true, prefs: next, degraded: Boolean(rt.degraded) };
-}
-
-export function setActivityOptIn(enabled, { storage, section = currentSection(), runtimeState } = {}) {
-  const sec = normalizeSection(section);
-  const rt = getRuntimeState(sec, runtimeState);
-  const keys = insightsKeysFor(sec);
-  const resolved = resolveStorage(storage);
-  const current = readInsightsPrefs({ storage: resolved.storage, section: sec, runtimeState: rt });
-  const optIn = Boolean(enabled);
-
-  if (!optIn) {
-    const next = {
-      v: INSIGHTS_SCHEMA_VERSION,
-      showInsights: current.showInsights,
-      activityOptIn: false,
-    };
-
-    if (!resolved.storage) {
-      rt.pendingOptOut = true;
-      rt.pendingActivityPurge = true;
-      markSuspended(rt, resolved.errorName);
-      return { ok: false, prefs: next, deleted: false, degraded: true, pendingCleanup: true };
-    }
-
-    const remRes = storageRemove(resolved.storage, keys.activity);
-    const writeRes = storageSet(resolved.storage, keys.prefs, JSON.stringify(next));
-
-    if (!writeRes.ok) {
-      rt.pendingOptOut = true;
-    } else {
-      rt.pendingOptOut = false;
-    }
-
-    if (!remRes.ok) {
-      rt.pendingActivityPurge = true;
-      markSuspended(rt, remRes.errorName);
-      return {
-        ok: false,
-        prefs: next,
-        deleted: false,
-        degraded: true,
-        pendingCleanup: true,
-      };
-    }
-
-    rt.pendingActivityPurge = false;
-    rt.pendingDeletedIds.clear();
-    if (!writeRes.ok) {
-      markSuspended(rt, writeRes.errorName);
-      return {
-        ok: false,
-        prefs: next,
-        deleted: true,
-        degraded: true,
-        pendingCleanup: true,
-      };
-    }
-
-    clearDegradedIfClean(rt);
-    return {
-      ok: true,
-      prefs: next,
-      deleted: true,
-      degraded: false,
-      pendingCleanup: false,
-    };
-  }
-
-  if (rt.pendingActivityPurge || rt.pendingOptOut || rt.pendingDeletedIds.size > 0) {
-    const cleanup = flushPendingActivityCleanup({ storage: resolved.storage, section: sec, runtimeState: rt });
-    if (!cleanup.ok) {
-      return {
-        ok: false,
-        prefs: { ...current, activityOptIn: false },
-        deleted: false,
-        degraded: true,
-        pendingCleanup: true,
-      };
-    }
-  }
-
-  const next = {
-    v: INSIGHTS_SCHEMA_VERSION,
-    showInsights: current.showInsights,
-    activityOptIn: true,
-  };
-  if (!resolved.storage) {
-    markSuspended(rt, resolved.errorName);
-    return { ok: false, prefs: { ...current, activityOptIn: false }, deleted: false, degraded: true, pendingCleanup: false };
-  }
-  const writeRes = storageSet(resolved.storage, keys.prefs, JSON.stringify(next));
-  if (!writeRes.ok) {
-    markSuspended(rt, writeRes.errorName);
-    return { ok: false, prefs: { ...current, activityOptIn: false }, deleted: false, degraded: true, pendingCleanup: false };
-  }
-  clearDegradedIfClean(rt);
-  return { ok: true, prefs: next, deleted: false, degraded: false, pendingCleanup: false };
-}
-
-export function clearActivityHistory({ storage, section = currentSection(), runtimeState } = {}) {
-  const sec = normalizeSection(section);
-  const rt = getRuntimeState(sec, runtimeState);
-  const keys = insightsKeysFor(sec);
-  const resolved = resolveStorage(storage);
-
-  if (!resolved.storage) {
-    rt.pendingActivityPurge = true;
-    markSuspended(rt, resolved.errorName);
-    return { ok: false, deleted: false, degraded: true, pendingCleanup: true };
-  }
-
-  const remRes = storageRemove(resolved.storage, keys.activity);
-  if (!remRes.ok) {
-    rt.pendingActivityPurge = true;
-    markSuspended(rt, remRes.errorName);
-    return { ok: false, deleted: false, degraded: true, pendingCleanup: true };
-  }
-
-  rt.pendingActivityPurge = false;
-  rt.pendingDeletedIds.clear();
-  clearDegradedIfClean(rt);
-  return { ok: true, deleted: true, degraded: false, pendingCleanup: false };
-}
-
-export function readActivityHistory({ storage, section = currentSection(), runtimeState } = {}) {
-  const sec = normalizeSection(section);
-  const rt = getRuntimeState(sec, runtimeState);
-  const keys = insightsKeysFor(sec);
-  const resolved = resolveStorage(storage);
-
-  if (rt.pendingActivityPurge || rt.pendingOptOut || rt.pendingDeletedIds.size > 0) {
-    const cleanup = flushPendingActivityCleanup({ storage: resolved.storage, section: sec, runtimeState: rt });
-    if (!cleanup.ok) return null;
-  }
-  if (!resolved.storage) {
-    markSuspended(rt, resolved.errorName);
-    return null;
-  }
-
-  const readRes = storageGet(resolved.storage, keys.activity);
-  if (!readRes.ok) {
-    markSuspended(rt, readRes.errorName);
-    return null;
-  }
-  if (readRes.value === null) return null;
-  const parsed = parseActivityRaw(readRes.value);
-  return parsed.valid ? parsed.activity : null;
-}
-
-export function recordActivityTransition(
-  taskId,
-  status,
-  nowSec,
-  { storage, section = currentSection(), runtimeState, subject = '', deadlineSec = null } = {},
-) {
-  const sec = normalizeSection(section);
-  const rt = getRuntimeState(sec, runtimeState);
-  const keys = insightsKeysFor(sec);
-  const resolved = resolveStorage(storage);
-
-  const id = typeof taskId === 'string' ? taskId : String(taskId ?? '');
-  if (!id || id === '__proto__' || !Object.hasOwn(STATUS_TO_CODE, status)) {
-    return { ok: false, written: false, reason: 'invalid_input', degraded: Boolean(rt.degraded) };
-  }
-
-  if (rt.pendingActivityPurge || rt.pendingOptOut || rt.pendingDeletedIds.size > 0) {
-    const cleanup = flushPendingActivityCleanup({ storage: resolved.storage, section: sec, runtimeState: rt });
-    if (!cleanup.ok) {
-      return { ok: false, written: false, suspended: true, degraded: true, pendingCleanup: true };
-    }
-  }
-
-  const prefs = readInsightsPrefs({ storage: resolved.storage, section: sec, runtimeState: rt });
-  if (!prefs.activityOptIn) {
-    return { ok: true, written: false, reason: 'opted_out', degraded: Boolean(rt.degraded) };
-  }
-  if (rt.activitySuspended || !resolved.storage) {
-    if (!resolved.storage) markSuspended(rt, resolved.errorName);
-    return { ok: false, written: false, suspended: true, degraded: true };
-  }
-
-  const readRes = storageGet(resolved.storage, keys.activity);
-  if (!readRes.ok) {
-    markSuspended(rt, readRes.errorName);
-    return { ok: false, written: false, suspended: true, degraded: true };
-  }
-
-  const existing = readRes.value !== null ? parseActivityRaw(readRes.value) : { valid: true, activity: { v: ACTIVITY_SCHEMA_VERSION, tasks: {} } };
-  const baseActivity = existing.valid && existing.activity
-    ? { v: ACTIVITY_SCHEMA_VERSION, tasks: { ...existing.activity.tasks } }
-    : { v: ACTIVITY_SCHEMA_VERSION, tasks: {} };
-
-  const code = STATUS_TO_CODE[status];
-  const resolvedNowSec = normalizeNowSec(nowSec);
-  const prevRec = isPlainObject(baseActivity.tasks[id]) ? baseActivity.tasks[id] : null;
-  const prevEvents = prevRec && Array.isArray(prevRec.e) ? prevRec.e.slice() : [];
-  const prevLastCode = prevEvents.length ? prevEvents[prevEvents.length - 1][0] : null;
-  const prevReopens = prevRec && Number.isInteger(prevRec.r) && prevRec.r >= 0 ? prevRec.r : 0;
-  const nextReopens = prevLastCode === 2 && code !== 2 ? prevReopens + 1 : prevReopens;
-
-  const events = prevEvents.concat([[code, resolvedNowSec]]).slice(-MAX_ACTIVITY_EVENTS_PER_TASK);
-  const nextRec = {
-    s: typeof subject === 'string' && subject ? subject : (prevRec && typeof prevRec.s === 'string' ? prevRec.s : ''),
-    d: Number.isFinite(deadlineSec) ? Math.floor(deadlineSec) : (prevRec && Number.isFinite(prevRec.d) ? prevRec.d : null),
-    r: nextReopens,
-    e: events,
-    lastSec: resolvedNowSec,
-  };
-  baseActivity.tasks[id] = nextRec;
-
-  const trimmed = pruneOldestActivity(baseActivity, MAX_ACTIVITY_TASKS, id);
-  const firstWrite = storageSet(resolved.storage, keys.activity, JSON.stringify(trimmed));
-  if (firstWrite.ok) {
-    rt.degraded = false;
-    rt.lastError = null;
-    rt.activitySuspended = false;
-    return { ok: true, written: true, pruned: false, degraded: false };
-  }
-
-  if (firstWrite.quota) {
-    const count = Object.keys(trimmed.tasks).length;
-    const halfLimit = Math.max(1, Math.floor(count / 2));
-    const shrunk = pruneOldestActivity(trimmed, halfLimit, id);
-    const retryWrite = storageSet(resolved.storage, keys.activity, JSON.stringify(shrunk));
-    if (retryWrite.ok) {
-      rt.degraded = true;
-      rt.lastError = firstWrite.errorName;
-      rt.activitySuspended = false;
-      return { ok: true, written: true, pruned: true, degraded: true };
-    }
-    markSuspended(rt, retryWrite.errorName);
-    return { ok: false, written: false, pruned: true, suspended: true, degraded: true };
-  }
-
-  markSuspended(rt, firstWrite.errorName);
-  return { ok: false, written: false, pruned: false, suspended: true, degraded: true };
-}
-
-export function pruneDeletedActivity(
-  deletedIds,
-  { storage, section = currentSection(), runtimeState, errorName = null } = {},
-) {
-  const sec = normalizeSection(section);
-  const rt = getRuntimeState(sec, runtimeState);
-  const keys = insightsKeysFor(sec);
-  const resolved = resolveStorage(storage, errorName);
-
-  const incoming = Array.isArray(deletedIds)
-    ? deletedIds
-      .map((entry) => (typeof entry === 'string' ? entry : (isPlainObject(entry) && typeof entry.id === 'string' ? entry.id : null)))
-      .filter((id) => typeof id === 'string' && id !== '')
-    : [];
-
-  for (const id of incoming) rt.pendingDeletedIds.add(id);
-
-  if (rt.pendingActivityPurge || rt.pendingOptOut) {
-    const flushed = flushPendingActivityCleanup({
-      storage: resolved.storage,
-      section: sec,
-      runtimeState: rt,
-      errorName: resolved.errorName,
-    });
-    if (!flushed.ok) {
-      return {
-        ok: false,
-        removed: [],
-        deleted: false,
-        degraded: true,
-        pendingCleanup: true,
-      };
-    }
-  }
-
-  if (rt.pendingDeletedIds.size === 0) {
-    return {
-      ok: true,
-      removed: [],
-      deleted: false,
-      degraded: Boolean(rt.degraded),
-      pendingCleanup: false,
-    };
-  }
-
-  if (!resolved.storage) {
-    markSuspended(rt, resolved.errorName);
-    return {
-      ok: false,
-      removed: [],
-      deleted: false,
-      degraded: true,
-      pendingCleanup: true,
-    };
-  }
-
-  const out = flushIdDeletions(resolved.storage, keys.activity, rt);
-  if (!out.ok) {
-    markSuspended(rt, out.errorName);
-    return {
-      ok: false,
-      removed: [],
-      deleted: false,
-      degraded: true,
-      pendingCleanup: true,
-    };
-  }
-
-  if (out.fallbackCleared) {
-    rt.degraded = true;
-    rt.lastError = out.errorName || 'StorageError';
-    rt.activitySuspended = false;
-    return {
-      ok: true,
-      removed: out.removed,
-      deleted: true,
-      fallbackCleared: true,
-      degraded: true,
-      pendingCleanup: false,
-    };
-  }
-
-  clearDegradedIfClean(rt);
-  return {
-    ok: true,
-    removed: out.removed,
-    deleted: out.deleted,
-    degraded: Boolean(rt.degraded),
-    pendingCleanup: false,
   };
 }
