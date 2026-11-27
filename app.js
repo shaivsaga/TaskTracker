@@ -603,7 +603,17 @@ function openDuePicker(opts) {
   $('.dp-prev').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() - 1, 1)));
   $('.dp-next').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() + 1, 1)));
   $('.dp-today').addEventListener('click', () => { s.date = todayDate(); s.focusDate = s.date; if (s.endDate && s.endDate.getTime() < s.date.getTime()) s.endDate = null; gotoMonth(s.date); syncFields(); emit(); });
-  $('.dp-clear').addEventListener('click', () => { s.date = null; s.endDate = null; s.time = null; emit(); closeDuePicker(); });
+  $('.dp-clear').addEventListener('click', () => {
+    const done = s.onDone;
+    const anchor = s.anchor;
+    s.date = null;
+    s.endDate = null;
+    s.time = null;
+    emit();
+    if (dpEl) closeDuePicker('done');
+    else if (done) done();
+    else if (anchor && anchor.focus) anchor.focus();
+  });
 
   document.body.appendChild(el);
   dpEl = el;
@@ -713,11 +723,20 @@ const TRAP_SELECTORS = ['.confirm-overlay', '#notice-overlay', '#import-overlay'
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;
+  if (dpEl && dpEl.isConnected) {
+    const dpItems = [...dpEl.querySelectorAll(FOCUSABLE)].filter((el) => el.tabIndex >= 0 && !el.closest('[hidden]') && el.getClientRects().length);
+    if (!dpItems.length) return;
+    const first = dpItems[0], last = dpItems[dpItems.length - 1];
+    if (!dpEl.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    return;
+  }
   const ov = TRAP_SELECTORS.map((s) => document.querySelector(s)).find((o) => o && !o.hidden && !o.classList.contains('is-closing'));
   if (!ov) return;
 
-  if (e.target instanceof Element && e.target.closest('.due-picker, .status-popover')) return;
-  const items = [...ov.querySelectorAll(FOCUSABLE)].filter((el) => !el.closest('[hidden]') && el.getClientRects().length);
+  if (e.target instanceof Element && e.target.closest('.status-popover')) return;
+  const items = [...ov.querySelectorAll(FOCUSABLE)].filter((el) => el.tabIndex >= 0 && !el.closest('[hidden]') && el.getClientRects().length);
   if (!items.length) return;
   const first = items[0], last = items[items.length - 1];
   if (!ov.contains(document.activeElement)) { e.preventDefault(); first.focus(); }

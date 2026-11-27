@@ -1292,8 +1292,39 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
     const dr = document.querySelector('.dp-day').getBoundingClientRect();
     return { dayW: +dr.width.toFixed(1), dayH: +dr.height.toFixed(1), pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
   })()`);
-  await pressKey(cdp, 'Escape', 'Escape', 27);
+
+  // Nested Tab trap inside .due-picker (Tab from .dp-clear wraps to .dp-date; Shift+Tab wraps back to .dp-clear)
+  await cdp.evaluate(`document.querySelector('.due-picker .dp-clear')?.focus()`);
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 0 });
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 0 });
+  const dpTabWrap = await cdp.evaluate(`({
+    inPicker: !!document.querySelector('.due-picker')?.contains(document.activeElement),
+    isDateIn: !!document.activeElement?.classList?.contains('dp-date'),
+  })`);
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 });
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 });
+  const dpShiftTabWrap = await cdp.evaluate(`({
+    inPicker: !!document.querySelector('.due-picker')?.contains(document.activeElement),
+    isClearBtn: !!document.activeElement?.classList?.contains('dp-clear'),
+  })`);
+
+  // Clicking Clear restores focus to #dialog-date-btn while keeping outer dialog open and focus-contained
+  await click(cdp, '.due-picker .dp-clear');
   await waitUntil(cdp, `!document.querySelector('.due-picker')`);
+  const afterDpClear = await cdp.evaluate(`({
+    dialogOpen: !document.getElementById('task-dialog-overlay').hidden,
+    activeId: document.activeElement?.id || '',
+    dateLabel: document.getElementById('dialog-date-btn')?.textContent?.trim() || '',
+  })`);
+  await cdp.evaluate(`(() => {
+    const ov = document.getElementById('task-dialog-overlay');
+    const items = [...ov.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])')].filter((el) => el.tabIndex >= 0 && !el.closest('[hidden]') && el.getClientRects().length);
+    items[items.length - 1]?.focus();
+  })()`);
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 0 });
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 0 });
+  const outerTabTrap = await cdp.evaluate(`document.getElementById('task-dialog-overlay').contains(document.activeElement)`);
+
   await pressKey(cdp, 'Escape', 'Escape', 27);
   await waitUntil(cdp, `document.getElementById('task-dialog-overlay')?.hidden === true`);
 
@@ -1370,6 +1401,10 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && picker320.cellCount === 42 && picker320.cellsOk && picker320.tabZeroCount === 1 && picker320.tabMinusCount === 41
       && picker320.dayW >= 41.5 && picker320.dayH >= 44 && picker320.gridOverflow === 0 && picker320.pageOverflow === 0
       && picker375.dayW >= 44 && picker375.dayH >= 44 && picker375.pageOverflow === 0
+      && dpTabWrap.inPicker && dpTabWrap.isDateIn
+      && dpShiftTabWrap.inPicker && dpShiftTabWrap.isClearBtn
+      && afterDpClear.dialogOpen && afterDpClear.activeId === 'dialog-date-btn' && /add due date/i.test(afterDpClear.dateLabel)
+      && outerTabTrap
       && afterRight !== picker320.firstFocusedDate && afterDown !== afterRight
       && afterHome.day === 0 && afterEnd.day === 6 && afterPageDown.month !== ''
       && afterSelect.stillFocused && afterSelect.selected === 'true'
@@ -1383,6 +1418,6 @@ export async function runUiBehaviorChecks({ cdp, boot, check, click, pressKey, w
       && files10Admin640.footerOk && files10Admin640.bodyOv <= 0
       && ro6.filesHidden === false && ro6.notesHidden === true && ro6.labelText === 'Files (6)'
       && ro6.attachHidden === true && ro6.itemCount === 6 && ro6.rmCount === 0,
-    JSON.stringify({ picker320, picker375, afterRight, afterDown, afterHome, afterEnd, afterPageDown, afterSelect, afterPickerEsc, files10Admin320, afterRemove1, files10Admin640, ro6 }),
+    JSON.stringify({ picker320, picker375, dpTabWrap, dpShiftTabWrap, afterDpClear, outerTabTrap, afterRight, afterDown, afterHome, afterEnd, afterPageDown, afterSelect, afterPickerEsc, files10Admin320, afterRemove1, files10Admin640, ro6 }),
   );
 }

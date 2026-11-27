@@ -55,6 +55,9 @@ test('app.js builds WAI-ARIA APG grid hierarchy and roving tabindex for .dp-grid
   assert.match(src, /e\.key === 'PageUp'/);
   assert.match(src, /e\.key === 'PageDown'/);
   assert.match(src, /addMonthsClamped/);
+  assert.match(src, /closeDuePicker\('done'\)/);
+  assert.match(src, /if \(dpEl && dpEl\.isConnected\)/);
+  assert.match(src, /el\.tabIndex >= 0/);
 });
 
 test('js/tasks.js disambiguates file Remove labels and caps at MAX_TASK_FILES (10)', () => {
