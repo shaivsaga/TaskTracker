@@ -155,15 +155,16 @@ const TT_SCHEDULE_MAX_META = 80;
 const TT_SCHEDULE_MAX_LABEL = 40;
 const TT_SCHEDULE_TIME = '/^([01]\d|2[0-3]):[0-5]\d$/D';
 
-// Validate a class schedule object (mirrors logic.js validateSchedule()). Returns [schedule, null]
-// or [null, error]. Null yields [null, null].
+// Validate a class schedule object (mirrors logic.js validateSchedule()). Uses an explicit persistence
+// allowlist (strips legacy adviser/teacher/unknown fields silently). Returns [schedule, null] or
+// [null, error]. Null yields [null, null].
 function tt_schedule_validate($raw) {
     if ($raw === null) return [null, null];
     if (!is_array($raw) || ($raw !== [] && array_is_list($raw))) {
         return [null, 'Schedule must be an object.'];
     }
     $meta = [];
-    foreach (['term', 'sectionLabel', 'adviser', 'room'] as $field) {
+    foreach (['term', 'sectionLabel', 'room'] as $field) {
         $val = $raw[$field] ?? null;
         if ($val === null) {
             $meta[$field] = '';
@@ -220,19 +221,6 @@ function tt_schedule_validate($raw) {
         if (!in_array($kind, ['subject', 'break', 'activity'], true)) {
             return [null, "Slot $n has an invalid kind."];
         }
-        $teacher = '';
-        if (array_key_exists('teacher', $slot) && $slot['teacher'] !== null) {
-            if (!is_string($slot['teacher']) || !mb_check_encoding($slot['teacher'], 'UTF-8')) {
-                return [null, "Slot $n teacher must be text."];
-            }
-            $teacher = trim($slot['teacher']);
-            if (mb_strlen($teacher, 'UTF-8') > TT_SCHEDULE_MAX_META) {
-                return [null, "Slot $n teacher must be " . TT_SCHEDULE_MAX_META . ' characters or fewer.'];
-            }
-            if (preg_match('/[\x00-\x1f\x7f]/', $teacher)) {
-                return [null, "Slot $n teacher has control characters."];
-            }
-        }
         $out = ['day' => $day, 'start' => $start, 'end' => $end, 'kind' => $kind];
         if ($kind === 'subject') {
             $subj = $slot['subject'] ?? null;
@@ -258,7 +246,6 @@ function tt_schedule_validate($raw) {
             }
             $out['label'] = $lbl;
         }
-        if ($teacher !== '') $out['teacher'] = $teacher;
         $parsed[] = $out;
     }
 
@@ -276,7 +263,6 @@ function tt_schedule_validate($raw) {
     return [[
         'term'         => $meta['term'],
         'sectionLabel' => $meta['sectionLabel'],
-        'adviser'      => $meta['adviser'],
         'room'         => $meta['room'],
         'slots'        => $parsed,
     ], null];

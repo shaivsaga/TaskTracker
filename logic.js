@@ -373,7 +373,7 @@ function validateSchedule(raw, validSubjectCodes = null) {
     return { schedule: null, error: 'Schedule must be an object.' };
   }
   const meta = {};
-  for (const field of ['term', 'sectionLabel', 'adviser', 'room']) {
+  for (const field of ['term', 'sectionLabel', 'room']) {
     const val = raw[field];
     if (val === undefined || val === null) {
       meta[field] = '';
@@ -436,18 +436,6 @@ function validateSchedule(raw, validSubjectCodes = null) {
       return { schedule: null, error: `Slot ${n} has an invalid kind.` };
     }
 
-    let teacher = '';
-    if (slot.teacher !== undefined && slot.teacher !== null) {
-      if (typeof slot.teacher !== 'string') return { schedule: null, error: `Slot ${n} teacher must be text.` };
-      teacher = slot.teacher.trim();
-      if (Array.from(teacher).length > SCHEDULE_MAX_META) {
-        return { schedule: null, error: `Slot ${n} teacher must be ${SCHEDULE_MAX_META} characters or fewer.` };
-      }
-      if (SCHEDULE_CONTROL_RE.test(teacher)) {
-        return { schedule: null, error: `Slot ${n} teacher has control characters.` };
-      }
-    }
-
     const out = { day, start, end, kind };
     if (kind === 'subject') {
       const subj = slot.subject;
@@ -475,7 +463,6 @@ function validateSchedule(raw, validSubjectCodes = null) {
       }
       out.label = label;
     }
-    if (teacher) out.teacher = teacher;
     parsed.push({ out, day, startMin, endMin });
   }
 
@@ -495,7 +482,6 @@ function validateSchedule(raw, validSubjectCodes = null) {
     schedule: {
       term: meta.term,
       sectionLabel: meta.sectionLabel,
-      adviser: meta.adviser,
       room: meta.room,
       slots: parsed.map((p) => p.out),
     },
@@ -591,7 +577,8 @@ function resolveCurrentSlot(schedule, now) {
 }
 
 function buildWeekGrid(schedule) {
-  const empty = { boundaries: [], rows: [], cells: [], emptyCells: [] };
+  const blankOfficial = [1, 2, 3, 4, 5].map((day) => ({ day, start: null, end: null }));
+  const empty = { boundaries: [], rows: [], cells: [], emptyCells: [], officialTime: blankOfficial };
   if (!schedule || !Array.isArray(schedule.slots) || !schedule.slots.length) return empty;
   const validSlots = schedule.slots
     .filter((s) => s && Number.isInteger(s.day) && s.day >= 1 && s.day <= 5
@@ -641,7 +628,19 @@ function buildWeekGrid(schedule) {
     }
   }
 
-  return { boundaries, rows, cells, emptyCells };
+  const officialTime = [];
+  for (let d = 1; d <= 5; d++) {
+    let minStart = null;
+    let maxEnd = null;
+    for (const s of validSlots) {
+      if (s.day !== d) continue;
+      if (minStart === null || s.start < minStart) minStart = s.start;
+      if (maxEnd === null || s.end > maxEnd) maxEnd = s.end;
+    }
+    officialTime.push({ day: d, start: minStart, end: maxEnd });
+  }
+
+  return { boundaries, rows, cells, emptyCells, officialTime };
 }
 
 const logicAPI = {

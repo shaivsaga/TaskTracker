@@ -17,27 +17,28 @@ const DSCT_CODES = [
 ];
 
 const SAMPLE_DSCT = {
-  term: '2ND TERM – AY 2026-2027',
+  term: '2ND TERM',
   sectionLabel: 'DSCT11-A',
-  adviser: 'Mr. Jomari V. Borja',
   room: '92C ST. SCHO',
   slots: [
-    { day: 3, start: '07:30', end: '09:30', subject: 'FINMATH101', teacher: 'Ms. Shiela Grospe' },
+    { day: 3, start: '07:30', end: '09:30', subject: 'FINMATH101' },
     { day: 1, start: '09:30', end: '09:50', kind: 'break', label: 'RECESS' },
-    { day: 1, start: '07:30', end: '08:30', subject: 'CP104', teacher: 'Mr. James Robert A. Salud' },
-    { day: 1, start: '08:30', end: '09:30', subject: 'PKLP', teacher: 'Mr. Jay Z. Silvano' },
+    { day: 1, start: '07:30', end: '08:30', subject: 'CP104' },
+    { day: 1, start: '08:30', end: '09:30', subject: 'PKLP' },
     { day: 2, start: '07:10', end: '07:30', kind: 'activity', label: 'HOMEROOM' },
     { day: 5, start: '13:50', end: '14:50', kind: 'activity', label: 'CLUB' },
   ],
 };
 
-test('validateSchedule validates DSCT11-A, allows touching bounds, and sorts canonically', () => {
+test('validateSchedule validates DSCT11-A, allows touching bounds, enforces allowlist, and sorts canonically', () => {
   assert.deepEqual(validateSchedule(null), { schedule: null, error: null });
   assert.deepEqual(validateSchedule(undefined), { schedule: null, error: null });
 
   const res = validateSchedule(SAMPLE_DSCT, DSCT_CODES);
   assert.equal(res.error, null);
-  assert.equal(res.schedule.term, '2ND TERM – AY 2026-2027');
+  assert.equal(res.schedule.term, '2ND TERM');
+  assert.equal(res.schedule.sectionLabel, 'DSCT11-A');
+  assert.equal(res.schedule.room, '92C ST. SCHO');
   assert.equal(res.schedule.slots.length, 6);
   // Sorted by day, then start: Mon 07:30, Mon 08:30, Mon 09:30, Tue 07:10, Wed 07:30, Fri 13:50
   assert.deepEqual(
@@ -49,6 +50,32 @@ test('validateSchedule validates DSCT11-A, allows touching bounds, and sorts can
   assert.equal(res.schedule.slots[0].subject, 'CP104');
 
   assert.deepEqual(canonicalSchedule({ ...SAMPLE_DSCT, slots: SAMPLE_DSCT.slots.slice().reverse() }), res.schedule);
+
+  // Explicit persistence allowlist silently strips legacy adviser/teacher/unknown fields (even non-strings)
+  const withSentinels = validateSchedule({
+    ...SAMPLE_DSCT,
+    adviser: 'SYNTHETIC_ADVISER_SENTINEL',
+    extraMeta: { nested: true },
+    slots: [
+      { day: 1, start: '07:30', end: '08:30', subject: 'CP104', teacher: 'SYNTHETIC_TEACHER_SENTINEL', extraKey: 'drop' },
+      { day: 1, start: '09:30', end: '09:50', kind: 'break', label: 'RECESS', teacher: 12345 },
+    ],
+  }, DSCT_CODES);
+  assert.equal(withSentinels.error, null);
+  assert.deepEqual(Object.keys(withSentinels.schedule).sort(), ['room', 'sectionLabel', 'slots', 'term']);
+  for (const slot of withSentinels.schedule.slots) {
+    assert.equal(Object.hasOwn(slot, 'teacher'), false);
+    assert.equal(Object.hasOwn(slot, 'extraKey'), false);
+  }
+  assert.equal(JSON.stringify(withSentinels.schedule).includes('SYNTHETIC_'), false);
+
+  const nonStringLegacy = validateSchedule({
+    term: '2ND TERM',
+    adviser: ['legacy-array'],
+    slots: [{ day: 2, start: '07:10', end: '07:30', kind: 'activity', label: 'HOMEROOM', teacher: { name: 'legacy' } }],
+  });
+  assert.equal(nonStringLegacy.error, null);
+  assert.equal(Object.hasOwn(nonStringLegacy.schedule, 'adviser'), false);
 });
 
 test('validateSchedule rejects overlaps, invalid times, out-of-range days, reserved names, unknown subjects, and excess counts', () => {
@@ -154,18 +181,47 @@ test('buildWeekGrid coordinate-compresses irregular endpoints and spans merged m
   // Row 0 (07:10-07:30) has empty cells on Mon, Wed, Thu, Fri (only Tue HOMEROOM occupied)
   const r0Empty = grid.emptyCells.filter((e) => e.rowStart === 2).map((e) => e.day);
   assert.deepEqual(r0Empty, [1, 3, 4, 5]);
+
+  // Derived Official Time computes per-weekday min start and max end (null when weekday has no slots)
+  assert.deepEqual(grid.officialTime, [
+    { day: 1, start: '07:30', end: '09:50' },
+    { day: 2, start: '07:10', end: '07:30' },
+    { day: 3, start: '07:30', end: '09:30' },
+    { day: 4, start: null, end: null },
+    { day: 5, start: '13:50', end: '14:50' },
+  ]);
+
+  const emptyGrid = buildWeekGrid(null);
+  assert.equal(emptyGrid.officialTime.length, 5);
+  assert.ok(emptyGrid.officialTime.every((o) => o.start === null && o.end === null));
 });
 
-test('normalizeBoard and replaceDraft respect Decision A3 for pre-schedule vs schedule snapshots', async () => {
+test('normalizeBoard and replaceDraft enforce allowlist and preserve unpublished schedule on pre-timetable restore', async () => {
   assert.equal(normalizeBoard({ tasks: [], schedule: 'bad' }).schedule, undefined);
   assert.equal(normalizeBoard({ tasks: [], schedule: { slots: [] } }).schedule.slots.length, 0);
 
+  const normalized = normalizeBoard({
+    tasks: [],
+    schedule: {
+      term: '2ND TERM',
+      sectionLabel: 'DSCT11-A',
+      adviser: 'SYNTHETIC_ADVISER_SENTINEL',
+      room: '92C ST. SCHO',
+      slots: [{ day: 1, start: '07:30', end: '08:30', subject: 'CP104', teacher: 'SYNTHETIC_TEACHER_SENTINEL' }],
+    },
+  });
+  assert.equal(JSON.stringify(normalized).includes('SYNTHETIC_'), false);
+  assert.equal(Object.hasOwn(normalized.schedule, 'adviser'), false);
+  assert.equal(Object.hasOwn(normalized.schedule.slots[0], 'teacher'), false);
+
+  const editedDraftSched = { ...SAMPLE_DSCT, room: 'UNPUBLISHED-ROOM' };
   const mockState = {
     publishedTasks: [],
     verifiedDeletedIds: [],
     announcements: [],
     draftSubjects: [],
-    draftSchedule: SAMPLE_DSCT,
+    publishedSchedule: SAMPLE_DSCT,
+    draftSchedule: editedDraftSched,
     hasDraftSchedule: true,
     isAdmin: true,
   };
@@ -176,7 +232,7 @@ test('normalizeBoard and replaceDraft respect Decision A3 for pre-schedule vs sc
     fetchFn: async () => ({ ok: true, json: async () => ({}) }),
   });
 
-  // Pre-schedule snapshot omitting 'schedule' preserves state.draftSchedule (A3)
+  // Pre-schedule snapshot omitting 'schedule' preserves current draftSchedule (including unpublished edits)
   let rendered = 0;
   const keepRes = await boardStore.replaceDraft(
     { tasks: [], announcements: [] },
@@ -190,8 +246,25 @@ test('normalizeBoard and replaceDraft respect Decision A3 for pre-schedule vs sc
   );
   assert.equal(keepRes.ok, true);
   assert.equal(mockState.draftSchedule.sectionLabel, 'DSCT11-A');
+  assert.equal(mockState.draftSchedule.room, 'UNPUBLISHED-ROOM');
   assert.equal(mockState.hasDraftSchedule, true);
   assert.equal(rendered, 2);
+
+  // Schedule-bearing snapshot replaces draftSchedule cleanly and strips legacy adviser/teacher
+  const histSched = {
+    term: '1ST TERM',
+    sectionLabel: 'DSCT11-A',
+    adviser: 'SYNTHETIC_ADVISER_SENTINEL',
+    room: 'HIST-ROOM',
+    slots: [{ day: 2, start: '07:10', end: '07:30', kind: 'activity', label: 'HOMEROOM', teacher: 'SYNTHETIC_TEACHER_SENTINEL' }],
+  };
+  const schedRes = await boardStore.replaceDraft(
+    { tasks: [], announcements: [], schedule: histSched },
+    { myTasks: [], Task: class { static fromJSON(o) { return o; } }, validateSchedule },
+  );
+  assert.equal(schedRes.ok, true);
+  assert.equal(mockState.draftSchedule.room, 'HIST-ROOM');
+  assert.equal(JSON.stringify(mockState.draftSchedule).includes('SYNTHETIC_'), false);
 
   // Explicit schedule: null snapshot clears draftSchedule
   const clearRes = await boardStore.replaceDraft(

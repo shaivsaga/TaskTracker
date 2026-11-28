@@ -82,9 +82,9 @@ if ($idErr !== null) fail(422, $idErr);
 $coverErr = tt_subjects_cover($in['tasks'], $subjects);
 if ($coverErr !== null) fail(422, $coverErr);
 $hasScheduleKey = array_key_exists('schedule', $in);
+if ($hasScheduleKey && $clear !== null) fail(400, 'clearBoard must not supply a schedule.');
 $parsedSchedule = null;
 if ($hasScheduleKey && $in['schedule'] !== null) {
-  if ($clear !== null) fail(400, 'clearBoard must not supply a schedule.');
   [$parsedSchedule, $schedErr] = tt_schedule_validate($in['schedule']);
   if ($schedErr !== null) fail(422, $schedErr);
   $schedCoverErr = tt_schedule_subjects_cover($parsedSchedule, $subjects);
@@ -128,16 +128,17 @@ try {
   $markers = is_array($liveBoard) && is_array($liveBoard['deletedTasks'] ?? null) ? $liveBoard['deletedTasks'] : [];
 
   // One canonical body hash: an exact transport retry replays the stored result, a different body
-  // with the same token is a conflict. The receipt is bounded to the latest operation.
-  $bodyHash = tt_hash_value([
+  // with the same token is a conflict. Omit 'schedule' when absent to preserve origin/main receipts.
+  $hashPayload = [
     'baseRevision'  => $in['baseRevision'],
     'tasks'         => $in['tasks'],
     'announcements' => $anns,
     'subjects'      => $subjects,
-    'schedule'      => $hasScheduleKey ? $parsedSchedule : '__inherited__',
     'note'          => $note,
     'clearBoard'    => $clear,
-  ]);
+  ];
+  if ($hasScheduleKey) $hashPayload['schedule'] = $parsedSchedule;
+  $bodyHash = tt_hash_value($hashPayload);
   $receipt = tt_receipt($admin, $in['operationId'], $bodyHash);
   if ($receipt === 'conflict') fail(409, 'That operation id was already used for a different change. Reload and try again.', ['code' => 'operation_conflict', 'latestRevision' => $liveRevision]);
   if ($receipt === 'replay') {

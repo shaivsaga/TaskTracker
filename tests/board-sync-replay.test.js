@@ -140,7 +140,6 @@ test('TLC trace 2 & 3 (real PHP + js/store.js + js/publish.js): post-rename cras
     const schedule = {
       term: '2ND TERM',
       sectionLabel: 'DSCT11-A',
-      adviser: 'Mr. Borja',
       room: '92C ST. SCHO',
       slots: [{ day: 1, start: '07:30', end: '08:30', kind: 'subject', subject: 'CS' }],
     };

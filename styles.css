@@ -1344,15 +1344,16 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   background: var(--ln);
   box-shadow: 0 2px 0 var(--sh);
 }
-.sched-head { padding: 8px; background: var(--sf2); color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; text-transform: uppercase; text-align: center; }
-.sched-head.is-time-col { text-align: left; }
-.sched-time { display: flex; align-items: center; padding: 6px; background: var(--sf); color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; }
-.sched-cell { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; min-height: 44px; padding: 6px 8px; background: var(--sf); overflow-wrap: anywhere; }
+.sched-head { padding: 8px 4px; background: var(--sf2); color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.02em; text-transform: uppercase; text-align: center; }
+.sched-head.is-time-col { padding-left: 6px; text-align: left; }
+.sched-time { display: flex; align-items: center; justify-content: center; padding: 6px 4px; background: var(--sf); color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+.sched-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 44px; padding: 6px 4px; background: var(--sf); text-align: center; overflow-wrap: break-word; }
 .sched-cell.is-empty { background: var(--sf); }
 .sched-cell.is-neutral { background: var(--sf2); color: var(--tx); }
 .sched-cell.is-now { box-shadow: inset 0 0 0 2px var(--ac); }
-.sched-cell-title { font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.02em; }
-.sched-cell-meta { font-size: 12px; line-height: 16px; opacity: 0.9; font-variant-numeric: tabular-nums; }
+.sched-cell-title { font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.02em; text-transform: uppercase; text-wrap: balance; max-width: 100%; }
+.sched-foot { display: flex; align-items: center; justify-content: center; padding: 8px 4px; background: var(--sf2); color: var(--tx); font-size: 12px; font-weight: 700; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; border-top: 2px solid var(--ln); }
+.sched-foot.is-time-col { justify-content: flex-start; padding-left: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
 
 @media (max-width: 719px) {
   #page-calendar:has(#cal-schedule:not([hidden])) .view-tabs { grid-column: 1 / -1; }
@@ -1368,7 +1369,7 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .sched-day-time { color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
   .sched-day-info { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
   .sched-day-name, .sched-day-label { color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; }
-  .sched-day-teacher { flex: 1 0 100%; color: var(--mu); font-size: 12px; line-height: 16px; }
+  .sched-day-official { margin: 0; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf2); color: var(--tx); font-size: 12px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
   .sched-grid-wrap { display: none; }
   /* lint-allow:px 620px -- wide scrollable container inside overflow-x:auto preserves 5-day timetable legibility on 320px phones */
   .sched-grid-wrap.is-phone-full { display: block; overflow-x: auto; max-width: 100%; }
@@ -1384,7 +1385,6 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
 .sched-editor-info { display: grid; gap: 2px; min-width: 0; flex: 1 1 200px; }
 .sched-editor-time { color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
 .sched-editor-title { color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
-.sched-editor-teacher { color: var(--mu); font-size: 12px; line-height: 16px; }
 .sched-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .sched-add-form { margin-top: 12px; padding: 12px; border: 2px solid var(--ln); background: var(--sf2); }
 .sched-add-form .sched-form-grid { margin-top: 0; }

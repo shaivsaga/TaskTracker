@@ -66,6 +66,7 @@ const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.inclu
 tasks.init({
   Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, sanitizeDoc, clampPopoverPosition, myTasks,
   isEditable, createSubjectTag, startNewTask, TTFiles, openDuePicker, calendar, publish, insightsUi,
+  validateSchedule,
 });
 
 function setPublished(data) {

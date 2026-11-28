@@ -3,7 +3,7 @@ import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, API, fmtWhen } from './util.js';
 import { catalogSignature, subjectDisplayName } from './subjects.js';
 import { openOverlay, hideOverlay } from './motion.js';
-import { store, normalizeBoard, newOperationId } from './store.js';
+import { store, normalizeBoard, newOperationId, allowlistSchedule } from './store.js';
 
 let $ = null;
 let myTasks = null;
@@ -47,28 +47,7 @@ export function createPublishIntent(makeId = newOperationId) {
 
 const publishIntent = createPublishIntent();
 
-function fallbackCanonicalSchedule(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !Array.isArray(raw.slots)) return null;
-  const str = (v) => (typeof v === 'string' ? v.trim() : '');
-  const slots = raw.slots
-    .filter((x) => x && typeof x === 'object' && !Array.isArray(x))
-    .map((x) => {
-      const kind = x.kind || (x.subject ? 'subject' : 'activity');
-      const out = { day: x.day, start: x.start, end: x.end, kind };
-      if (kind === 'subject') out.subject = x.subject;
-      else out.label = str(x.label);
-      if (str(x.teacher)) out.teacher = str(x.teacher);
-      return out;
-    })
-    .sort((a, b) => (a.day - b.day) || String(a.start).localeCompare(String(b.start)) || String(a.end).localeCompare(String(b.end)));
-  return {
-    term: str(raw.term),
-    sectionLabel: str(raw.sectionLabel),
-    adviser: str(raw.adviser),
-    room: str(raw.room),
-    slots,
-  };
-}
+const fallbackCanonicalSchedule = (raw) => allowlistSchedule(raw, { sort: true });
 
 const scheduleSig = (s) => JSON.stringify((canonicalSchedule || fallbackCanonicalSchedule)(s));
 
@@ -384,10 +363,24 @@ function renderHistory() {
     });
     preview.addEventListener('click', () => { detail.hidden = !detail.hidden; });
     restore.addEventListener('click', async () => {
-      const before = snapshot();
+      const prevHasDraftSchedule = state.hasDraftSchedule;
+      const before = Object.hasOwn(it.snap || {}, 'schedule')
+        ? { ...snapshot(), schedule: state.draftSchedule ? JSON.parse(JSON.stringify(state.draftSchedule)) : null }
+        : snapshot();
       if (!(await restoreDraft(it.snap))) return;
+      if (!Object.hasOwn(it.snap || {}, 'schedule')) {
+        state.hasDraftSchedule = prevHasDraftSchedule;
+        saveTasks();
+      }
+      updateAdminBar(diffDraft());
       hideOverlay(dom.historyOverlay);
-      showToast('Restored to draft. Nothing is live until you publish.', 'Undo', () => restoreDraft(before));
+      showToast('Restored to draft. Nothing is live until you publish.', 'Undo', async () => {
+        if (await restoreDraft(before)) {
+          state.hasDraftSchedule = prevHasDraftSchedule;
+          saveTasks();
+          updateAdminBar(diffDraft());
+        }
+      });
     });
     const del = document.createElement('button');
     del.type = 'button';
@@ -503,15 +496,16 @@ $('#publish-form').addEventListener('submit', async (e) => {
     }
     const sentSubjects = body.subjects ?? (catalog ? catalog.forPublish(body.tasks) : []);
     const baseRevision = state.verifiedRevision;
-    const intentKey = JSON.stringify({
+    const intentPayload = {
       baseRevision,
       tasks: body.tasks,
       announcements: body.announcements,
       subjects: sentSubjects,
-      schedule: clearing ? '__inherited__' : (body.schedule ?? null),
       note: body.note,
       clearBoard: body.clearBoard || null,
-    });
+    };
+    if (!clearing && Object.hasOwn(body, 'schedule')) intentPayload.schedule = body.schedule;
+    const intentKey = JSON.stringify(intentPayload);
     body = {
       schemaVersion: 2,
       operationId: publishIntent.operationIdFor(intentKey),
@@ -615,6 +609,7 @@ $('#btn-apply').addEventListener('click', openPublishDialog);
 $('#btn-preview').addEventListener('click', () => setPreview(true));
 $('#preview-exit').addEventListener('click', () => setPreview(false));
 const runDiscard = async () => {
+  const prevHasDraftSchedule = state.hasDraftSchedule;
   const before = snapshot();
   const ok = await restoreDraft({
     tasks: state.publishedTasks.map((t) => t.toJSON()),
@@ -626,7 +621,13 @@ const runDiscard = async () => {
     state.hasDraftSchedule = false;
     saveTasks();
     updateAdminBar(diffDraft());
-    showToast('Draft reset to published', 'Undo', () => restoreDraft(before));
+    showToast('Draft reset to published', 'Undo', async () => {
+      if (await restoreDraft(before)) {
+        state.hasDraftSchedule = prevHasDraftSchedule;
+        saveTasks();
+        updateAdminBar(diffDraft());
+      }
+    });
   }
 };
 if (armInlineConfirm) armInlineConfirm($('#btn-discard'), 'Discard changes', 'Confirm discarding unpublished changes', runDiscard);

@@ -97,7 +97,6 @@ export function cacheDom() {
   dom.scheduleBody = document.querySelector('#schedule-body');
   dom.scheduleTerm = document.querySelector('#schedule-term');
   dom.scheduleSection = document.querySelector('#schedule-section');
-  dom.scheduleAdviser = document.querySelector('#schedule-adviser');
   dom.scheduleRoom = document.querySelector('#schedule-room');
   dom.scheduleDayTabs = document.querySelector('#schedule-day-tabs');
   dom.scheduleSlotList = document.querySelector('#schedule-slot-list');

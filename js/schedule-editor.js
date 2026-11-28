@@ -3,7 +3,7 @@ import { dom } from './dom.js';
 import { assignableSubjects, subjectFor, subjectDisplayName } from './subjects.js';
 
 const DAY_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-const EMPTY_SCHEDULE = { term: '', sectionLabel: '', adviser: '', room: '', slots: [] };
+const EMPTY_SCHEDULE = { term: '', sectionLabel: '', room: '', slots: [] };
 
 let deps = null;
 let activeDay = 1;
@@ -22,7 +22,6 @@ function currentDraft() {
     return {
       term: typeof state.draftSchedule.term === 'string' ? state.draftSchedule.term : '',
       sectionLabel: typeof state.draftSchedule.sectionLabel === 'string' ? state.draftSchedule.sectionLabel : '',
-      adviser: typeof state.draftSchedule.adviser === 'string' ? state.draftSchedule.adviser : '',
       room: typeof state.draftSchedule.room === 'string' ? state.draftSchedule.room : '',
       slots: Array.isArray(state.draftSchedule.slots) ? state.draftSchedule.slots.map((s) => ({ ...s })) : [],
     };
@@ -57,7 +56,6 @@ function readMetaFromInputs(base) {
     ...base,
     term: dom.scheduleTerm ? dom.scheduleTerm.value : base.term,
     sectionLabel: dom.scheduleSection ? dom.scheduleSection.value : base.sectionLabel,
-    adviser: dom.scheduleAdviser ? dom.scheduleAdviser.value : base.adviser,
     room: dom.scheduleRoom ? dom.scheduleRoom.value : base.room,
   };
 }
@@ -107,7 +105,6 @@ function resetSlotForm() {
   const endEl = document.querySelector('#schedule-slot-end');
   const kindEl = document.querySelector('#schedule-slot-kind');
   const lblEl = document.querySelector('#schedule-slot-label');
-  const teacherEl = document.querySelector('#schedule-slot-teacher');
   const submitEl = document.querySelector('#schedule-slot-submit');
   const cancelEl = document.querySelector('#schedule-slot-cancel');
   if (startEl) startEl.value = '07:30';
@@ -115,7 +112,6 @@ function resetSlotForm() {
   if (kindEl) kindEl.value = 'subject';
   populateSubjectSelect('');
   if (lblEl) lblEl.value = '';
-  if (teacherEl) teacherEl.value = '';
   if (submitEl) submitEl.textContent = 'Add slot';
   if (cancelEl) cancelEl.hidden = true;
   syncKindFields();
@@ -127,7 +123,6 @@ function beginEditSlot(slot) {
   const endEl = document.querySelector('#schedule-slot-end');
   const kindEl = document.querySelector('#schedule-slot-kind');
   const lblEl = document.querySelector('#schedule-slot-label');
-  const teacherEl = document.querySelector('#schedule-slot-teacher');
   const submitEl = document.querySelector('#schedule-slot-submit');
   const cancelEl = document.querySelector('#schedule-slot-cancel');
   if (startEl) startEl.value = slot.start;
@@ -135,7 +130,6 @@ function beginEditSlot(slot) {
   if (kindEl) kindEl.value = slot.kind || 'subject';
   populateSubjectSelect(slot.subject || '');
   if (lblEl) lblEl.value = slot.label || '';
-  if (teacherEl) teacherEl.value = slot.teacher || '';
   if (submitEl) submitEl.textContent = 'Save slot';
   if (cancelEl) cancelEl.hidden = false;
   syncKindFields();
@@ -149,7 +143,6 @@ function onSubmitSlot(e) {
   const kind = String(document.querySelector('#schedule-slot-kind')?.value || 'subject');
   const subject = String(document.querySelector('#schedule-slot-subject')?.value || '').trim();
   const label = String(document.querySelector('#schedule-slot-label')?.value || '').trim();
-  const teacher = String(document.querySelector('#schedule-slot-teacher')?.value || '').trim();
 
   const newSlot = {
     day: editingKey ? editingKey.day : activeDay,
@@ -159,7 +152,6 @@ function onSubmitSlot(e) {
   };
   if (kind === 'subject') newSlot.subject = subject;
   else newSlot.label = label;
-  if (teacher) newSlot.teacher = teacher;
 
   const base = readMetaFromInputs(currentDraft());
   const nextSlots = editingKey
@@ -203,7 +195,6 @@ export function render() {
   const sched = state.draftSchedule;
   if (dom.scheduleTerm && document.activeElement !== dom.scheduleTerm) dom.scheduleTerm.value = (sched && sched.term) || '';
   if (dom.scheduleSection && document.activeElement !== dom.scheduleSection) dom.scheduleSection.value = (sched && sched.sectionLabel) || '';
-  if (dom.scheduleAdviser && document.activeElement !== dom.scheduleAdviser) dom.scheduleAdviser.value = (sched && sched.adviser) || '';
   if (dom.scheduleRoom && document.activeElement !== dom.scheduleRoom) dom.scheduleRoom.value = (sched && sched.room) || '';
 
   syncDayTabs();
@@ -255,13 +246,6 @@ export function render() {
     titleEl.textContent = title;
     info.append(tm, titleEl);
 
-    if (slot.teacher) {
-      const teacher = document.createElement('span');
-      teacher.className = 'sched-editor-teacher';
-      teacher.textContent = slot.teacher;
-      info.appendChild(teacher);
-    }
-
     const actions = document.createElement('div');
     actions.className = 'sched-editor-actions';
 
@@ -292,12 +276,12 @@ export function init(d) {
       setExpanded(dom.scheduleBody ? dom.scheduleBody.hidden : true);
     });
   }
-  [dom.scheduleTerm, dom.scheduleSection, dom.scheduleAdviser, dom.scheduleRoom].forEach((input) => {
+  [dom.scheduleTerm, dom.scheduleSection, dom.scheduleRoom].forEach((input) => {
     if (!input) return;
     input.addEventListener('change', () => {
       const base = currentDraft();
       const next = readMetaFromInputs(base);
-      if (!state.draftSchedule && !next.term && !next.sectionLabel && !next.adviser && !next.room) return;
+      if (!state.draftSchedule && !next.term && !next.sectionLabel && !next.room) return;
       commitSchedule(next);
     });
   });

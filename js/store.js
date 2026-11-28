@@ -8,6 +8,29 @@ export const newOperationId = () => (globalThis.crypto?.randomUUID
   ? globalThis.crypto.randomUUID().replace(/-/g, '')
   : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''));
 
+export function allowlistSchedule(raw, { sort = false } = {}) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !Array.isArray(raw.slots)) return null;
+  const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  const slots = raw.slots
+    .filter((x) => x && typeof x === 'object' && !Array.isArray(x))
+    .map((x) => {
+      const kind = x.kind || (typeof x.subject === 'string' && x.subject.trim() ? 'subject' : 'activity');
+      const out = { day: x.day, start: x.start, end: x.end, kind };
+      if (kind === 'subject') out.subject = x.subject;
+      else out.label = str(x.label);
+      return out;
+    });
+  if (sort) {
+    slots.sort((a, b) => (a.day - b.day) || String(a.start).localeCompare(String(b.start)) || String(a.end).localeCompare(String(b.end)));
+  }
+  return {
+    term: str(raw.term),
+    sectionLabel: str(raw.sectionLabel),
+    room: str(raw.room),
+    slots,
+  };
+}
+
 export function normalizeBoard(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.tasks)) return null;
   if (data.announcements != null && !Array.isArray(data.announcements)) return null;
@@ -17,8 +40,12 @@ export function normalizeBoard(data) {
     tasks: data.tasks.filter(isObj),
     announcements: (data.announcements || []).filter((a) => isObj(a) && typeof a.text === 'string' && Number.isFinite(a.createdAt)),
   };
-  if (Object.hasOwn(out, 'schedule') && !(isObj(out.schedule) && Array.isArray(out.schedule.slots))) {
-    delete out.schedule;
+  if (Object.hasOwn(out, 'schedule')) {
+    if (isObj(out.schedule) && Array.isArray(out.schedule.slots)) {
+      out.schedule = allowlistSchedule(out.schedule);
+    } else {
+      delete out.schedule;
+    }
   }
   return out;
 }
@@ -248,9 +275,12 @@ export function createBoardStore({
           stateObj.draftSchedule = checkedSched.schedule;
           stateObj.hasDraftSchedule = true;
         }
-      } else if (snap.schedule && typeof snap.schedule === 'object' && !Array.isArray(snap.schedule) && Array.isArray(snap.schedule.slots)) {
-        stateObj.draftSchedule = JSON.parse(JSON.stringify(snap.schedule));
-        stateObj.hasDraftSchedule = true;
+      } else {
+        const sanitizedSched = allowlistSchedule(snap.schedule);
+        if (sanitizedSched) {
+          stateObj.draftSchedule = sanitizedSched;
+          stateObj.hasDraftSchedule = true;
+        }
       }
     }
     applyProgress?.(myTasks);

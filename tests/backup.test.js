@@ -97,3 +97,82 @@ test('backup.sh creates a verified archive, rejects tampering, and restores safe
     fs.rmSync(work, { recursive: true, force: true });
   }
 });
+
+test('backup.sh preserves distinct Section A and Section B schedules across backup and restore', () => {
+  const work = mkTmp('tt-backup-sched-');
+  try {
+    const dataDir = path.join(work, 'data');
+    const outDir = path.join(work, 'backups');
+    const restoreDir = path.join(work, 'restored-data');
+
+    fs.mkdirSync(path.join(dataDir, 'versions'), { recursive: true });
+    fs.mkdirSync(path.join(dataDir, 'admin'), { recursive: true });
+    fs.mkdirSync(path.join(dataDir, 'sections', 'b', 'versions'), { recursive: true });
+    fs.mkdirSync(path.join(dataDir, 'sections', 'b', 'admin'), { recursive: true });
+
+    const schedA = {
+      term: '2ND TERM',
+      sectionLabel: 'DSCT11-A',
+      room: '92C ST. SCHO',
+      slots: [
+        { day: 1, start: '07:30', end: '08:30', kind: 'subject', subject: 'CP104' },
+        { day: 1, start: '09:30', end: '09:50', kind: 'break', label: 'RECESS' },
+      ],
+    };
+    const schedB = {
+      term: '2ND TERM',
+      sectionLabel: 'DSCT11-B',
+      room: '93B LAB',
+      slots: [
+        { day: 3, start: '07:10', end: '07:30', kind: 'activity', label: 'ASSEMBLY' },
+        { day: 3, start: '07:30', end: '09:30', kind: 'subject', subject: 'FINMATH101' },
+      ],
+    };
+
+    const boardA = {
+      schemaVersion: 2,
+      revision: 3,
+      publishedAt: 1700000100,
+      tasks: [{ id: 'a1', title: 'Task A', subject: 'CP104' }],
+      announcements: [],
+      subjects: [{ code: 'CP104', name: 'Computer Programming 104', color: '#58affc', active: true }],
+      schedule: schedA,
+      deletedTasks: [],
+    };
+    const snapA = { ...boardA, note: 'A snapshot' };
+    const boardB = {
+      schemaVersion: 2,
+      revision: 2,
+      publishedAt: 1700000200,
+      tasks: [{ id: 'b1', title: 'Task B', subject: 'FINMATH101' }],
+      announcements: [],
+      subjects: [{ code: 'FINMATH101', name: 'Finite Mathematics 101', color: '#c9a6e0', active: true }],
+      schedule: schedB,
+      deletedTasks: [],
+    };
+    const snapB = { ...boardB, note: 'B snapshot' };
+
+    fs.writeFileSync(path.join(dataDir, 'current.json'), JSON.stringify(boardA));
+    fs.writeFileSync(path.join(dataDir, 'versions', '1700000100.json'), JSON.stringify(snapA));
+    fs.writeFileSync(path.join(dataDir, 'admin', 'state.json'), '{"revision":1,"bin":[]}');
+    fs.writeFileSync(path.join(dataDir, 'sections', 'b', 'current.json'), JSON.stringify(boardB));
+    fs.writeFileSync(path.join(dataDir, 'sections', 'b', 'versions', '1700000200.json'), JSON.stringify(snapB));
+    fs.writeFileSync(path.join(dataDir, 'sections', 'b', 'admin', 'state.json'), '{"revision":1,"bin":[]}');
+
+    const backOut = execFileSync('bash', [SCRIPT, 'backup', dataDir, outDir], { encoding: 'utf8' });
+    assert.match(backOut, /^BACKUP OK:/m);
+    const archivePath = path.join(outDir, fs.readdirSync(outDir).find((f) => f.endsWith('.tar.gz')));
+    const verifyOut = execFileSync('bash', [SCRIPT, 'verify', archivePath], { encoding: 'utf8' });
+    assert.match(verifyOut, /^VERIFY OK:/m);
+
+    const restoreOut = execFileSync('bash', [SCRIPT, 'restore', archivePath, restoreDir], { encoding: 'utf8' });
+    assert.match(restoreOut, /^RESTORE OK:/m);
+
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(restoreDir, 'current.json'), 'utf8')).schedule, schedA);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(restoreDir, 'versions', '1700000100.json'), 'utf8')).schedule, schedA);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(restoreDir, 'sections', 'b', 'current.json'), 'utf8')).schedule, schedB);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(restoreDir, 'sections', 'b', 'versions', '1700000200.json'), 'utf8')).schedule, schedB);
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+});

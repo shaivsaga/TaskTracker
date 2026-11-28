@@ -25,16 +25,17 @@ function activeCatalog() {
     : state.catalog;
 }
 
-function slotShortTitle(slot) {
-  if (!slot) return '';
-  return slot.kind === 'subject' ? (slot.subject || '') : (slot.label || '');
+function formatGridTime(hhmm) {
+  const [hRaw, mRaw] = String(hhmm || '').split(':');
+  const h24 = Number(hRaw);
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${mRaw}`;
 }
 
-function slotAccessibleTitle(slot, cat) {
+function slotDisplayTitle(slot, cat) {
   if (!slot) return '';
   if (slot.kind !== 'subject') return slot.label || '';
-  const name = subjectDisplayName(cat, slot.subject);
-  return name && name !== slot.subject ? `${slot.subject} (${name})` : slot.subject;
+  return subjectDisplayName(cat, slot.subject) || slot.subject || '';
 }
 
 function isSameSlot(a, b) {
@@ -94,7 +95,6 @@ function buildMetaLine(sched) {
   const parts = [];
   if (sched.term) parts.push(sched.term);
   if (sched.room) parts.push(`Room ${sched.room}`);
-  if (sched.adviser) parts.push(sched.adviser);
   return parts.join(' · ');
 }
 
@@ -116,7 +116,7 @@ function renderNowStrip(sched, resolved, cat) {
 
   if (resolved.state === 'active') {
     const cur = resolved.current;
-    const title = `${slotShortTitle(cur)}${cur.teacher ? ` (${cur.teacher})` : ''}`;
+    const title = slotDisplayTitle(cur, cat);
     mainRow.append(
       makeBadge('NOW', true),
       document.createTextNode(`${formatTime(cur.start)}–${formatTime(cur.end)} ${title} · ${resolved.minutesLeft} min left`),
@@ -127,7 +127,7 @@ function renderNowStrip(sched, resolved, cat) {
     subRow.className = 'sched-now-sub';
     if (resolved.next) {
       const nxt = resolved.next;
-      const nxtText = `${slotShortTitle(nxt)}${nxt.teacher ? ` (${nxt.teacher})` : ''}`;
+      const nxtText = slotDisplayTitle(nxt, cat);
       subRow.append(
         makeBadge('NEXT', false),
         document.createTextNode(`${formatTime(nxt.start)}–${formatTime(nxt.end)} ${nxtText}`),
@@ -138,7 +138,7 @@ function renderNowStrip(sched, resolved, cat) {
     strip.appendChild(subRow);
   } else if (resolved.state === 'upcoming') {
     const nxt = resolved.next;
-    const title = `${slotShortTitle(nxt)}${nxt.teacher ? ` (${nxt.teacher})` : ''}`;
+    const title = slotDisplayTitle(nxt, cat);
     const timing = resolved.minutesUntilNext <= 60
       ? `in ${resolved.minutesUntilNext} min (${formatTime(nxt.start)}–${formatTime(nxt.end)})`
       : `Starts at ${formatTime(nxt.start)} (${formatTime(nxt.start)}–${formatTime(nxt.end)})`;
@@ -149,7 +149,7 @@ function renderNowStrip(sched, resolved, cat) {
     strip.appendChild(mainRow);
   } else {
     mainRow.textContent = resolved.next
-      ? `No more classes today · Next: ${DAY_SHORT[resolved.next.day]} ${formatTime(resolved.next.start)} — ${slotShortTitle(resolved.next)}`
+      ? `No more classes today · Next: ${DAY_SHORT[resolved.next.day]} ${formatTime(resolved.next.start)} — ${slotDisplayTitle(resolved.next, cat)}`
       : 'No more classes today';
     strip.appendChild(mainRow);
   }
@@ -157,9 +157,8 @@ function renderNowStrip(sched, resolved, cat) {
   return strip;
 }
 
-function renderWeekGridView(sched, resolved, cat) {
-  const { buildWeekGrid, formatTime } = deps;
-  const gridData = buildWeekGrid(sched);
+function renderWeekGridView(gridData, resolved, cat) {
+  const { formatTime } = deps;
   const wrap = document.createElement('div');
   wrap.className = 'sched-grid-wrap' + (fullWeekOnPhone ? ' is-phone-full' : '');
 
@@ -170,7 +169,7 @@ function renderWeekGridView(sched, resolved, cat) {
   grid.setAttribute('role', 'region');
   grid.setAttribute('aria-label', 'Weekly class schedule');
 
-  const headers = ['Time', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const headers = ['Time', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   headers.forEach((label, idx) => {
     const th = document.createElement('div');
     th.className = 'sched-head' + (idx === 0 ? ' is-time-col' : '');
@@ -185,7 +184,7 @@ function renderWeekGridView(sched, resolved, cat) {
     tm.className = 'sched-time';
     tm.style.gridColumn = '1';
     tm.style.gridRow = String(row.index + 2);
-    tm.textContent = `${formatTime(row.start)}–${formatTime(row.end)}`;
+    tm.textContent = `${formatGridTime(row.start)} – ${formatGridTime(row.end)}`;
     grid.appendChild(tm);
   });
 
@@ -220,29 +219,46 @@ function renderWeekGridView(sched, resolved, cat) {
       }
     }
 
-    const code = document.createElement('strong');
-    code.className = 'sched-cell-title';
-    code.textContent = slotShortTitle(slot);
-    box.appendChild(code);
+    const titleText = slotDisplayTitle(slot, cat);
+    const titleEl = document.createElement('strong');
+    titleEl.className = 'sched-cell-title';
+    titleEl.textContent = titleText;
+    box.appendChild(titleEl);
 
-    const subText = slot.teacher || (slot.kind !== 'subject' ? `${formatTime(slot.start)}–${formatTime(slot.end)}` : '');
-    if (subText) {
-      const meta = document.createElement('span');
-      meta.className = 'sched-cell-meta';
-      meta.textContent = subText;
-      box.appendChild(meta);
-    }
-
-    const a11y = [DAY_FULL[slot.day], `${formatTime(slot.start)} to ${formatTime(slot.end)}`, slotAccessibleTitle(slot, cat), slot.teacher].filter(Boolean).join(', ');
+    const a11y = [DAY_FULL[slot.day], `${formatTime(slot.start)} to ${formatTime(slot.end)}`, titleText].filter(Boolean).join(', ');
     box.setAttribute('aria-label', isNow ? `Now: ${a11y}` : a11y);
     grid.appendChild(box);
+  });
+
+  const footerRow = gridData.rows.length + 2;
+  const footLbl = document.createElement('div');
+  footLbl.className = 'sched-foot is-time-col';
+  footLbl.style.gridColumn = '1';
+  footLbl.style.gridRow = String(footerRow);
+  footLbl.textContent = 'Official Time';
+  grid.appendChild(footLbl);
+
+  (gridData.officialTime || []).forEach((ot) => {
+    const cell = document.createElement('div');
+    cell.className = 'sched-foot';
+    cell.dataset.officialDay = String(ot.day);
+    cell.style.gridColumn = String(ot.day + 1);
+    cell.style.gridRow = String(footerRow);
+    if (ot.start && ot.end) {
+      cell.textContent = `${formatGridTime(ot.start)} – ${formatGridTime(ot.end)}`;
+      cell.setAttribute('aria-label', `${DAY_FULL[ot.day]} official time: ${formatTime(ot.start)} to ${formatTime(ot.end)}`);
+    } else {
+      cell.textContent = '—';
+      cell.setAttribute('aria-label', `${DAY_FULL[ot.day]}: no scheduled classes`);
+    }
+    grid.appendChild(cell);
   });
 
   wrap.appendChild(grid);
   return wrap;
 }
 
-function renderPhoneControls(sched, resolved, cat) {
+function renderPhoneControls(sched, resolved, cat, officialTime) {
   const { formatTime } = deps;
   const frag = document.createDocumentFragment();
 
@@ -312,14 +328,14 @@ function renderPhoneControls(sched, resolved, cat) {
         body.className = 'sched-day-info';
         if (slot.kind === 'subject') {
           const def = subjectFor(cat, slot.subject);
-          const tag = document.createElement('span');
-          tag.className = 'subject-tag';
-          tag.textContent = slot.subject;
+          const chip = document.createElement('span');
+          chip.className = 'subject-tag';
+          chip.textContent = slot.subject;
           if (def && def.color) {
-            tag.style.setProperty('--tag', def.color);
-            tag.style.setProperty('--tag-ink', subjectTextColor(def.color));
+            chip.style.setProperty('--tag', def.color);
+            chip.style.setProperty('--tag-ink', subjectTextColor(def.color));
           }
-          body.appendChild(tag);
+          body.appendChild(chip);
           const fullName = subjectDisplayName(cat, slot.subject);
           if (fullName && fullName !== slot.subject) {
             const nameEl = document.createElement('span');
@@ -333,15 +349,17 @@ function renderPhoneControls(sched, resolved, cat) {
           lbl.textContent = slot.label;
           body.appendChild(lbl);
         }
-        if (slot.teacher) {
-          const teacher = document.createElement('span');
-          teacher.className = 'sched-day-teacher';
-          teacher.textContent = slot.teacher;
-          body.appendChild(teacher);
-        }
         card.appendChild(body);
         list.appendChild(card);
       });
+      const dayOt = (officialTime || []).find((o) => o.day === selectedDay);
+      if (dayOt && dayOt.start && dayOt.end) {
+        const otRow = document.createElement('p');
+        otRow.className = 'sched-day-official';
+        otRow.textContent = `Official time: ${formatGridTime(dayOt.start)} – ${formatGridTime(dayOt.end)}`;
+        otRow.setAttribute('aria-label', `${DAY_FULL[selectedDay]} official time: ${formatTime(dayOt.start)} to ${formatTime(dayOt.end)}`);
+        list.appendChild(otRow);
+      }
     }
     frag.appendChild(list);
   }
@@ -387,7 +405,8 @@ export function render() {
 
   startTimer();
   const resolved = deps.resolveCurrentSlot(sched, now);
+  const gridData = deps.buildWeekGrid(sched);
   host.appendChild(renderNowStrip(sched, resolved, cat));
-  host.appendChild(renderPhoneControls(sched, resolved, cat));
-  host.appendChild(renderWeekGridView(sched, resolved, cat));
+  host.appendChild(renderPhoneControls(sched, resolved, cat, gridData.officialTime));
+  host.appendChild(renderWeekGridView(gridData, resolved, cat));
 }
