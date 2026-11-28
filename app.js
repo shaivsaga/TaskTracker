@@ -315,11 +315,21 @@ function formatDateText(d) {
 function closeDuePicker(reason) {
   if (!dpEl) return;
   const done = dpState && dpState.onDone;
+  const anchor = dpState && dpState.anchor;
   const el = dpEl;
   dpEl = null;
   dpState = null;
   el.remove();
-  if (done && (reason === 'esc' || reason === 'done')) done();
+  if (reason === 'esc' || reason === 'done') {
+    if (done) done();
+    else if (anchor && anchor.focus) anchor.focus();
+  }
+}
+
+function addMonthsClamped(d, deltaMonths) {
+  const first = new Date(d.getFullYear(), d.getMonth() + deltaMonths, 1);
+  const maxDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  return new Date(first.getFullYear(), first.getMonth(), Math.min(d.getDate(), maxDay));
 }
 
 function openDuePicker(opts) {
@@ -332,13 +342,16 @@ function openDuePicker(opts) {
     rangeMode: !!(opts.date && opts.endDate && opts.endDate.getTime() >= opts.date.getTime()),
     activeField: 'start',
     view: null,
+    focusDate: null,
   };
   const seed = s.date || todayDate();
+  s.focusDate = new Date(seed.getFullYear(), seed.getMonth(), seed.getDate());
   s.view = new Date(seed.getFullYear(), seed.getMonth(), 1);
 
   const el = document.createElement('div');
   el.className = 'due-picker';
   el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
   el.setAttribute('aria-label', 'Due date and time');
   el.innerHTML = `
     <div class="dp-fields${s.rangeMode ? ' is-range' : ''}">
@@ -346,12 +359,12 @@ function openDuePicker(opts) {
       <input class="dp-input dp-end-date" type="text" placeholder="End date" aria-label="End date" autocomplete="off" spellcheck="false" enterkeyhint="done"${s.rangeMode ? '' : ' hidden'}>
     </div>
     <div class="dp-head">
-      <span class="dp-month"></span>
+      <span class="dp-month" id="dp-month-label"></span>
       <button type="button" class="dp-nav dp-today">Today</button>
       <button type="button" class="dp-nav dp-prev" aria-label="Previous month"><svg class="i" aria-hidden="true"><use href="#i-chevron-left"/></svg></button>
       <button type="button" class="dp-nav dp-next" aria-label="Next month"><svg class="i" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
     </div>
-    <div class="dp-grid" role="grid"></div>
+    <div class="dp-grid" role="grid" aria-labelledby="dp-month-label"></div>
     <div class="dp-options">
       <label class="dp-toggle">
         <span class="dp-toggle-label">Add an end date</span>
@@ -386,58 +399,138 @@ function openDuePicker(opts) {
     endIn.classList.toggle('is-active', s.activeField === 'end');
     $('.dp-hint').textContent = s.rangeMode ? 'Time is optional on the start · e.g. thu 3pm' : 'Time is optional · e.g. fri 3pm';
   };
-  const gotoMonth = (d) => { s.view = new Date(d.getFullYear(), d.getMonth(), 1); renderGrid(); };
+  const gotoMonth = (d) => {
+    s.view = new Date(d.getFullYear(), d.getMonth(), 1);
+    if (s.focusDate.getMonth() !== s.view.getMonth() || s.focusDate.getFullYear() !== s.view.getFullYear()) {
+      s.focusDate = addMonthsClamped(s.focusDate, (s.view.getFullYear() - s.focusDate.getFullYear()) * 12 + (s.view.getMonth() - s.focusDate.getMonth()));
+    }
+    renderGrid();
+  };
+
+  function selectDay(d, refocus) {
+    const t = d.getTime();
+    s.focusDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    if (!s.rangeMode) {
+      s.date = s.focusDate;
+      s.endDate = null;
+    } else if (s.activeField === 'end' && s.date) {
+      if (t < s.date.getTime()) { s.endDate = s.date; s.date = s.focusDate; }
+      else { s.endDate = s.focusDate; }
+    } else {
+      s.date = s.focusDate;
+      if (s.endDate && t > s.endDate.getTime()) s.endDate = null;
+      s.activeField = 'end';
+    }
+    syncFields();
+    renderGrid();
+    emit();
+    if (refocus) grid.querySelector(`.dp-day[data-date="${toInputValue(s.focusDate)}"]`)?.focus();
+  }
 
   function renderGrid() {
     monthEl.textContent = s.view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
     grid.replaceChildren();
-    ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach((l) => {
+    const headRow = document.createElement('div');
+    headRow.className = 'dp-row dp-row-head';
+    headRow.setAttribute('role', 'row');
+    [
+      ['Sunday', 'S'], ['Monday', 'M'], ['Tuesday', 'T'], ['Wednesday', 'W'],
+      ['Thursday', 'T'], ['Friday', 'F'], ['Saturday', 'S'],
+    ].forEach(([full, short]) => {
       const c = document.createElement('span');
       c.className = 'dp-dow';
-      c.textContent = l;
-      grid.appendChild(c);
+      c.setAttribute('role', 'columnheader');
+      c.setAttribute('aria-label', full);
+      c.textContent = short;
+      headRow.appendChild(c);
     });
+    grid.appendChild(headRow);
     const start = new Date(s.view.getFullYear(), s.view.getMonth(), 1 - s.view.getDay());
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-      const b = document.createElement('button');
-      const t = d.getTime();
-      const sTime = s.date ? s.date.getTime() : null;
-      const eTime = s.rangeMode && s.endDate ? s.endDate.getTime() : null;
-      const isStart = sTime !== null && t === sTime;
-      const isEnd = eTime !== null && t === eTime;
-      const selected = isStart || isEnd;
-      const inRange = sTime !== null && eTime !== null && t > sTime && t < eTime;
-      b.type = 'button';
-      b.className = 'dp-day';
-      b.textContent = d.getDate();
-      b.setAttribute('aria-label', d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
-      b.setAttribute('aria-pressed', String(selected));
-      if (d.getMonth() !== s.view.getMonth()) b.classList.add('is-outside');
-      if (dayDiff(d) === 0) b.classList.add('is-today');
-      if (isStart) b.classList.add('is-range-start');
-      if (isEnd) b.classList.add('is-range-end');
-      if (inRange) b.classList.add('is-in-range');
-      if (selected) b.classList.add('is-selected');
-      b.addEventListener('click', () => {
-        if (!s.rangeMode) {
-          s.date = d;
-          s.endDate = null;
-        } else if (s.activeField === 'end' && s.date) {
-          if (t < s.date.getTime()) { s.endDate = s.date; s.date = d; }
-          else { s.endDate = d; }
-        } else {
-          s.date = d;
-          if (s.endDate && t > s.endDate.getTime()) s.endDate = null;
-          s.activeField = 'end';
+    const gridEnd = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 41);
+    const focusT = s.focusDate ? s.focusDate.getTime() : -1;
+    const focusVisible = focusT >= start.getTime() && focusT <= gridEnd.getTime();
+    const activeKey = focusVisible ? toInputValue(s.focusDate) : toInputValue(new Date(s.view.getFullYear(), s.view.getMonth(), 1));
+    for (let w = 0; w < 6; w++) {
+      const row = document.createElement('div');
+      row.className = 'dp-row';
+      row.setAttribute('role', 'row');
+      for (let col = 0; col < 7; col++) {
+        const i = w * 7 + col;
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+        const key = toInputValue(d);
+        const cell = document.createElement('div');
+        cell.className = 'dp-cell';
+        cell.setAttribute('role', 'gridcell');
+        const b = document.createElement('button');
+        const t = d.getTime();
+        const sTime = s.date ? s.date.getTime() : null;
+        const eTime = s.rangeMode && s.endDate ? s.endDate.getTime() : null;
+        const isStart = sTime !== null && t === sTime;
+        const isEnd = eTime !== null && t === eTime;
+        const selected = isStart || isEnd;
+        const inRange = sTime !== null && eTime !== null && t > sTime && t < eTime;
+        cell.setAttribute('aria-selected', String(selected));
+        b.type = 'button';
+        b.className = 'dp-day';
+        b.dataset.date = key;
+        b.tabIndex = key === activeKey ? 0 : -1;
+        b.textContent = d.getDate();
+        b.setAttribute('aria-label', d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
+        if (d.getMonth() !== s.view.getMonth()) b.classList.add('is-outside');
+        if (dayDiff(d) === 0) {
+          b.classList.add('is-today');
+          b.setAttribute('aria-current', 'date');
         }
-        syncFields();
-        renderGrid();
-        emit();
-      });
-      grid.appendChild(b);
+        if (isStart) b.classList.add('is-range-start');
+        if (isEnd) b.classList.add('is-range-end');
+        if (inRange) b.classList.add('is-in-range');
+        if (selected) b.classList.add('is-selected');
+        b.addEventListener('click', (ev) => selectDay(d, ev.detail === 0));
+        cell.appendChild(b);
+        row.appendChild(cell);
+      }
+      grid.appendChild(row);
     }
   }
+
+  grid.addEventListener('keydown', (e) => {
+    const btn = e.target instanceof Element ? e.target.closest('.dp-day') : null;
+    if (!btn || !btn.dataset.date) return;
+    const parts = btn.dataset.date.split('-').map(Number);
+    const cur = new Date(parts[0], parts[1] - 1, parts[2]);
+    let next = null;
+    if (e.key === 'ArrowLeft') next = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() - 1);
+    else if (e.key === 'ArrowRight') next = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+    else if (e.key === 'ArrowUp') next = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() - 7);
+    else if (e.key === 'ArrowDown') next = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 7);
+    else if (e.key === 'Home') next = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() - cur.getDay());
+    else if (e.key === 'End') next = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + (6 - cur.getDay()));
+    else if (e.key === 'PageUp') next = addMonthsClamped(cur, e.shiftKey ? -12 : -1);
+    else if (e.key === 'PageDown') next = addMonthsClamped(cur, e.shiftKey ? 12 : 1);
+    else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      selectDay(cur, true);
+      return;
+    }
+    if (!next) return;
+    e.preventDefault();
+    s.focusDate = next;
+    if (next.getMonth() !== s.view.getMonth() || next.getFullYear() !== s.view.getFullYear()) {
+      s.view = new Date(next.getFullYear(), next.getMonth(), 1);
+    }
+    renderGrid();
+    grid.querySelector(`.dp-day[data-date="${toInputValue(next)}"]`)?.focus();
+  });
+
+  el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const focusables = [...el.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((node) => !node.hidden && !node.closest('[hidden]') && node.getClientRects().length);
+    if (!focusables.length) return;
+    const first = focusables[0], last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 
   function parseDateField(text) {
     const norm = text.trim().replace(/(\d)\s+(am|pm)\b/gi, '$1$2');
@@ -455,10 +548,10 @@ function openDuePicker(opts) {
     const r = parseDateField(dateIn.value);
     if (r.empty) return;
     let changed = false;
-    if (r.date) { s.date = r.date; s.time = r.time || null; gotoMonth(r.date); changed = true; }
+    if (r.date) { s.date = r.date; s.focusDate = r.date; s.time = r.time || null; gotoMonth(r.date); changed = true; }
     else if (r.timeOnly) {
       s.time = r.time;
-      if (!s.date) { s.date = todayDate(); gotoMonth(s.date); }
+      if (!s.date) { s.date = todayDate(); s.focusDate = s.date; gotoMonth(s.date); }
       changed = true;
     }
     if (changed) { renderGrid(); emit(); }
@@ -473,6 +566,7 @@ function openDuePicker(opts) {
     if (!s.date) { s.date = r.date; s.endDate = r.date; }
     else if (r.date.getTime() < s.date.getTime()) { s.endDate = s.date; s.date = r.date; }
     else { s.endDate = r.date; }
+    s.focusDate = r.date;
     gotoMonth(r.date);
     renderGrid();
     emit();
@@ -508,8 +602,18 @@ function openDuePicker(opts) {
 
   $('.dp-prev').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() - 1, 1)));
   $('.dp-next').addEventListener('click', () => gotoMonth(new Date(s.view.getFullYear(), s.view.getMonth() + 1, 1)));
-  $('.dp-today').addEventListener('click', () => { s.date = todayDate(); if (s.endDate && s.endDate.getTime() < s.date.getTime()) s.endDate = null; gotoMonth(s.date); syncFields(); emit(); });
-  $('.dp-clear').addEventListener('click', () => { s.date = null; s.endDate = null; s.time = null; emit(); closeDuePicker(); });
+  $('.dp-today').addEventListener('click', () => { s.date = todayDate(); s.focusDate = s.date; if (s.endDate && s.endDate.getTime() < s.date.getTime()) s.endDate = null; gotoMonth(s.date); syncFields(); emit(); });
+  $('.dp-clear').addEventListener('click', () => {
+    const done = s.onDone;
+    const anchor = s.anchor;
+    s.date = null;
+    s.endDate = null;
+    s.time = null;
+    emit();
+    if (dpEl) closeDuePicker('done');
+    else if (done) done();
+    else if (anchor && anchor.focus) anchor.focus();
+  });
 
   document.body.appendChild(el);
   dpEl = el;
@@ -520,10 +624,11 @@ function openDuePicker(opts) {
   const r = s.anchor.getBoundingClientRect();
   const w = el.offsetWidth;
   const h = el.offsetHeight;
+  const hMargin = document.documentElement.clientWidth <= 374 ? 4 : 8;
   let top = r.bottom + 6;
   if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
   el.style.top = `${top}px`;
-  el.style.left = `${Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8))}px`;
+  el.style.left = `${Math.max(hMargin, Math.min(r.left, document.documentElement.clientWidth - w - hMargin))}px`;
 
   dateIn.focus();
   dateIn.select();
@@ -618,11 +723,20 @@ const TRAP_SELECTORS = ['.confirm-overlay', '#notice-overlay', '#import-overlay'
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;
+  if (dpEl && dpEl.isConnected) {
+    const dpItems = [...dpEl.querySelectorAll(FOCUSABLE)].filter((el) => el.tabIndex >= 0 && !el.closest('[hidden]') && el.getClientRects().length);
+    if (!dpItems.length) return;
+    const first = dpItems[0], last = dpItems[dpItems.length - 1];
+    if (!dpEl.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    return;
+  }
   const ov = TRAP_SELECTORS.map((s) => document.querySelector(s)).find((o) => o && !o.hidden && !o.classList.contains('is-closing'));
   if (!ov) return;
 
-  if (e.target instanceof Element && e.target.closest('.due-picker, .status-popover')) return;
-  const items = [...ov.querySelectorAll(FOCUSABLE)].filter((el) => !el.closest('[hidden]') && el.getClientRects().length);
+  if (e.target instanceof Element && e.target.closest('.status-popover')) return;
+  const items = [...ov.querySelectorAll(FOCUSABLE)].filter((el) => el.tabIndex >= 0 && !el.closest('[hidden]') && el.getClientRects().length);
   if (!items.length) return;
   const first = items[0], last = items[items.length - 1];
   if (!ov.contains(document.activeElement)) { e.preventDefault(); first.focus(); }

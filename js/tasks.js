@@ -1188,6 +1188,7 @@ function openDialogDuePicker(anchor, focus) {
       updateDialogDue(state.currentTask);
       autosave();
     },
+    onDone: () => anchor?.focus?.(),
   });
 }
 function fileToDataUrl(file) {
@@ -1248,12 +1249,18 @@ async function insertDocImages(files) {
   }
   autosave();
 }
+const MAX_TASK_FILES = 10;
+
 async function attachFiles(files) {
   const task = state.currentTask;
   if (!task || !isEditable(task)) return;
   let added = 0;
+  let capHit = false;
   for (const file of files) {
-    if (task.files.length >= 10) { showToast('A task can have up to 10 files.'); break; }
+    if (task.files.length >= MAX_TASK_FILES) {
+      capHit = true;
+      break;
+    }
     try {
       showToast(`Uploading ${file.name || 'file'}…`);
       const { blob, name } = await TTFiles.prepare(file);
@@ -1267,14 +1274,36 @@ async function attachFiles(files) {
       return;
     }
   }
-  if (added) { flashSaved(); showToast(added === 1 ? 'File attached' : `${added} files attached`); }
+  if (added && capHit) {
+    flashSaved();
+    showToast(`${added === 1 ? '1 file' : `${added} files`} attached. A task can have up to ${MAX_TASK_FILES} files.`);
+  } else if (capHit) {
+    showToast(`A task can have up to ${MAX_TASK_FILES} files.`);
+  } else if (added) {
+    flashSaved();
+    showToast(added === 1 ? 'File attached' : `${added} files attached`);
+  }
 }
 function renderDialogFiles(task) {
   const editable = isEditable(task);
-  dom.dialogFilesField.hidden = !editable && !task.files.length;
+  const files = Array.isArray(task.files) ? task.files : [];
+  const count = files.length;
+  const atCap = count >= MAX_TASK_FILES;
+  dom.dialogFilesField.hidden = !editable && !count;
+  if (dom.dialogFilesLabel) {
+    dom.dialogFilesLabel.textContent = count
+      ? (editable ? `Files (${count} / ${MAX_TASK_FILES})` : `Files (${count})`)
+      : 'Files';
+  }
   dom.dialogAttachBtn.hidden = !editable;
+  if (editable) {
+    dom.dialogAttachBtn.disabled = atCap;
+    dom.dialogAttachBtn.textContent = atCap ? `Max ${MAX_TASK_FILES} files` : 'Attach file';
+  } else {
+    dom.dialogAttachBtn.disabled = false;
+  }
   dom.dialogFiles.replaceChildren();
-  task.files.forEach((f) => {
+  files.forEach((f) => {
     const li = document.createElement('li');
     li.className = 'file-item';
     const a = document.createElement('a');
@@ -1292,12 +1321,16 @@ function renderDialogFiles(task) {
       rm.type = 'button';
       rm.className = 'text-button';
       rm.textContent = 'Remove';
+      rm.setAttribute('aria-label', `Remove ${f.name}`);
       rm.addEventListener('click', () => {
         const index = task.files.indexOf(f);
         if (index === -1) return;
         task.files.splice(index, 1);
         saveTasks();
         renderDialogFiles(task);
+        const remaining = [...dom.dialogFiles.querySelectorAll('button')];
+        const nextFocus = remaining[Math.min(index, remaining.length - 1)] || dom.dialogAttachBtn;
+        nextFocus?.focus?.();
         showToast('File removed', 'Undo', () => {
           task.files.splice(Math.min(index, task.files.length), 0, f);
           saveTasks();

@@ -412,10 +412,10 @@
             </div>
             <div class="field" id="dialog-files-field" hidden>
               <div class="files-head">
-                <label class="field-label">Files</label>
+                <span class="field-label" id="dialog-files-label">Files</span>
                 <button class="text-button" type="button" id="dialog-attach-btn">Attach file</button>
               </div>
-              <ul class="file-list" id="dialog-files"></ul>
+              <ul class="file-list" id="dialog-files" aria-labelledby="dialog-files-label"></ul>
               <p class="file-hint">PDF, PPTX, DOCX, JPG or PNG. Up to 10 MB each. You can also paste or drop files here.</p>
               <input type="file" id="dialog-file-input" multiple hidden>
             </div>

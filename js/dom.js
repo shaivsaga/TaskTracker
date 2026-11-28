@@ -21,6 +21,7 @@ export function cacheDom() {
   dom.dialogDelete = document.querySelector('#dialog-delete');
   dom.dialogDuplicate = document.querySelector('#dialog-duplicate');
   dom.dialogFilesField = document.querySelector('#dialog-files-field');
+  dom.dialogFilesLabel = document.querySelector('#dialog-files-label');
   dom.dialogFiles = document.querySelector('#dialog-files');
   dom.dialogAttachBtn = document.querySelector('#dialog-attach-btn');
   dom.dialogFileInput = document.querySelector('#dialog-file-input');
