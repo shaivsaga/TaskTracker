@@ -3,7 +3,7 @@ import { dom } from './dom.js';
 import { readJSON, writeJSON, KEYS, STATUS_TO_COLUMN, COLUMN_TO_STATUS } from './util.js';
 import * as motion from './motion.js';
 import { classForColor, subjectDisplayName } from './subjects.js';
-import { store } from './store.js';
+import { store, allowlistSchedule } from './store.js';
 
 let Task = null;
 let dayDiff = null;
@@ -21,6 +21,7 @@ let openDuePicker = null;
 let calendar = null;
 let publish = null;
 let insightsUi = null;
+let validateSchedule = null;
 
 let changedIds = new Set();
 let confirmOverlayEl = null;
@@ -160,6 +161,7 @@ export function saveTasks() {
     tasks: myTasks.map((t) => t.toJSON()),
     announcements: state.announcements,
     subjects: state.draftSubjects,
+    ...(state.hasDraftSchedule ? { schedule: state.draftSchedule } : {}),
     baseRevision: Number.isSafeInteger(state.verifiedRevision) ? state.verifiedRevision : null,
   });
   if (!progressOk) steps.push('progress');
@@ -192,6 +194,20 @@ export function loadTasks() {
   state.announcements = Array.isArray(draft.announcements) ? draft.announcements : [];
 
   state.draftSubjects = Array.isArray(draft.subjects) ? draft.subjects : [];
+  if (draft && Object.hasOwn(draft, 'schedule')) {
+    if (draft.schedule && typeof draft.schedule === 'object' && !Array.isArray(draft.schedule)) {
+      const checked = typeof validateSchedule === 'function' ? validateSchedule(draft.schedule) : null;
+      state.draftSchedule = (checked && !checked.error && checked.schedule)
+        ? checked.schedule
+        : allowlistSchedule(draft.schedule);
+    } else {
+      state.draftSchedule = null;
+    }
+    state.hasDraftSchedule = true;
+  } else {
+    state.draftSchedule = null;
+    state.hasDraftSchedule = false;
+  }
   applyProgress(myTasks);
 }
 
@@ -1651,6 +1667,7 @@ export function init(deps) {
   calendar = deps.calendar;
   publish = deps.publish;
   insightsUi = deps.insightsUi || null;
+  validateSchedule = deps.validateSchedule || null;
 
 dom.toastEl.addEventListener('focusin', () => clearTimeout(toastTimer));
 dom.toastEl.addEventListener('focusout', () => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 3000); });

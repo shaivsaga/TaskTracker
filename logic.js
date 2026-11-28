@@ -352,14 +352,309 @@ function pageFromHash(hash, knownPages, isAdmin) {
   return name;
 }
 
+const SCHEDULE_MAX_SLOTS = 80;
+const SCHEDULE_MAX_META = 80;
+const SCHEDULE_MAX_LABEL = 40;
+const SCHEDULE_KINDS = ['subject', 'break', 'activity'];
+const SCHEDULE_DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const SCHEDULE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const SCHEDULE_CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$/;
+const SCHEDULE_CONTROL_RE = /[\u0000-\u001f\u007f]/;
+const SCHEDULE_RESERVED = new Set(['__proto__', 'prototype', 'constructor']);
+
+function scheduleTimeToMinutes(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function validateSchedule(raw, validSubjectCodes = null) {
+  if (raw === null || raw === undefined) return { schedule: null, error: null };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { schedule: null, error: 'Schedule must be an object.' };
+  }
+  const meta = {};
+  for (const field of ['term', 'sectionLabel', 'room']) {
+    const val = raw[field];
+    if (val === undefined || val === null) {
+      meta[field] = '';
+      continue;
+    }
+    if (typeof val !== 'string') return { schedule: null, error: `Schedule ${field} must be text.` };
+    const trimmed = val.trim();
+    if (Array.from(trimmed).length > SCHEDULE_MAX_META) {
+      return { schedule: null, error: `Schedule ${field} must be ${SCHEDULE_MAX_META} characters or fewer.` };
+    }
+    if (SCHEDULE_CONTROL_RE.test(trimmed)) {
+      return { schedule: null, error: `Schedule ${field} has control characters.` };
+    }
+    meta[field] = trimmed;
+  }
+  if (!Array.isArray(raw.slots)) {
+    return { schedule: null, error: 'Schedule slots must be a list.' };
+  }
+  if (raw.slots.length > SCHEDULE_MAX_SLOTS) {
+    return { schedule: null, error: `Too many schedule slots (max ${SCHEDULE_MAX_SLOTS}).` };
+  }
+
+  let validSet = null;
+  if (validSubjectCodes instanceof Set) validSet = validSubjectCodes;
+  else if (Array.isArray(validSubjectCodes)) {
+    validSet = new Set(validSubjectCodes.map((c) => (typeof c === 'string' ? c : c && c.code)).filter(Boolean));
+  }
+
+  const parsed = [];
+  for (let i = 0; i < raw.slots.length; i++) {
+    const n = i + 1;
+    const slot = raw.slots[i];
+    if (!slot || typeof slot !== 'object' || Array.isArray(slot)) {
+      return { schedule: null, error: `Schedule slot ${n} is not an object.` };
+    }
+    const day = slot.day;
+    if (!Number.isInteger(day) || day < 1 || day > 5) {
+      return { schedule: null, error: `Slot ${n} needs an integer day from 1 (Mon) to 5 (Fri).` };
+    }
+    const start = slot.start;
+    const end = slot.end;
+    if (typeof start !== 'string' || !SCHEDULE_TIME_RE.test(start)) {
+      return { schedule: null, error: `Slot ${n} needs a 24-hour start time like 07:30.` };
+    }
+    if (typeof end !== 'string' || !SCHEDULE_TIME_RE.test(end)) {
+      return { schedule: null, error: `Slot ${n} needs a 24-hour end time like 08:30.` };
+    }
+    const startMin = scheduleTimeToMinutes(start);
+    const endMin = scheduleTimeToMinutes(end);
+    if (startMin >= endMin) {
+      return { schedule: null, error: `Slot ${n} end time must be after start time.` };
+    }
+
+    let kind = slot.kind;
+    if (kind === undefined) {
+      if (typeof slot.subject === 'string' && slot.subject.trim() !== '') kind = 'subject';
+      else return { schedule: null, error: `Slot ${n} needs a kind (subject, break, or activity).` };
+    }
+    if (typeof kind !== 'string' || !SCHEDULE_KINDS.includes(kind)) {
+      return { schedule: null, error: `Slot ${n} has an invalid kind.` };
+    }
+
+    const out = { day, start, end, kind };
+    if (kind === 'subject') {
+      const subj = slot.subject;
+      if (typeof subj !== 'string' || !SCHEDULE_CODE_RE.test(subj)) {
+        return { schedule: null, error: `Slot ${n} needs a valid subject code.` };
+      }
+      if (SCHEDULE_RESERVED.has(subj) || SCHEDULE_RESERVED.has(subj.toLowerCase())) {
+        return { schedule: null, error: `Slot ${n} uses a reserved subject code.` };
+      }
+      if (validSet && !validSet.has(subj)) {
+        return { schedule: null, error: `Slot ${n} uses subject "${subj}", which is not in the catalog.` };
+      }
+      out.subject = subj;
+    } else {
+      if (typeof slot.label !== 'string') {
+        return { schedule: null, error: `Slot ${n} needs a label.` };
+      }
+      const label = slot.label.trim();
+      const len = Array.from(label).length;
+      if (len === 0 || len > SCHEDULE_MAX_LABEL) {
+        return { schedule: null, error: `Slot ${n} needs a label of 1-${SCHEDULE_MAX_LABEL} characters.` };
+      }
+      if (SCHEDULE_CONTROL_RE.test(label)) {
+        return { schedule: null, error: `Slot ${n} label has control characters.` };
+      }
+      out.label = label;
+    }
+    parsed.push({ out, day, startMin, endMin });
+  }
+
+  parsed.sort((a, b) => (a.day - b.day) || (a.startMin - b.startMin) || (a.endMin - b.endMin));
+  for (let i = 1; i < parsed.length; i++) {
+    const prev = parsed[i - 1];
+    const cur = parsed[i];
+    if (prev.day === cur.day && prev.endMin > cur.startMin) {
+      return {
+        schedule: null,
+        error: `Schedule slots overlap on ${SCHEDULE_DAY_NAMES[cur.day]} (${prev.out.start}-${prev.out.end} and ${cur.out.start}-${cur.out.end}).`,
+      };
+    }
+  }
+
+  return {
+    schedule: {
+      term: meta.term,
+      sectionLabel: meta.sectionLabel,
+      room: meta.room,
+      slots: parsed.map((p) => p.out),
+    },
+    error: null,
+  };
+}
+
+function canonicalSchedule(raw) {
+  const res = validateSchedule(raw);
+  return res.error ? null : res.schedule;
+}
+
+function resolveCurrentSlot(schedule, now) {
+  let day;
+  let minutes;
+  if (now instanceof Date) {
+    if (Number.isNaN(now.getTime())) {
+      throw new TypeError('resolveCurrentSlot requires a valid Date or { day, minutes }');
+    }
+    day = now.getDay();
+    minutes = now.getHours() * 60 + now.getMinutes();
+  } else if (
+    now && typeof now === 'object' && !Array.isArray(now)
+    && Number.isInteger(now.day) && now.day >= 0 && now.day <= 6
+    && Number.isInteger(now.minutes) && now.minutes >= 0 && now.minutes < 1440
+  ) {
+    day = now.day;
+    minutes = now.minutes;
+  } else {
+    throw new TypeError('resolveCurrentSlot requires a valid Date or { day, minutes }');
+  }
+
+  if (!schedule || !Array.isArray(schedule.slots) || !schedule.slots.length) {
+    return { state: 'empty', current: null, next: null, minutesLeft: null, minutesUntilNext: null, nextDay: null };
+  }
+  const sorted = schedule.slots
+    .filter((s) => s && Number.isInteger(s.day) && typeof s.start === 'string' && typeof s.end === 'string'
+      && SCHEDULE_TIME_RE.test(s.start) && SCHEDULE_TIME_RE.test(s.end))
+    .map((s) => ({ slot: { ...s }, day: s.day, startMin: scheduleTimeToMinutes(s.start), endMin: scheduleTimeToMinutes(s.end) }))
+    .filter((x) => x.startMin < x.endMin)
+    .sort((a, b) => (a.day - b.day) || (a.startMin - b.startMin) || (a.endMin - b.endMin));
+
+  if (!sorted.length) {
+    return { state: 'empty', current: null, next: null, minutesLeft: null, minutesUntilNext: null, nextDay: null };
+  }
+
+  if (day >= 1 && day <= 5) {
+    const todaySlots = sorted.filter((x) => x.day === day);
+    const activeIdx = todaySlots.findIndex((x) => x.startMin <= minutes && minutes < x.endMin);
+    if (activeIdx !== -1) {
+      const cur = todaySlots[activeIdx];
+      const nxt = todaySlots[activeIdx + 1] || null;
+      return {
+        state: 'active',
+        current: cur.slot,
+        next: nxt ? nxt.slot : null,
+        minutesLeft: cur.endMin - minutes,
+        minutesUntilNext: nxt ? nxt.startMin - minutes : null,
+        nextDay: nxt ? day : null,
+      };
+    }
+    const upIdx = todaySlots.findIndex((x) => x.startMin > minutes);
+    if (upIdx !== -1) {
+      const nxt = todaySlots[upIdx];
+      return {
+        state: 'upcoming',
+        current: null,
+        next: nxt.slot,
+        minutesLeft: null,
+        minutesUntilNext: nxt.startMin - minutes,
+        nextDay: day,
+      };
+    }
+  }
+
+  const stateKind = (day === 0 || day === 6) ? 'weekend' : 'after_hours';
+  for (let offset = 1; offset <= 7; offset++) {
+    const candDay = (day + offset) % 7;
+    const nxt = sorted.find((x) => x.day === candDay);
+    if (nxt) {
+      return {
+        state: stateKind,
+        current: null,
+        next: nxt.slot,
+        minutesLeft: null,
+        minutesUntilNext: offset * 1440 + nxt.startMin - minutes,
+        nextDay: nxt.day,
+      };
+    }
+  }
+
+  return { state: stateKind, current: null, next: null, minutesLeft: null, minutesUntilNext: null, nextDay: null };
+}
+
+function buildWeekGrid(schedule) {
+  const blankOfficial = [1, 2, 3, 4, 5].map((day) => ({ day, start: null, end: null }));
+  const empty = { boundaries: [], rows: [], cells: [], emptyCells: [], officialTime: blankOfficial };
+  if (!schedule || !Array.isArray(schedule.slots) || !schedule.slots.length) return empty;
+  const validSlots = schedule.slots
+    .filter((s) => s && Number.isInteger(s.day) && s.day >= 1 && s.day <= 5
+      && typeof s.start === 'string' && typeof s.end === 'string'
+      && SCHEDULE_TIME_RE.test(s.start) && SCHEDULE_TIME_RE.test(s.end)
+      && scheduleTimeToMinutes(s.start) < scheduleTimeToMinutes(s.end))
+    .slice()
+    .sort((a, b) => (a.day - b.day) || a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
+  if (!validSlots.length) return empty;
+
+  const boundarySet = new Set();
+  for (const s of validSlots) {
+    boundarySet.add(s.start);
+    boundarySet.add(s.end);
+  }
+  const boundaries = [...boundarySet].sort();
+  if (boundaries.length < 2) return empty;
+
+  const idxOf = new Map(boundaries.map((b, idx) => [b, idx]));
+  const rows = [];
+  for (let r = 0; r < boundaries.length - 1; r++) {
+    rows.push({ index: r, start: boundaries[r], end: boundaries[r + 1] });
+  }
+
+  const covered = new Set();
+  const cells = [];
+  for (const slot of validSlots) {
+    const startIdx = idxOf.get(slot.start);
+    const endIdx = idxOf.get(slot.end);
+    for (let r = startIdx; r < endIdx; r++) covered.add(`${slot.day}:${r}`);
+    cells.push({
+      slot: { ...slot },
+      day: slot.day,
+      col: slot.day + 1,
+      rowStart: startIdx + 2,
+      rowEnd: endIdx + 2,
+      rowSpan: endIdx - startIdx,
+    });
+  }
+
+  const emptyCells = [];
+  for (let r = 0; r < rows.length; r++) {
+    for (let d = 1; d <= 5; d++) {
+      if (!covered.has(`${d}:${r}`)) {
+        emptyCells.push({ day: d, col: d + 1, rowStart: r + 2, rowEnd: r + 3 });
+      }
+    }
+  }
+
+  const officialTime = [];
+  for (let d = 1; d <= 5; d++) {
+    let minStart = null;
+    let maxEnd = null;
+    for (const s of validSlots) {
+      if (s.day !== d) continue;
+      if (minStart === null || s.start < minStart) minStart = s.start;
+      if (maxEnd === null || s.end > maxEnd) maxEnd = s.end;
+    }
+    officialTime.push({ day: d, start: minStart, end: maxEnd });
+  }
+
+  return { boundaries, rows, cells, emptyCells, officialTime };
+}
+
 const logicAPI = {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
+  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage,
+  SCHEDULE_MAX_SLOTS, SCHEDULE_MAX_META, SCHEDULE_MAX_LABEL, SCHEDULE_KINDS,
+  validateSchedule, canonicalSchedule, resolveCurrentSlot, buildWeekGrid,
 };
 Object.assign(globalThis, logicAPI);
 export {
   dayDiff, toInputValue, cleanFiles, Task, sortTasks, lookup, parseTimeWord,
   makeDate, mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
+  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage,
+  SCHEDULE_MAX_SLOTS, SCHEDULE_MAX_META, SCHEDULE_MAX_LABEL, SCHEDULE_KINDS,
+  validateSchedule, canonicalSchedule, resolveCurrentSlot, buildWeekGrid,
 };

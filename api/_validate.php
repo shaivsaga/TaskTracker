@@ -87,6 +87,11 @@ function clean_payload($p) {
             if ($subjErr !== null) return null;
             $draftOut['subjects'] = $subs;
         }
+        if (array_key_exists('schedule', $d)) {
+            [$sched, $schedErr] = tt_schedule_validate($d['schedule']);
+            if ($schedErr !== null) return null;
+            $draftOut['schedule'] = $sched;
+        }
         $clean['draft'] = $draftOut;
     }
     if (array_key_exists('section', $p)) {

@@ -1,12 +1,15 @@
 import {
   Task, dayDiff, toInputValue, sortTasks, lookup, parseTimeWord,
   mergeProgress, todayDate, parseDateText, WEEKDAYS, sanitizeDoc,
-  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage
+  clampPopoverPosition, pageFromHash, taskIdOk, STATUS_LABELS, statusChangeMessage,
+  validateSchedule, canonicalSchedule, resolveCurrentSlot, buildWeekGrid
 } from './logic.js?v=5';
 import { state } from './js/state.js';
 import { dom, cacheDom } from './js/dom.js';
 import { readJSON, writeJSON, formatTime, sectionKey } from './js/util.js';
 import * as calendar from './js/calendar.js';
+import * as schedule from './js/schedule.js';
+import * as scheduleEditor from './js/schedule-editor.js';
 import * as quickAdd from './js/quick-add.js';
 import * as tour from './js/tour.js';
 import * as settings from './js/settings.js';
@@ -63,6 +66,7 @@ const isEditable = (task) => state.isAdmin && !state.previewing && myTasks.inclu
 tasks.init({
   Task, dayDiff, sortTasks, STATUS_LABELS, statusChangeMessage, sanitizeDoc, clampPopoverPosition, myTasks,
   isEditable, createSubjectTag, startNewTask, TTFiles, openDuePicker, calendar, publish, insightsUi,
+  validateSchedule,
 });
 
 function setPublished(data) {
@@ -70,14 +74,20 @@ function setPublished(data) {
   state.publishedTasks = board.tasks.map((o) => Task.fromJSON(o));
   state.publishedAnnouncements = board.announcements;
   state.publishedCatalog = Array.isArray(board.subjects) ? board.subjects.map((s) => ({ ...s })) : [];
+  state.publishedSchedule = board.schedule ? JSON.parse(JSON.stringify(board.schedule)) : null;
   tasks.applyProgress(state.publishedTasks);
 
   if (!state.isAdmin) syncCatalog(state.publishedCatalog);
-  else if (!state.draftSubjects.length) {
-
-    state.draftSubjects = state.publishedCatalog.map((s) => ({ ...s }));
-    syncCatalog(state.draftSubjects);
-    subjectsEditor.render();
+  else {
+    if (!state.draftSubjects.length) {
+      state.draftSubjects = state.publishedCatalog.map((s) => ({ ...s }));
+      syncCatalog(state.draftSubjects);
+      subjectsEditor.render();
+    }
+    if (!state.hasDraftSchedule) {
+      state.draftSchedule = state.publishedSchedule ? JSON.parse(JSON.stringify(state.publishedSchedule)) : null;
+      scheduleEditor.render();
+    }
   }
   calendar.invalidateAgenda();
 }
@@ -167,9 +177,12 @@ async function loadPublished() {
   announcements.renderAnnouncements();
 }
 
+schedule.init({
+  resolveCurrentSlot, buildWeekGrid, formatTime,
+});
 calendar.init({
   recordSource: tasks.recordSource, openTaskDialog: tasks.openTaskDialog, todayDate, toInputValue, dayDiff,
-  subjects: () => tasks.SUBJECTS, clampPopoverPosition,
+  subjects: () => tasks.SUBJECTS, clampPopoverPosition, schedule,
 });
 
 document.querySelector('#task-search').addEventListener('input', (e) => {
@@ -656,12 +669,15 @@ publish.init({
   renderAnnouncements: announcements.renderAnnouncements, applyProgress: tasks.applyProgress,
   setPublished, Task, setPage: nav.setPage,
   syncCatalog,
+  canonicalSchedule, validateSchedule,
+  renderScheduleEditor: scheduleEditor.render,
+  renderScheduleView: () => calendar.renderCalendar(),
   catalog: {
 
     forPublish: () => (state.draftSubjects.length
       ? state.draftSubjects
       : (state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : [])),
-    unknownFor: (draftTasks) => {
+    unknownFor: (draftTasks, draftSched) => {
       const source = state.draftSubjects.length
         ? state.draftSubjects
         : (state.liveBoard && Array.isArray(state.liveBoard.subjects) ? state.liveBoard.subjects : []);
@@ -670,6 +686,12 @@ publish.init({
       for (const t of Array.isArray(draftTasks) ? draftTasks : []) {
         const code = t && t.subject;
         if (typeof code === 'string' && code !== '' && !known.has(code)) missing.add(code);
+      }
+      const slots = draftSched && Array.isArray(draftSched.slots) ? draftSched.slots : [];
+      for (const slot of slots) {
+        const isSubj = slot && (slot.kind === 'subject' || (!slot.kind && typeof slot.subject === 'string' && slot.subject.trim() !== ''));
+        if (!isSubj) continue;
+        if (typeof slot.subject === 'string' && slot.subject !== '' && !known.has(slot.subject)) missing.add(slot.subject);
       }
       return [...missing];
     },
@@ -797,18 +819,38 @@ async function start() {
     bin.load();
     subjectsEditor.render();
     subjectsEditor.loadPresets();
+    scheduleEditor.render();
   };
   subjectsEditor.init({
-    syncCatalog: (list) => { syncCatalog(list); tasks.renderAllTasks(); },
+    syncCatalog: (list) => { syncCatalog(list); tasks.renderAllTasks(); scheduleEditor.render(); calendar.renderCalendar(); },
     saveTasks: tasks.saveTasks,
-    referencedCodes: () => [...new Set(
-      [...myTasks, ...state.publishedTasks].map((t) => t && t.subject).filter(Boolean),
-    )],
+    referencedCodes: () => [...new Set([
+      ...myTasks.map((t) => t && t.subject),
+      ...state.publishedTasks.map((t) => t && t.subject),
+      ...(state.draftSchedule && Array.isArray(state.draftSchedule.slots) ? state.draftSchedule.slots : [])
+        .filter((s) => s && (s.kind === 'subject' || (!s.kind && s.subject)))
+        .map((s) => s.subject),
+      ...(state.publishedSchedule && Array.isArray(state.publishedSchedule.slots) ? state.publishedSchedule.slots : [])
+        .filter((s) => s && (s.kind === 'subject' || (!s.kind && s.subject)))
+        .map((s) => s.subject),
+    ].filter(Boolean))],
     confirm: (message) => new Promise((resolve) => tasks.confirmDialog({
       title: 'Apply subject preset?', message, okLabel: 'Apply preset',
       onConfirm: () => resolve(true), onCancel: () => resolve(false),
     })),
     armInlineConfirm: tasks.armInlineConfirm,
+  });
+  scheduleEditor.init({
+    validateSchedule,
+    formatTime,
+    saveTasks: tasks.saveTasks,
+    renderScheduleView: () => calendar.renderCalendar(),
+    updateAdminBar: publish.updateAdminBar,
+    diffDraft: publish.diffDraft,
+    armInlineConfirm: tasks.armInlineConfirm,
+  });
+  document.addEventListener('app:page-shown', (e) => {
+    if (e && e.detail && e.detail.page === 'my-tasks') loadAdminPanels();
   });
   window.addEventListener('hashchange', loadAdminPanels);
   if (state.isAdmin) setTimeout(loadAdminPanels, 0);

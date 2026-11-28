@@ -48,10 +48,27 @@ test('computePublishDiff lists named added, edited (with changed fields), remove
   assert.deepEqual(diff.subjects.added, ['EFFCOM']);
   assert.deepEqual(diff.subjects.updated, ['GENMATH']);
   assert.deepEqual(diff.subjects.retired, ['PE']);
+  assert.deepEqual(diff.schedule, { changed: false, action: 'none', slotCount: 0 });
 
-  const cleared = computePublishDiff(pubBoard, draftSnap, { clearBoard: true });
+  const withSchedule = computePublishDiff(pubBoard, {
+    ...draftSnap,
+    schedule: { term: 'T2', slots: [{ day: 1, start: '07:30', end: '08:30', subject: 'GENMATH' }] },
+  });
+  assert.deepEqual(withSchedule.schedule, { changed: true, action: 'added', slotCount: 1 });
+
+  const updatedSchedule = computePublishDiff(
+    { ...pubBoard, schedule: { term: 'T2', slots: [{ day: 1, start: '07:30', end: '08:30', subject: 'GENMATH' }] } },
+    { ...draftSnap, schedule: null },
+  );
+  assert.deepEqual(updatedSchedule.schedule, { changed: true, action: 'cleared', slotCount: 0 });
+
+  const cleared = computePublishDiff(pubBoard, {
+    ...draftSnap,
+    schedule: { term: 'T2', slots: [{ day: 1, start: '07:30', end: '08:30', subject: 'GENMATH' }] },
+  }, { clearBoard: true });
   assert.equal(cleared.added.length, 0);
   assert.equal(cleared.edited.length, 0);
   assert.equal(cleared.removed.length, 3);
   assert.equal(cleared.announcements.changed, false);
+  assert.equal(cleared.schedule.changed, false);
 });

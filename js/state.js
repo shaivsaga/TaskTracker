@@ -20,4 +20,7 @@ export const state = {
   catalog: [],
   publishedCatalog: [],
   draftSubjects: [],
+  publishedSchedule: null,
+  draftSchedule: null,
+  hasDraftSchedule: false,
 };

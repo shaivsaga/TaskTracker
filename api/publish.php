@@ -81,6 +81,15 @@ $idErr = tt_taskids_validate($in['tasks']);
 if ($idErr !== null) fail(422, $idErr);
 $coverErr = tt_subjects_cover($in['tasks'], $subjects);
 if ($coverErr !== null) fail(422, $coverErr);
+$hasScheduleKey = array_key_exists('schedule', $in);
+if ($hasScheduleKey && $clear !== null) fail(400, 'clearBoard must not supply a schedule.');
+$parsedSchedule = null;
+if ($hasScheduleKey && $in['schedule'] !== null) {
+  [$parsedSchedule, $schedErr] = tt_schedule_validate($in['schedule']);
+  if ($schedErr !== null) fail(422, $schedErr);
+  $schedCoverErr = tt_schedule_subjects_cover($parsedSchedule, $subjects);
+  if ($schedCoverErr !== null) fail(422, $schedCoverErr);
+}
 
 @ignore_user_abort(true);  // a client disconnect must not stop the script between snapshot and rename
 
@@ -115,18 +124,21 @@ try {
   $liveRevision = is_array($liveBoard) ? (int)($liveBoard['revision'] ?? 0) : 0;
   $liveTasks = is_array($liveBoard) && is_array($liveBoard['tasks'] ?? null) ? $liveBoard['tasks'] : [];
   $liveSubjects = is_array($liveBoard) && is_array($liveBoard['subjects'] ?? null) ? $liveBoard['subjects'] : [];
+  $liveSchedule = is_array($liveBoard) && is_array($liveBoard['schedule'] ?? null) ? $liveBoard['schedule'] : null;
   $markers = is_array($liveBoard) && is_array($liveBoard['deletedTasks'] ?? null) ? $liveBoard['deletedTasks'] : [];
 
   // One canonical body hash: an exact transport retry replays the stored result, a different body
-  // with the same token is a conflict. The receipt is bounded to the latest operation.
-  $bodyHash = tt_hash_value([
+  // with the same token is a conflict. Omit 'schedule' when absent to preserve origin/main receipts.
+  $hashPayload = [
     'baseRevision'  => $in['baseRevision'],
     'tasks'         => $in['tasks'],
     'announcements' => $anns,
     'subjects'      => $subjects,
     'note'          => $note,
     'clearBoard'    => $clear,
-  ]);
+  ];
+  if ($hasScheduleKey) $hashPayload['schedule'] = $parsedSchedule;
+  $bodyHash = tt_hash_value($hashPayload);
   $receipt = tt_receipt($admin, $in['operationId'], $bodyHash);
   if ($receipt === 'conflict') fail(409, 'That operation id was already used for a different change. Reload and try again.', ['code' => 'operation_conflict', 'latestRevision' => $liveRevision]);
   if ($receipt === 'replay') {
@@ -168,9 +180,14 @@ try {
     fail(409, 'Cannot verify the published board (no current.json); refusing to clear it.');
   }
 
-  // Clear-board removes assignments only; the live announcements and the catalog are carried over.
+  // Clear-board removes assignments only; announcements, catalog, and class schedule carry over.
   $nextAnnouncements = $clear !== null ? array_values(is_array($liveBoard['announcements'] ?? null) ? $liveBoard['announcements'] : []) : array_values($anns);
   if ($clear !== null && !$in['subjects']) $subjects = $liveSubjects;
+  $nextSchedule = $clear !== null ? $liveSchedule : ($hasScheduleKey ? $parsedSchedule : $liveSchedule);
+  if ($nextSchedule !== null) {
+    $schedCoverErr = tt_schedule_subjects_cover($nextSchedule, $subjects);
+    if ($schedCoverErr !== null) fail(422, $schedCoverErr);
+  }
 
   // Every live definition this publish removes is archived before the board can lose it - whatever
   // the reason it disappeared (deletion, an old snapshot, an import or a typed clear).
@@ -201,6 +218,7 @@ try {
         'deletedTasks'  => $markers,
         'note'          => 'Backup before clearing board',
       ];
+      if ($liveSchedule !== null) $backup['schedule'] = $liveSchedule;
       if (!tt_write_json_atomic($verDir . '/' . tt_next_snapshot_id($verDir, $now) . '.json', $backup)) {
         fail(500, 'Cannot save a backup of the live board; nothing was changed.');
       }
@@ -222,6 +240,7 @@ try {
     'subjects'      => array_values($subjects),
     'deletedTasks'  => array_values($markers),
   ];
+  if ($nextSchedule !== null) $nextBoard['schedule'] = $nextSchedule;
 
   $finalAdmin = $archiveAdmin;
   $finalAdmin['lastOperation'] = [

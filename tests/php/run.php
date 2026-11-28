@@ -1114,4 +1114,273 @@ if (!$sbS) {
         $all400 && count($secDirs) === 1 && basename($secDirs[0]) === 'b');
 }
 
+// ---------------------------------------------------------------------------
+// J. Class schedule validation, publish lifecycle, clearBoard, permanent delete, and transfer.
+// ---------------------------------------------------------------------------
+$dsctCat = [
+    ['code' => 'CP104', 'name' => 'Computer Programming 104', 'color' => '#58affc', 'active' => true],
+    ['code' => 'PKLP', 'name' => 'PKLP', 'color' => '#ff9f6b', 'active' => true],
+    ['code' => 'FINMATH101', 'name' => 'Finite Mathematics 101', 'color' => '#c9a6e0', 'active' => true],
+];
+$dsctSched = [
+    'term' => '2ND TERM',
+    'sectionLabel' => 'DSCT11-A',
+    'room' => '92C ST. SCHO',
+    'slots' => [
+        ['day' => 3, 'start' => '07:30', 'end' => '09:30', 'subject' => 'FINMATH101'],
+        ['day' => 1, 'start' => '09:30', 'end' => '09:50', 'kind' => 'break', 'label' => 'RECESS'],
+        ['day' => 1, 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104'],
+        ['day' => 1, 'start' => '08:30', 'end' => '09:30', 'kind' => 'subject', 'subject' => 'PKLP'],
+        ['day' => 5, 'start' => '13:50', 'end' => '14:50', 'kind' => 'activity', 'label' => 'CLUB'],
+    ],
+];
+$dsctSchedWithSentinels = [
+    'term' => '2ND TERM',
+    'sectionLabel' => 'DSCT11-A',
+    'adviser' => 'SYNTHETIC_ADVISER_SENTINEL',
+    'extraMeta' => 'unexpected',
+    'room' => '92C ST. SCHO',
+    'slots' => [
+        ['day' => 3, 'start' => '07:30', 'end' => '09:30', 'subject' => 'FINMATH101', 'teacher' => 'SYNTHETIC_TEACHER_SENTINEL', 'extraSlot' => 1],
+        ['day' => 1, 'start' => '09:30', 'end' => '09:50', 'kind' => 'break', 'label' => 'RECESS', 'teacher' => 999],
+        ['day' => 1, 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104'],
+        ['day' => 1, 'start' => '08:30', 'end' => '09:30', 'kind' => 'subject', 'subject' => 'PKLP'],
+        ['day' => 5, 'start' => '13:50', 'end' => '14:50', 'kind' => 'activity', 'label' => 'CLUB'],
+    ],
+];
+[$vNull, $eNull] = tt_schedule_validate(null);
+check('schedule: null validates to [null, null]', $vNull === null && $eNull === null);
+[$vOk, $eOk] = tt_schedule_validate($dsctSchedWithSentinels);
+$vJson = json_encode($vOk);
+check('schedule: valid DSCT11-A schedule sorts by day/start and silently strips adviser/teacher/unknown keys',
+    $eOk === null && is_array($vOk) && count($vOk['slots']) === 5
+    && $vOk['slots'][0]['subject'] === 'CP104' && $vOk['slots'][0]['kind'] === 'subject'
+    && $vOk['slots'][1]['subject'] === 'PKLP' && $vOk['slots'][2]['label'] === 'RECESS'
+    && !array_key_exists('adviser', $vOk) && !array_key_exists('extraMeta', $vOk)
+    && !array_key_exists('teacher', $vOk['slots'][0]) && !array_key_exists('extraSlot', $vOk['slots'][3])
+    && strpos($vJson, 'SYNTHETIC_') === false);
+[$vNonStr, $eNonStr] = tt_schedule_validate([
+    'term' => '2ND TERM',
+    'adviser' => ['legacy-array'],
+    'slots' => [['day' => 1, 'start' => '07:30', 'end' => '08:30', 'subject' => 'CP104', 'teacher' => ['legacy']]],
+]);
+check('schedule: non-string legacy adviser/teacher values are silently stripped',
+    $eNonStr === null && is_array($vNonStr) && !array_key_exists('adviser', $vNonStr)
+    && !array_key_exists('teacher', $vNonStr['slots'][0]));
+check('schedule: subjects cover accepts valid DSCT11-A catalog', tt_schedule_subjects_cover($vOk, $dsctCat) === null);
+check('schedule: subjects cover rejects missing subject', tt_schedule_subjects_cover($vOk, [$dsctCat[0]]) !== null);
+
+[, $eOverlap] = tt_schedule_validate(['slots' => [
+    ['day' => 1, 'start' => '07:30', 'end' => '09:00', 'kind' => 'subject', 'subject' => 'CP104'],
+    ['day' => 1, 'start' => '08:30', 'end' => '09:30', 'kind' => 'subject', 'subject' => 'PKLP'],
+]]);
+[, $eBadDay] = tt_schedule_validate(['slots' => [['day' => 6, 'start' => '07:30', 'end' => '08:30', 'kind' => 'break', 'label' => 'X']]]);
+[, $eBadTime] = tt_schedule_validate(['slots' => [['day' => 1, 'start' => '09:00', 'end' => '09:00', 'kind' => 'break', 'label' => 'X']]]);
+[, $eBadLbl] = tt_schedule_validate(['slots' => [['day' => 1, 'start' => '07:30', 'end' => '08:00', 'kind' => 'activity', 'label' => '   ']]]);
+check('schedule: rejects overlap, out-of-range day, start>=end, and blank label',
+    $eOverlap !== null && $eBadDay !== null && $eBadTime !== null && $eBadLbl !== null);
+
+$trSchedOk = clean_payload(['v' => 1, 'progress' => [], 'draft' => [
+    'schemaVersion' => 2, 'tasks' => [], 'announcements' => [], 'subjects' => $dsctCat, 'schedule' => $dsctSchedWithSentinels,
+]]);
+$trSchedBad = clean_payload(['v' => 1, 'progress' => [], 'draft' => [
+    'schemaVersion' => 2, 'tasks' => [], 'announcements' => [], 'subjects' => $dsctCat,
+    'schedule' => ['slots' => [['day' => 0, 'start' => '07:30', 'end' => '08:30', 'kind' => 'break', 'label' => 'X']]],
+]]);
+check('schedule: clean_payload keeps allowlisted draft schedule (stripping sentinels) and rejects invalid schedule',
+    $trSchedOk !== null && count($trSchedOk['draft']['schedule']['slots'] ?? []) === 5
+    && strpos(json_encode($trSchedOk), 'SYNTHETIC_') === false && $trSchedBad === null);
+
+$sbSch = tt_e2e_start();
+if (!$sbSch) {
+    tt_e2e_skip('schedule end-to-end (needs proc_open + allow_url_fopen + a loopback listener)');
+} else {
+    register_shutdown_function(function () use ($sbSch) { tt_e2e_stop($sbSch); });
+    $op0 = bin2hex(random_bytes(16));
+    $p0 = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => $op0, 'baseRevision' => 0,
+        'tasks' => [], 'announcements' => [], 'subjects' => $dsctCat, 'schedule' => $dsctSchedWithSentinels, 'note' => 'Schedule only',
+    ]);
+    $live0Bytes = tt_e2e_bytes($sbSch, 'data/current.json');
+    $live0 = tt_e2e_json_file($sbSch, 'data/current.json');
+    $ver0Files = glob($sbSch['root'] . '/data/versions/*.json') ?: [];
+    $ver0Bytes = $ver0Files ? (string)file_get_contents($ver0Files[0]) : '';
+    check('schedule e2e: zero-task publish persists allowlisted schedule and strips sentinels from current.json + snapshot',
+        $p0 !== null && $p0['status'] === 200 && count($live0['schedule']['slots'] ?? []) === 5
+        && strpos($live0Bytes, 'SYNTHETIC_') === false && strpos($live0Bytes, 'adviser') === false && strpos($live0Bytes, 'teacher') === false
+        && $ver0Bytes !== '' && strpos($ver0Bytes, 'SYNTHETIC_') === false && strpos($ver0Bytes, 'adviser') === false && strpos($ver0Bytes, 'teacher') === false);
+
+    // Same operationId replays; mutated schedule conflicts (409); omitted schedule with same opId ALSO conflicts (409).
+    $pReplay = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => $op0, 'baseRevision' => 0,
+        'tasks' => [], 'announcements' => [], 'subjects' => $dsctCat, 'schedule' => $dsctSched, 'note' => 'Schedule only',
+    ]);
+    $pConflict = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => $op0, 'baseRevision' => 0,
+        'tasks' => [], 'announcements' => [], 'subjects' => $dsctCat, 'schedule' => null, 'note' => 'Schedule only',
+    ]);
+    $pConflictOmit = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => $op0, 'baseRevision' => 0,
+        'tasks' => [], 'announcements' => [], 'subjects' => $dsctCat, 'note' => 'Schedule only',
+    ]);
+    check('schedule e2e: identical opId replays and explicit null vs omitted schedule with same opId return 409',
+        $pReplay !== null && $pReplay['status'] === 200 && ($pReplay['json']['replayed'] ?? false) === true
+        && $pConflict !== null && $pConflict['status'] === 409
+        && $pConflictOmit !== null && $pConflictOmit['status'] === 409);
+
+    // Deployment-boundary receipt compatibility: receipt computed by origin/main (no 'schedule' key in bodyHash) replays 200 after upgrade.
+    $legacyOpId = bin2hex(random_bytes(16));
+    $legacyTasks = [['id' => 't-legacy', 'title' => 'Pre-upgrade task', 'subject' => 'CP104']];
+    $legacyHash = tt_hash_value([
+        'baseRevision'  => 1,
+        'tasks'         => $legacyTasks,
+        'announcements' => [],
+        'subjects'      => $dsctCat,
+        'note'          => 'Pre-upgrade note',
+        'clearBoard'    => null,
+    ]);
+    $curBeforeCompat = $live0;
+    $curBeforeCompat['revision'] = 2;
+    $curBeforeCompat['tasks'] = $legacyTasks;
+    @file_put_contents($sbSch['root'] . '/data/current.json', json_encode($curBeforeCompat));
+    $admCompat = tt_e2e_json_file($sbSch, 'data/admin/state.json') ?? tt_admin_blank();
+    $admCompat['lastOperation'] = [
+        'id'             => $legacyOpId,
+        'hash'           => $legacyHash,
+        'kind'           => 'publish',
+        'publicRevision' => 2,
+        'adminRevision'  => (int)($admCompat['revision'] ?? 1),
+        'result'         => ['revision' => 2],
+    ];
+    @file_put_contents($sbSch['root'] . '/data/admin/state.json', json_encode($admCompat));
+    $pCompatReplay = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => $legacyOpId, 'baseRevision' => 1,
+        'tasks' => $legacyTasks, 'announcements' => [], 'subjects' => $dsctCat, 'note' => 'Pre-upgrade note',
+    ]);
+    $pCompatNull = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => $legacyOpId, 'baseRevision' => 1,
+        'tasks' => $legacyTasks, 'announcements' => [], 'subjects' => $dsctCat, 'schedule' => null, 'note' => 'Pre-upgrade note',
+    ]);
+    $pCompatSched = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => $legacyOpId, 'baseRevision' => 1,
+        'tasks' => $legacyTasks, 'announcements' => [], 'subjects' => $dsctCat, 'schedule' => $dsctSched, 'note' => 'Pre-upgrade note',
+    ]);
+    check('schedule e2e: origin/main 6-key receipt replays 200 after upgrade while schedule:null/obj returns 409',
+        $pCompatReplay !== null && $pCompatReplay['status'] === 200 && ($pCompatReplay['json']['replayed'] ?? false) === true
+        && $pCompatNull !== null && $pCompatNull['status'] === 409
+        && $pCompatSched !== null && $pCompatSched['status'] === 409);
+
+    // Task publish omitting schedule preserves live schedule; dropping referenced subject fails 422.
+    $pTask = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 2,
+        'tasks' => [['id' => 't-sched', 'title' => 'Quiz 1', 'subject' => 'CP104']], 'announcements' => [], 'subjects' => $dsctCat,
+    ]);
+    $pDropSubj = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 3,
+        'tasks' => [['id' => 't-sched', 'title' => 'Quiz 1', 'subject' => 'CP104']], 'announcements' => [], 'subjects' => [$dsctCat[0]],
+    ]);
+    check('schedule e2e: omitted schedule preserves live schedule; dropping schedule subject returns 422',
+        $pTask !== null && $pTask['status'] === 200 && count($pTask['json']['current']['schedule']['slots'] ?? []) === 5
+        && $pDropSubj !== null && $pDropSubj['status'] === 422);
+
+    // clearBoard preserves schedule in current.json + backup snapshot (A3); ANY schedule key (including explicit null) fails 400.
+    $pBadClrObj = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 3,
+        'tasks' => [], 'announcements' => [], 'subjects' => $dsctCat, 'schedule' => $dsctSched,
+        'clearBoard' => ['confirm' => 'CLEAR BOARD', 'expectedCount' => 1],
+    ]);
+    $pBadClrNull = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 3,
+        'tasks' => [], 'announcements' => [], 'subjects' => $dsctCat, 'schedule' => null,
+        'clearBoard' => ['confirm' => 'CLEAR BOARD', 'expectedCount' => 1],
+    ]);
+    // Clear prior snapshots first so publish.php exercises its explicit "Backup before clearing board" branch.
+    foreach (glob($sbSch['root'] . '/data/versions/*.json') ?: [] as $vfOld) @unlink($vfOld);
+    $pClr = tt_e2e_publish($sbSch, [
+        'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 3,
+        'tasks' => [], 'announcements' => [], 'subjects' => $dsctCat,
+        'clearBoard' => ['confirm' => 'CLEAR BOARD', 'expectedCount' => 1],
+    ]);
+    $verFiles = glob($sbSch['root'] . '/data/versions/*.json') ?: [];
+    $hasBackupSchedule = false;
+    foreach ($verFiles as $vf) {
+        $vj = json_decode((string)file_get_contents($vf), true);
+        if (($vj['note'] ?? '') === 'Backup before clearing board' && count($vj['schedule']['slots'] ?? []) === 5) {
+            $hasBackupSchedule = true;
+        }
+    }
+    check('schedule e2e: clearBoard preserves live schedule in current.json + backup and refuses schedule key or explicit null with 400 (A3)',
+        $pBadClrObj !== null && $pBadClrObj['status'] === 400
+        && $pBadClrNull !== null && $pBadClrNull['status'] === 400
+        && $pClr !== null && $pClr['status'] === 200
+        && count($pClr['json']['current']['schedule']['slots'] ?? []) === 5
+        && $hasBackupSchedule);
+
+    // bin-permanent-delete preserves schedule on current.json.
+    $adm = tt_e2e_req($sbSch, 'GET', '/api/versions.php?view=admin');
+    $binId = $adm['json']['binSummaries'][0]['binId'] ?? '';
+    $delRes = tt_e2e_req($sbSch, 'POST', '/api/versions.php', json_encode([
+        'action' => 'bin-permanent-delete',
+        'operationId' => bin2hex(random_bytes(16)),
+        'baseAdminRevision' => (int)($adm['json']['adminRevision'] ?? 0),
+        'baseRevision' => (int)($pClr['json']['current']['revision'] ?? 4),
+        'binId' => $binId,
+        'confirm' => 'DELETE PERMANENTLY',
+    ]));
+    check('schedule e2e: bin-permanent-delete preserves schedule in current.json',
+        $delRes !== null && $delRes['status'] === 200
+        && count($delRes['json']['current']['schedule']['slots'] ?? []) === 5);
+
+    // Multi-section schedule isolation + per-section subject referential integrity.
+    $schRouterFile = rtrim(sys_get_temp_dir(), '/\\') . '/tt-sched-section-router-' . bin2hex(random_bytes(4)) . '.php';
+    @file_put_contents($schRouterFile, $routerSrc);
+    $sbSecSch = tt_e2e_start(null, null, $schRouterFile);
+    if (!$sbSecSch) {
+        @unlink($schRouterFile);
+        tt_e2e_skip('schedule section isolation end-to-end');
+    } else {
+        register_shutdown_function(function () use ($sbSecSch, $schRouterFile) {
+            tt_e2e_stop($sbSecSch);
+            @unlink($schRouterFile);
+        });
+        $catA = [['code' => 'CP104', 'name' => 'Computer Programming 104', 'color' => '#58affc', 'active' => true]];
+        $catB = [['code' => 'FINMATH101', 'name' => 'Finite Mathematics 101', 'color' => '#c9a6e0', 'active' => true]];
+        $schedA = ['term' => '2ND TERM', 'sectionLabel' => 'DSCT11-A', 'room' => '92C ST. SCHO', 'slots' => [['day' => 1, 'start' => '07:30', 'end' => '08:30', 'kind' => 'subject', 'subject' => 'CP104']]];
+        $schedB = ['term' => '2ND TERM', 'sectionLabel' => 'DSCT11-B', 'room' => '93B LAB', 'slots' => [['day' => 2, 'start' => '08:30', 'end' => '09:30', 'kind' => 'subject', 'subject' => 'FINMATH101']]];
+
+        $loginSecB = tt_e2e_req($sbSecSch, 'POST', '/s/b/api/login.php', '{}', ['X-Test-User: officer-b'], false);
+        $ckB = '';
+        foreach ($loginSecB['headers'] ?? [] as $h) {
+            if (preg_match('/^set-cookie:\s*tt_admin=([a-f0-9]{64});/i', $h, $m)) $ckB = $m[1];
+        }
+        $pubSecA = tt_e2e_publish($sbSecSch, [
+            'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 0,
+            'tasks' => [], 'announcements' => [], 'subjects' => $catA, 'schedule' => $schedA,
+        ]);
+        $pubSecB = tt_e2e_req($sbSecSch, 'POST', '/s/b/api/publish.php', json_encode([
+            'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 0,
+            'tasks' => [], 'announcements' => [], 'subjects' => $catB, 'schedule' => $schedB,
+        ]), ['Cookie: tt_admin=' . $ckB], false);
+        // Cross-section subject code (CP104 in Section B catalog-less schedule) must fail 422 on Section B.
+        $badCrossSubjB = tt_e2e_req($sbSecSch, 'POST', '/s/b/api/publish.php', json_encode([
+            'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 1,
+            'tasks' => [], 'announcements' => [], 'subjects' => $catB, 'schedule' => $schedA,
+        ]), ['Cookie: tt_admin=' . $ckB], false);
+        // Clearing Section B schedule leaves Section A's schedule untouched.
+        $clrSecB = tt_e2e_req($sbSecSch, 'POST', '/s/b/api/publish.php', json_encode([
+            'schemaVersion' => 2, 'operationId' => bin2hex(random_bytes(16)), 'baseRevision' => 1,
+            'tasks' => [], 'announcements' => [], 'subjects' => $catB, 'schedule' => null,
+        ]), ['Cookie: tt_admin=' . $ckB], false);
+        $diskA = tt_e2e_json_file($sbSecSch, 'data/current.json');
+        $diskB = tt_e2e_json_file($sbSecSch, 'data/sections/b/current.json');
+        check('schedule section isolation: A and B schedules stay disjoint and enforce per-section catalog coverage',
+            $ckB !== '' && $pubSecA !== null && $pubSecA['status'] === 200
+            && $pubSecB !== null && $pubSecB['status'] === 200
+            && $badCrossSubjB !== null && $badCrossSubjB['status'] === 422
+            && $clrSecB !== null && $clrSecB['status'] === 200
+            && ($diskA['schedule']['sectionLabel'] ?? null) === 'DSCT11-A'
+            && !array_key_exists('schedule', $diskB ?? []));
+    }
+}
+
 exit($fails ? 1 : 0);

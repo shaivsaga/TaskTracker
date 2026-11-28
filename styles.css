@@ -1318,3 +1318,76 @@ kbd { padding: 0 4px; border: 1px solid var(--mu); border-bottom-width: 2px; bac
   .mine-next { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 }
 /* [[/section:insights]] */
+
+/* [[section:schedule]] */
+/* ---------- Class Schedule ---------- */
+#page-calendar .view-tab { min-height: 44px; padding: 0 12px; }
+.cal-schedule { display: grid; gap: 12px; margin-top: 12px; min-width: 0; }
+.sched-meta { margin: 0; color: var(--mu); font-size: 14px; font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
+.sched-now { display: grid; gap: 6px; padding: 12px; border: 2px solid var(--ln); border-left: 4px solid var(--ac); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
+.sched-now-main, .sched-now-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sched-now-main { color: var(--tx); font-weight: 600; }
+.sched-now-sub { color: var(--mu); font-size: 12px; line-height: 16px; }
+.sched-badge { display: inline-flex; align-items: center; padding: 0 6px; min-height: 20px; border: 1px solid var(--ln); background: var(--sf2); color: var(--tx); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.04em; }
+.sched-badge.is-now { border-color: var(--ac); background: var(--ac); color: var(--onac); }
+
+.sched-phone-bar { display: none; }
+.sched-day-list { display: none; }
+
+.sched-grid-wrap { width: 100%; min-width: 0; }
+.sched-grid {
+  display: grid;
+  grid-template-columns: 76px /* lint-allow:px 76px -- compact time-axis track leaves balanced room for 5 weekday columns at 720px */
+    repeat(5, minmax(108px, 1fr)); /* lint-allow:px 108px -- keeps all 5 Mon-Fri columns visible at 720px without horizontal scroll */
+  gap: 1px;
+  border: 2px solid var(--ln);
+  background: var(--ln);
+  box-shadow: 0 2px 0 var(--sh);
+}
+.sched-head { padding: 8px 4px; background: var(--sf2); color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.02em; text-transform: uppercase; text-align: center; }
+.sched-head.is-time-col { padding-left: 6px; text-align: left; }
+.sched-time { display: flex; align-items: center; justify-content: center; padding: 6px 4px; background: var(--sf); color: var(--mu); font-size: 12px; font-weight: 600; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+.sched-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 44px; padding: 6px 4px; background: var(--sf); text-align: center; overflow-wrap: break-word; }
+.sched-cell.is-empty { background: var(--sf); }
+.sched-cell.is-neutral { background: var(--sf2); color: var(--tx); }
+.sched-cell.is-now { box-shadow: inset 0 0 0 2px var(--ac); }
+.sched-cell-title { font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: 0.02em; text-transform: uppercase; text-wrap: balance; max-width: 100%; }
+.sched-foot { display: flex; align-items: center; justify-content: center; padding: 8px 4px; background: var(--sf2); color: var(--tx); font-size: 12px; font-weight: 700; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; border-top: 2px solid var(--ln); }
+.sched-foot.is-time-col { justify-content: flex-start; padding-left: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
+
+@media (max-width: 719px) {
+  #page-calendar:has(#cal-schedule:not([hidden])) .view-tabs { grid-column: 1 / -1; }
+  .sched-phone-bar { display: grid; gap: 8px; }
+  .sched-day-pills { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 2px solid var(--mu); background: var(--sf); }
+  .sched-day-pill { min-width: 0; min-height: 44px; padding: 0 4px; background: transparent; color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; cursor: pointer; }
+  .sched-day-pill + .sched-day-pill { border-left: 2px solid var(--mu); }
+  .sched-day-pill.is-active { background: var(--acs); color: var(--tx); box-shadow: inset 0 -3px 0 var(--ac); }
+  .sched-fullweek-btn { width: fit-content; }
+  .sched-day-list { display: grid; gap: 8px; }
+  .sched-day-card { display: grid; gap: 6px; padding: 12px; border: 2px solid var(--ln); background: var(--sf); box-shadow: 0 2px 0 var(--sh); }
+  .sched-day-card.is-now { border-color: var(--ac); box-shadow: inset 0 0 0 2px var(--ac), 0 2px 0 var(--sh); }
+  .sched-day-time { color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
+  .sched-day-info { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+  .sched-day-name, .sched-day-label { color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; }
+  .sched-day-official { margin: 0; padding: 8px 12px; border: 2px solid var(--ln); background: var(--sf2); color: var(--tx); font-size: 12px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
+  .sched-grid-wrap { display: none; }
+  /* lint-allow:px 620px -- wide scrollable container inside overflow-x:auto preserves 5-day timetable legibility on 320px phones */
+  .sched-grid-wrap.is-phone-full { display: block; overflow-x: auto; max-width: 100%; }
+  /* lint-allow:px 620px -- keeps horizontal-scroll full-week grid columns uncrushed on 320px viewports */
+  .sched-grid-wrap.is-phone-full .sched-grid { min-width: 620px; }
+}
+
+.sched-meta-grid, .sched-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
+.sched-field { display: grid; gap: 4px; min-width: 0; align-content: start; }
+.sched-editor-days { display: inline-flex; flex-wrap: wrap; max-width: 100%; margin-top: 12px; border: 2px solid var(--mu); background: var(--sf); }
+.sched-editor-days .view-tab { flex: 1 1 auto; min-height: 44px; padding: 0 12px; }
+.sched-editor-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.sched-editor-info { display: grid; gap: 2px; min-width: 0; flex: 1 1 200px; }
+.sched-editor-time { color: var(--mu); font-size: 12px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
+.sched-editor-title { color: var(--tx); font-size: 14px; font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
+.sched-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sched-add-form { margin-top: 12px; padding: 12px; border: 2px solid var(--ln); background: var(--sf2); }
+.sched-add-form .sched-form-grid { margin-top: 0; }
+.sched-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+#schedule-clear-btn { margin-left: auto; }
+/* [[/section:schedule]] */

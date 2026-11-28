@@ -313,6 +313,73 @@
                 <p class="summary" id="subject-status" role="status"></p>
               </div>
             </section>
+            <section class="announcements" id="schedule-panel" aria-label="Class schedule">
+              <div class="announce-header">
+                <h2>Class schedule</h2>
+                <button class="text-button" type="button" id="schedule-toggle" aria-expanded="false" aria-controls="schedule-body">Show schedule</button>
+              </div>
+              <div id="schedule-body" hidden>
+                <p class="page-supporting-copy">Configure your section’s weekly weekday schedule (Mon–Fri). Changes stay in your draft until you publish.</p>
+                <div class="sched-meta-grid">
+                  <div class="sched-field">
+                    <label class="field-label" for="schedule-term">Term</label>
+                    <input class="text-input" id="schedule-term" type="text" maxlength="80" placeholder="e.g. 2nd Term">
+                  </div>
+                  <div class="sched-field">
+                    <label class="field-label" for="schedule-section">Section</label>
+                    <input class="text-input" id="schedule-section" type="text" maxlength="80" placeholder="e.g. DSCT11-A">
+                  </div>
+                  <div class="sched-field">
+                    <label class="field-label" for="schedule-room">Room</label>
+                    <input class="text-input" id="schedule-room" type="text" maxlength="80" placeholder="e.g. 92C ST. SCHO">
+                  </div>
+                </div>
+                <div class="sched-editor-days" id="schedule-day-tabs" role="group" aria-label="Schedule day filter">
+                  <button type="button" class="view-tab is-active" data-sched-day="1" aria-pressed="true">Mon</button>
+                  <button type="button" class="view-tab" data-sched-day="2" aria-pressed="false">Tue</button>
+                  <button type="button" class="view-tab" data-sched-day="3" aria-pressed="false">Wed</button>
+                  <button type="button" class="view-tab" data-sched-day="4" aria-pressed="false">Thu</button>
+                  <button type="button" class="view-tab" data-sched-day="5" aria-pressed="false">Fri</button>
+                </div>
+                <ul class="history-list" id="schedule-slot-list"></ul>
+                <form class="sched-add-form" id="schedule-add-form">
+                  <div class="sched-form-grid">
+                    <div class="sched-field">
+                      <label class="field-label" for="schedule-slot-start">Start</label>
+                      <input class="text-input" id="schedule-slot-start" type="time" value="07:30" required>
+                    </div>
+                    <div class="sched-field">
+                      <label class="field-label" for="schedule-slot-end">End</label>
+                      <input class="text-input" id="schedule-slot-end" type="time" value="08:30" required>
+                    </div>
+                    <div class="sched-field">
+                      <label class="field-label" for="schedule-slot-kind">Type</label>
+                      <select class="text-input" id="schedule-slot-kind">
+                        <option value="subject">Subject</option>
+                        <option value="break">Break</option>
+                        <option value="activity">Activity</option>
+                      </select>
+                    </div>
+                    <div class="sched-field" id="schedule-slot-subject-wrap">
+                      <label class="field-label" for="schedule-slot-subject">Subject</label>
+                      <select class="text-input" id="schedule-slot-subject">
+                        <option value="">Choose subject…</option>
+                      </select>
+                    </div>
+                    <div class="sched-field" id="schedule-slot-label-wrap" hidden>
+                      <label class="field-label" for="schedule-slot-label">Label</label>
+                      <input class="text-input" id="schedule-slot-label" type="text" maxlength="40" placeholder="e.g. RECESS, HOMEROOM">
+                    </div>
+                  </div>
+                  <div class="sched-form-actions">
+                    <button class="secondary-button" type="submit" id="schedule-slot-submit">Add slot</button>
+                    <button class="text-button" type="button" id="schedule-slot-cancel" hidden>Cancel</button>
+                    <button class="text-button is-danger" type="button" id="schedule-clear-btn">Clear schedule</button>
+                  </div>
+                </form>
+                <p class="summary" id="schedule-status" role="status"></p>
+              </div>
+            </section>
           </section>
 
           <section class="page utility-page" id="page-done" data-page-view="done" aria-label="Done" hidden>
@@ -346,6 +413,7 @@
                 <div class="view-tabs" role="group" aria-label="Calendar view">
                   <button type="button" class="view-tab is-active" data-cal-mode="month" aria-pressed="true">Month</button>
                   <button type="button" class="view-tab" data-cal-mode="week" aria-pressed="false">Week</button>
+                  <button type="button" class="view-tab" id="cal-schedule-tab" data-cal-mode="schedule" aria-pressed="false" hidden>Schedule</button>
                 </div>
                 <button class="secondary-button" type="button" id="cal-today">Today</button>
                 <div class="cal-nav">
@@ -361,6 +429,7 @@
               <div class="cal-agenda-list" id="cal-agenda-list"></div>
             </section>
             <p class="list-empty" id="cal-empty" hidden>No dated tasks have been posted yet.</p>
+            <section class="cal-schedule" id="cal-schedule" aria-label="Class schedule" hidden></section>
           </section>
         <p class="sr-only" id="action-feedback" role="status" aria-live="polite"></p>
         <div class="toast" id="toast" hidden>

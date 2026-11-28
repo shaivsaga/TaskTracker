@@ -8,15 +8,46 @@ export const newOperationId = () => (globalThis.crypto?.randomUUID
   ? globalThis.crypto.randomUUID().replace(/-/g, '')
   : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''));
 
+export function allowlistSchedule(raw, { sort = false } = {}) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !Array.isArray(raw.slots)) return null;
+  const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  const slots = raw.slots
+    .filter((x) => x && typeof x === 'object' && !Array.isArray(x))
+    .map((x) => {
+      const kind = x.kind || (typeof x.subject === 'string' && x.subject.trim() ? 'subject' : 'activity');
+      const out = { day: x.day, start: x.start, end: x.end, kind };
+      if (kind === 'subject') out.subject = x.subject;
+      else out.label = str(x.label);
+      return out;
+    });
+  if (sort) {
+    slots.sort((a, b) => (a.day - b.day) || String(a.start).localeCompare(String(b.start)) || String(a.end).localeCompare(String(b.end)));
+  }
+  return {
+    term: str(raw.term),
+    sectionLabel: str(raw.sectionLabel),
+    room: str(raw.room),
+    slots,
+  };
+}
+
 export function normalizeBoard(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.tasks)) return null;
   if (data.announcements != null && !Array.isArray(data.announcements)) return null;
   const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
-  return {
+  const out = {
     ...data,
     tasks: data.tasks.filter(isObj),
     announcements: (data.announcements || []).filter((a) => isObj(a) && typeof a.text === 'string' && Number.isFinite(a.createdAt)),
   };
+  if (Object.hasOwn(out, 'schedule')) {
+    if (isObj(out.schedule) && Array.isArray(out.schedule.slots)) {
+      out.schedule = allowlistSchedule(out.schedule);
+    } else {
+      delete out.schedule;
+    }
+  }
+  return out;
 }
 
 function subjectSnapshotFor(stateObj, code) {
@@ -195,7 +226,10 @@ export function createBoardStore({
   }
 
   async function replaceDraft(snap, hooks) {
-    const { myTasks, Task, syncCatalog, applyProgress, saveTasks, renderAllTasks, renderAnnouncements, showToast } = hooks;
+    const {
+      myTasks, Task, syncCatalog, applyProgress, saveTasks, renderAllTasks, renderAnnouncements, showToast,
+      validateSchedule, renderScheduleEditor, renderScheduleView,
+    } = hooks;
     const incoming = Array.isArray(snap && snap.tasks) ? snap.tasks : [];
     const keep = new Set(incoming.map((t) => String(t && t.id)));
     const publishedIds = new Set(stateObj.publishedTasks.map((t) => String(t.id)));
@@ -231,10 +265,30 @@ export function createBoardStore({
         syncCatalog?.(checked.subjects);
       }
     }
+    if (snap && Object.hasOwn(snap, 'schedule')) {
+      if (snap.schedule === null) {
+        stateObj.draftSchedule = null;
+        stateObj.hasDraftSchedule = true;
+      } else if (typeof validateSchedule === 'function') {
+        const checkedSched = validateSchedule(snap.schedule);
+        if (!checkedSched.error) {
+          stateObj.draftSchedule = checkedSched.schedule;
+          stateObj.hasDraftSchedule = true;
+        }
+      } else {
+        const sanitizedSched = allowlistSchedule(snap.schedule);
+        if (sanitizedSched) {
+          stateObj.draftSchedule = sanitizedSched;
+          stateObj.hasDraftSchedule = true;
+        }
+      }
+    }
     applyProgress?.(myTasks);
     const saved = saveTasks ? saveTasks() : true;
     renderAllTasks?.();
     renderAnnouncements?.();
+    renderScheduleEditor?.();
+    renderScheduleView?.();
     return { ok: true, saved, recovered: prepared.recovered };
   }
 
